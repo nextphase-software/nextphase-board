@@ -36,6 +36,14 @@ native quota exhaustion. The fixture uses a uniquely named disposable database
 and never writes the application database. Never use production content in
 fixtures.
 
+At <http://127.0.0.1:4174/regressions.html>, expect three PASS lines for the
+single-editor, placement-cancellation and unavailable-writer recovery regressions.
+They mount the production App, redirect its default IndexedDB name to a unique
+disposable database, and verify real stored bytes. Input events are synthetic;
+pointer capture is stubbed only for synthetic pointers. These integration tests
+do not replace trusted pointer, keyboard, native IME or page-zoom checks. Test
+code is built only by build:fixtures and never enters the application bundle.
+
 At <http://127.0.0.1:4173>, verify the following against the brief's existing
 criteria:
 

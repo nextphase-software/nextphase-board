@@ -50,6 +50,7 @@ export function App() {
         cy: number;
         view: View;
         pan: boolean;
+        cancelled?: boolean;
       } | null
     >(null),
     alive = useRef(true);
@@ -129,11 +130,12 @@ export function App() {
     setReadOnly(true);
     setMessage("Checking local storage and writer ownership…");
     let own = false;
+    let writerReason = "Another tab is editing. This board is read-only.";
     try {
       if (!navigator.locks) {
-        throw Error("Web Locks unavailable. Editing is disabled.");
-      }
-      await new Promise<void>((resolve, reject) => {
+        writerReason = "Web Locks unavailable. This board is read-only; editing is disabled.";
+      } else try {
+        await new Promise<void>((resolve, reject) => {
         lockTask.current = navigator.locks.request(
           "nextphase-board/writer/v1",
           { mode: "exclusive", ifAvailable: true },
@@ -149,7 +151,10 @@ export function App() {
             });
           },
         ).catch(reject);
-      });
+        });
+      } catch (error) {
+        writerReason = "Writer ownership unavailable. This board is read-only. " + String(error);
+      }
       const s = new LocalStore();
       store.current = s;
       const pair = await s.open(() => {
@@ -166,7 +171,7 @@ export function App() {
         setMessage(
           own
             ? "Stored only in this browser profile. Browser storage is not a backup."
-            : "Another tab is editing. This board is read-only.",
+            : writerReason,
         );
       } catch (error) {
         const valid = [];
@@ -285,6 +290,7 @@ export function App() {
       commit(next);
       select(next.objects.at(-1)!.id);
       setTool("Select");
+      setPanel(native ? "Objects" : "");
       setInline(!native);
       if (native) setTimeout(() => editor.current?.focus(), 0);
     } catch (e) {
@@ -523,6 +529,10 @@ export function App() {
         onPointerMove={(e) => {
           const d = drag.current;
           if (!d) return;
+          if ((d.id === "Sticky" || d.id === "Text") &&
+            Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3) {
+            d.cancelled = true;
+          }
           const dx = (e.clientX - d.cx) / d.view.z,
             dy = (e.clientY - d.cy) / d.view.z;
           if (d.pan) {
@@ -553,7 +563,7 @@ export function App() {
           if (!d) return;
           const delta = Math.hypot(e.clientX - d.cx, e.clientY - d.cy);
           if (!d.pan && (d.id === "Sticky" || d.id === "Text")) {
-            if (delta < 3) {
+            if (delta < 3 && !d.cancelled) {
               try {
                 const next = add(
                   model.current,
@@ -564,6 +574,7 @@ export function App() {
                 commit(next);
                 select(next.objects.at(-1)!.id);
                 setTool("Select");
+                setPanel("");
                 setInline(true);
               } catch (error) {
                 setMessage(String(error));

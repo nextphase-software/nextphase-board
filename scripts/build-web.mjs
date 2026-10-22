@@ -39,4 +39,18 @@ await copyFile(
   resolve(out, "THIRD_PARTY_NOTICES.txt"),
 );
 await checkBundle(result.metafile, out);
+if (fixture) {
+  const regressions = await build({
+    entryPoints: [resolve(root, "tests/browser/app-regressions.mjs")],
+    outfile: resolve(out, "regressions.js"), bundle: true, platform: "browser",
+    format: "esm", target: "es2022", minify: true, legalComments: "eof", metafile: true,
+    nodePaths: [resolve(app, "node_modules")], jsx: "automatic",
+    define: { "process.env.NODE_ENV": '"production"' },
+  });
+  await checkBundle(regressions.metafile, out);
+  const { readFile } = await import("node:fs/promises");
+  await writeFile(resolve(out, "regressions.html"),
+    (await readFile(resolve(app, "index.html"), "utf8"))
+      .replace('src="/app.js"', 'src="/regressions.js"'));
+}
 console.log("Built", fixture ? "disposable fixtures" : "application");

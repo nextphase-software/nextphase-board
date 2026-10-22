@@ -151,6 +151,48 @@ toolchain contract. Project-specific limits and behavior are specified above.
 
 ## Implementation record
 
-Implementation is in progress on `codex/0001-W1-capture-and-reopen`. The first
-application source/test commit is followed by an exact-revision validation record.
-No implementation PASS, merge, publication or later milestone is claimed.
+Build record dated 2026-10-22. Branch: `codex/0001-W1-capture-and-reopen`.
+Worktree: `.worktrees/codex-0001-W1`. Base: `a2280b5`; branch prerequisite commit:
+`cdbc231`. Validated source/test revision:
+`6a6a20650921d0f75d491838465352fcb9f28c43`. The checks below ran on the same
+source/test bytes before that commit; no source or test edits followed. The final
+branch tip includes this separate evidence-only documentation update.
+
+Exact environment: Node 24.22.1 / npm 11.19.1; macOS 27.0.1 (26A434),
+Mac17,2, 10 CPU cores, 24 GiB. Installed Chrome 155.0.8059.85 and Safari 27.0.1.
+These installed builds do not establish current-and-previous stable coverage.
+
+| Check | Actual result |
+| --- | --- |
+| Exact-runtime `ci --ignore-scripts --no-audit --no-fund` | PASS |
+| `check:deps`, `typecheck`, `test` | PASS; six unit tests |
+| `audit:licenses`, `build`, `build:fixtures` | PASS; metafile packages covered and complete notices copied |
+| `npm --prefix apps/web audit --package-lock-only --audit-level=low` | PASS; zero reported vulnerabilities on 2026-10-22 |
+| Chrome disposable IndexedDB fixture | PASS: immutable capture/FIFO receipts, real save-transaction abort/retry, complete-pair CAS conflict and queued rejection, fresh-connection recovery |
+| Chrome application | Sticky/text creation, native multiline/Unicode editing, pointer movement, keyboard-activated directional move/Save, real save/reopen, second-tab writer denial, oversized-draft retention/global Save block and correction verified |
+| Safari application | Native multiline/Unicode sticky editing, real save/reopen and editable reload after own-lock-release fix verified |
+| Chrome layout/focus | 320×568, 375×667, 1024×768, 1440×900 verified without page-wide horizontal overflow; action/status/panel separation and Escape focus return verified; zero captured warning/error entries |
+| Loopback server | App/notices GET200; invalid Host/write method403; traversal/metafile404 |
+| Source completeness/privacy and whitespace | PASS; no fixture bundle, dependency installation, private research or generated output committed |
+
+| Existing criterion | Evidence disposition |
+| --- | --- |
+| 0001-W1-AC01 | PARTIAL: model/schema/limits/adapter identity tests and actual capture/edit/move journeys above. Full native CJK, both palette keyboard routes and cancellation/boundary journeys remain unverified. |
+| 0001-W1-AC02 | PARTIAL: actual acknowledged saves/reopen in both browsers, Chrome writer denial and real fixture failures. Full writer takeover, reversed preparation-delay, newer-draft/older-receipt and renderer lifecycle matrix remain unverified. |
+| 0001-W1-AC03 | PARTIAL: decoder negatives, retained invalid drafts, native selector/editor, visible focus return and responsive geometry. Full application damaged-data recovery, actual 200% browser page zoom and native composition/focus matrix remain unverified. |
+
+Actual 200% browser page zoom was not established: key attempts did not change
+measured page dimensions, and native desktop access subsequently reported a locked
+session. Safari's expanded fixture run was also not completed after that point.
+The full 250-object input-to-paint/reload performance protocol and current/previous
+browser matrix are UNVERIFIED. No proxy timing or Unicode paste is substituted.
+
+The accepted exact dependency lock is unchanged; no dependency or external asset
+was added. The application build uses independently authored source, system fonts,
+DOM inputs, the selected renderer and in-memory transaction adapter. Browser tests
+use synthetic content in disposable fixture databases; application test content
+also remains synthetic. See [reproducible checks](../../tests/README.md).
+
+Milestone remains in progress. Independent review must cover the exact source/test
+revision and resolve missing acceptance evidence before PASS/merge. No acceptance,
+merge, publication, deployment or later milestone is claimed.

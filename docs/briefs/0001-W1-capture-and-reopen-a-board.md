@@ -1,11 +1,12 @@
-BRIEF VERSION: 0001-W1 v4 (2026-10-22)
+BRIEF VERSION: 0001-W1 v5 (2026-10-22)
 # 0001-W1 — Capture and reopen a board
 
 Status: Accepted for implementation by the maintainer on 2026-10-22.
 Implementation is authorized for this milestone branch. Merge and deployment
 remain separate maintainer actions.
 The development build is in progress; milestone acceptance remains pending.
-The maintainer accepted v4's practical validation baseline on 2026-10-22; all three
+The maintainer accepted v4's practical validation baseline and v5's native IME
+deferral on 2026-10-22; all three
 numbered criterion identities/texts and functional safety requirements are unchanged.
 
 ## Outcome
@@ -21,13 +22,13 @@ storage scope and failures. No account or external service is required.
   and [engineering standards](../../DESIGN.md).
 - [0001 document v1](../architecture/0001-document-v1.md).
 - [0001 local storage v1](../architecture/0001-storage-v1.md).
-- [0001 interaction v3](../architecture/0001-interaction-v3.md).
+- [0001 interaction v4](../architecture/0001-interaction-v3.md).
 - [0001 dependencies/toolchain v1](../architecture/0001-toolchain-v1.md).
 
 This version incorporates document/storage/toolchain v1 unchanged from the
 previously accepted v2 packet. Their original applicability/acceptance metadata
 records that earlier packet; their same technical requirements apply here.
-Interaction v3 replaces interaction v2 for this brief. Its complete layout and
+Interaction v4 replaces interaction v3 for this brief. Its complete layout and
 input/focus rules were accepted for implementation on 2026-10-22. Prerequisites
 were committed on the milestone branch before application source. This does not
 reopen the accepted dependency graph or waive an existing acceptance evidence gate.
@@ -36,7 +37,7 @@ planning system or design artifact is a build input.
 
 ## Design reference and interaction deliverables
 
-The interaction v3 screen table, wireframe, dimensions and visual constants are
+The interaction v4 screen table, wireframe, dimensions and visual constants are
 the complete public design reference. Build a scene-filling workspace with compact
 floating Board details, Objects/status/Save, Select/Pan/Sticky/Text palette and
 view controls. Selecting exposes contextual editing; a stable native textarea
@@ -84,14 +85,14 @@ they do not create extra milestone claims or replace a numbered criterion.
 
 | Criterion | Required evidence from the built application |
 | --- | --- |
-| 0001-W1-AC01 | Both object types via pointer/keyboard palette placement and native Add actions; exactly-once creation; named board; stable IDs/reading order; native on-object/panel editor equivalence; emoji/accent/multiline/CJK commit/cancel; 250/251-object and text/title boundaries; pointer/keyboard movement; cancelled drag; pan/zoom does not change saved geometry. |
+| 0001-W1-AC01 | Both object types via pointer/keyboard palette placement and native Add actions; exactly-once creation; named board; stable IDs/reading order; native on-object/panel editor equivalence; emoji/accent/multiline/CJK Unicode editing and automated composition commit/cancel; 250/251-object and text/title boundaries; pointer/keyboard movement; cancelled drag; pan/zoom does not change saved geometry. |
 | 0001-W1-AC02 | Fresh supported browser session; head/previous bytes and oncomplete receipt; reversed preparation delays across two saves; newer draft stays dirty; exclusive writer denial/takeover; CAS conflict; real transaction abort and failed-write retry; interrupted renderer; no backup/eviction guarantee. |
 | 0001-W1-AC03 | Unsupported format/schema, malformed payload, duplicate identities, digest corruption and inconsistent pairs rejected before adoption/write; raw records preserved; disclosed read-only valid-snapshot recovery; complete keyboard object journey; stable native editor and panel/overlay focus transitions; retained invalid drafts; narrow/short layouts, visible focus and actual 200% browser page zoom. |
 
 ## Applicable standards and quality envelope
 
 Apply all relevant DESIGN.md keyboard, identity, truthful-save, synthetic-data,
-dependency and reproducible-source guardrails. Required browsers and native
+dependency and reproducible-source guardrails. Required browsers and
 composition/zoom behavior are in the interaction contract. No screen-reader test
 or conformance gate is added to this increment.
 
@@ -107,8 +108,10 @@ a crash, stuck saving state or lost edit. Record any observed delay and diagnost
 timings with their measurement method; no p95/input-to-paint or speed guarantee is
 required or implied. Repeat the journey in both installed browser families.
 
-These are implementation-acceptance checks against the finished increment. Installed-browser behavior and full native CJK cannot be inferred from synthetic
-fixtures. Real transaction abort handling is required; injected quota/storage
+These are implementation-acceptance checks against the finished increment. Installed-browser behavior cannot be inferred from synthetic fixtures alone.
+Native OS CJK IME testing is explicitly deferred as a manual follow-up for this
+preview; automated composition regressions and Unicode editing in both browsers
+remain required. Synthetic events and paste establish no native IME claim. Real transaction abort handling is required; injected quota/storage
 errors must be labelled as injections. Native quota exhaustion, eviction recovery
 and whole-browser/power-loss guarantees are outside this bounded local preview.
 These exclusions were accepted on 2026-10-22; earlier unknowns do not become passing
@@ -236,9 +239,16 @@ This evidence-only update changes no criterion, application source or dependency
 ### Validation baseline amendment — brief v4
 
 On 2026-10-22 the maintainer requested acceptance parameters matching the available
-preview environment. Brief v4 and interaction v3 use installed Chrome/Safari and
+preview environment. Brief v4 and interaction v4 use installed Chrome/Safari and
 a practical 250-object responsiveness/recovery journey. Earlier current/previous,
 fixed-hardware, DPR and formal timing gaps above are historical v3 gates, now
 superseded by this explicit amendment. Native editing/composition, keyboard/focus,
 200% browser zoom, truthful saves, malformed-data preservation and all other
 functional requirements remain. This amendment is not a functional PASS.
+
+### Validation baseline amendment — brief v5
+
+On 2026-10-22 the maintainer explicitly approved automated composition coverage
+and deferral of native OS IME testing. Interaction v4 records this disposition.
+All three criterion identities/texts, composition behavior and data safety remain
+unchanged. Native IME remains unverified as a manual follow-up, rather than PASS.

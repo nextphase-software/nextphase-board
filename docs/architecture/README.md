@@ -1,17 +1,17 @@
 # Architecture contracts
 
-Current accepted implementation contract set for 0001-W1 brief v4:
+Current accepted implementation contract set for 0001-W1 brief v5:
 
 - [0001 document v1](0001-document-v1.md): identities, schema and limits.
 - [0001 storage v1](0001-storage-v1.md): save ordering, writer ownership and recovery.
-- [0001 interaction v3](0001-interaction-v3.md): full canvas, floating controls,
+- [0001 interaction v4](0001-interaction-v4.md): full canvas, floating controls,
   native overlay/secondary-panel editing, placement, focus and browser evidence.
 - [0001 toolchain v1](0001-toolchain-v1.md): exact pins, generated lock, notices,
   public-input verification and application commands.
 
-Document/storage/toolchain v1 are incorporated unchanged. Interaction v3 keeps
-v2's functional behavior and adopts the maintainer's practical installed-browser
-validation baseline for brief v4. Interaction v1/v2 remain historical for briefs
+Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
+v3's functional behavior and records the explicit native OS IME deferral, with
+automated composition coverage required for brief v5. Interaction v1/v2 remain historical for briefs
 v2/v3 respectively; they do not override the current verification boundary.
 
 Application implementation is authorized on its milestone branch. A dependency

@@ -1,8 +1,8 @@
 # Implementation briefs
 
-[0001-W1 v4 — Capture and reopen a board](0001-W1-capture-and-reopen-a-board.md)
+[0001-W1 v5 — Capture and reopen a board](0001-W1-capture-and-reopen-a-board.md)
 was accepted for implementation on 2026-10-22. Three existing
-criteria are unchanged. Interaction v3 specifies the public design and behavior;
+criteria are unchanged. Interaction v4 specifies the public design and behavior;
 document/storage/toolchain v1 remain unchanged. The development build is under
 validation on a separate milestone branch. A template is not authorization.
 

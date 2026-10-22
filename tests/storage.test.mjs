@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canonical, empty } from "../apps/web/src/document.ts";
+import { add, canonical, empty } from "../apps/web/src/document.ts";
 import { decode, digest, readPair } from "../apps/web/src/storage.ts";
 const b = { ...empty(), title: "Storage" };
 const wrap = async (revision, board = b) =>
@@ -41,4 +41,23 @@ test("reject inconsistent, corrupt and unknown data without altering raw bytes",
   await assert.rejects(
     decode(raw.replace('"formatVersion":1', '"formatVersion":2')),
   );
+});
+
+test("correctly hashed envelopes cannot adopt non-string UUID fields", async () => {
+  const original = add({ ...empty(), title: "Strict stored identities" }, "text", 0, 0);
+  for (const field of ["boardId", "id", "generation", "retiredGenerations"]) {
+    const board = structuredClone(original);
+    if (field === "boardId") board.boardId = [board.boardId];
+    else if (field === "retiredGenerations") board.retiredGenerations = [[crypto.randomUUID()]];
+    else board.objects[0][field] = [board.objects[0][field]];
+    const payload = JSON.stringify(board);
+    const raw = JSON.stringify({
+      formatVersion: 1, storageRevision: 1, payload, sha256: await digest(payload),
+    });
+    const pair = [raw, undefined];
+    const before = structuredClone(pair);
+    await assert.rejects(decode(raw), field);
+    await assert.rejects(readPair(pair), field);
+    assert.deepEqual(pair, before);
+  }
 });

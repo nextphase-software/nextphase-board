@@ -69,3 +69,23 @@ test("adapter retains live map and text identity across text and geometry edits"
   assert.equal(map.get("generation"), b.objects[0].generation);
   adapter.destroy();
 });
+
+test("UUID fields reject non-string values without coercion", () => {
+  const original = add({ ...empty(), title: "Strict identities" }, "sticky", 0, 0);
+  const fields = [
+    (b, value) => b.boardId = value,
+    (b, value) => b.objects[0].id = value,
+    (b, value) => b.objects[0].generation = value,
+    (b, value) => b.retiredGenerations = [value],
+  ];
+  for (const change of fields) {
+    for (const value of [[crypto.randomUUID()], null, 42, {}]) {
+      const board = structuredClone(original);
+      change(board, value);
+      const before = structuredClone(board);
+      assert.throws(() => validate(board));
+      assert.throws(() => canonical(board));
+      assert.deepEqual(board, before);
+    }
+  }
+});

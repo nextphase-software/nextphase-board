@@ -38,7 +38,7 @@ export function validate(value: unknown): Board {
       "title",
       "objects",
       "retiredGenerations",
-    ]) || b.schemaVersion !== 1 || !uuid.test(b.boardId) ||
+    ]) || b.schemaVersion !== 1 || typeof b.boardId !== "string" || !uuid.test(b.boardId) ||
     typeof b.title !== "string" || !validText(b.title, 120, true) ||
     !Array.isArray(b.objects) || b.objects.length > 250 ||
     !Array.isArray(b.retiredGenerations) || b.retiredGenerations.length > 10000
@@ -58,7 +58,8 @@ export function validate(value: unknown): Board {
         "width",
         "height",
         "order",
-      ]) || !uuid.test(o.id) || !uuid.test(o.generation) || ids.has(o.id) ||
+      ]) || typeof o.id !== "string" || typeof o.generation !== "string" ||
+      !uuid.test(o.id) || !uuid.test(o.generation) || ids.has(o.id) ||
       ids.has(o.generation) || gens.has(o.id) || gens.has(o.generation) ||
       o.id === o.generation || !["sticky", "text"].includes(o.type) ||
       typeof o.text !== "string" || !validText(o.text, 1000) || o.order !== i ||
@@ -72,7 +73,7 @@ export function validate(value: unknown): Board {
   if (
     new Set(b.retiredGenerations).size !== b.retiredGenerations.length ||
     b.retiredGenerations.some((g, i, a) =>
-      !uuid.test(g) || gens.has(g) || (i > 0 && a[i - 1] > g)
+      typeof g !== "string" || !uuid.test(g) || gens.has(g) || (i > 0 && a[i - 1] > g)
     )
   ) throw Error("Invalid generations");
   return b;

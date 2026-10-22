@@ -1,14 +1,16 @@
 # Implementation briefs
 
-No application brief has been accepted yet. A template is not authorization to
-implement it.
+[0001-W1 v2 — Capture and reopen a board](0001-W1-capture-and-reopen-a-board.md)
+has accepted prerequisites as of 2026-10-22, with three numbered criteria and
+matching architecture contracts. Application implementation requires a separate
+maintainer handoff. A template is not authorization to implement it.
 
 Each brief is a complete contributor-facing contract. Use this structure:
 
 ```text
 BRIEF VERSION: <ID> v<integer> (<YYYY-MM-DD>)
 # <ID> — <outcome>
-Status: Draft | Ready | Implemented | Superseded
+Status: Draft | Accepted prerequisites | Ready | Implemented | Superseded
 
 ## Outcome
 ## Read first

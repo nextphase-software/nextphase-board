@@ -18,6 +18,8 @@ These are contributor guardrails, not a claim that the scaffold implements them.
 - Commit the editable source and documented inputs for shipped generated assets.
   Track third-party provenance, exact versions and licensing.
 
-Colors, typography, canvas engine, synchronization model, hosting and dependency
-choices are not selected. Contributor-facing technical contracts belong in
-docs/architecture/ when an implementation needs them.
+The 0001 contracts in [docs/architecture/](docs/architecture/README.md) were
+accepted on 2026-10-22 for the first browser-local increment. They define its
+interaction, document, storage and dependency choices. Hosting and later team
+architecture remain unselected. Application implementation requires a separate
+maintainer handoff.

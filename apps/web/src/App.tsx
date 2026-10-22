@@ -112,7 +112,9 @@ export function App() {
   function adopt(b: Board, saved: boolean) {
     model.current = b;
     setBoard(b);
-    adapter.current!.set(b);
+    adapter.current?.destroy();
+    adapter.current = new Adapter();
+    adapter.current.set(b);
     setTitle(b.title);
     setDrafts({});
     select("");
@@ -218,6 +220,7 @@ export function App() {
     return () => {
       alive.current = false;
       hide();
+      adapter.current?.destroy();
       window.removeEventListener("resize", resize);
       window.removeEventListener("pagehide", hide);
       window.removeEventListener("pageshow", show);

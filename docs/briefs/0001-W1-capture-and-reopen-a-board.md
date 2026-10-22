@@ -1,10 +1,12 @@
-BRIEF VERSION: 0001-W1 v3 (2026-10-22)
+BRIEF VERSION: 0001-W1 v4 (2026-10-22)
 # 0001-W1 — Capture and reopen a board
 
 Status: Accepted for implementation by the maintainer on 2026-10-22.
 Implementation is authorized for this milestone branch. Merge and deployment
 remain separate maintainer actions.
 The development build is in progress; milestone acceptance remains pending.
+The maintainer accepted v4's practical validation baseline on 2026-10-22; all three
+numbered criterion identities/texts and functional safety requirements are unchanged.
 
 ## Outcome
 
@@ -19,13 +21,13 @@ storage scope and failures. No account or external service is required.
   and [engineering standards](../../DESIGN.md).
 - [0001 document v1](../architecture/0001-document-v1.md).
 - [0001 local storage v1](../architecture/0001-storage-v1.md).
-- [0001 interaction v2](../architecture/0001-interaction-v2.md).
+- [0001 interaction v3](../architecture/0001-interaction-v3.md).
 - [0001 dependencies/toolchain v1](../architecture/0001-toolchain-v1.md).
 
 This version incorporates document/storage/toolchain v1 unchanged from the
 previously accepted v2 packet. Their original applicability/acceptance metadata
 records that earlier packet; their same technical requirements apply here.
-Interaction v2 replaces interaction v1 for this brief. Its complete layout and
+Interaction v3 replaces interaction v2 for this brief. Its complete layout and
 input/focus rules were accepted for implementation on 2026-10-22. Prerequisites
 were committed on the milestone branch before application source. This does not
 reopen the accepted dependency graph or waive an existing acceptance evidence gate.
@@ -34,7 +36,7 @@ planning system or design artifact is a build input.
 
 ## Design reference and interaction deliverables
 
-The interaction v2 screen table, wireframe, dimensions and visual constants are
+The interaction v3 screen table, wireframe, dimensions and visual constants are
 the complete public design reference. Build a scene-filling workspace with compact
 floating Board details, Objects/status/Save, Select/Pan/Sticky/Text palette and
 view controls. Selecting exposes contextual editing; a stable native textarea
@@ -93,16 +95,19 @@ dependency and reproducible-source guardrails. Required browsers and native
 composition/zoom behavior are in the interaction contract. No screen-reader test
 or conformance gate is added to this increment.
 
-At 250 objects with up to 1,000 code points each, target trusted input-to-paint p95
-at most 100ms and locally available reload-to-editable at most 2s. Measure three
-30-sample runs on a declared 4-core/8-GiB-class environment at DPR1 and DPR2,
-foreground throughout. Record browser builds, OS, hardware, sample method and
-all samples. A double-rAF or mount-elapsed proxy is not an input-to-paint or
-reload-ready measurement. Unsupported instrumentation remains UNVERIFIED and
-requires explicit maintainer disposition; do not invent a pass.
+Use the installed Chrome and Safari versions available on the declared development
+machine. Record exact browser builds, OS, hardware and viewport. Previous stable
+versions, a fixed hardware class, multiple DPR configurations and formal latency
+sampling are deferred beyond this preview.
 
-These are implementation-acceptance checks against the finished increment. Current/
-previous browser coverage and full native CJK cannot be inferred from synthetic
+For the 250-object responsiveness smoke check, load a disposable board with 250
+objects and up to 1,000 code points each, edit text, move an object, pan/zoom,
+Save and reopen/reload. All content must remain correct and controls usable without
+a crash, stuck saving state or lost edit. Record any observed delay and diagnostic
+timings with their measurement method; no p95/input-to-paint or speed guarantee is
+required or implied. Repeat the journey in both installed browser families.
+
+These are implementation-acceptance checks against the finished increment. Installed-browser behavior and full native CJK cannot be inferred from synthetic
 fixtures. Real transaction abort handling is required; injected quota/storage
 errors must be labelled as injections. Native quota exhaustion, eviction recovery
 and whole-browser/power-loss guarantees are outside this bounded local preview.
@@ -227,3 +232,13 @@ Unicode paste is not native IME composition; application zoom is not200% browser
 page zoom. Full current/previous coverage, performance and the remaining required
 acceptance matrix remain unverified. Independent review and merge remain pending.
 This evidence-only update changes no criterion, application source or dependency.
+
+### Validation baseline amendment — brief v4
+
+On 2026-10-22 the maintainer requested acceptance parameters matching the available
+preview environment. Brief v4 and interaction v3 use installed Chrome/Safari and
+a practical 250-object responsiveness/recovery journey. Earlier current/previous,
+fixed-hardware, DPR and formal timing gaps above are historical v3 gates, now
+superseded by this explicit amendment. Native editing/composition, keyboard/focus,
+200% browser zoom, truthful saves, malformed-data preservation and all other
+functional requirements remain. This amendment is not a functional PASS.

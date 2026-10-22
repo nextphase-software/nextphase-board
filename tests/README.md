@@ -45,10 +45,10 @@ criteria:
 | 0001-W1-AC02 | Save, edit a newer draft during an earlier save, reopen and reload; verify saved content and statuses. Open another tab, verify read-only controls, close the writer and explicitly retry. Exercise lifecycle interruption and the fixture negative controls.                                                                                                                 |
 | 0001-W1-AC03 | Tab through selector/read/edit/move/save/reopen; inspect visible focus and surface-close focus return. Retain a 1,001-code-point draft, switch objects, and correct it before Save. Check clipped-editor fallback, narrow/short viewports and actual 200% browser page zoom. Unknown stored formats are decoder negatives; full app recovery journeys need separate evidence. |
 
-Record exact current/previous Chrome and Safari builds, OS, viewport,
+Record exact installed Chrome and Safari builds, OS, hardware, viewport,
 source/test revision and results. Browser-family coverage, native IME and
 performance cannot be inferred from unit or fixture passes. The brief specifies
-the full workload, measurement protocol and exclusions. Leave unavailable checks
+the 250-object responsiveness smoke journey and exclusions. Leave unavailable checks
 UNVERIFIED; do not mark the milestone accepted until its required evidence and
 independent review are complete. No test requires Firefox or
 screen-reader-specific validation.

@@ -1,4 +1,4 @@
-BRIEF VERSION: 0001-W1 v5 (2026-10-22)
+BRIEF VERSION: 0001-W1 v6 (2026-10-22)
 # 0001-W1 — Capture and reopen a board
 
 Status: Accepted for implementation by the maintainer on 2026-10-22.
@@ -28,7 +28,8 @@ storage scope and failures. No account or external service is required.
 This version incorporates document/storage/toolchain v1 unchanged from the
 previously accepted v2 packet. Their original applicability/acceptance metadata
 records that earlier packet; their same technical requirements apply here.
-Interaction v4 replaces interaction v3 for this brief. Its complete layout and
+Interaction v4 is incorporated for functional behavior. Brief v6 overrides its
+testing-only prescriptions with the maintainer's minimal-testing instruction. Its complete layout and
 input/focus rules were accepted for implementation on 2026-10-22. Prerequisites
 were committed on the milestone branch before application source. This does not
 reopen the accepted dependency graph or waive an existing acceptance evidence gate.
@@ -83,40 +84,35 @@ Use system fonts, native controls and independently authored CSS/canvas styling.
 The three identities/texts above are unchanged. The cases below explain evidence;
 they do not create extra milestone claims or replace a numbered criterion.
 
-| Criterion | Required evidence from the built application |
+| Criterion | Reference coverage; not an automatic per-change checklist |
 | --- | --- |
 | 0001-W1-AC01 | Both object types via pointer/keyboard palette placement and native Add actions; exactly-once creation; named board; stable IDs/reading order; native on-object/panel editor equivalence; emoji/accent/multiline/CJK Unicode editing and automated composition commit/cancel; 250/251-object and text/title boundaries; pointer/keyboard movement; cancelled drag; pan/zoom does not change saved geometry. |
 | 0001-W1-AC02 | Fresh supported browser session; head/previous bytes and oncomplete receipt; reversed preparation delays across two saves; newer draft stays dirty; exclusive writer denial/takeover; CAS conflict; real transaction abort and failed-write retry; interrupted renderer; no backup/eviction guarantee. |
 | 0001-W1-AC03 | Unsupported format/schema, malformed payload, duplicate identities, digest corruption and inconsistent pairs rejected before adoption/write; raw records preserved; disclosed read-only valid-snapshot recovery; complete keyboard object journey; stable native editor and panel/overlay focus transitions; retained invalid drafts; narrow/short layouts, visible focus and actual 200% browser page zoom. |
 
-## Applicable standards and quality envelope
+## Applicable standards and testing policy
 
-Apply all relevant DESIGN.md keyboard, identity, truthful-save, synthetic-data,
-dependency and reproducible-source guardrails. Required browsers and
-composition/zoom behavior are in the interaction contract. No screen-reader test
-or conformance gate is added to this increment.
+The maintainer directed minimal testing limited to the changes made on 2026-10-22.
+This policy supersedes earlier broad validation requirements in this brief,
+interaction v4 and historical records. Functional requirements and all three
+criterion identities/texts remain unchanged.
 
-Use the installed Chrome and Safari versions available on the declared development
-machine. Record exact browser builds, OS, hardware and viewport. Previous stable
-versions, a fixed hardware class, multiple DPR configurations and formal latency
-sampling are deferred beyond this preview.
+Test only the behavior directly affected by the current change, using the smallest
+check that demonstrates it works. For a bug fix, add or run a focused regression
+when useful. For documentation-only changes, inspect the diff and links; do not
+run application tests or builds. Do not automatically run full suites, browser
+matrices, performance/load tests, accessibility audits, native IME checks, unrelated
+edge cases, or repeated acceptance sweeps. Broader testing requires an explicit
+maintainer instruction. Existing checklists describe available coverage and do
+not authorize executing it. State what ran and what did not; never report an
+unrun check as passed. If a change reveals a concern outside its scope, report it
+without expanding the test campaign or implementation. Mandatory Git/privacy hooks
+still run normally; never bypass them.
 
-For the 250-object responsiveness smoke check, load a disposable board with 250
-objects and up to 1,000 code points each, edit text, move an object, pan/zoom,
-Save and reopen/reload. All content must remain correct and controls usable without
-a crash, stuck saving state or lost edit. Record any observed delay and diagnostic
-timings with their measurement method; no p95/input-to-paint or speed guarantee is
-required or implied. Repeat the journey in both installed browser families.
-
-These are implementation-acceptance checks against the finished increment. Installed-browser behavior cannot be inferred from synthetic fixtures alone.
-Native OS CJK IME testing is explicitly deferred as a manual follow-up for this
-preview; automated composition regressions and Unicode editing in both browsers
-remain required. Synthetic events and paste establish no native IME claim. Real transaction abort handling is required; injected quota/storage
-errors must be labelled as injections. Native quota exhaustion, eviction recovery
-and whole-browser/power-loss guarantees are outside this bounded local preview.
-These exclusions were accepted on 2026-10-22; earlier unknowns do not become passing
-proofs. If a required check cannot run, report it with evidence and obtain a
-specific scope disposition before PASS. Acceptance grants no silent test waiver.
+Chrome and Safari remain the supported browsers. Native OS IME testing remains
+deferred. Browser/version matrices, workload/performance runs and full keyboard,
+zoom or lifecycle sweeps are not automatic gates for a focused change. Their
+existing procedures remain reference coverage for an explicit future request.
 
 ## Validation commands and expected evidence
 
@@ -125,8 +121,8 @@ commands, manifest pins, lockfile and public-only dependency verification recipe
 The application commands are implemented. Their actual run results and remaining
 browser evidence are recorded below; existence alone does not establish a pass.
 
-After implementation run the complete command sequence, then execute the browser
-fixture/manual matrix in both browser families. Unit tests must assert persisted
+After a change run only the focused check needed for that change; do not run
+the complete sequence or browser matrix without an explicit request. Unit tests must assert persisted
 records and state/receipts, with deliberate failures and negative controls.
 Screenshots supplement those assertions; they do not establish persistence logic.
 No test-only controls or fixture content may enter the normal built application.
@@ -202,7 +198,7 @@ use synthetic content in disposable fixture databases; application test content
 also remains synthetic. See [reproducible checks](../../tests/README.md).
 
 Milestone remains in progress. Independent review must cover the exact source/test
-revision and resolve missing acceptance evidence before PASS/merge. No acceptance,
+revision and any actual defects before PASS/merge. No acceptance,
 merge, publication, deployment or later milestone is claimed.
 
 ### Follow-up source revision
@@ -292,3 +288,11 @@ any is necessary for this preview before granting full acceptance.
 
 No dependency, service, asset, deployment, merge, publication or later milestone
 is added or authorized. A different session must review the exact candidate.
+
+### Testing policy amendment — brief v6
+
+On 2026-10-22 the maintainer instructed minimal testing for changes made, with
+broader testing only on explicit request. The policy above supersedes historical
+full-matrix evidence requirements. Already collected results remain evidence;
+unrun checks remain unrun and do not trigger an additional testing campaign.
+This amendment changes testing policy, not functionality or numbered criteria.

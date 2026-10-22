@@ -1,7 +1,24 @@
-# 0001-W1 validation
+# Validation policy and available checks
 
-Use the exact Node/npm versions in the toolchain contract. From the repository
-root:
+## Default: minimal testing for the current change
+
+Test only the behavior directly affected by the current change, using the smallest
+check that demonstrates it works. For a bug fix, add or run a focused regression
+when useful. For documentation-only changes, inspect the diff and links; do not
+run application tests or builds. Do not automatically run full suites, browser
+matrices, performance/load tests, accessibility audits, native IME checks, unrelated
+edge cases, or repeated acceptance sweeps. Broader testing requires an explicit
+maintainer instruction. Existing checklists describe available coverage and do
+not authorize executing it. State what ran and what did not; never report an
+unrun check as passed. If a change reveals a concern outside its scope, report it
+without expanding the test campaign or implementation. Mandatory Git/privacy hooks
+still run normally; never bypass them.
+
+## Reference commands and coverage
+
+The commands and matrix below are a catalog, not a default execution checklist.
+Run a broader set only when explicitly requested. Use the exact Node/npm versions
+in the toolchain contract. From the repository root:
 
 ```sh
 npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund
@@ -45,12 +62,12 @@ events; the fixture explicitly detects suppressed synthetic pagehide dispatch.
 They mount the production App, redirect its default IndexedDB name to a unique
 disposable database, and verify real stored bytes. Input events are synthetic;
 pointer capture is stubbed only for synthetic pointers. These integration tests
-do not replace trusted pointer, keyboard or page-zoom checks. Native OS IME is a deferred manual follow-up,
+do not establish trusted pointer, keyboard or page-zoom evidence. Native OS IME is a deferred manual follow-up,
 not established by these synthetic composition events. Test
 code is built only by build:fixtures and never enters the application bundle.
 
-At <http://127.0.0.1:4173>, verify the following against the brief's existing
-criteria:
+When explicitly requested, the manual coverage catalog at
+<http://127.0.0.1:4173> maps to the existing criteria:
 
 | Criterion    | Manual procedure                                                                                                                                                                                                                                                                                                                                                              |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -62,8 +79,8 @@ Record exact installed Chrome and Safari builds, OS, hardware, viewport,
 source/test revision and results. Browser-family coverage, native OS IME and
 performance cannot be inferred from unit or fixture passes. The brief specifies
 the 250-object responsiveness smoke journey and exclusions. Leave unavailable checks
-UNVERIFIED; do not mark the milestone accepted until its required evidence and
-independent review are complete. No test requires Firefox or
+UNVERIFIED. Unexecuted catalog entries do not authorize extra testing or become
+automatic blockers; report the bounded evidence and any actual defect for review. No test requires Firefox or
 screen-reader-specific validation.
 
 For the disposable 250-object smoke journey, open

@@ -1,6 +1,6 @@
 # Architecture contracts
 
-Current accepted implementation contract set for 0001-W1 brief v5:
+Current accepted implementation contract set for 0001-W1 brief v6:
 
 - [0001 document v1](0001-document-v1.md): identities, schema and limits.
 - [0001 storage v1](0001-storage-v1.md): save ordering, writer ownership and recovery.
@@ -10,8 +10,9 @@ Current accepted implementation contract set for 0001-W1 brief v5:
   public-input verification and application commands.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
-v3's functional behavior and records the explicit native OS IME deferral, with
-automated composition coverage required for brief v5. Interaction v1/v2 remain historical for briefs
+v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions
+with minimal change-scoped checks; broader testing needs explicit instruction.
+Interaction v1/v2 remain historical for briefs
 v2/v3 respectively; they do not override the current verification boundary.
 
 Application implementation is authorized on its milestone branch. A dependency

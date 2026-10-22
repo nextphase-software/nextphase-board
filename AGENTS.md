@@ -26,11 +26,17 @@ Read README.md, CONTRIBUTING.md and DESIGN.md before working here.
 
 ## Evidence and review
 
-Run the commands documented for the changed surface. The application validation
-commands and browser procedures are in tests/README.md and the governing brief.
-Do not report unrun checks as passed. UI changes need responsive,
-keyboard and accessibility checks; persistence and collaboration changes need
-data-loss, authorization and reconnect evidence where applicable.
+Test only the behavior directly affected by the current change, using the smallest
+check that demonstrates it works. For a bug fix, add or run a focused regression
+when useful. For documentation-only changes, inspect the diff and links; do not
+run application tests or builds. Do not automatically run full suites, browser
+matrices, performance/load tests, accessibility audits, native IME checks, unrelated
+edge cases, or repeated acceptance sweeps. Broader testing requires an explicit
+maintainer instruction. Existing checklists describe available coverage and do
+not authorize executing it. State what ran and what did not; never report an
+unrun check as passed. If a change reveals a concern outside its scope, report it
+without expanding the test campaign or implementation. Mandatory Git/privacy hooks
+still run normally; never bypass them.
 
 Append the brief's implementation record with the branch, validated source/test
 revision, commands, results, exclusions and added dependencies. Report the final

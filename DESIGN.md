@@ -18,8 +18,9 @@ These are contributor guardrails, not a claim that the scaffold implements them.
 - Commit the editable source and documented inputs for shipped generated assets.
   Track third-party provenance, exact versions and licensing.
 
-The 0001 contracts in [docs/architecture/](docs/architecture/README.md) were
-accepted on 2026-10-22 for the first browser-local increment. They define its
-interaction, document, storage and dependency choices. Hosting and later team
-architecture remain unselected. Application implementation requires a separate
-maintainer handoff.
+The [0001 contracts](docs/architecture/README.md) define the first browser-local
+increment. Document/storage/toolchain v1 were accepted on 2026-10-22. Interaction
+v2 and the matching 0001-W1 brief v3 are proposed for review, with a complete public
+layout/input/focus reference. Hosting and later team architecture remain unselected.
+Acceptance, committed prerequisites and a separate maintainer handoff precede
+application implementation.

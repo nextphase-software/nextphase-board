@@ -5,10 +5,12 @@ A collaborative visual workspace for teams.
 This repository is at the project scaffold stage. There is no runnable application
 or supported deployment yet.
 
-The prerequisites for [0001-W1 v2](docs/briefs/0001-W1-capture-and-reopen-a-board.md)
-and its [technical contracts](docs/architecture/README.md) were accepted on
-2026-10-22. They define a browser-local capture/reopen workflow and exact
-dependencies. Application implementation requires a separate maintainer handoff.
+The revised [0001-W1 v3](docs/briefs/0001-W1-capture-and-reopen-a-board.md) packet
+and [interaction contract v2](docs/architecture/0001-interaction-v2.md) are proposed
+for review. They specify a canvas workspace with native text editing and explicit
+browser-local save/reopen. Document, storage and exact toolchain requirements stay
+at the previously accepted v1 contracts. Acceptance, committed prerequisites and
+a separate maintainer handoff must precede application implementation.
 
 ## Contributing
 

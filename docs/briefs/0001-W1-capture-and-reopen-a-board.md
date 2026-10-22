@@ -1,8 +1,9 @@
-BRIEF VERSION: 0001-W1 v2 (2026-10-22)
+BRIEF VERSION: 0001-W1 v3 (2026-10-22)
 # 0001-W1 — Capture and reopen a board
 
-Status: Prerequisites accepted on 2026-10-22. Application implementation and
-deployment require separate authorization.
+Status: Accepted for implementation by the maintainer on 2026-10-22.
+Implementation is authorized for this milestone branch. Merge and deployment
+remain separate maintainer actions.
 The first repository commit is a scaffold; this brief describes a future increment.
 
 ## Outcome
@@ -18,12 +19,34 @@ storage scope and failures. No account or external service is required.
   and [engineering standards](../../DESIGN.md).
 - [0001 document v1](../architecture/0001-document-v1.md).
 - [0001 local storage v1](../architecture/0001-storage-v1.md).
-- [0001 interaction v1](../architecture/0001-interaction-v1.md).
+- [0001 interaction v2](../architecture/0001-interaction-v2.md).
 - [0001 dependencies/toolchain v1](../architecture/0001-toolchain-v1.md).
 
-These contracts were accepted on 2026-10-22. Committed prerequisites and a separate
-maintainer handoff precede an implementation branch. All requirements are in this
-repository and its public references; no external planning system is a build input.
+This version incorporates document/storage/toolchain v1 unchanged from the
+previously accepted v2 packet. Their original applicability/acceptance metadata
+records that earlier packet; their same technical requirements apply here.
+Interaction v2 replaces interaction v1 for this brief after acceptance. Its complete
+layout and input/focus rules are proposed for review; this does not reopen the
+accepted dependency graph or waive an existing evidence gate. Accept and commit
+the revised prerequisites before a separate maintainer implementation handoff.
+All requirements are in this repository and its public references; no external
+planning system or design artifact is a build input.
+
+## Design reference and interaction deliverables
+
+The interaction v2 screen table, wireframe, dimensions and visual constants are
+the complete public design reference. Build a scene-filling workspace with compact
+floating Board details, Objects/status/Save, Select/Pan/Sticky/Text palette and
+view controls. Selecting exposes contextual editing; a stable native textarea
+provides on-object editing, with the secondary Objects selector/editor/move route.
+Implement its placement/cancellation, focus return, composition/draft, responsive/
+zoom and read-only behavior. No permanent editing column, demonstration content,
+review ribbon or additional capability belongs in this increment.
+
+Native text remains plain multiline text; Enter in its textarea is a newline.
+Placement tools are one-shot and secondary native Add actions keep their centered
+cascade. Selection, surfaces and navigation do not create document revisions.
+All saving remains explicit and governed by the unchanged persistence contract.
 
 ## Deliverables and boundaries
 
@@ -59,9 +82,9 @@ they do not create extra milestone claims or replace a numbered criterion.
 
 | Criterion | Required evidence from the built application |
 | --- | --- |
-| 0001-W1-AC01 | Both object types via pointer/keyboard; named board; stable IDs and reading order; emoji/accent/multiline/CJK input; 250/251-object and text/title boundaries; pointer/keyboard movement; cancelled drag; pan/zoom does not change saved geometry. |
+| 0001-W1-AC01 | Both object types via pointer/keyboard palette placement and native Add actions; exactly-once creation; named board; stable IDs/reading order; native on-object/panel editor equivalence; emoji/accent/multiline/CJK commit/cancel; 250/251-object and text/title boundaries; pointer/keyboard movement; cancelled drag; pan/zoom does not change saved geometry. |
 | 0001-W1-AC02 | Fresh supported browser session; head/previous bytes and oncomplete receipt; reversed preparation delays across two saves; newer draft stays dirty; exclusive writer denial/takeover; CAS conflict; real transaction abort and failed-write retry; interrupted renderer; no backup/eviction guarantee. |
-| 0001-W1-AC03 | Unsupported format/schema, malformed payload, duplicate identities, digest corruption and inconsistent pairs rejected before adoption/write; raw records preserved; disclosed read-only valid-snapshot recovery; complete keyboard object journey, visible focus and 200% browser zoom. |
+| 0001-W1-AC03 | Unsupported format/schema, malformed payload, duplicate identities, digest corruption and inconsistent pairs rejected before adoption/write; raw records preserved; disclosed read-only valid-snapshot recovery; complete keyboard object journey; stable native editor and panel/overlay focus transitions; retained invalid drafts; narrow/short layouts, visible focus and actual 200% browser page zoom. |
 
 ## Applicable standards and quality envelope
 

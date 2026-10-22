@@ -1,17 +1,23 @@
 # Architecture contracts
 
-The following prerequisites for 0001-W1 v2 were accepted on 2026-10-22:
+Current proposed contract set for 0001-W1 brief v3:
 
 - [0001 document v1](0001-document-v1.md): identities, schema and limits.
 - [0001 storage v1](0001-storage-v1.md): save ordering, writer ownership and recovery.
-- [0001 interaction v1](0001-interaction-v1.md): pointer, keyboard and text behavior.
+- [0001 interaction v2](0001-interaction-v2.md): full canvas, floating controls,
+  native overlay/secondary-panel editing, placement, focus and browser evidence.
 - [0001 toolchain v1](0001-toolchain-v1.md): exact pins, generated lock, notices,
   public-input verification and future application commands.
 
-These contracts select the browser-local stack and behavior for this increment.
-Application implementation requires committed prerequisites and a separate
-maintainer handoff. A dependency smoke check does not establish application
-behavior or milestone acceptance.
+Document/storage/toolchain v1 are incorporated unchanged from the packet accepted
+on 2026-10-22. Interaction v2 is proposed for review and replaces
+[interaction v1](0001-interaction-v1.md) for brief v3 after acceptance. V1 remains
+the historical accepted interaction contract for brief v2; it is not an alternative
+layout for a v3 implementation. No dependency, format or storage change is proposed.
+
+Application implementation requires acceptance, committed prerequisites and a
+separate maintainer handoff. A dependency smoke check does not establish
+application behavior or milestone acceptance.
 
 Document the current system, supported interfaces, data formats, security
 boundaries, configuration and build inputs here when an implementation needs

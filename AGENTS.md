@@ -26,8 +26,9 @@ Read README.md, CONTRIBUTING.md and DESIGN.md before working here.
 
 ## Evidence and review
 
-Run the commands documented for the changed surface. No application test or build
-command exists yet. Do not report unrun checks as passed. UI changes need responsive,
+Run the commands documented for the changed surface. The application validation
+commands and browser procedures are in tests/README.md and the governing brief.
+Do not report unrun checks as passed. UI changes need responsive,
 keyboard and accessibility checks; persistence and collaboration changes need
 data-loss, authorization and reconnect evidence where applicable.
 

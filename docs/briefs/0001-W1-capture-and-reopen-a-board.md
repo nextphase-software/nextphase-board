@@ -4,7 +4,7 @@ BRIEF VERSION: 0001-W1 v3 (2026-10-22)
 Status: Accepted for implementation by the maintainer on 2026-10-22.
 Implementation is authorized for this milestone branch. Merge and deployment
 remain separate maintainer actions.
-The first repository commit is a scaffold; this brief describes a future increment.
+The development build is in progress; milestone acceptance remains pending.
 
 ## Outcome
 
@@ -25,10 +25,10 @@ storage scope and failures. No account or external service is required.
 This version incorporates document/storage/toolchain v1 unchanged from the
 previously accepted v2 packet. Their original applicability/acceptance metadata
 records that earlier packet; their same technical requirements apply here.
-Interaction v2 replaces interaction v1 for this brief after acceptance. Its complete
-layout and input/focus rules are proposed for review; this does not reopen the
-accepted dependency graph or waive an existing evidence gate. Accept and commit
-the revised prerequisites before a separate maintainer implementation handoff.
+Interaction v2 replaces interaction v1 for this brief. Its complete layout and
+input/focus rules were accepted for implementation on 2026-10-22. Prerequisites
+were committed on the milestone branch before application source. This does not
+reopen the accepted dependency graph or waive an existing acceptance evidence gate.
 All requirements are in this repository and its public references; no external
 planning system or design artifact is a build input.
 
@@ -114,8 +114,8 @@ specific scope disposition before PASS. Acceptance grants no silent test waiver.
 
 The [toolchain contract](../architecture/0001-toolchain-v1.md) specifies exact
 commands, manifest pins, lockfile and public-only dependency verification recipe.
-The application commands are implementation deliverables and do not exist
-in the scaffold yet. Do not report them as already passed.
+The application commands are implemented. Their actual run results and remaining
+browser evidence are recorded below; existence alone does not establish a pass.
 
 After implementation run the complete command sequence, then execute the browser
 fixture/manual matrix in both browser families. Unit tests must assert persisted
@@ -151,7 +151,6 @@ toolchain contract. Project-specific limits and behavior are specified above.
 
 ## Implementation record
 
-Unstarted. Append branch/worktree, tested exact source/test revision, commands and
-results, per-criterion evidence, dependency/notice inventory, excluded checks and
-scope dispositions. Report final branch tip separately from the tested revision.
+Implementation is in progress on `codex/0001-W1-capture-and-reopen`. The first
+application source/test commit is followed by an exact-revision validation record.
 No implementation PASS, merge, publication or later milestone is claimed.

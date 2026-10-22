@@ -3,7 +3,7 @@
 Contract version: 2. Status: Accepted for implementation on 2026-10-22.
 Applies to 0001-W1 brief v3; replaces interaction v1 for that brief after acceptance.
 Uses unchanged [document v1](0001-document-v1.md) and
-[storage v1](0001-storage-v1.md). No application is implemented yet.
+[storage v1](0001-storage-v1.md). Implementation evidence is recorded in the governing brief.
 
 ## Screen structure and visual reference
 

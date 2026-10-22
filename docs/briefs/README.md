@@ -1,10 +1,10 @@
 # Implementation briefs
 
 [0001-W1 v3 — Capture and reopen a board](0001-W1-capture-and-reopen-a-board.md)
-is a revised prerequisite packet proposed for review on 2026-10-22. Three existing
+was accepted for implementation on 2026-10-22. Three existing
 criteria are unchanged. Interaction v2 specifies the public design and behavior;
-document/storage/toolchain v1 remain unchanged. Accept and commit the revised
-packet before a separate implementation handoff. A template is not authorization.
+document/storage/toolchain v1 remain unchanged. The development build is under
+validation on a separate milestone branch. A template is not authorization.
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

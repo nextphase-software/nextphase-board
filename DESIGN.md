@@ -20,7 +20,7 @@ These are contributor guardrails, not a claim that the scaffold implements them.
 
 The [0001 contracts](docs/architecture/README.md) define the first browser-local
 increment. Document/storage/toolchain v1 were accepted on 2026-10-22. Interaction
-v2 and the matching 0001-W1 brief v3 are proposed for review, with a complete public
-layout/input/focus reference. Hosting and later team architecture remain unselected.
-Acceptance, committed prerequisites and a separate maintainer handoff precede
-application implementation.
+v2 and the matching 0001-W1 brief v3 were accepted for implementation on 2026-10-22.
+The development build follows their public layout/input/focus reference. Milestone
+acceptance requires the recorded browser/evidence matrix and independent review.
+Hosting and later team architecture remain unselected.

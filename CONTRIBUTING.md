@@ -4,9 +4,11 @@ NextPhase Board is licensed under Apache-2.0. Contributions submitted for inclus
 are offered under that license unless explicitly stated otherwise. Preserve
 applicable copyright and attribution notices.
 
-This is a scaffold. There is no application toolchain or runnable test suite yet.
-Do not install a guessed stack. Each implementation brief will identify its
-prerequisites, numbered acceptance criteria and exact validation commands.
+The first development application uses the exact stack in the
+[0001 toolchain contract](docs/architecture/0001-toolchain-v1.md). Run the
+[documented checks](tests/README.md) before handing off a change. Each implementation
+brief identifies its prerequisites and numbered acceptance criteria. Do not add
+dependencies or expand the scope without the governing contract.
 
 Keep a change focused on one brief, use a separate branch/worktree, and explain
 what changed, why, the evidence and any limitations. Use Conventional Commits.

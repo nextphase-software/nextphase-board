@@ -23,4 +23,4 @@ increment. Document/storage/toolchain v1 were accepted on 2026-10-22. Interactio
 v2 and the matching 0001-W1 brief v3 were accepted for implementation on 2026-10-22.
 The development build follows their public layout/input/focus reference. Milestone
 acceptance requires the recorded browser/evidence matrix and independent review.
-Hosting and later team architecture remain unselected.
+Deployment configuration and later team architecture are outside this increment.

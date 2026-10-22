@@ -208,3 +208,22 @@ applies to baseline `6a6a206`; dependencies, storage and fixture sources are unc
 Safari observations above came from an earlier development iteration and require
 revalidation against this final source revision. No additional acceptance gate
 is closed. The final branch tip is reported separately from this tested revision.
+
+### Additional browser smoke evidence — 2026-10-22
+
+Application source/test revision remains
+`54c29bdc2e6567a012e90901a7aa6e724069f8c8`. Additional smoke checks exercised the
+same application bytes delivered over HTTPS. Delivery adds no account system,
+server storage, shared editing or runtime dependency to this increment.
+
+| Browser | Bounded observed result |
+| --- | --- |
+| Chrome155.0.8059.85 | PASS: both object types, multiline/Unicode native editing, pointer/directional movement, explicit Save/Reopen/reload, application zoom, competing-tab read-only and writer takeover; zero captured warning/error entries |
+| Safari27.0.1 | PASS: both object types, multiline/Unicode native editing, directional movement, explicit Save/Reopen/reload; exact recovered object contents and sticky coordinates verified through native controls |
+
+These checks revalidate the current application revision in Safari and add Chrome
+writer-takeover evidence. Boards remain scoped to each browser origin/profile.
+Unicode paste is not native IME composition; application zoom is not200% browser
+page zoom. Full current/previous coverage, performance and the remaining required
+acceptance matrix remain unverified. Independent review and merge remain pending.
+This evidence-only update changes no criterion, application source or dependency.

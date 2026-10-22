@@ -5,7 +5,8 @@ A collaborative visual workspace for teams.
 The first development build implements [0001-W1 v3](docs/briefs/0001-W1-capture-and-reopen-a-board.md):
 one browser-local board with sticky notes, plain text, pointer and keyboard editing,
 movement, pan/zoom and explicit save/reopen. Full milestone acceptance and independent
-implementation review are pending. There is no supported hosted deployment yet.
+implementation review are pending. This increment requires no hosting provider,
+account system or server storage.
 
 ## Run locally
 

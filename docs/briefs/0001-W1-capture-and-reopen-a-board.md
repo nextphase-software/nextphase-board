@@ -196,3 +196,15 @@ also remains synthetic. See [reproducible checks](../../tests/README.md).
 Milestone remains in progress. Independent review must cover the exact source/test
 revision and resolve missing acceptance evidence before PASS/merge. No acceptance,
 merge, publication, deployment or later milestone is claimed.
+
+### Follow-up source revision
+
+Latest source/test revision: `54c29bdc2e6567a012e90901a7aa6e724069f8c8`.
+This follow-up recreates the in-memory adapter on adoption/reopen and destroys it
+on unmount, as required by the document contract. `typecheck`, all six unit tests,
+`build` (including bundle/notice checks), both commit hooks and Chrome real
+reload/explicit reopen passed after the change. The complete command batch above
+applies to baseline `6a6a206`; dependencies, storage and fixture sources are unchanged.
+Safari observations above came from an earlier development iteration and require
+revalidation against this final source revision. No additional acceptance gate
+is closed. The final branch tip is reported separately from this tested revision.

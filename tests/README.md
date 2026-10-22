@@ -27,21 +27,26 @@ npm --prefix apps/web run serve
 npm --prefix apps/web run serve:fixtures
 ```
 
-Open <http://127.0.0.1:4174> in each supported browser. Expect four PASS lines:
+Open <http://127.0.0.1:4174> in each supported browser. Expect eight PASS lines:
 immutable capture/FIFO receipts, actual transaction abort with preserved records
 and retry, complete-pair compare-and-swap rejection with writer invalidation,
-and fresh-connection recovery. A FAIL line is a failed check. The abort is
+fresh-connection recovery, same-counter payload conflicts, delayed preparation,
+injected quota/unavailable failures and interrupted-writer preservation. A FAIL line is a failed check. The abort is
 deliberately triggered in a real IndexedDB transaction; it is not evidence of
 native quota exhaustion. The fixture uses a uniquely named disposable database
 and never writes the application database. Never use production content in
 fixtures.
 
-At <http://127.0.0.1:4174/regressions.html>, expect three PASS lines for the
-single-editor, placement-cancellation and unavailable-writer recovery regressions.
+At <http://127.0.0.1:4174/regressions.html>, expect eight PASS lines for the
+single-editor, placement-cancellation, unavailable-writer recovery, object/title
+composition, older-save/newer-draft lifecycle, narrow-editor focus and damaged-head
+recovery checks. Run in a clean profile when an extension suppresses lifecycle
+events; the fixture explicitly detects suppressed synthetic pagehide dispatch.
 They mount the production App, redirect its default IndexedDB name to a unique
 disposable database, and verify real stored bytes. Input events are synthetic;
 pointer capture is stubbed only for synthetic pointers. These integration tests
-do not replace trusted pointer, keyboard, native IME or page-zoom checks. Test
+do not replace trusted pointer, keyboard or page-zoom checks. Native OS IME is a deferred manual follow-up,
+not established by these synthetic composition events. Test
 code is built only by build:fixtures and never enters the application bundle.
 
 At <http://127.0.0.1:4173>, verify the following against the brief's existing
@@ -49,14 +54,21 @@ criteria:
 
 | Criterion    | Manual procedure                                                                                                                                                                                                                                                                                                                                                              |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0001-W1-AC01 | Name a new board; create each type via palette pointer/Enter and native Add; enter multiline Unicode; edit through both routes; move by pointer and directional controls; cancel a gesture; verify navigation leaves geometry unchanged. Check native CJK commit/cancel separately from paste.                                                                                |
+| 0001-W1-AC01 | Name a new board; create each type via palette pointer/Enter and native Add; enter multiline Unicode; edit through both routes; move by pointer and directional controls; cancel a gesture; verify navigation leaves geometry unchanged. Check Unicode editing and automated composition commit/cancel; native OS IME is deferred.                                                                                |
 | 0001-W1-AC02 | Save, edit a newer draft during an earlier save, reopen and reload; verify saved content and statuses. Open another tab, verify read-only controls, close the writer and explicitly retry. Exercise lifecycle interruption and the fixture negative controls.                                                                                                                 |
 | 0001-W1-AC03 | Tab through selector/read/edit/move/save/reopen; inspect visible focus and surface-close focus return. Retain a 1,001-code-point draft, switch objects, and correct it before Save. Check clipped-editor fallback, narrow/short viewports and actual 200% browser page zoom. Unknown stored formats are decoder negatives; full app recovery journeys need separate evidence. |
 
 Record exact installed Chrome and Safari builds, OS, hardware, viewport,
-source/test revision and results. Browser-family coverage, native IME and
+source/test revision and results. Browser-family coverage, native OS IME and
 performance cannot be inferred from unit or fixture passes. The brief specifies
 the 250-object responsiveness smoke journey and exclusions. Leave unavailable checks
 UNVERIFIED; do not mark the milestone accepted until its required evidence and
 independent review are complete. No test requires Firefox or
 screen-reader-specific validation.
+
+For the disposable 250-object smoke journey, open
+<http://127.0.0.1:4174/regressions.html?workload=w1-smoke>. The query key names
+a disposable fixture database, retained for reload. Edit/move/pan/zoom/save and
+reload; Inspect saved fixture reads its persisted contents. Close this workload
+tab before the regression fixture so its writer lock cannot block the tests.
+Diagnostic mount-to-load time is not input-to-paint or a performance guarantee.

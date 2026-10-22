@@ -57,7 +57,8 @@ export function App() {
   if (!adapter.current) adapter.current = new Adapter();
   const item = board.objects.find((o) => o.id === selected),
     text = item ? (drafts[item.id] ?? item.text) : "";
-  const lockTask = useRef<Promise<void> | null>(null);
+  const lockTask = useRef<Promise<void> | null>(null),
+    fallbackFocus = useRef(false);
   const boardButton = useRef<HTMLButtonElement>(null),
     navButton = useRef<HTMLButtonElement>(null);
   const [layout, setLayout] = useState({ notice: 80, panel: 130 });
@@ -235,7 +236,12 @@ export function App() {
     if (inline && !composing) editor.current?.focus();
   }, [inline, selected]);
   useEffect(() => {
-    if (panel === "Objects") selector.current?.focus();
+    if (panel === "Objects") {
+      if (fallbackFocus.current) {
+        fallbackFocus.current = false;
+        editor.current?.focus();
+      } else selector.current?.focus();
+    }
   }, [panel]);
   const pos = (o: Item) => ({
     left: size.w / 2 + (o.x - view.x) * view.z,
@@ -255,9 +261,9 @@ export function App() {
     }
   }
   function fallbackEditor() {
+    fallbackFocus.current = true;
     setPanel("Objects");
     setInline(false);
-    setTimeout(() => editor.current?.focus(), 0);
   }
   function edit() {
     if (!item || readOnly || busy || composing) return;

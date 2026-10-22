@@ -22,7 +22,7 @@ storage scope and failures. No account or external service is required.
   and [engineering standards](../../DESIGN.md).
 - [0001 document v1](../architecture/0001-document-v1.md).
 - [0001 local storage v1](../architecture/0001-storage-v1.md).
-- [0001 interaction v4](../architecture/0001-interaction-v3.md).
+- [0001 interaction v4](../architecture/0001-interaction-v4.md).
 - [0001 dependencies/toolchain v1](../architecture/0001-toolchain-v1.md).
 
 This version incorporates document/storage/toolchain v1 unchanged from the
@@ -252,3 +252,43 @@ On 2026-10-22 the maintainer explicitly approved automated composition coverage
 and deferral of native OS IME testing. Interaction v4 records this disposition.
 All three criterion identities/texts, composition behavior and data safety remain
 unchanged. Native IME remains unverified as a manual follow-up, rather than PASS.
+
+### Bounded fixes and validation handoff — 2026-10-22
+
+Validated source/test revision: `a0bb746df3770846eea2a4fc19c92d2f143abe0f`.
+Branch remains `codex/0001-W1-capture-and-reopen`; the final branch tip is a
+separate documentation commit. Brief v5 / interaction v4 govern this handoff.
+
+Five fixes are covered: reject non-string UUID fields before adoption/persistence;
+keep one writable object editor after creation; cancel placement permanently once
+the movement threshold is crossed; read valid saved content when writer ownership
+is unavailable; focus Content when on-object editing falls back to Objects.
+Regressions reproduced the original four defects and the fallback focus failure
+before their corresponding fixes.
+
+| Evidence | Actual result and limits |
+| --- | --- |
+| Unit tests | PASS, eight tests including malformed identity/envelope preservation |
+| Browser storage fixtures | PASS, eight checks in Chrome155.0.8059.85 and Safari27.0.1: FIFO/immutable capture, real transaction abort/retry, CAS and same-counter payload conflicts, fresh recovery, delayed hash preparation, injected quota/unavailable writer and interrupted preparation |
+| Application integration fixtures | PASS, eight checks in Chrome and clean private Safari: single editor, cancelled placement excursion, unavailable-lock read-only recovery, object/title composition, older receipt/newer draft and simulated lifecycle retry, narrow-editor focus, damaged-head preservation/read-only previous snapshot |
+| Native browser/application observations | Both browser families saved/reloaded a 250-object board after Unicode editing and directional movement. Chrome pointer creation and movement matched 10-unit native moves; palette keyboard creation, retained invalid draft/correction, keyboard action reachability and 3px visible focus were exercised. Both browsers confirmed actual 200% page zoom and usable editing/save controls. |
+| Responsive/fallback | Chrome320×568,375×667,1024×768,1440×900 and1024×400 had no page-wide horizontal overflow; narrow fallback has a failing-before/passing-after focus regression |
+| Reproducible commands | Exact-runtime install, dependency inventory, typecheck, eight unit tests, licenses, normal and fixture builds passed. Audit reported zero vulnerabilities. After the final focus source change, typecheck/unit tests and both builds passed again; accepted dependencies/lock are unchanged. |
+
+Synthetic composition and page transition events are labelled simulations. A
+normal Safari profile suppressed synthetic pagehide even for a test listener;
+the same lifecycle fixture passed in a fresh private window without changing
+settings. Real Safari save/reload observations used the normal profile. Fixture
+inputs stay outside the normal application bundle. The workload's mount-to-load
+observations are diagnostics, not input-to-paint or a performance guarantee.
+
+This is a bounded fixes handoff, not full milestone acceptance. Native OS IME is
+explicitly deferred; previous-browser, fixed-hardware and formal timing matrices
+are excluded by the accepted preview amendments. Exhaustive native gesture
+cancellation/lost-capture/window-blur and every route/browser combination were
+not completed. No further test expansion is undertaken in this handoff. Review
+must distinguish those unverified cases from the checks above and decide whether
+any is necessary for this preview before granting full acceptance.
+
+No dependency, service, asset, deployment, merge, publication or later milestone
+is added or authorized. A different session must review the exact candidate.

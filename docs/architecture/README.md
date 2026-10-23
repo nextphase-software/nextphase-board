@@ -13,7 +13,7 @@ Current accepted implementation contract set for 0001-W1 brief v6:
 redo, duplicate and delete with session-only history and scene-scoped shortcuts,
 and includes the 0001-W3 presentation. It replaces v4 for later work.
 
-Draft for 0001-W4 brief v2: [0001 interaction v6](0001-interaction-v6.md) makes new
+Draft for 0001-W4 brief v3: [0001 interaction v6](0001-interaction-v6.md) makes new
 stickies square and lets notes grow taller to fit their text. It replaces v5 for
 later work once accepted.
 

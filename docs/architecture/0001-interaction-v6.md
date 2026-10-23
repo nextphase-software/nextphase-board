@@ -1,7 +1,7 @@
 # 0001 — Interaction and browser contract
 
-Contract version: 6 (revised for 0001-W4 brief v2, 2026-10-22: growth stops at the
-document's bottom edge). Status: Draft. When accepted it replaces
+Contract version: 6 (revised for 0001-W4 brief v3, 2026-10-22: growth stops at the
+document's bottom edge, and the display rule names that limit). Status: Draft. When accepted it replaces
 [interaction v5](0001-interaction-v5.md) for later work. Uses unchanged
 [document v1](0001-document-v1.md) and [storage v1](0001-storage-v1.md).
 
@@ -17,8 +17,8 @@ in v4. Duplicate copies the current size, as in v5.
 ## Text fits its object
 
 Object text is drawn as in v4: system font, 18 board units, line height 1.45,
-20-unit inset on every side, wrapped to the object's inner width. No text is ever
-hidden by the object's height on the canvas.
+20-unit inset on every side, wrapped to the object's inner width. The canvas hides
+text only past an object's allowed height, as **Limit** below describes.
 
 **Needed height.** For an object of width *W*, the needed height is
 `ceil(L × 18 × 1.45) + 40`, where *L* is the number of lines the canvas renderer
@@ -38,9 +38,11 @@ or redone with it (one history step per editing session, as in v5). A height nev
 decreases automatically; deleting text leaves the height as it is. Selection, view,
 opening an editor, reopening a board or saving never change a height.
 
-**Display height.** The canvas draws each object at least as tall as its needed
-height in the current browser, up to its allowed height, even when that is taller
-than its saved height. This display-only extra is never saved and never creates a transaction. It
+**Display height.** The canvas draws each object at
+`min(allowed height, max(saved height, needed height))`, with the needed height
+measured in the current browser: never shorter than its saved height, and as tall
+as its text needs up to its allowed height, even when that is taller than its
+saved height. This display-only extra is never saved and never creates a transaction. It
 covers small font differences between browsers.
 
 **Limit.** Heights stay within document v1's 40–2,000 range and bottom-edge rule.

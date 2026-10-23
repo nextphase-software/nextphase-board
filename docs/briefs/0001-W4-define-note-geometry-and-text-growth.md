@@ -1,4 +1,4 @@
-BRIEF VERSION: 0001-W4 v2 (2026-10-22)
+BRIEF VERSION: 0001-W4 v3 (2026-10-22)
 # 0001-W4 — Define note geometry and text growth
 
 Status: Draft. Implementation starts only after the maintainer commits this brief
@@ -7,8 +7,10 @@ and [0001 interaction v6](../architecture/0001-interaction-v6.md) to main.
 ## Outcome
 
 New sticky notes are square, and every note grows taller to fit its text, so the
-canvas never hides text. Width and font size stay fixed, notes never shrink on
-their own, and boards saved earlier open exactly as they were. The saved document
+canvas shows all of it. Only a note that reaches its allowed height (the 2,000-unit
+limit or the board's bottom edge) fades its last visible line; its full text stays
+in the editor and the Objects panel. Width and font size stay fixed, notes never
+shrink on their own, and boards saved earlier open exactly as they were. The saved document
 format and saving behavior do not change.
 
 ## Read first and prerequisite contracts
@@ -58,7 +60,7 @@ commands, results and exclusions; report the final branch tip separately.
 | Criterion | Evidence that shows it |
 | --- | --- |
 | 0001-W4-AC01 | New stickies are 240×240 and text objects 320×120; typing past the box grows the note taller with width and font unchanged; one undo reverts text and height together |
-| 0001-W4-AC02 | A saved 240×160 sticky opens unchanged and only grows when its text needs more room; the canvas never hides its text |
+| 0001-W4-AC02 | A saved 240×160 sticky opens unchanged and only grows when its text needs more room; the canvas shows all its text up to the allowed height |
 | 0001-W4-AC03 | Save and reload keep every object's position, text and size; growth never moves a note or crosses the bottom edge; editing one note never changes another; display-only extra height is never saved |
 
 ## Validation commands and expected evidence
@@ -84,7 +86,9 @@ shrinks when fewer are; width is never changed; the 2,000 cap; the bottom-edge c
 (a note at y = 999,840 with height 160 stays within 1,000,000 and every result
 passes document validation); position never changes; an existing 240×160
 height is kept until its text needs more; the display height is at least the
-needed height without changing the saved value.
+needed height, up to the allowed height, without changing the saved value. Past
+the allowed height the display height equals it: at y = 999,840 five lines need
+171 but display at 160, the fade case.
 
 One browser pass in Chrome and Safari, recorded by whoever can run a browser: a new
 square sticky; typing past the box grows it with the editor aligned; one undo
@@ -105,6 +109,9 @@ apply; behavior above is a project requirement.
 
 ## Version history
 
+- v3 (2026-10-22): the outcome, AC02 evidence and the display-height test now
+  carry the allowed-height exception that v2 introduced (text past it is faded, not
+  shown). Interaction v6 wording is aligned. No behavior changed.
 - v2 (2026-10-22): growth and display height also stop at the document's bottom
   edge (`y + height` at most 1,000,000), with the same fade; objects never move.
   Interaction v6 is revised to match. No other requirement changed.

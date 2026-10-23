@@ -525,7 +525,7 @@ export function App() {
   if (acknowledgement) latestAcknowledgement.current = message;
   const routineStorage = message === "Stored only in this browser profile. Browser storage is not a backup.";
   const visibleMessage = acknowledgement || routineStorage ? "" : message;
-  const showNotice = !!(visibleMessage || invalid || busy || readOnly || undoReason || redoReason || selectionReason ||
+  const showNotice = !!(visibleMessage || invalid || busy || readOnly ||
     tool === "Sticky" || tool === "Text" || snapshots.length);
   // The context surface follows transformed bounds without changing board geometry.
   const contextWidth = 376;
@@ -845,7 +845,7 @@ export function App() {
             aria-disabled={!!(name === "Undo" ? undoReason : redoReason)}
             onClick={() => command(name)}
           >
-            <Icon name={name} /><span className="tooltip">{name}</span>
+            <Icon name={name} /><span className="tooltip">{(name === "Undo" ? undoReason : redoReason) || name}</span>
           </button>
         ))}
       </section>
@@ -862,11 +862,11 @@ export function App() {
           {status === "Save failed" ? "Retry save" : "Save"}
         </button>
       </section>
+      <span id="undo-reason" className="sr-only">{undoReason}</span>
+      <span id="redo-reason" className="sr-only">{redoReason}</span>
+      <span id="selection-reason" className="sr-only">{selectionReason}</span>
       <aside className="notice" role="status" hidden={!showNotice}>
         {visibleMessage}
-        <div id="undo-reason">{undoReason && "Undo: " + undoReason}</div>
-        <div id="redo-reason">{redoReason && "Redo: " + redoReason}</div>
-        <div id="selection-reason">{selectionReason && "Duplicate / Delete: " + selectionReason}</div>
         {invalidFields.map((s) => <div key={s}>{s}</div>)}
         {busy && (
           <div>
@@ -978,7 +978,7 @@ export function App() {
           {nativeEditor}
           <div className="object-commands">
             {(["Duplicate", "Delete"] as const).map((name) => (
-              <button key={name} disabled={!!selectionReason}
+              <button key={name} disabled={!!selectionReason} title={selectionReason || name}
                 aria-describedby="selection-reason" onClick={() => command(name)}>
                 <Icon name={name} />{name}
               </button>
@@ -1051,7 +1051,7 @@ export function App() {
             <button key={name} className="icon-button" aria-label={name}
               aria-describedby="selection-reason" disabled={!!selectionReason}
               onClick={() => command(name)}>
-              <Icon name={name} /><span className="tooltip">{name}</span>
+              <Icon name={name} /><span className="tooltip">{selectionReason || name}</span>
             </button>
           ))}
         </section>

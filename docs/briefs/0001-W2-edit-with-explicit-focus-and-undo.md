@@ -1,4 +1,4 @@
-BRIEF VERSION: 0001-W2 v1 (2026-10-22)
+BRIEF VERSION: 0001-W2 v2 (2026-10-22)
 # 0001-W2 — Edit with explicit focus and undo
 
 Status: Draft. Implementation starts only after the maintainer commits this brief
@@ -66,10 +66,14 @@ From the repository root with the pinned toolchain:
 ```sh
 npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund
 npm --prefix apps/web run typecheck
-npm --prefix apps/web test
+node --test tests/history.test.mjs
 npm --prefix apps/web run build
 git diff --name-only main...HEAD
 ```
+
+Run only the new unit tests: this change adds the history module and leaves the
+code covered by the other test files untouched. Running the whole unit suite needs
+an explicit maintainer instruction (see [agent instructions](../../AGENTS.md)).
 
 `tests/history.test.mjs` asserts document state, generations, `retiredGenerations`
 and revision counts for: create, move, text session, duplicate and delete each
@@ -94,6 +98,11 @@ a history panel, new object types and geometry changes.
 
 No new external reference. Interaction v4's references (retrieved 2026-10-22)
 apply; behavior above is a project requirement.
+
+## Version history
+
+- v2 (2026-10-22): the unit-test command runs only `tests/history.test.mjs`, in
+  line with the focused-testing rule. No other requirement changed.
 
 ## Implementation record
 

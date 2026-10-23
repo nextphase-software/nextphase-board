@@ -9,7 +9,7 @@ main. A template is not authorization.
 [0001-W3 v1 — Refresh the canvas shell](0001-W3-refresh-the-canvas-shell.md), a
 presentation-only refresh of the 0001-W1 shell, is implemented and merged into main.
 
-[0001-W2 v1 — Edit with explicit focus and undo](0001-W2-edit-with-explicit-focus-and-undo.md)
+[0001-W2 v2 — Edit with explicit focus and undo](0001-W2-edit-with-explicit-focus-and-undo.md)
 is a draft: undo, redo, duplicate and delete for the existing objects, governed by
 [interaction v5](../architecture/0001-interaction-v5.md).
 

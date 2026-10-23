@@ -132,4 +132,52 @@ references (retrieved 2026-10-22) still apply.
 
 ## Implementation record
 
-Not started.
+### 2026-10-23 — v3 implementation handoff
+
+- Governing requirements: this brief v3 and interaction v7, committed on main at
+  `02fc5a5b81187cfc4430dc99c3ec364c7db190a0` before implementation.
+- Branch: `codex/0001-W13-trackpad-navigation` in worktree
+  `.worktrees/codex-0001-W13`, created from that committed main revision.
+- Validated source/test revision:
+  `5ef8478fecfa463ac1b6258f96e44bc298796c56`. Typecheck and build ran on identical
+  source contents immediately before this commit; the focused unit test also ran
+  at this commit. The final branch tip is reported separately after the
+  implementation-record commit.
+- Added pure view rules and nine focused unit tests; scene/editor wheel and WebKit
+  gesture listeners; temporary Space panning with capture, release and cancellation;
+  quarter-step zoom buttons and grab/grabbing cursors. The existing rounded zoom
+  percentage and clipped-editor fallback remain in use.
+
+Commands ran from the repository root with the session PATH selecting the pinned
+Node 24.22.1 and npm 11.19.1 toolchain. No toolchain path is a repository input.
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; added 19 packages; package and lock files unchanged |
+| `npm --prefix apps/web run typecheck` | Exit 0 on both runs during wiring and after the final source edits; `tsc --noEmit` reported no errors |
+| `node --test tests/view.test.mjs` | Exit 0 on both runs, first for the pure module and then at the validated revision; 9 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; accepted lock, runtime inventory and complete distributed notices verified; application built |
+| `git diff --check` | Exit 0; no whitespace errors |
+| `git diff --cached --check` | Exit 0 before implementation commits; no whitespace errors |
+| `git diff --name-only main...HEAD` | Exit 0 at the validated revision; only `apps/web/src/App.tsx`, `apps/web/src/view.ts`, `apps/web/style.css` and `tests/view.test.mjs`; the subsequent record commit adds only this brief |
+
+Scope inspection: document, storage, history, geometry, saved format, explicit-save
+policy, package/lock files, assets and other tools remain unchanged. Added
+dependencies: none. Mandatory privacy hooks reported `PUBLIC BOUNDARY: PASS` on
+both implementation commits; no hooks were bypassed. Git emitted a non-fatal
+packed-refs lock warning under filesystem restrictions; both commits succeeded.
+The graph service and indexing calls were denied because tool approval is
+unavailable; direct source reads were used after those attempts.
+
+Browser evidence is **not run**: browsers cannot start in the implementation
+environment, as specified by the maintainer. The reviewer must perform the one
+Chrome and Safari trackpad pass described above, including native panel/editor
+scrolling, exactly-once pinch zoom without page zoom, Space release/cancellation,
+blocked gestures, unchanged selection/save state/focus, and the editor fallback.
+AC01–AC03 have source and pure-rule evidence only; browser acceptance and an
+independent review of the exact commit remain pending. No other test files, full
+suites, browser matrix, performance/load checks, accessibility audit, touch-screen
+or native IME checks ran. No push, merge or subsequent milestone is authorized by
+this handoff.

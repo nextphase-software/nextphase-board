@@ -12,6 +12,7 @@ import {
   validText,
 } from "./document";
 import { decode, LocalStore, readPair } from "./storage";
+import { Icon } from "./icons";
 type View = { x: number; y: number; z: number };
 export function App() {
   const [board, setBoard] = useState<Board>(empty),
@@ -60,21 +61,22 @@ export function App() {
   const lockTask = useRef<Promise<void> | null>(null),
     fallbackFocus = useRef(false);
   const boardButton = useRef<HTMLButtonElement>(null),
-    navButton = useRef<HTMLButtonElement>(null);
+    navButton = useRef<HTMLButtonElement>(null),
+    infoButton = useRef<HTMLButtonElement>(null);
   const [layout, setLayout] = useState({ notice: 80, panel: 130 });
   useEffect(() => {
     const file = document.querySelector(".file")!,
       actions = document.querySelector(".actions")!,
-      notice = document.querySelector(".notice")!;
+      notice = document.querySelector<HTMLElement>(".notice")!;
     const update = () => {
       const top = scene.current?.getBoundingClientRect().top ?? 0;
       const n = Math.max(
         file.getBoundingClientRect().bottom,
         actions.getBoundingClientRect().bottom,
-      ) - top + 12;
+      ) - top + 8;
       setLayout({
         notice: n,
-        panel: n + notice.getBoundingClientRect().height + 12,
+        panel: n + (notice.hidden ? 0 : notice.getBoundingClientRect().height + 8),
       });
     };
     const observer = new ResizeObserver(update);
@@ -363,6 +365,8 @@ export function App() {
         ? objectsButton
         : name === "Board"
         ? boardButton
+        : name === "Information"
+        ? infoButton
         : navButton).current?.focus();
     }
   }
@@ -420,6 +424,28 @@ export function App() {
   useEffect(() => {
     if (readOnly) cancel();
   }, [readOnly]);
+  const acknowledgement = /^Local revision \d+ acknowledged after transaction completion\.$/.test(message);
+  const latestAcknowledgement = useRef("");
+  if (acknowledgement) latestAcknowledgement.current = message;
+  const routineStorage = message === "Stored only in this browser profile. Browser storage is not a backup.";
+  const visibleMessage = acknowledgement || routineStorage ? "" : message;
+  const showNotice = !!(visibleMessage || invalid || busy || readOnly ||
+    tool === "Sticky" || tool === "Text" || snapshots.length);
+  // The context surface follows transformed bounds without changing board geometry.
+  const contextWidth = 288;
+  const contextLeft = item
+    ? clamp(pos(item).left + item.width * view.z / 2 - contextWidth / 2,
+      12, Math.max(12, size.w - contextWidth - 12)) : 12;
+  const contextAbove = item ? pos(item).top - 48 : 0;
+  const contextBelow = item ? pos(item).top + item.height * view.z + 8 : 0;
+  const contextTop = clamp(contextAbove >= layout.panel ? contextAbove : contextBelow,
+    layout.panel, Math.max(layout.panel, size.h - 52));
+  const overlapsEditor = inline && item &&
+    contextTop < pos(item).top + (item.height - 20) * view.z &&
+    contextTop + 40 > pos(item).top + 20 * view.z &&
+    contextLeft < pos(item).left + (item.width - 20) * view.z &&
+    contextLeft + contextWidth > pos(item).left + 20 * view.z;
+  const contextFits = contextTop + 40 <= size.h - 12 && !overlapsEditor;
   return (
     <main
       style={{
@@ -441,6 +467,8 @@ export function App() {
             ? objectsButton
             : panel === "Board"
             ? boardButton
+            : panel === "Information"
+            ? infoButton
             : navButton).current?.focus();
         }
       }}
@@ -674,31 +702,38 @@ export function App() {
           onClick={() => toggle("Board")}
           aria-expanded={panel === "Board"}
         >
-          <b className="brand">N</b> {title || "Untitled board"} ⌄
+          <b className="brand" aria-hidden="true">N</b>
+          <span className="board-title">{title || "Untitled board"}</span>
+          <Icon name="chevron" />
         </button>
         <small>Local</small>
-      </section>
-      <section className="actions floating">
+        <span className="divider" aria-hidden="true" />
         <button
+          className="icon-button"
           ref={objectsButton}
           onClick={() => toggle("Objects")}
+          aria-label="Objects"
           aria-expanded={panel === "Objects"}
           disabled={composing || busy}
         >
-          ▤ Objects
+          <Icon name="objects" /><span className="tooltip">Objects</span>
         </button>
-        <span role="status">{status}{invalid ? " · Invalid draft" : ""}</span>
+      </section>
+      <section className="actions floating" aria-describedby={latestAcknowledgement.current ? "save-acknowledgement" : undefined}>
+        <span className="save-status" role="status">
+          <Icon name="status" />{status}{invalid ? " · Invalid draft" : ""}
+        </span>
+        <span id="save-acknowledgement" className="sr-only">{latestAcknowledgement.current}</span>
         <button
-          className="primary"
+          className={status === "Save failed" ? "error" : status === "Unsaved" ? "primary" : ""}
           onClick={save}
           disabled={readOnly || invalid || composing || busy}
         >
           {status === "Save failed" ? "Retry save" : "Save"}
         </button>
-        <button onClick={reopen} disabled={busy || composing}>Reopen</button>
       </section>
-      <aside className="notice" role="status">
-        {message}
+      <aside className="notice" role="status" hidden={!showNotice}>
+        {visibleMessage}
         {invalidFields.map((s) => <div key={s}>{s}</div>)}
         {busy && (
           <div>
@@ -756,6 +791,7 @@ export function App() {
             }}
           />
           <small>{count(title)} / 120 · nonblank name required</small>
+          <button onClick={reopen} disabled={busy || composing}>Reopen</button>
           <p>
             One board in this browser origin/profile. Browser storage is not a
             backup.
@@ -840,15 +876,16 @@ export function App() {
           </div>
         </section>
       )}
-      {item && (
+      {item && contextFits && (
         <section
           className="context"
           style={{
-            left: clamp(pos(item).left, 12, Math.max(12, size.w - 260)),
-            top: clamp(pos(item).top - 50, 120, size.h - 140),
+            left: contextLeft,
+            top: contextTop,
           }}
         >
-          <span>{item.type}</span>
+          <span>{item.type === "sticky" ? "Sticky" : "Text"}</span>
+          <span className="divider" aria-hidden="true" />
           <button
             disabled={readOnly || composing || busy}
             onMouseDown={(e) => {
@@ -861,8 +898,9 @@ export function App() {
               } else edit();
             }}
           >
-            {inline ? "Done" : "Edit text"}
+            <Icon name="pencil" />{inline ? "Done" : "Edit text"}
           </button>
+          <span className="divider" aria-hidden="true" />
           <small>{count(text)} / 1,000</small>
         </section>
       )}
@@ -881,12 +919,12 @@ export function App() {
         </section>
       )}
       <nav className="palette floating" aria-label="Board tools">
-        {[["Select", "↖"], ["Pan", "✋"], ["Sticky", "▰"], ["Text", "T"]].map((
-          [name, glyph],
+        {(["Select", "Pan", "Sticky", "Text"] as const).map((
+          name,
         ) => (
           <button
             key={name}
-            title={name}
+            className={"icon-button" + (name === "Sticky" ? " tool-divider" : "")}
             aria-label={name + " tool"}
             aria-pressed={tool === name}
             disabled={busy || composing ||
@@ -897,35 +935,57 @@ export function App() {
               scene.current?.focus();
             }}
           >
-            {glyph}
-            <span>{name}</span>
+            <Icon name={name} />
+            <span className="tooltip">{name}</span>
           </button>
         ))}
       </nav>
       <nav className="zoom floating">
         <button
+          className="icon-button"
           aria-label="Zoom out"
           disabled={busy || composing}
           onClick={() => setView((v) => ({ ...v, z: clamp(v.z - .25, .5, 2) }))}
         >
-          −
+          <Icon name="minus" /><span className="tooltip">Zoom out</span>
         </button>
         <span>{Math.round(view.z * 100)}%</span>
         <button
+          className="icon-button"
           aria-label="Zoom in"
           disabled={busy || composing}
           onClick={() => setView((v) => ({ ...v, z: clamp(v.z + .25, .5, 2) }))}
         >
-          +
+          <Icon name="plus" /><span className="tooltip">Zoom in</span>
         </button>
+        <span className="divider" aria-hidden="true" />
         <button
+          className="icon-button"
+          aria-label="Navigation"
+          aria-expanded={panel === "Navigation"}
           ref={navButton}
           onClick={() => toggle("Navigation")}
           disabled={busy || composing}
         >
-          Navigation
+          <Icon name="navigation" /><span className="tooltip">Navigation</span>
         </button>
       </nav>
+      <button
+        className="information floating icon-button"
+        ref={infoButton}
+        aria-label="About local storage"
+        aria-expanded={panel === "Information"}
+        disabled={busy || composing}
+        onClick={() => toggle("Information")}
+      >
+        <Icon name="information" /><span className="tooltip">About local storage</span>
+      </button>
+      {panel === "Information" && (
+        <section className="information-panel floating" aria-label="About local storage">
+          <p>One board in this browser origin/profile. Browser storage is not a backup.</p>
+          <button onClick={() => toggle("Information")}>Close</button>
+        </section>
+      )}
       {panel === "Navigation" && (
         <section className="navigation floating">
           <h2>Move around the board</h2>

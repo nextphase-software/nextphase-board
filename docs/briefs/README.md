@@ -6,6 +6,10 @@ criteria are unchanged. Interaction v4 specifies the public design and behavior;
 document/storage/toolchain v1 remain unchanged. The development build is under
 validation on a separate milestone branch. A template is not authorization.
 
+[0001-W3 v1 — Refresh the canvas shell](0001-W3-refresh-the-canvas-shell.md) is a
+draft: a presentation-only refresh of the 0001-W1 shell. Interaction v4 still
+governs behavior; the brief lists the presentation changes to it.
+
 Each brief is a complete contributor-facing contract. Use this structure:
 
 ```text

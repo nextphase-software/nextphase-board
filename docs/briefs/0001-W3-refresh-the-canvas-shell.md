@@ -142,4 +142,47 @@ apply. Layout, constants and icon rules above are project requirements.
 
 ## Implementation record
 
-Not started.
+Implementation handoff dated 2026-10-22 for **0001-W3 v1**.
+Branch: `codex/0001-W3-canvas-shell`; worktree: `.worktrees/codex-0001-W3`.
+Committed main base: `3db15eb56a3e225cc905a7236e5ddc7fec254dfb`.
+Validated source revision: `59b7409382564db3c3124d2d7400c7953f8e4f8e`.
+Checks ran against these same source bytes before the source commit. This record
+is a separate documentation commit; the final branch tip is reported separately.
+
+The three permitted source files implement the compact board bar, relocated
+Reopen, quiet storage explanation, save presentation, original inline SVG set,
+tooltip states and transformed selection context. Context positioning reserves
+the top controls/message region, clamps inside the scene and suppresses the bar
+if it cannot fit without covering the native editor; Objects remains available.
+The information popover uses the existing surface toggle and Escape focus-return
+routes. Document, storage, saving, geometry, placement and native input handlers
+are unchanged. No dependency, external asset, manifest or lock change was added.
+
+The supplied runtime was selected in the shell before every npm invocation;
+its machine-specific location is deliberately omitted from this public record.
+
+| Exact command | Actual result |
+| --- | --- |
+| `node --version` | PASS: `v24.22.1` |
+| `npm --version` | PASS: `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | PASS, exit 0; added 19 packages |
+| `npm --prefix apps/web run typecheck` | First run failed with TS2339 on the notice element's `hidden` property. Corrected the DOM query type; subsequent runs, including final source bytes, PASS, exit 0. |
+| `npm --prefix apps/web run build` | PASS, exit 0; accepted lock, runtime inventory and complete distributed notices verified; application built. Repeated after source corrections, with the final run on validated source bytes. |
+| `git diff --check` | PASS, exit 0 before source commit |
+| `git diff --cached --stat` | Inspected: only App.tsx, icons.tsx and style.css in source commit |
+| `git commit -m "feat(web): refresh the canvas shell presentation"` | Source commit succeeded; both mandatory public-boundary hooks reported PASS. Git also reported a sandbox-denied `packed-refs.lock` creation; the commit exists and no hook was bypassed. |
+| `git diff --name-only main...HEAD` | PASS after record commit: only the three allowed source files and this brief |
+| `git status --short` | Clean after record commit |
+
+No browser was launched: the maintainer reports browsers cannot start in this
+environment. Chrome at 1440×900 and 375×667, Safari inspection, hover/focus/pressed
+appearance, native select/edit/type/Done and actual save transition observations
+are **UNVERIFIED**, left to the independent reviewer. No browser evidence from W1
+is claimed for this revision. No unit tests, browser fixtures/matrices, zoom
+sweeps, accessibility audits, performance checks or native IME checks ran.
+
+Source review confirms the implementation is limited to presentation and the
+specified information surface. AC01–AC03 runtime/visual acceptance remains pending
+review of the exact validated source revision. Graph indexing was attempted but
+unavailable under the environment's approval policy; source was read directly.
+No push, merge, publication, deployment or later milestone was performed.

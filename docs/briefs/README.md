@@ -17,9 +17,14 @@ undo, redo, duplicate and delete for the existing objects under
 square stickies and notes that grow taller to fit their text under
 [interaction v6](../architecture/0001-interaction-v6.md), is implemented and merged into main.
 
-[0001-W13 v3 — Navigate the canvas with trackpad and mouse wheel](0001-W13-navigate-the-canvas-with-trackpad-and-mouse-wheel.md)
-is a draft: scroll to pan, pinch or Ctrl/Cmd+wheel to zoom around the pointer, and
-Space + drag, governed by [interaction v7](../architecture/0001-interaction-v7.md).
+[0001-W13 v3 — Navigate the canvas with trackpad and mouse wheel](0001-W13-navigate-the-canvas-with-trackpad-and-mouse-wheel.md),
+scroll to pan, pinch or Ctrl/Cmd+wheel to zoom around the pointer, and Space + drag
+under [interaction v7](../architecture/0001-interaction-v7.md), is implemented and merged into main.
+
+[0001-W5 v1 — Persist note colors and basic text styles](0001-W5-persist-note-colors-and-basic-text-styles.md)
+is a draft: eight colours, four text sizes and alignment, saved through
+[document v2](../architecture/0001-document-v2.md) and governed by
+[interaction v8](../architecture/0001-interaction-v8.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

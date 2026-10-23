@@ -1,8 +1,9 @@
 BRIEF VERSION: 0001-W13 v3 (2026-10-23)
 # 0001-W13 — Navigate the canvas with trackpad and mouse wheel
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 interaction v7](../architecture/0001-interaction-v7.md) to main.
+Status: Implemented. Independently reviewed and merged into main on 2026-10-23
+with [0001 interaction v7](../architecture/0001-interaction-v7.md); the
+implementation record below lists the validated revisions.
 
 ## Outcome
 

@@ -17,9 +17,15 @@ and includes the 0001-W3 presentation. It replaces v4 for later work.
 stickies square and lets notes grow taller to fit their text. It replaces v5 for
 later work.
 
-Draft for 0001-W13 brief v3: [0001 interaction v7](0001-interaction-v7.md) adds
+[0001 interaction v7](0001-interaction-v7.md), accepted with 0001-W13, adds
 trackpad and mouse-wheel navigation: scroll to pan, pinch or Ctrl/Cmd+wheel to zoom
-around the pointer, and Space + drag. It replaces v6 for later work once accepted.
+around the pointer, and Space + drag. It replaces v6 for later work.
+
+Drafts for 0001-W5 brief v1: [0001 document v2](0001-document-v2.md) adds each
+object's colour, text size and alignment to the saved format and defines how
+version 1 boards are read; [0001 interaction v8](0001-interaction-v8.md) adds the
+palette, sizes, alignment and their controls. They replace document v1 and
+interaction v7 for later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

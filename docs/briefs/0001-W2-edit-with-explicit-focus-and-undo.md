@@ -106,4 +106,71 @@ apply; behavior above is a project requirement.
 
 ## Implementation record
 
-Not started.
+Implementation handoff dated 2026-10-22 for **0001-W2 v2**, governed by
+[interaction v5](../architecture/0001-interaction-v5.md).
+Branch: `codex/0001-W2-edit-focus-undo`; worktree: `.worktrees/codex-0001-W2`.
+Committed main base: `9930173a5e912705f8ad97a43fb27e61b7ab96cc`.
+Validated source/test revision: `e95f36e5c0f561396741bed1b83aac362f8f5547`.
+Checks below ran against these same source/test bytes before the source commit;
+the subsequent clean diff confirmed no source change. This implementation record
+is a separate documentation commit. The final branch tip is reported separately.
+
+`history.ts` implements immutable single-object steps, a 100-step cap, Redo
+clearing, duplicate/delete, generation retirement and fresh incarnations on
+restoration. History commands reject stale incarnations and limit violations
+without mutating their inputs. Restorations preserve logical IDs and reading
+order; retired generations accumulate. History never changes the board title.
+
+`App.tsx` records creation and completed moves, and groups object text changes
+from editor entry to blur, editor close or selection change. Existing valid-input
+document commits and save-revision tracking remain intact; grouping history does
+not delay valid text reaching Save. Undo/Redo each adopt one document transaction.
+The new buttons, scene/control shortcuts, blocking explanations, selection/focus
+outcomes and status messages follow interaction v5. Undo/Redo use `aria-disabled`
+with activation guards so their initiating control can retain focus when a list
+becomes empty. Native text editing shortcuts and clipboard events are untouched.
+Reopen, initial load, page hide and writer-ownership changes clear in-memory
+history; Save does not. Original inline SVG commands and their styles extend the
+existing icon set. No external asset or dependency was added.
+
+The supplied pinned toolchain was selected in the shell before every Node/npm
+command and commit hook invocation. Its machine-specific location is omitted
+from this public record as instructed.
+
+| Exact command | Actual result |
+| --- | --- |
+| `node --version` | PASS, exit 0: `v24.22.1` |
+| `npm --version` | PASS, exit 0: `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | PASS, exit 0; added 19 packages; manifest and lock unchanged |
+| `npm --prefix apps/web run typecheck` | PASS, exit 0 on initial integration and final source bytes |
+| `node --test tests/history.test.mjs` | PASS, exit 0; initially 9 tests, then all 10 on final source/test bytes after adding stale-history protection |
+| `npm --prefix apps/web run build` | PASS, exit 0 on final source bytes; accepted lock, runtime inventory and complete distributed notices verified; built application |
+| `git diff --check` | PASS, exit 0 before source commit |
+| `git diff --exit-code -- apps/web/src/document.ts apps/web/src/storage.ts apps/web/package.json apps/web/package-lock.json` | PASS, exit 0; protected files unchanged |
+| `git diff --cached --stat` | Inspected before source commit: only App.tsx, history.ts, icons.tsx, style.css and history.test.mjs |
+| `git commit -m "feat(web): add focused editing commands and session undo"` | PASS, exit 0; created validated revision above; both mandatory public-boundary hooks reported PASS. Git also emitted a sandbox-denied packed-refs lock error; the commit exists and no hook was bypassed. |
+| `git rev-parse HEAD` | Returned validated source/test revision above |
+| `git diff --exit-code` | PASS, exit 0 after source commit; validated source/test bytes unchanged |
+| `git status --short` | Clean after source commit |
+| `git diff --name-only main...HEAD` | At validated source/test revision, lists only the five allowed source/test files. The documentation commit adds this implementation record only. |
+
+Unit assertions cover create, move, text-session, duplicate and delete undo/redo;
+document state, adapter transaction counts, logical IDs, active and retired
+generations, reading order, duplicate independence, mixed-history restoration,
+stale-incarnation rejection, bounds, the cap, Redo clearing and atomic refusal at
+250 objects and 10,000 retired generations. These are pure-module/adapter tests;
+they do not establish App focus, native input or browser persistence behavior.
+
+No browser was launched because browsers cannot start in this environment.
+The single Chrome/Safari pass for commands by button/shortcut, native text undo
+and deletion, focus, and Save/reload with empty history remains **UNVERIFIED** for
+the independent reviewer of this exact revision. AC01 and AC03 runtime acceptance
+therefore remains pending; AC02 has the unit evidence above, with UI wiring still
+requiring the browser pass. No other unit files, browser fixtures/matrices,
+accessibility audits, native IME checks or performance/load checks ran.
+
+Document/storage modules, saved format, explicit-save policy, geometry defaults,
+placement, other tools, package files and lock are unchanged. Added dependencies:
+none. Codebase graph discovery/indexing was attempted but rejected by the
+environment's approval policy; source was read directly. No push, merge,
+publication, deployment or later milestone was performed.

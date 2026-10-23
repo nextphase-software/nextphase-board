@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Konva from "konva";
 import { Group, Layer, Rect, Stage, Text } from "react-konva";
 import {
   Adapter,
@@ -14,7 +15,21 @@ import {
 import { decode, LocalStore, readPair } from "./storage";
 import { Icon } from "./icons";
 import { deleteObject, duplicate, emptyHistory, record, redo, undo, type History } from "./history";
+import { allowedHeight, displayHeight, neededHeight, savedHeight, TEXT_INSET, TEXT_LAYOUT } from "./geometry";
 type View = { x: number; y: number; z: number };
+
+function lineCount(object: Item, text = object.text): number {
+  // Auto height is essential here: a fixed height would count only visible lines.
+  const measurement = new Konva.Text({
+    ...TEXT_LAYOUT,
+    width: object.width - 2 * TEXT_INSET,
+    text,
+  });
+  const lines = Math.max(1, measurement.textArr.length);
+  measurement.destroy();
+  return lines;
+}
+
 export function App() {
   const [board, setBoard] = useState<Board>(empty),
     [title, setTitle] = useState(""),
@@ -62,6 +77,21 @@ export function App() {
   if (!adapter.current) adapter.current = new Adapter();
   const item = board.objects.find((o) => o.id === selected),
     text = item ? (drafts[item.id] ?? item.text) : "";
+  const objectLayouts = useMemo(() => new Map(board.objects.map((o) => {
+    // Uncommitted composition/invalid input may grow the editor's preview only.
+    const lines = lineCount(o, inline && o.id === selected ? text : o.text);
+    const height = displayHeight(o, lines);
+    const innerHeight = height - 2 * TEXT_INSET;
+    const lineHeight = TEXT_LAYOUT.fontSize * TEXT_LAYOUT.lineHeight;
+    const visibleLines = Math.floor(innerHeight / lineHeight);
+    return [o.id, {
+      height,
+      limited: neededHeight(lines) > allowedHeight(o.y),
+      fadeStart: Math.max(0, visibleLines - 1) * lineHeight,
+      fadeEnd: Math.max(1, Math.min(innerHeight, Math.max(1, visibleLines) * lineHeight)),
+    }];
+  })), [board.objects, inline, selected, text]);
+  const itemHeight = item ? objectLayouts.get(item.id)!.height : 0;
   const lockTask = useRef<Promise<void> | null>(null),
     fallbackFocus = useRef(false);
   const boardButton = useRef<HTMLButtonElement>(null),
@@ -279,18 +309,23 @@ export function App() {
     left: size.w / 2 + (o.x - view.x) * view.z,
     top: size.h / 2 + (o.y - view.y) * view.z,
   });
+  function commitText(id: string, value: string) {
+    commit({
+      ...model.current,
+      objects: model.current.objects.map((o) =>
+        o.id === id && o.text !== value
+          ? { ...o, text: value, height: savedHeight(o, lineCount(o, value)) }
+          : o
+      ),
+    });
+  }
   function changeText(value: string) {
     if (!item || readOnly) return;
     beginTextSession();
     setDrafts((d) => ({ ...d, [item.id]: value }));
     setStatus("Unsaved");
     if (validText(value, 1000) && !composing) {
-      commit({
-        ...model.current,
-        objects: model.current.objects.map((o) =>
-          o.id === item.id ? { ...o, text: value } : o
-        ),
-      });
+      commitText(item.id, value);
     }
   }
   function fallbackEditor() {
@@ -319,11 +354,11 @@ export function App() {
     if (
       size.w < 768 || p.left < 0 || p.top < 0 ||
       p.left + item.width * view.z > size.w ||
-      p.top + item.height * view.z > size.h ||
-      (item.width - 40) * view.z < 120 || (item.height - 40) * view.z < 60 ||
+      p.top + itemHeight * view.z > size.h ||
+      (item.width - 40) * view.z < 120 || (itemHeight - 40) * view.z < 60 ||
       18 * view.z < 12 || obscured
     ) fallbackEditor();
-  }, [inline, selected, view, size, composing]);
+  }, [inline, selected, view, size, composing, itemHeight, item?.width]);
   function create(type: Item["type"], x: number, y: number, native = false) {
     if (readOnly || busy || composing) return;
     try {
@@ -445,12 +480,7 @@ export function App() {
           const value = e.currentTarget.value;
           setDrafts((d) => ({ ...d, [selected]: value }));
           if (item && validText(value, 1000) && !readOnly) {
-            commit({
-              ...model.current,
-              objects: model.current.objects.map((o) =>
-                o.id === selected ? { ...o, text: value } : o
-              ),
-            });
+            commitText(selected, value);
           }
         }}
         onBlur={() => {
@@ -472,8 +502,9 @@ export function App() {
     : busy ? "Finish or cancel the pointer gesture before using editing commands."
     : invalid ? "Correct invalid drafts before using editing commands." : "";
   const session = textSession.current;
-  const sessionChanged = !!session && session.before.objects.find((o) => o.id === session.id)?.text !==
-    model.current.objects.find((o) => o.id === session?.id)?.text;
+  const sessionChanged = !!session &&
+    JSON.stringify(session.before.objects.find((o) => o.id === session.id)) !==
+      JSON.stringify(model.current.objects.find((o) => o.id === session.id));
   const undoReason = commandReason || (!history.past.length && !sessionChanged ? "Nothing to undo." : "");
   const redoReason = commandReason || (sessionChanged || !history.future.length ? "Nothing to redo." : "");
   const selectionReason = commandReason || (!item ? "Select an object to duplicate or delete." : "");
@@ -533,11 +564,11 @@ export function App() {
     ? clamp(pos(item).left + item.width * view.z / 2 - contextWidth / 2,
       12, Math.max(12, size.w - contextWidth - 12)) : 12;
   const contextAbove = item ? pos(item).top - 48 : 0;
-  const contextBelow = item ? pos(item).top + item.height * view.z + 8 : 0;
+  const contextBelow = item ? pos(item).top + itemHeight * view.z + 8 : 0;
   const contextTop = clamp(contextAbove >= layout.panel ? contextAbove : contextBelow,
     layout.panel, Math.max(layout.panel, size.h - 52));
   const overlapsEditor = inline && item &&
-    contextTop < pos(item).top + (item.height - 20) * view.z &&
+    contextTop < pos(item).top + (itemHeight - 20) * view.z &&
     contextTop + 40 > pos(item).top + 20 * view.z &&
     contextLeft < pos(item).left + (item.width - 20) * view.z &&
     contextLeft + contextWidth > pos(item).left + 20 * view.z;
@@ -628,7 +659,7 @@ export function App() {
           const p = point(e);
           const hit = [...model.current.objects].reverse().find((o) =>
             p.x >= o.x && p.x <= o.x + o.width && p.y >= o.y &&
-            p.y <= o.y + o.height
+            p.y <= o.y + objectLayouts.get(o.id)!.height
           );
           if (tool === "Pan") {
             drag.current = {
@@ -780,36 +811,49 @@ export function App() {
             scaleX={view.z}
             scaleY={view.z}
           >
-            {board.objects.map((o) => (
-              <Group key={o.id}>
-                <Rect
-                  x={o.x}
-                  y={o.y}
-                  width={o.width}
-                  height={o.height}
-                  fill={o.type === "sticky" ? "#f2dce5" : undefined}
-                  stroke={selected === o.id
-                    ? "#518de0"
-                    : o.type === "sticky"
-                    ? "#e8cdd7"
-                    : undefined}
-                  strokeWidth={selected === o.id ? 2 / view.z : 1}
-                />
-                {!(inline && selected === o.id) && (
-                  <Text
-                    x={o.x + 20}
-                    y={o.y + 20}
-                    width={o.width - 40}
-                    height={o.height - 40}
-                    text={o.text}
-                    fontFamily="system-ui"
-                    fontSize={18}
-                    lineHeight={1.45}
-                    fill="#28272c"
+            {board.objects.map((o) => {
+              const layout = objectLayouts.get(o.id)!;
+              return (
+                <Group key={o.id}>
+                  <Rect
+                    x={o.x}
+                    y={o.y}
+                    width={o.width}
+                    height={layout.height}
+                    fill={o.type === "sticky" ? "#f2dce5" : undefined}
+                    stroke={selected === o.id
+                      ? "#518de0"
+                      : o.type === "sticky"
+                      ? "#e8cdd7"
+                      : undefined}
+                    strokeWidth={selected === o.id ? 2 / view.z : 1}
                   />
-                )}
-              </Group>
-            ))}
+                  {!(inline && selected === o.id) && layout.height > 2 * TEXT_INSET &&
+                    o.width > 2 * TEXT_INSET && (
+                    <Group
+                      clipX={o.x + TEXT_INSET}
+                      clipY={o.y + TEXT_INSET}
+                      clipWidth={o.width - 2 * TEXT_INSET}
+                      clipHeight={layout.height - 2 * TEXT_INSET}
+                    >
+                      <Text
+                        {...TEXT_LAYOUT}
+                        x={o.x + TEXT_INSET}
+                        y={o.y + TEXT_INSET}
+                        width={o.width - 2 * TEXT_INSET}
+                        height={layout.height - 2 * TEXT_INSET}
+                        text={o.text}
+                        fill="#28272c"
+                        fillPriority={layout.limited ? "linear-gradient" : "color"}
+                        fillLinearGradientStartPoint={{ x: 0, y: layout.fadeStart }}
+                        fillLinearGradientEndPoint={{ x: 0, y: layout.fadeEnd }}
+                        fillLinearGradientColorStops={[0, "#28272c", 1, "rgba(40,39,44,0)"]}
+                      />
+                    </Group>
+                  )}
+                </Group>
+              );
+            })}
           </Layer>
         </Stage>
       </div>
@@ -1060,11 +1104,12 @@ export function App() {
         <section
           className="inline"
           style={{
-            left: pos(item).left + 20 * view.z,
-            top: pos(item).top + 20 * view.z,
-            width: (item.width - 40) * view.z,
-            height: (item.height - 40) * view.z,
-            fontSize: 18 * view.z,
+            left: pos(item).left + TEXT_INSET * view.z,
+            top: pos(item).top + TEXT_INSET * view.z,
+            width: (item.width - 2 * TEXT_INSET) * view.z,
+            height: (itemHeight - 2 * TEXT_INSET) * view.z,
+            fontFamily: TEXT_LAYOUT.fontFamily,
+            fontSize: TEXT_LAYOUT.fontSize * view.z,
           }}
         >
           {nativeEditor}

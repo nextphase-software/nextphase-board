@@ -114,7 +114,7 @@ export function empty(): Board {
 export function add(b: Board, type: Item["type"], x: number, y: number): Board {
   if (b.objects.length >= 250) throw Error("250 object limit reached");
   const width = type === "sticky" ? 240 : 320,
-    height = type === "sticky" ? 160 : 120;
+    height = type === "sticky" ? 240 : 120;
   return {
     ...b,
     objects: [...b.objects, {

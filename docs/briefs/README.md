@@ -3,12 +3,15 @@
 [0001-W1 v6 — Capture and reopen a board](0001-W1-capture-and-reopen-a-board.md)
 was accepted for implementation on 2026-10-22. Three existing
 criteria are unchanged. Interaction v4 specifies the public design and behavior;
-document/storage/toolchain v1 remain unchanged. The development build is under
-validation on a separate milestone branch. A template is not authorization.
+document/storage/toolchain v1 remain unchanged. It is implemented and merged into
+main. A template is not authorization.
 
-[0001-W3 v1 — Refresh the canvas shell](0001-W3-refresh-the-canvas-shell.md) is a
-draft: a presentation-only refresh of the 0001-W1 shell. Interaction v4 still
-governs behavior; the brief lists the presentation changes to it.
+[0001-W3 v1 — Refresh the canvas shell](0001-W3-refresh-the-canvas-shell.md), a
+presentation-only refresh of the 0001-W1 shell, is implemented and merged into main.
+
+[0001-W2 v1 — Edit with explicit focus and undo](0001-W2-edit-with-explicit-focus-and-undo.md)
+is a draft: undo, redo, duplicate and delete for the existing objects, governed by
+[interaction v5](../architecture/0001-interaction-v5.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

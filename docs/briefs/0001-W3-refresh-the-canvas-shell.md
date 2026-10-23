@@ -1,8 +1,8 @@
 BRIEF VERSION: 0001-W3 v1 (2026-10-22)
 # 0001-W3 — Refresh the canvas shell
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-to main. Merge and publication remain separate maintainer actions.
+Status: Implemented. Independently reviewed and merged into main on 2026-10-22;
+the implementation record below lists the validated revision.
 
 ## Outcome
 

@@ -156,4 +156,69 @@ Document v1's and interaction v4's references (retrieved 2026-10-22) still apply
 
 ## Implementation record
 
-Not started.
+Implementation handoff dated 2026-10-23 for **0001-W5 v1**, using document v2
+and interaction v8. Independent review and browser acceptance remain pending.
+
+Branch: `codex/0001-W5-note-styles`; worktree: `.worktrees/codex-0001-W5`.
+Committed main base: `96485b5f9db08f70f9f1a85ec5afd427657db048`.
+Validated source/test revision: `eecf754c492283102e895a8c12285a25049478ed`.
+The final checks ran against these exact source/test bytes before their commit.
+This implementation record is a separate documentation commit; the final branch
+tip is reported separately in the handoff.
+
+The implementation adds the eight-colour palette, four sizes and three alignments
+through the selection bar and equivalent native Objects controls. The bar measures
+its contents, clamps within the scene and yields to Objects when it cannot fit.
+The swatch popover marks the current colour, supports Escape and focus return,
+and dismisses on outside pointer/focus movement or selection/bar changes. The
+renderer, fade and on-canvas editor use the selected style; the editor fallback
+uses the object's own size times zoom. A style change ends text editing first,
+records one object transaction, and includes any size-driven height growth in
+that step. Choosing the current value makes no document/history change.
+
+Version 1 remains independently valid and canonicalizes without style keys.
+Adoption upgrades only the in-memory board, including read-only snapshots, without
+advancing its draft revision, recording history, marking it Unsaved or writing
+storage. Version 2 serializes the required style keys after text. The adapter stores
+one atomic style value alongside geometry. Existing duplicate/restoration logic
+copies the style without changes to history.ts.
+
+| Criterion | Source/unit evidence and remaining boundary |
+| --- | --- |
+| 0001-W5-AC01 | Style tables cover every declared name and pass the WCAG contrast formula; needed height is covered at all four sizes with grow-only and bottom-edge bounds. Both control routes, rendering, focus and fallback are implemented; browser observations remain unverified. |
+| 0001-W5-AC02 | Existing document cases pass for v1 and v2; all style combinations validate on both types; unknown, missing and extra values/keys reject. Tests assert per-version canonical bytes, defaults, upgrade preservation and mixed v2 head/v1 previous decoding with legacy bytes unchanged. Actual browser Save/reload and older-build read-only behavior remain unverified. |
+| 0001-W5-AC03 | Tests assert one adapter transaction/history step per style change, exact undo/redo with unrelated content preserved, combined size/height undo, copied/restored styles, separate text/style steps and no-op history preservation. Actual UI command/focus journeys remain unverified. |
+
+The pinned toolchain was selected in the shell before every Node/npm command;
+its machine-specific location is deliberately omitted from this public record.
+
+| Exact command | Actual result |
+| --- | --- |
+| `node --version` | PASS, exit 0: `v24.22.1` |
+| `npm --version` | PASS, exit 0: `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | PASS, exit 0; added 19 packages. Manifest and lock unchanged. |
+| `npm --prefix apps/web run typecheck` | PASS, exit 0 on both runs, including final source bytes. Browser fixture source typechecked unchanged. |
+| `node --test tests/styles.test.mjs tests/document.test.mjs tests/geometry.test.mjs tests/history.test.mjs tests/storage.test.mjs` | PASS, exit 0: initially 46/46; final run after explicit button-focus handling and the text/style-session regression, 47/47; zero failures, skips or cancellations. Only these five test files ran. |
+| `npm --prefix apps/web run build` | PASS, exit 0; accepted lock, runtime inventory and complete distributed notices verified; application built. |
+| `git diff --check` | PASS, exit 0 before the source/test commit. |
+| `git diff --name-only main -- apps/web/src/storage.ts apps/web/src/history.ts apps/web/src/view.ts apps/web/package.json apps/web/package-lock.json` | PASS, exit 0, no output: all five prohibited files unchanged. |
+| `git diff --cached --check` | PASS, exit 0 before the source/test commit. |
+| `git diff --cached --stat` | Inspected: only the eleven permitted source/test files, including new styles.ts and styles.test.mjs. |
+| `git commit -m "feat(web): persist note colors and basic text styles"` | PASS, exit 0; both mandatory public-boundary hooks passed. Git also reported a sandbox-denied packed-refs.lock creation; the commit exists, and no hook was bypassed. |
+| `git diff --name-only main...HEAD` | PASS, exit 0 at the validated source/test revision: only the eleven permitted source/test files. The subsequent record commit adds only this brief. |
+| `git status --short` | Clean immediately after the source/test commit, before this record was added. |
+
+Added dependencies and assets: **none**. storage.ts, history.ts, view.ts, package
+files, the lock, browser fixtures, storage rules, explicit-save policy, placement
+and navigation are unchanged. Graph discovery/indexing was attempted but blocked
+by the environment's approval policy; direct source reads were used as fallback.
+
+No browser was launched, as explicitly required for this environment. The brief's
+single Chrome/Safari pass remains with the independent reviewer: both control
+routes on both object types, swatch Escape/focus behavior, Extra large growth and
+one-step undo, Save/reload, legacy opening with unchanged stored bytes and no
+Unsaved state, subsequent v2 head/v1 previous storage, and older-build read-only
+behavior. No browser fixtures or matrix, accessibility audit, native IME checks,
+performance tests or other unit files were run. No browser evidence or full
+milestone acceptance is claimed. No push, merge, publication, deployment or later
+milestone was performed.

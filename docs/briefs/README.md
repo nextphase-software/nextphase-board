@@ -9,9 +9,13 @@ main. A template is not authorization.
 [0001-W3 v1 — Refresh the canvas shell](0001-W3-refresh-the-canvas-shell.md), a
 presentation-only refresh of the 0001-W1 shell, is implemented and merged into main.
 
-[0001-W2 v2 — Edit with explicit focus and undo](0001-W2-edit-with-explicit-focus-and-undo.md)
-is a draft: undo, redo, duplicate and delete for the existing objects, governed by
-[interaction v5](../architecture/0001-interaction-v5.md).
+[0001-W2 v2 — Edit with explicit focus and undo](0001-W2-edit-with-explicit-focus-and-undo.md),
+undo, redo, duplicate and delete for the existing objects under
+[interaction v5](../architecture/0001-interaction-v5.md), is implemented and merged into main.
+
+[0001-W4 v1 — Define note geometry and text growth](0001-W4-define-note-geometry-and-text-growth.md)
+is a draft: square stickies and notes that grow taller to fit their text, governed by
+[interaction v6](../architecture/0001-interaction-v6.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

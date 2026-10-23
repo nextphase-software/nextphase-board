@@ -1,8 +1,9 @@
 BRIEF VERSION: 0001-W2 v2 (2026-10-22)
 # 0001-W2 — Edit with explicit focus and undo
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 interaction v5](../architecture/0001-interaction-v5.md) to main.
+Status: Implemented. Independently reviewed and merged into main on 2026-10-22
+with [0001 interaction v5](../architecture/0001-interaction-v5.md); the
+implementation record below lists the validated revisions.
 
 ## Outcome
 

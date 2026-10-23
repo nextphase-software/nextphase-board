@@ -13,9 +13,13 @@ Current accepted implementation contract set for 0001-W1 brief v6:
 redo, duplicate and delete with session-only history and scene-scoped shortcuts,
 and includes the 0001-W3 presentation. It replaces v4 for later work.
 
-Draft for 0001-W4 brief v3: [0001 interaction v6](0001-interaction-v6.md) makes new
+[0001 interaction v6](0001-interaction-v6.md), accepted with 0001-W4, makes new
 stickies square and lets notes grow taller to fit their text. It replaces v5 for
-later work once accepted.
+later work.
+
+Draft for 0001-W13 brief v1: [0001 interaction v7](0001-interaction-v7.md) adds
+trackpad and mouse-wheel navigation: scroll to pan, pinch or Ctrl/Cmd+wheel to zoom
+around the pointer, and Space + drag. It replaces v6 for later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

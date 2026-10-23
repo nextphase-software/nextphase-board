@@ -1,8 +1,9 @@
 BRIEF VERSION: 0001-W4 v3 (2026-10-22)
 # 0001-W4 — Define note geometry and text growth
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 interaction v6](../architecture/0001-interaction-v6.md) to main.
+Status: Implemented. Independently reviewed and merged into main on 2026-10-23
+with [0001 interaction v6](../architecture/0001-interaction-v6.md); the
+implementation record below lists the validated revisions.
 
 ## Outcome
 

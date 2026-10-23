@@ -13,9 +13,13 @@ presentation-only refresh of the 0001-W1 shell, is implemented and merged into m
 undo, redo, duplicate and delete for the existing objects under
 [interaction v5](../architecture/0001-interaction-v5.md), is implemented and merged into main.
 
-[0001-W4 v3 — Define note geometry and text growth](0001-W4-define-note-geometry-and-text-growth.md)
-is a draft: square stickies and notes that grow taller to fit their text, governed by
-[interaction v6](../architecture/0001-interaction-v6.md).
+[0001-W4 v3 — Define note geometry and text growth](0001-W4-define-note-geometry-and-text-growth.md),
+square stickies and notes that grow taller to fit their text under
+[interaction v6](../architecture/0001-interaction-v6.md), is implemented and merged into main.
+
+[0001-W13 v1 — Navigate the canvas with trackpad and mouse wheel](0001-W13-navigate-the-canvas-with-trackpad-and-mouse-wheel.md)
+is a draft: scroll to pan, pinch or Ctrl/Cmd+wheel to zoom around the pointer, and
+Space + drag, governed by [interaction v7](../architecture/0001-interaction-v7.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
-export type Item = {
+import { ALIGNMENTS, COLORS, DEFAULT_STYLES, LEGACY_STYLES, TEXT_SIZES, type Style } from "./styles.ts";
+export type ItemV1 = {
   id: string;
   generation: string;
   type: "sticky" | "text";
@@ -11,13 +12,16 @@ export type Item = {
   height: number;
   order: number;
 };
-export type Board = {
-  schemaVersion: 1;
+export type ItemV2 = ItemV1 & Style;
+export type Item = ItemV1 | ItemV2;
+type BoardFields = {
   boardId: string;
   title: string;
-  objects: Item[];
   retiredGenerations: string[];
 };
+export type BoardV1 = BoardFields & { schemaVersion: 1; objects: ItemV1[] };
+export type BoardV2 = BoardFields & { schemaVersion: 2; objects: ItemV2[] };
+export type Board = BoardFields & { schemaVersion: 1 | 2; objects: Item[] };
 const uuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export const count = (s: string) => Array.from(s).length;
@@ -38,7 +42,7 @@ export function validate(value: unknown): Board {
       "title",
       "objects",
       "retiredGenerations",
-    ]) || b.schemaVersion !== 1 || typeof b.boardId !== "string" || !uuid.test(b.boardId) ||
+    ]) || ![1, 2].includes(b.schemaVersion) || typeof b.boardId !== "string" || !uuid.test(b.boardId) ||
     typeof b.title !== "string" || !validText(b.title, 120, true) ||
     !Array.isArray(b.objects) || b.objects.length > 250 ||
     !Array.isArray(b.retiredGenerations) || b.retiredGenerations.length > 10000
@@ -53,6 +57,7 @@ export function validate(value: unknown): Board {
         "generation",
         "type",
         "text",
+        ...(b.schemaVersion === 2 ? ["color", "textSize", "align"] : []),
         "x",
         "y",
         "width",
@@ -67,6 +72,12 @@ export function validate(value: unknown): Board {
       o.y < -1e6 || o.width < 40 || o.width > 2000 || o.height < 40 ||
       o.height > 2000 || o.x + o.width > 1e6 || o.y + o.height > 1e6
     ) throw Error("Invalid object");
+    if (b.schemaVersion === 2) {
+      const styled = o as ItemV2;
+      if (!COLORS.some((c) => c.name === styled.color) ||
+        !TEXT_SIZES.some((s) => s.name === styled.textSize) ||
+        !ALIGNMENTS.some((a) => a.name === styled.align)) throw Error("Invalid style");
+    }
     ids.add(o.id);
     gens.add(o.generation);
   }
@@ -81,7 +92,7 @@ export function validate(value: unknown): Board {
 export function canonical(b: Board) {
   validate(b);
   const s = JSON.stringify({
-    schemaVersion: 1,
+    schemaVersion: b.schemaVersion,
     boardId: b.boardId,
     title: b.title,
     objects: b.objects.map((o) => ({
@@ -89,6 +100,7 @@ export function canonical(b: Board) {
       generation: o.generation,
       type: o.type,
       text: o.text,
+      ...(b.schemaVersion === 2 ? styleOf(o as ItemV2) : {}),
       x: o.x,
       y: o.y,
       width: o.width,
@@ -102,16 +114,29 @@ export function canonical(b: Board) {
   }
   return s;
 }
-export function empty(): Board {
+function styleOf(o: ItemV2): Style {
+  return { color: o.color, textSize: o.textSize, align: o.align };
+}
+// Adoption is deliberately separate from decoding/canonicalization: opening
+// legacy bytes never rewrites them or advances the editing revision.
+export function upgrade(b: Board): BoardV2 {
+  if (b.schemaVersion === 2) return b as BoardV2;
   return {
-    schemaVersion: 1,
+    ...b, schemaVersion: 2,
+    objects: b.objects.map((o) => ({ ...o, ...LEGACY_STYLES[o.type] })),
+  };
+}
+export function empty(): BoardV2 {
+  return {
+    schemaVersion: 2,
     boardId: crypto.randomUUID(),
     title: "",
     objects: [],
     retiredGenerations: [],
   };
 }
-export function add(b: Board, type: Item["type"], x: number, y: number): Board {
+export function add(input: Board, type: Item["type"], x: number, y: number): BoardV2 {
+  const b = upgrade(input);
   if (b.objects.length >= 250) throw Error("250 object limit reached");
   const width = type === "sticky" ? 240 : 320,
     height = type === "sticky" ? 240 : 120;
@@ -122,6 +147,7 @@ export function add(b: Board, type: Item["type"], x: number, y: number): Board {
       generation: crypto.randomUUID(),
       type,
       text: "",
+      ...DEFAULT_STYLES[type],
       x: clamp(x - width / 2, -1e6, 1e6 - width),
       y: clamp(y - height / 2, -1e6, 1e6 - height),
       width,
@@ -134,9 +160,11 @@ export const clamp = (n: number, a: number, b: number) =>
   Math.max(a, Math.min(b, n));
 export class Adapter {
   doc = new Y.Doc();
-  set(b: Board) {
+  set(input: Board) {
+    const b = upgrade(input);
     this.doc.transact(() => {
       const board = this.doc.getMap("board");
+      board.set("schemaVersion", b.schemaVersion);
       board.set("boardId", b.boardId);
       board.set("title", b.title);
       const objects = this.doc.getMap<Y.Map<unknown>>("objects");
@@ -159,6 +187,10 @@ export class Adapter {
         if (text.toString() !== o.text) {
           text.delete(0, text.length);
           text.insert(0, o.text);
+        }
+        const style = styleOf(o);
+        if (JSON.stringify(m.get("style")) !== JSON.stringify(style)) {
+          m.set("style", style);
         }
         const geometry = { x: o.x, y: o.y, width: o.width, height: o.height };
         if (JSON.stringify(m.get("geometry")) !== JSON.stringify(geometry)) {

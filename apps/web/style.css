@@ -268,7 +268,8 @@ small {
 }
 .context {
   position: absolute;
-  width: 376px;
+  width: max-content;
+  flex-wrap: nowrap;
   height: 40px;
   background: #302d36;
   color: white;
@@ -404,4 +405,42 @@ small {
   .file > button:first-child { flex: 1; }
   .file { gap: 2px; }
   .file small { padding: 4px; }
+}
+
+/* W5 controls share the shell's target sizes, focus and icon states. */
+.object-styles { display: grid; gap: 8px; }
+.alignments, .colour-control { display: inline-flex; gap: 4px; }
+.context .context-size {
+  width: 124px;
+  min-height: 40px;
+  padding: 4px;
+  background: #302d36;
+  color: white;
+  border: 1px solid #79737f;
+  flex-shrink: 0;
+}
+.context .context-size:disabled { opacity: .45; }
+.colour-dot {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border: 1px solid #79737f;
+  border-radius: 50%;
+}
+.swatches {
+  position: absolute;
+  width: 196px;
+  height: 108px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(4, 40px);
+  gap: 4px;
+  background: white;
+  border: 1px solid #e9e7ed;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px #29202e20;
+}
+.context .swatches button[aria-pressed=true] .colour-dot {
+  outline: 2px solid #7051cf;
+  outline-offset: 3px;
 }

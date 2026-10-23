@@ -137,3 +137,29 @@ test("a session returning to its original text still undoes retained height grow
   assert.equal(after.objects[0].text, original.text);
   assert.deepEqual(undo(after, history).board, before);
 });
+
+test("needed height uses each declared text size, including an empty line", () => {
+  for (const size of [14, 18, 24, 32]) {
+    for (const lines of [0, 1, 5, 100]) {
+      assert.equal(neededHeight(lines, size), Math.ceil(Math.max(1, lines) * size * 1.45) + 40);
+    }
+  }
+});
+test("size growth keeps width and position, caps at both limits, and never shrinks", () => {
+  const original = rectangularBoard().objects[0];
+  for (const y of [0, 999840, 999960]) {
+    const object = { ...original, y, height: Math.min(original.height, allowedHeight(y)) };
+    for (const size of [14, 18, 24, 32]) {
+      for (const lines of [1, 5, 100]) {
+        const height = savedHeight(object, lines, size);
+        assert.equal(height, Math.min(allowedHeight(y), Math.max(object.height, neededHeight(lines, size))));
+        assert.equal(displayHeight(object, lines, size), height);
+        assert(height >= object.height && height <= allowedHeight(y));
+        const smaller = { ...object, height };
+        assert.equal(savedHeight(smaller, lines, 14), height);
+      }
+    }
+  }
+  assert.equal(savedHeight(original, 5, 32), 272);
+  assert.equal(savedHeight({ ...original, height: 272 }, 5, 14), 272);
+});

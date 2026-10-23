@@ -230,3 +230,80 @@ test("retirement limit refuses delete, undo-create and redo-delete without chang
   assert.deepEqual(restored, snapshot);
   assert.doesNotThrow(() => duplicate(restored.board, restored.history, restored.board.objects[0]));
 });
+
+for (const type of ["sticky", "text"]) {
+  test(`${type} style changes are one step, preserve other content and skip a repeated value`, () => {
+    const initial = add(add(board(), type, 0, 0), "text", 500, 0);
+    initial.objects[0].text = "Unchanged\n你好 🧭";
+    initial.objects[1] = { ...initial.objects[1], color: "blue", align: "right" };
+    const s = session(initial);
+    for (const change of [{ color: "green" }, { textSize: "small" }, { align: "center" }]) {
+      const before = structuredClone(s.board);
+      const next = { ...s.board, objects: [{ ...s.board.objects[0], ...change }, s.board.objects[1]] };
+      const revisions = s.revision;
+      const steps = s.history.past.length;
+      s.record(next);
+      assert.equal(s.revision, revisions + 1);
+      assert.equal(s.history.past.length, steps + 1);
+      s.adopt(undo(s.board, s.history));
+      assert.deepEqual(s.board, before);
+      assert.equal(s.revision, revisions + 2);
+      s.adopt(redo(s.board, s.history));
+      assert.deepEqual(s.board, next);
+      assert.equal(s.revision, revisions + 3);
+      assert.equal(s.board.objects[0].text, initial.objects[0].text);
+      assert.deepEqual(s.board.objects[1], initial.objects[1]);
+      const same = { ...s.board, objects: [{ ...s.board.objects[0], ...change }, s.board.objects[1]] };
+      assert.equal(record(s.history, s.board, same), s.history);
+      assert.equal(s.revision, revisions + 3);
+    }
+    s.close();
+  });
+}
+test("size and growth undo and redo together, then duplicate and restore retain all styles", () => {
+  const initial = add(add(board(), "sticky", 0, 0), "text", 500, 0);
+  initial.objects[0] = { ...initial.objects[0], text: "One\nTwo\nThree\nFour\nFive", height: 160, color: "violet", align: "right" };
+  const s = session(initial);
+  const next = { ...initial, objects: [{ ...initial.objects[0], textSize: "extra-large", height: 272 }, initial.objects[1]] };
+  s.record(next);
+  assert.equal(s.revision, 1);
+  assert.equal(s.history.past.length, 1);
+  s.adopt(undo(s.board, s.history));
+  assert.deepEqual(s.board, initial);
+  s.adopt(redo(s.board, s.history));
+  assert.deepEqual(s.board, next);
+  assert.equal(s.revision, 3);
+  s.adopt(duplicate(s.board, s.history, s.board.objects[0]));
+  const copy = s.board.objects[2];
+  assert.deepEqual(copy, { ...next.objects[0], id: copy.id, generation: copy.generation, x: next.objects[0].x + 24, y: next.objects[0].y + 24, order: 2 });
+  s.adopt(deleteObject(s.board, s.history, copy));
+  s.adopt(undo(s.board, s.history));
+  assert.deepEqual(withoutGeneration(s.board.objects[2]), withoutGeneration(copy));
+  assert.notEqual(s.board.objects[2].generation, copy.generation);
+  assert.deepEqual(s.board.objects[0], next.objects[0]);
+  assert.deepEqual(s.board.objects[1], initial.objects[1]);
+  s.close();
+});
+
+test("finishing text before a style change yields separate steps; a no-op preserves redo", () => {
+  const initial = add(board(), "sticky", 0, 0);
+  const s = session(initial);
+  const edited = { ...initial, objects: [{ ...initial.objects[0], text: "Text session" }] };
+  s.record(edited);
+  const styled = { ...edited, objects: [{ ...edited.objects[0], color: "blue" }] };
+  s.record(styled);
+  assert.equal(s.history.past.length, 2);
+  assert.equal(s.revision, 2);
+  s.adopt(undo(s.board, s.history));
+  assert.deepEqual(s.board, edited);
+  assert.equal(s.history.future.length, 1);
+  assert.equal(record(s.history, s.board, structuredClone(s.board)), s.history);
+  assert.equal(s.revision, 3);
+  s.adopt(undo(s.board, s.history));
+  assert.deepEqual(s.board, initial);
+  s.adopt(redo(s.board, s.history));
+  s.adopt(redo(s.board, s.history));
+  assert.deepEqual(s.board, styled);
+  assert.equal(s.revision, 6);
+  s.close();
+});

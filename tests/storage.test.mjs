@@ -61,3 +61,36 @@ test("correctly hashed envelopes cannot adopt non-string UUID fields", async () 
     assert.deepEqual(pair, before);
   }
 });
+
+test("mixed v2 head and v1 previous decode while legacy raw bytes remain exact", async () => {
+  const { upgrade } = await import("../apps/web/src/document.ts");
+  const current = add(add({ ...empty(), title: "Legacy storage" }, "sticky", 0, 0), "text", 400, 0);
+  const legacy = { ...current, schemaVersion: 1, objects: current.objects.map(({ color, textSize, align, ...o }) => o) };
+  legacy.objects[0].text = "Legacy\n你好 🧭";
+  const previous = await wrap(1, legacy);
+  const legacyPayload = JSON.parse(previous).payload;
+  const read = await readPair([previous, undefined]);
+  assert.equal(read.board.schemaVersion, 1);
+  assert.equal(canonical(read.board), legacyPayload);
+  const editable = upgrade(read.board);
+  assert.equal(canonical(read.board), legacyPayload);
+  editable.objects[1] = { ...editable.objects[1], color: "yellow", textSize: "large", align: "center" };
+  const head = await wrap(2, editable);
+  const pair = [head, previous];
+  const before = structuredClone(pair);
+  const loaded = await readPair(pair);
+  assert.deepEqual(loaded.board, editable);
+  assert.equal(loaded.envelope.storageRevision, 2);
+  assert.deepEqual(pair, before);
+  assert.equal((await decode(pair[1])).envelope.payload, legacyPayload);
+  assert.equal(pair[1], previous);
+  assert.equal(canonical((await decode(pair[1])).board), legacyPayload);
+});
+test("a correctly hashed unknown document version is rejected with raw bytes unchanged", async () => {
+  const payload = JSON.stringify({ ...b, schemaVersion: 3 });
+  const raw = JSON.stringify({ formatVersion: 1, storageRevision: 1, payload, sha256: await digest(payload) });
+  const pair = [raw, undefined];
+  await assert.rejects(decode(raw));
+  await assert.rejects(readPair(pair));
+  assert.deepEqual(pair, [raw, undefined]);
+});

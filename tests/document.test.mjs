@@ -1,14 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
-import test from "node:test";
+import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import {
   Adapter,
-  add,
+  add as addV2,
   canonical,
-  empty,
+  empty as emptyV2,
+  upgrade,
   validate,
   validText,
 } from "../apps/web/src/document.ts";
+import { ALIGNMENTS, COLORS, DEFAULT_STYLES, TEXT_SIZES } from "../apps/web/src/styles.ts";
+const legacy = (b) => ({ ...b, schemaVersion: 1, objects: b.objects.map(({ color, textSize, align, ...o }) => o) });
+for (const version of [1, 2]) {
+  const test = (name, fn) => nodeTest(`v${version}: ${name}`, fn);
+  const empty = () => version === 1 ? legacy(emptyV2()) : emptyV2();
+  const add = (...args) => version === 1 ? legacy(addV2(...args)) : addV2(...args);
 test("named board canonical roundtrip, independent identities and exact Unicode", () => {
   let b = { ...empty(), title: "Team 🧭" };
   b = add(b, "sticky", 0, 0);
@@ -27,7 +34,7 @@ test("malformed schemas, duplicate identities and invalid geometry fail closed",
   const b = add({ ...empty(), title: "Example" }, "text", 0, 0);
   for (
     const mutate of [
-      (x) => x.schemaVersion = 2,
+      (x) => x.schemaVersion = 3,
       (x) => x.unknown = true,
       (x) => x.objects[0].id = x.boardId,
       (x) => x.objects[0].x = Infinity,
@@ -88,4 +95,93 @@ test("UUID fields reject non-string values without coercion", () => {
       assert.deepEqual(board, before);
     }
   }
+});
+
+}
+
+nodeTest("v1 canonical bytes stay exact and upgrading adds only defaults", () => {
+  const b = legacy(addV2(addV2({ ...emptyV2(), title: "Legacy 🧭" }, "sticky", 0, 0), "text", 450, 0));
+  b.objects[0].text = "One\nTwo\ne\u0301";
+  b.objects[0].height = 160;
+  b.retiredGenerations = [crypto.randomUUID()];
+  const bytes = JSON.stringify(b);
+  const decoded = validate(JSON.parse(bytes));
+  assert.equal(canonical(decoded), bytes);
+  const upgraded = upgrade(decoded);
+  assert.equal(upgraded.schemaVersion, 2);
+  assert.deepEqual(legacy(upgraded), b);
+  assert.deepEqual(upgraded.objects.map(({ color, textSize, align }) => ({ color, textSize, align })),
+    [DEFAULT_STYLES.sticky, DEFAULT_STYLES.text]);
+  assert.equal(canonical(decoded), bytes);
+  assert.equal(upgrade(upgraded), upgraded);
+  const adapter = new Adapter();
+  adapter.set(decoded);
+  assert.deepEqual(adapter.doc.getMap("objects").get(b.objects[1].id).get("style"), DEFAULT_STYLES.text);
+  assert.equal(canonical(decoded), bytes);
+  adapter.destroy();
+});
+nodeTest("v2 accepts every style combination on both object types", () => {
+  assert.equal(emptyV2().schemaVersion, 2);
+  for (const type of ["sticky", "text"]) {
+    const b = addV2({ ...emptyV2(), title: "Styles" }, type, 0, 0);
+    assert.equal(b.schemaVersion, 2);
+    for (const key of ["color", "textSize", "align"]) assert.equal(b.objects[0][key], DEFAULT_STYLES[type][key]);
+    for (const c of COLORS) for (const s of TEXT_SIZES) for (const a of ALIGNMENTS) {
+      const styled = { ...b, objects: [{ ...b.objects[0], color: c.name, textSize: s.name, align: a.name }] };
+      assert.deepEqual(validate(JSON.parse(canonical(styled))), styled);
+      assert.deepEqual(Object.keys(JSON.parse(canonical(styled)).objects[0]), [
+        "id", "generation", "type", "text", "color", "textSize", "align", "x", "y", "width", "height", "order",
+      ]);
+    }
+    for (const key of ["color", "textSize", "align"]) {
+      for (const value of ["unknown", "", null, 1, {}, [b.objects[0][key]]]) {
+        const invalid = structuredClone(b);
+        invalid.objects[0][key] = value;
+        assert.throws(() => validate(invalid));
+      }
+      const missing = structuredClone(b);
+      delete missing.objects[0][key];
+      assert.throws(() => validate(missing));
+      const v1 = legacy(b);
+      v1.objects[0][key] = b.objects[0][key];
+      assert.throws(() => validate(v1));
+    }
+    const extra = structuredClone(b);
+    extra.objects[0].extra = "unknown";
+    assert.throws(() => validate(extra));
+  }
+});
+nodeTest("v2 canonical ordering is independent of input key order; v1 omits styles", () => {
+  const b = addV2({ ...emptyV2(), title: "Ordering" }, "sticky", 0, 0);
+  const reversed = { ...b, objects: [Object.fromEntries(Object.entries(b.objects[0]).reverse())] };
+  assert.equal(canonical(reversed), canonical(b));
+  assert(!canonical(legacy(b)).includes('"color"'));
+  assert.deepEqual(Object.keys(JSON.parse(canonical(legacy(b))).objects[0]), [
+    "id", "generation", "type", "text", "x", "y", "width", "height", "order",
+  ]);
+});
+nodeTest("adapter stores style atomically with size growth in one transaction", () => {
+  const b = addV2({ ...emptyV2(), title: "Atomic style" }, "sticky", 0, 0);
+  const adapter = new Adapter();
+  adapter.set(b);
+  const map = adapter.doc.getMap("objects").get(b.objects[0].id);
+  const text = map.get("text");
+  const beforeStyle = map.get("style");
+  const changedKeys = [];
+  map.observe((event) => changedKeys.push([...event.keysChanged].sort()));
+  let revisions = 0;
+  adapter.doc.on("afterTransaction", () => revisions++);
+  const after = { ...b, objects: [{ ...b.objects[0], color: "teal", textSize: "extra-large", align: "right", height: 400 }] };
+  adapter.set(after);
+  assert.equal(revisions, 1);
+  assert.deepEqual(changedKeys, [["geometry", "style"]]);
+  assert.deepEqual(beforeStyle, DEFAULT_STYLES.sticky);
+  assert.deepEqual(map.get("style"), { color: "teal", textSize: "extra-large", align: "right" });
+  assert.equal(map.get("geometry").height, 400);
+  assert.equal(map.get("text"), text);
+  assert.equal(map.get("generation"), b.objects[0].generation);
+  const recreated = new Adapter();
+  recreated.set(validate(JSON.parse(canonical(after))));
+  assert.deepEqual(recreated.doc.getMap("objects").get(b.objects[0].id).get("style"), map.get("style"));
+  adapter.destroy(); recreated.destroy();
 });

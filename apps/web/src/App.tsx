@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Konva from "konva";
 import { Group, Layer, Rect, Stage, Text } from "react-konva";
 import {
   Adapter,
   add,
-  type Board,
+  type Board as SavedBoard,
+  type BoardV2 as Board,
   clamp,
   count,
   empty,
-  type Item,
+  type ItemV2 as Item,
+  upgrade,
   validText,
 } from "./document";
+import { ALIGNMENTS, COLORS, TEXT_SIZES, colorEntry, textColor, textUnits, type Style } from "./styles";
 import { decode, LocalStore, readPair } from "./storage";
 import { Icon } from "./icons";
 import { deleteObject, duplicate, emptyHistory, record, redo, undo, type History } from "./history";
@@ -22,6 +25,7 @@ function lineCount(object: Item, text = object.text): number {
   // Auto height is essential here: a fixed height would count only visible lines.
   const measurement = new Konva.Text({
     ...TEXT_LAYOUT,
+    fontSize: textUnits(object.textSize),
     width: object.width - 2 * TEXT_INSET,
     text,
   });
@@ -38,6 +42,8 @@ export function App() {
     [tool, setTool] = useState("Select"),
     [panel, setPanel] = useState(""),
     [inline, setInline] = useState(false),
+    [swatchFor, setSwatchFor] = useState(""),
+    [contextWidth, setContextWidth] = useState(0),
     [readOnly, setReadOnly] = useState(true),
     [message, setMessage] = useState("Opening local board…"),
     [status, setStatus] = useState("Unsaved"),
@@ -47,7 +53,7 @@ export function App() {
     [spacePan, setSpacePan] = useState(false),
     [composing, setComposing] = useState(false),
     [history, setHistory] = useState<History>(emptyHistory),
-    [snapshots, setSnapshots] = useState<{ board: Board; revision: number }[]>(
+    [snapshots, setSnapshots] = useState<{ board: SavedBoard; revision: number }[]>(
       [],
     );
   const model = useRef(board),
@@ -59,6 +65,10 @@ export function App() {
     adapter = useRef<Adapter | null>(null),
     release = useRef<(() => void) | null>(null),
     scene = useRef<HTMLDivElement>(null),
+    contextBar = useRef<HTMLElement>(null),
+    colourControl = useRef<HTMLSpanElement>(null),
+    colourButton = useRef<HTMLButtonElement>(null),
+    swatches = useRef<HTMLDivElement>(null),
     inlineSurface = useRef<HTMLElement>(null),
     spacePanRef = useRef(false),
     lastPointer = useRef<{ x: number; y: number } | null>(null),
@@ -87,13 +97,14 @@ export function App() {
   const objectLayouts = useMemo(() => new Map(board.objects.map((o) => {
     // Uncommitted composition/invalid input may grow the editor's preview only.
     const lines = lineCount(o, inline && o.id === selected ? text : o.text);
-    const height = displayHeight(o, lines);
+    const fontSize = textUnits(o.textSize);
+    const height = displayHeight(o, lines, fontSize);
     const innerHeight = height - 2 * TEXT_INSET;
-    const lineHeight = TEXT_LAYOUT.fontSize * TEXT_LAYOUT.lineHeight;
+    const lineHeight = fontSize * TEXT_LAYOUT.lineHeight;
     const visibleLines = Math.floor(innerHeight / lineHeight);
     return [o.id, {
       height,
-      limited: neededHeight(lines) > allowedHeight(o.y),
+      limited: neededHeight(lines, fontSize) > allowedHeight(o.y),
       fadeStart: Math.max(0, visibleLines - 1) * lineHeight,
       fadeEnd: Math.max(1, Math.min(innerHeight, Math.max(1, visibleLines) * lineHeight)),
     }];
@@ -206,7 +217,8 @@ export function App() {
     textSession.current = null;
     if (session) updateHistory(record(historyRef.current, session.before, model.current));
   }
-  function commit(next: Board, recordObject = false) {
+  function commit(input: SavedBoard, recordObject = false) {
+    const next = upgrade(input);
     if (readOnly) return;
     if (JSON.stringify(next) === JSON.stringify(model.current)) return;
     if (recordObject) {
@@ -219,7 +231,8 @@ export function App() {
     setBoard(next);
     setStatus("Unsaved");
   }
-  function adopt(b: Board, saved: boolean) {
+  function adopt(input: SavedBoard, saved: boolean) {
+    const b = upgrade(input);
     clearHistory();
     model.current = b;
     setBoard(b);
@@ -364,7 +377,7 @@ export function App() {
       ...model.current,
       objects: model.current.objects.map((o) =>
         o.id === id && o.text !== value
-          ? { ...o, text: value, height: savedHeight(o, lineCount(o, value)) }
+          ? { ...o, text: value, height: savedHeight(o, lineCount(o, value), textUnits(o.textSize)) }
           : o
       ),
     });
@@ -406,9 +419,9 @@ export function App() {
       p.left + item.width * view.z > size.w ||
       p.top + itemHeight * view.z > size.h ||
       (item.width - 40) * view.z < 120 || (itemHeight - 40) * view.z < 60 ||
-      18 * view.z < 12 || obscured
+      textUnits(item.textSize) * view.z < 12 || obscured
     ) fallbackEditor();
-  }, [inline, selected, view, size, composing, itemHeight, item?.width]);
+  }, [inline, selected, view, size, composing, itemHeight, item?.width, item?.textSize]);
   function create(type: Item["type"], x: number, y: number, native = false) {
     if (readOnly || busy || composing) return;
     try {
@@ -642,7 +655,15 @@ export function App() {
   const showNotice = !!(visibleMessage || invalid || busy || readOnly ||
     tool === "Sticky" || tool === "Text" || snapshots.length);
   // The context surface follows transformed bounds without changing board geometry.
-  const contextWidth = 376;
+  useLayoutEffect(() => {
+    const bar = contextBar.current;
+    if (!bar) return;
+    const measure = () => setContextWidth(bar.getBoundingClientRect().width);
+    const observer = new ResizeObserver(measure);
+    observer.observe(bar);
+    measure();
+    return () => observer.disconnect();
+  }, [item?.id]);
   const contextLeft = item
     ? clamp(pos(item).left + item.width * view.z / 2 - contextWidth / 2,
       12, Math.max(12, size.w - contextWidth - 12)) : 12;
@@ -655,7 +676,43 @@ export function App() {
     contextTop + 40 > pos(item).top + 20 * view.z &&
     contextLeft < pos(item).left + (item.width - 20) * view.z &&
     contextLeft + contextWidth > pos(item).left + 20 * view.z;
-  const contextFits = contextTop + 40 <= size.h - 12 && !overlapsEditor;
+  const contextFits = size.w >= 768 && contextWidth > 0 && contextWidth <= size.w - 24 &&
+    contextTop + 40 <= size.h - 12 && !overlapsEditor;
+  const swatchOpen = swatchFor === selected && !!selected && contextFits && !selectionReason;
+  useEffect(() => {
+    if (!swatchOpen) setSwatchFor("");
+  }, [swatchOpen, selected]);
+  useEffect(() => {
+    if (!swatchOpen) return;
+    swatches.current?.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus();
+    const outside = (event: Event) => {
+      if (event.target instanceof Node && !colourControl.current?.contains(event.target)) {
+        setSwatchFor("");
+      }
+    };
+    document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("focusin", outside);
+    return () => {
+      document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("focusin", outside);
+    };
+  }, [swatchOpen]);
+  function changeStyle<K extends keyof Style>(key: K, value: Style[K]) {
+    if (selectionReason) return;
+    finishTextSession();
+    setInline(false);
+    const current = model.current.objects.find((o) => o.id === selected);
+    if (!current || current[key] === value) return;
+    const styled = { ...current, [key]: value };
+    const next = key === "textSize"
+      ? { ...styled, height: savedHeight(styled, lineCount(styled), textUnits(styled.textSize)) }
+      : styled;
+    commit({ ...model.current, objects: model.current.objects.map((o) => o.id === next.id ? next : o) }, true);
+  }
+  function closeSwatches() {
+    setSwatchFor("");
+    colourButton.current?.focus();
+  }
   return (
     <main
       style={{
@@ -922,11 +979,11 @@ export function App() {
                     y={o.y}
                     width={o.width}
                     height={layout.height}
-                    fill={o.type === "sticky" ? "#f2dce5" : undefined}
+                    fill={o.type === "sticky" ? colorEntry(o.color).fill : undefined}
                     stroke={selected === o.id
                       ? "#518de0"
                       : o.type === "sticky"
-                      ? "#e8cdd7"
+                      ? colorEntry(o.color).edge
                       : undefined}
                     strokeWidth={selected === o.id ? 2 / view.z : 1}
                   />
@@ -940,16 +997,18 @@ export function App() {
                     >
                       <Text
                         {...TEXT_LAYOUT}
+                        fontSize={textUnits(o.textSize)}
+                        align={o.align}
                         x={o.x + TEXT_INSET}
                         y={o.y + TEXT_INSET}
                         width={o.width - 2 * TEXT_INSET}
                         height={layout.height - 2 * TEXT_INSET}
                         text={o.text}
-                        fill="#28272c"
+                        fill={textColor(o)}
                         fillPriority={layout.limited ? "linear-gradient" : "color"}
                         fillLinearGradientStartPoint={{ x: 0, y: layout.fadeStart }}
                         fillLinearGradientEndPoint={{ x: 0, y: layout.fadeEnd }}
-                        fillLinearGradientColorStops={[0, "#28272c", 1, "rgba(40,39,44,0)"]}
+                        fillLinearGradientColorStops={[0, textColor(o), 1, textColor(o) + "00"]}
                       />
                     </Group>
                   )}
@@ -1122,6 +1181,26 @@ export function App() {
             ))}
           </select>
           {nativeEditor}
+          {item && <div className="object-styles">
+            <label htmlFor="object-colour">Colour</label>
+            <select id="object-colour" value={item.color} disabled={!!selectionReason}
+              title={selectionReason || "Colour"} aria-describedby="selection-reason"
+              onChange={(e) => changeStyle("color", e.target.value as Style["color"])}>
+              {COLORS.map((c) => <option key={c.name} value={c.name}>{c.label}</option>)}
+            </select>
+            <label htmlFor="object-size">Text size</label>
+            <select id="object-size" value={item.textSize} disabled={!!selectionReason}
+              title={selectionReason || "Text size"} aria-describedby="selection-reason"
+              onChange={(e) => changeStyle("textSize", e.target.value as Style["textSize"])}>
+              {TEXT_SIZES.map((s) => <option key={s.name} value={s.name}>{s.label}</option>)}
+            </select>
+            <label htmlFor="object-align">Alignment</label>
+            <select id="object-align" value={item.align} disabled={!!selectionReason}
+              title={selectionReason || "Alignment"} aria-describedby="selection-reason"
+              onChange={(e) => changeStyle("align", e.target.value as Style["align"])}>
+              {ALIGNMENTS.map((a) => <option key={a.name} value={a.name}>{a.label}</option>)}
+            </select>
+          </div>}
           <div className="object-commands">
             {(["Duplicate", "Delete"] as const).map((name) => (
               <button key={name} disabled={!!selectionReason} title={selectionReason || name}
@@ -1166,12 +1245,16 @@ export function App() {
           </div>
         </section>
       )}
-      {item && contextFits && (
+      {item && (
         <section
+          ref={contextBar}
           className="context"
+          aria-hidden={!contextFits}
+          inert={!contextFits}
           style={{
             left: contextLeft,
             top: contextTop,
+            visibility: contextFits ? "visible" : "hidden",
           }}
         >
           <span>{item.type === "sticky" ? "Sticky" : "Text"}</span>
@@ -1193,6 +1276,52 @@ export function App() {
           </button>
           <span className="divider" aria-hidden="true" />
           <small>{count(text)} / 1,000</small>
+          <span className="colour-control" ref={colourControl}>
+            <button ref={colourButton} className="icon-button" disabled={!!selectionReason}
+              aria-label={"Colour: " + colorEntry(item.color).label}
+              title={"Colour: " + colorEntry(item.color).label}
+              aria-describedby="selection-reason" aria-expanded={swatchOpen}
+              aria-controls={swatchOpen ? "colour-swatches" : undefined}
+              onClick={(e) => {
+                e.currentTarget.focus();
+                setSwatchFor(swatchOpen ? "" : selected);
+              }}>
+              <span className="colour-dot" style={{ background: colorEntry(item.color).fill }} />
+              <span className="tooltip">Colour: {colorEntry(item.color).label}</span>
+            </button>
+            {swatchOpen && <div id="colour-swatches" ref={swatches} className="swatches"
+              role="group" aria-label="Colour" style={{
+                left: clamp(colourButton.current?.offsetLeft ?? 0, 0, contextWidth - 196),
+                top: clamp(48, 12 - contextTop, size.h - 120 - contextTop),
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  closeSwatches();
+                }
+              }}>
+              {COLORS.map((c) => <button key={c.name} className="icon-button"
+                aria-label={c.label} title={c.label} aria-pressed={item.color === c.name}
+                onClick={() => { changeStyle("color", c.name); closeSwatches(); }}>
+                <span className="colour-dot" style={{ background: c.fill }} />
+                <span className="tooltip">{c.label}</span>
+              </button>)}
+            </div>}
+          </span>
+          <select className="context-size" aria-label="Text size" title={selectionReason || "Text size"}
+            value={item.textSize} disabled={!!selectionReason} aria-describedby="selection-reason"
+            onChange={(e) => changeStyle("textSize", e.target.value as Style["textSize"])}>
+            {TEXT_SIZES.map((s) => <option key={s.name} value={s.name}>{s.label}</option>)}
+          </select>
+          <span className="alignments" role="group" aria-label="Alignment">
+            {ALIGNMENTS.map((a) => <button key={a.name} className="icon-button"
+              aria-label={a.action} title={selectionReason || a.action} aria-pressed={item.align === a.name}
+              disabled={!!selectionReason} aria-describedby="selection-reason"
+              onClick={(e) => { e.currentTarget.focus(); changeStyle("align", a.name); }}>
+              <Icon name={a.name} /><span className="tooltip">{selectionReason || a.action}</span>
+            </button>)}
+          </span>
           {(["Duplicate", "Delete"] as const).map((name) => (
             <button key={name} className="icon-button" aria-label={name}
               aria-describedby="selection-reason" disabled={!!selectionReason}
@@ -1215,7 +1344,9 @@ export function App() {
             width: (item.width - 2 * TEXT_INSET) * view.z,
             height: (itemHeight - 2 * TEXT_INSET) * view.z,
             fontFamily: TEXT_LAYOUT.fontFamily,
-            fontSize: TEXT_LAYOUT.fontSize * view.z,
+            fontSize: textUnits(item.textSize) * view.z,
+            textAlign: item.align,
+            color: textColor(item),
           }}
         >
           {nativeEditor}

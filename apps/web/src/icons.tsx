@@ -16,6 +16,9 @@ const paths = {
   Undo: "M7 4 3 8l4 4M3 8h8a5 5 0 0 1 0 10",
   Redo: "m13 4 4 4-4 4M17 8H9a5 5 0 0 0 0 10",
   Duplicate: "M7 7h10v10H7ZM3 13V3h10",
+  left: "M3 4h14M3 8h9M3 12h14M3 16h9",
+  center: "M3 4h14M6 8h8M3 12h14M6 16h8",
+  right: "M3 4h14M8 8h9M3 12h14M8 16h9",
   Delete: "M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6",
 };
 export function Icon({ name }: { name: keyof typeof paths }) {

@@ -13,6 +13,10 @@ const paths = {
   pencil: "m4 12 9-9 4 4-9 9-5 1ZM11 5l4 4",
   information: "M10 9v5M10 6h.01M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0",
   status: "M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0M10 7v3l2 2",
+  Undo: "M7 4 3 8l4 4M3 8h8a5 5 0 0 1 0 10",
+  Redo: "m13 4 4 4-4 4M17 8H9a5 5 0 0 0 0 10",
+  Duplicate: "M7 7h10v10H7ZM3 13V3h10",
+  Delete: "M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6",
 };
 export function Icon({ name }: { name: keyof typeof paths }) {
   return <svg width="20" height="20" viewBox="0 0 20 20" fill="none"

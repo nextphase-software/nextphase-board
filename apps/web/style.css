@@ -23,7 +23,8 @@ button {
   border-radius: 8px;
   padding: 8px 12px;
 }
-button:disabled {
+button:disabled,
+button[aria-disabled=true] {
   opacity: .45;
   cursor: default;
 }
@@ -193,7 +194,7 @@ svg { flex-shrink: 0; }
 .icon-button:hover .tooltip,
 .icon-button:focus-visible .tooltip { visibility: visible; }
 .file .tooltip { bottom: auto; top: calc(100% + 8px); }
-button:hover:not(:disabled) { background: #f1eff5; }
+button:hover:not(:disabled):not([aria-disabled=true]) { background: #f1eff5; }
 button[aria-pressed=true]:hover,
 button[aria-pressed=true] { background: #7051cf; color: white; }
 button.error { background: #a32940; color: white; }
@@ -265,7 +266,7 @@ small {
 }
 .context {
   position: absolute;
-  width: 288px;
+  width: 376px;
   height: 40px;
   background: #302d36;
   color: white;
@@ -289,6 +290,9 @@ small {
 .context button:hover:not(:disabled) { color: #29272e; }
 .context small { color: #eee; white-space: nowrap; }
 .context .divider { background: #79737f; }
+.context > span:first-child { white-space: nowrap; }
+.object-commands { display: flex; gap: 8px; flex-wrap: wrap; }
+.object-commands button { display: inline-flex; gap: 4px; align-items: center; }
 .information { position: absolute; left: 12px; bottom: 12px; }
 .information .tooltip { left: 0; transform: none; }
 .information-panel {
@@ -396,4 +400,6 @@ small {
 
 @media (max-width:767px) {
   .file > button:first-child { flex: 1; }
+  .file { gap: 2px; }
+  .file small { padding: 4px; }
 }

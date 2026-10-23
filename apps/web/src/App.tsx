@@ -13,6 +13,7 @@ import {
 } from "./document";
 import { decode, LocalStore, readPair } from "./storage";
 import { Icon } from "./icons";
+import { deleteObject, duplicate, emptyHistory, record, redo, undo, type History } from "./history";
 type View = { x: number; y: number; z: number };
 export function App() {
   const [board, setBoard] = useState<Board>(empty),
@@ -29,10 +30,13 @@ export function App() {
     [size, setSize] = useState({ w: innerWidth, h: innerHeight }),
     [busy, setBusy] = useState(false),
     [composing, setComposing] = useState(false),
+    [history, setHistory] = useState<History>(emptyHistory),
     [snapshots, setSnapshots] = useState<{ board: Board; revision: number }[]>(
       [],
     );
   const model = useRef(board),
+    historyRef = useRef<History>(history),
+    textSession = useRef<{ before: Board; id: string } | null>(null),
     revision = useRef(0),
     ack = useRef(-1),
     store = useRef<LocalStore | null>(null),
@@ -104,9 +108,31 @@ export function App() {
   const invalid = invalidFields.length > 0;
   const pending = useRef({ invalid: true, composing: false, busy: false });
   pending.current = { invalid, composing, busy };
-  function commit(next: Board) {
+  function updateHistory(next: History) {
+    historyRef.current = next;
+    setHistory(next);
+  }
+  function clearHistory() {
+    textSession.current = null;
+    updateHistory(emptyHistory());
+  }
+  function beginTextSession() {
+    if (!item || readOnly || textSession.current?.id === item.id) return;
+    finishTextSession();
+    textSession.current = { before: model.current, id: item.id };
+  }
+  function finishTextSession() {
+    const session = textSession.current;
+    textSession.current = null;
+    if (session) updateHistory(record(historyRef.current, session.before, model.current));
+  }
+  function commit(next: Board, recordObject = false) {
     if (readOnly) return;
     if (JSON.stringify(next) === JSON.stringify(model.current)) return;
+    if (recordObject) {
+      finishTextSession();
+      updateHistory(record(historyRef.current, model.current, next));
+    }
     model.current = next;
     adapter.current!.set(next);
     revision.current++;
@@ -114,6 +140,7 @@ export function App() {
     setStatus("Unsaved");
   }
   function adopt(b: Board, saved: boolean) {
+    clearHistory();
     model.current = b;
     setBoard(b);
     adapter.current?.destroy();
@@ -130,6 +157,7 @@ export function App() {
   }
   async function start() {
     if (release.current || store.current) return;
+    clearHistory();
     setReadOnly(true);
     setMessage("Checking local storage and writer ownership…");
     let own = false;
@@ -161,6 +189,7 @@ export function App() {
       const s = new LocalStore();
       store.current = s;
       const pair = await s.open(() => {
+        clearHistory();
         setReadOnly(true);
         setMessage("Storage version changed. Reload explicitly to retry.");
         release.current?.();
@@ -210,6 +239,7 @@ export function App() {
     resize();
     window.addEventListener("resize", resize);
     const hide = () => {
+      clearHistory();
       store.current?.close();
       store.current = null;
       release.current?.();
@@ -251,6 +281,7 @@ export function App() {
   });
   function changeText(value: string) {
     if (!item || readOnly) return;
+    beginTextSession();
     setDrafts((d) => ({ ...d, [item.id]: value }));
     setStatus("Unsaved");
     if (validText(value, 1000) && !composing) {
@@ -263,12 +294,14 @@ export function App() {
     }
   }
   function fallbackEditor() {
+    finishTextSession();
     fallbackFocus.current = true;
     setPanel("Objects");
     setInline(false);
   }
   function edit() {
     if (!item || readOnly || busy || composing) return;
+    finishTextSession();
     setPanel("");
     setInline(true);
   }
@@ -295,7 +328,7 @@ export function App() {
     if (readOnly || busy || composing) return;
     try {
       const next = add(model.current, type, x, y);
-      commit(next);
+      commit(next, true);
       select(next.objects.at(-1)!.id);
       setTool("Select");
       setPanel(native ? "Objects" : "");
@@ -324,7 +357,10 @@ export function App() {
     }).catch((error) => {
       setStatus("Save failed");
       setMessage(String(error));
-      if (String(error).includes("changed")) setReadOnly(true);
+      if (String(error).includes("changed")) {
+        clearHistory();
+        setReadOnly(true);
+      }
     });
   }
   async function reopen() {
@@ -333,6 +369,7 @@ export function App() {
       (revision.current !== ack.current || invalid) &&
       !confirm("Discard unsaved drafts and reload the saved board?")
     ) return;
+    clearHistory();
     store.current?.close();
     store.current = null;
     release.current?.();
@@ -354,10 +391,11 @@ export function App() {
           }
           : o
       ),
-    });
+    }, true);
   }
   function toggle(name: string) {
     if (composing || busy) return;
+    finishTextSession();
     setInline(false);
     setPanel((p) => p === name ? "" : name);
     if (panel === name) {
@@ -399,6 +437,7 @@ export function App() {
         value={text}
         readOnly={readOnly || busy}
         disabled={!item}
+        onFocus={beginTextSession}
         onChange={(e) => changeText(e.target.value)}
         onCompositionStart={() => setComposing(true)}
         onCompositionEnd={(e) => {
@@ -415,24 +454,81 @@ export function App() {
           }
         }}
         onBlur={() => {
-          if (!composing) setInline(false);
+          if (!composing) {
+            finishTextSession();
+            setInline(false);
+          }
         }}
       />
       <small>{count(text)} / 1,000 code points</small>
     </>
   );
   useEffect(() => {
+    clearHistory();
     if (readOnly) cancel();
   }, [readOnly]);
+  const commandReason = readOnly ? "Read-only: editing commands are unavailable."
+    : composing ? "Finish text composition before using editing commands."
+    : busy ? "Finish or cancel the pointer gesture before using editing commands."
+    : invalid ? "Correct invalid drafts before using editing commands." : "";
+  const session = textSession.current;
+  const sessionChanged = !!session && session.before.objects.find((o) => o.id === session.id)?.text !==
+    model.current.objects.find((o) => o.id === session?.id)?.text;
+  const undoReason = commandReason || (!history.past.length && !sessionChanged ? "Nothing to undo." : "");
+  const redoReason = commandReason || (sessionChanged || !history.future.length ? "Nothing to redo." : "");
+  const selectionReason = commandReason || (!item ? "Select an object to duplicate or delete." : "");
+  function command(name: "Undo" | "Redo" | "Duplicate" | "Delete") {
+    if (commandReason) {
+      setMessage(commandReason);
+      return;
+    }
+    finishTextSession();
+    try {
+      const current = model.current.objects.find((o) => o.id === selected);
+      if ((name === "Duplicate" || name === "Delete") && !current) {
+        setMessage("Select an object to " + name.toLowerCase() + ".");
+        return;
+      }
+      const result = name === "Undo" ? undo(model.current, historyRef.current)
+        : name === "Redo" ? redo(model.current, historyRef.current)
+        : name === "Duplicate" ? duplicate(model.current, historyRef.current, current!)
+        : deleteObject(model.current, historyRef.current, current!);
+      const affected = result.board.objects.find((o) => o.id === result.affectedId);
+      commit(result.board);
+      updateHistory(result.history);
+      setDrafts((d) => {
+        const next = { ...d };
+        delete next[result.affectedId];
+        return next;
+      });
+      // A history command closes the previous editing route without moving its focus.
+      setInline(false);
+      const removedSelection = !affected && selected === result.affectedId;
+      if (affected) select(affected.id);
+      else if (removedSelection || name === "Delete") {
+        select("");
+        scene.current?.focus();
+      }
+      const label = current
+        ? current.type + " " + (current.order + 1) + " · " + (current.text.slice(0, 36) || "Empty")
+        : "object";
+      setMessage(name === "Delete" ? "Deleted " + label + ". Undo restores it."
+        : name === "Duplicate" ? "Duplicated " + label + ". Copy selected."
+        : name + " complete. " + (affected ? "Affected object selected."
+          : removedSelection ? "Selection cleared." : "Selection unchanged."));
+    } catch (error) {
+      setMessage(String(error));
+    }
+  }
   const acknowledgement = /^Local revision \d+ acknowledged after transaction completion\.$/.test(message);
   const latestAcknowledgement = useRef("");
   if (acknowledgement) latestAcknowledgement.current = message;
   const routineStorage = message === "Stored only in this browser profile. Browser storage is not a backup.";
   const visibleMessage = acknowledgement || routineStorage ? "" : message;
-  const showNotice = !!(visibleMessage || invalid || busy || readOnly ||
+  const showNotice = !!(visibleMessage || invalid || busy || readOnly || undoReason || redoReason || selectionReason ||
     tool === "Sticky" || tool === "Text" || snapshots.length);
   // The context surface follows transformed bounds without changing board geometry.
-  const contextWidth = 288;
+  const contextWidth = 376;
   const contextLeft = item
     ? clamp(pos(item).left + item.width * view.z / 2 - contextWidth / 2,
       12, Math.max(12, size.w - contextWidth - 12)) : 12;
@@ -453,6 +549,27 @@ export function App() {
         "--panel-top": layout.panel + "px",
       } as React.CSSProperties}
       onKeyDown={(e) => {
+        const nativeText = e.target instanceof Element &&
+          !!e.target.closest("input,textarea,[contenteditable]:not([contenteditable=false])");
+        if (!nativeText && (e.ctrlKey || e.metaKey) && !e.altKey) {
+          const key = e.key.toLowerCase();
+          if (key === "z" || (key === "y" && e.ctrlKey && !e.metaKey && !e.shiftKey)) {
+            e.preventDefault();
+            command(key === "y" || e.shiftKey ? "Redo" : "Undo");
+            return;
+          }
+          if (key === "d" && !e.shiftKey && e.target === scene.current) {
+            e.preventDefault();
+            command("Duplicate");
+            return;
+          }
+        }
+        if (e.target === scene.current && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
+          (e.key === "Delete" || e.key === "Backspace")) {
+          e.preventDefault();
+          command("Delete");
+          return;
+        }
         if (
           e.key !== "Escape" || composing ||
           e.target instanceof HTMLInputElement ||
@@ -507,6 +624,7 @@ export function App() {
               !(e.target instanceof HTMLCanvasElement) || composing || inline
           ) return;
           if (e.button !== 0) return;
+          finishTextSession();
           const p = point(e);
           const hit = [...model.current.objects].reverse().find((o) =>
             p.x >= o.x && p.x <= o.x + o.width && p.y >= o.y &&
@@ -605,7 +723,7 @@ export function App() {
                   d.x,
                   d.y,
                 );
-                commit(next);
+                commit(next, true);
                 select(next.objects.at(-1)!.id);
                 setTool("Select");
                 setPanel("");
@@ -635,7 +753,7 @@ export function App() {
                     }
                     : o
                 ),
-              });
+              }, true);
             } else setBoard({ ...model.current });
           }
         }}
@@ -718,6 +836,18 @@ export function App() {
         >
           <Icon name="objects" /><span className="tooltip">Objects</span>
         </button>
+        {(["Undo", "Redo"] as const).map((name) => (
+          <button
+            key={name}
+            className="icon-button"
+            aria-label={name}
+            aria-describedby={name === "Undo" ? "undo-reason" : "redo-reason"}
+            aria-disabled={!!(name === "Undo" ? undoReason : redoReason)}
+            onClick={() => command(name)}
+          >
+            <Icon name={name} /><span className="tooltip">{name}</span>
+          </button>
+        ))}
       </section>
       <section className="actions floating" aria-describedby={latestAcknowledgement.current ? "save-acknowledgement" : undefined}>
         <span className="save-status" role="status">
@@ -734,6 +864,9 @@ export function App() {
       </section>
       <aside className="notice" role="status" hidden={!showNotice}>
         {visibleMessage}
+        <div id="undo-reason">{undoReason && "Undo: " + undoReason}</div>
+        <div id="redo-reason">{redoReason && "Redo: " + redoReason}</div>
+        <div id="selection-reason">{selectionReason && "Duplicate / Delete: " + selectionReason}</div>
         {invalidFields.map((s) => <div key={s}>{s}</div>)}
         {busy && (
           <div>
@@ -829,7 +962,10 @@ export function App() {
             ref={selector}
             id="selection"
             value={selected}
-            onChange={(e) => select(e.target.value)}
+            onChange={(e) => {
+              finishTextSession();
+              select(e.target.value);
+            }}
           >
             <option value="">Choose an object</option>
             {board.objects.map((o, i) => (
@@ -840,6 +976,14 @@ export function App() {
             ))}
           </select>
           {nativeEditor}
+          <div className="object-commands">
+            {(["Duplicate", "Delete"] as const).map((name) => (
+              <button key={name} disabled={!!selectionReason}
+                aria-describedby="selection-reason" onClick={() => command(name)}>
+                <Icon name={name} />{name}
+              </button>
+            ))}
+          </div>
           <div className="moves">
             {[
               ["left", -10, 0, "←"],
@@ -893,6 +1037,7 @@ export function App() {
             }}
             onClick={() => {
               if (inline) {
+                finishTextSession();
                 setInline(false);
                 scene.current?.focus();
               } else edit();
@@ -902,6 +1047,13 @@ export function App() {
           </button>
           <span className="divider" aria-hidden="true" />
           <small>{count(text)} / 1,000</small>
+          {(["Duplicate", "Delete"] as const).map((name) => (
+            <button key={name} className="icon-button" aria-label={name}
+              aria-describedby="selection-reason" disabled={!!selectionReason}
+              onClick={() => command(name)}>
+              <Icon name={name} /><span className="tooltip">{name}</span>
+            </button>
+          ))}
         </section>
       )}
       {inline && item && (

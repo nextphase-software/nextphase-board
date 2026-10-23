@@ -53,6 +53,8 @@ button[aria-pressed=true],
 .scene > div {
   pointer-events: none;
 }
+.scene.grab { cursor: grab; }
+.scene.grabbing { cursor: grabbing; }
 main {
   position: relative;
   min-height: 640px;

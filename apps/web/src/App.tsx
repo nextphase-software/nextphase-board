@@ -16,7 +16,7 @@ import { decode, LocalStore, readPair } from "./storage";
 import { Icon } from "./icons";
 import { deleteObject, duplicate, emptyHistory, record, redo, undo, type History } from "./history";
 import { allowedHeight, displayHeight, neededHeight, savedHeight, TEXT_INSET, TEXT_LAYOUT } from "./geometry";
-type View = { x: number; y: number; z: number };
+import { gestureScale, panView, stepZoom, wheelDelta, wheelZoomFactor, zoomView, type View } from "./view";
 
 function lineCount(object: Item, text = object.text): number {
   // Auto height is essential here: a fixed height would count only visible lines.
@@ -44,6 +44,7 @@ export function App() {
     [view, setView] = useState<View>({ x: 0, y: 0, z: 1 }),
     [size, setSize] = useState({ w: innerWidth, h: innerHeight }),
     [busy, setBusy] = useState(false),
+    [spacePan, setSpacePan] = useState(false),
     [composing, setComposing] = useState(false),
     [history, setHistory] = useState<History>(emptyHistory),
     [snapshots, setSnapshots] = useState<{ board: Board; revision: number }[]>(
@@ -58,6 +59,10 @@ export function App() {
     adapter = useRef<Adapter | null>(null),
     release = useRef<(() => void) | null>(null),
     scene = useRef<HTMLDivElement>(null),
+    inlineSurface = useRef<HTMLElement>(null),
+    spacePanRef = useRef(false),
+    lastPointer = useRef<{ x: number; y: number } | null>(null),
+    previousScale = useRef(1),
     editor = useRef<HTMLTextAreaElement>(null),
     selector = useRef<HTMLSelectElement>(null),
     objectsButton = useRef<HTMLButtonElement>(null),
@@ -70,6 +75,8 @@ export function App() {
         cy: number;
         view: View;
         pan: boolean;
+        temporary?: boolean;
+        pointerId?: number;
         cancelled?: boolean;
       } | null
     >(null),
@@ -138,6 +145,49 @@ export function App() {
   const invalid = invalidFields.length > 0;
   const pending = useRef({ invalid: true, composing: false, busy: false });
   pending.current = { invalid, composing, busy };
+  useEffect(() => {
+    const canvas = scene.current!;
+    // The native editor is a sibling overlay, so it needs the same scene rules.
+    // Floating controls and panels are outside both listener targets.
+    const surfaces = [canvas, inlineSurface.current].filter((el) => el !== null);
+    const dimensions = () => ({ w: canvas.clientWidth, h: canvas.clientHeight });
+    const wheel = (event: WheelEvent) => {
+      const zoom = event.ctrlKey || event.metaKey;
+      if (!zoom && event.target instanceof Element && event.target.closest(".inline")) return;
+      event.preventDefault();
+      if (drag.current || pending.current.composing) return;
+      const size = dimensions();
+      const delta = wheelDelta(event.deltaX, event.deltaY, event.deltaMode, size,
+        !zoom && event.shiftKey);
+      if (zoom) {
+        const rect = canvas.getBoundingClientRect();
+        const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+        setView((v) => zoomView(v, wheelZoomFactor(delta.y), point, size));
+      } else setView((v) => panView(v, delta));
+    };
+    const gesture = (event: Event) => {
+      event.preventDefault();
+      const type = event.type as "gesturestart" | "gesturechange" | "gestureend";
+      const next = gestureScale(previousScale.current, type, (event as Event & { scale?: number }).scale);
+      previousScale.current = next.previous;
+      // Consume scale even while blocked so the next delta cannot jump.
+      if (type !== "gesturechange" || drag.current || pending.current.composing || next.factor === 1) return;
+      const size = dimensions();
+      const point = lastPointer.current ?? { x: size.w / 2, y: size.h / 2 };
+      setView((v) => zoomView(v, next.factor, point, size));
+    };
+    const gestures = ["gesturestart", "gesturechange", "gestureend"];
+    for (const surface of surfaces) {
+      surface.addEventListener("wheel", wheel, { passive: false });
+      for (const name of gestures) surface.addEventListener(name, gesture, { passive: false });
+    }
+    return () => {
+      for (const surface of surfaces) {
+        surface.removeEventListener("wheel", wheel);
+        for (const name of gestures) surface.removeEventListener(name, gesture);
+      }
+    };
+  }, [inline]);
   function updateHistory(next: History) {
     historyRef.current = next;
     setHistory(next);
@@ -450,17 +500,50 @@ export function App() {
       y: view.y + (e.clientY - r.top - size.h / 2) / view.z,
     };
   }
+  function trackPointer(e: React.PointerEvent) {
+    const r = scene.current!.getBoundingClientRect();
+    lastPointer.current = { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+  function releaseCapture(pointerId?: number) {
+    if (pointerId !== undefined && scene.current?.hasPointerCapture(pointerId)) {
+      scene.current.releasePointerCapture(pointerId);
+    }
+  }
+  function endSpacePan() {
+    if (drag.current?.temporary) {
+      const d = drag.current;
+      drag.current = null;
+      setBusy(false);
+      releaseCapture(d.pointerId);
+    }
+    spacePanRef.current = false;
+    setSpacePan(false);
+  }
   function cancel() {
-    if (drag.current?.pan) setView(drag.current.view);
+    const d = drag.current;
+    if (d?.pan) setView(d.view);
     drag.current = null;
     setBusy(false);
-    setTool("Select");
+    if (!d?.temporary) setTool("Select");
+    if (d?.temporary) releaseCapture(d.pointerId);
     setBoard({ ...model.current });
   }
   useEffect(() => {
-    const blur = () => cancel();
+    const blur = () => {
+      if (spacePanRef.current) {
+        if (drag.current?.temporary) cancel();
+        endSpacePan();
+      } else cancel();
+    };
+    const keyup = (event: KeyboardEvent) => {
+      if (event.code === "Space" && spacePanRef.current) endSpacePan();
+    };
     window.addEventListener("blur", blur);
-    return () => window.removeEventListener("blur", blur);
+    window.addEventListener("keyup", keyup);
+    return () => {
+      window.removeEventListener("blur", blur);
+      window.removeEventListener("keyup", keyup);
+    };
   }, []);
   const nativeEditor = (
     <>
@@ -623,7 +706,7 @@ export function App() {
     >
       <div
         ref={scene}
-        className="scene"
+        className={"scene" + (spacePan ? busy ? " grabbing" : " grab" : "")}
         style={{
           backgroundSize: `${24 * view.z}px ${24 * view.z}px`,
           backgroundPosition: `${size.w / 2 - view.x * view.z}px ${
@@ -632,11 +715,16 @@ export function App() {
         }}
         tabIndex={0}
         aria-label="Board canvas. Use Objects to read and edit. Enter places an armed tool or edits the selection."
+        onPointerEnter={trackPointer}
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget || composing) return;
-          if (e.key === "Escape") {
-            cancel();
-            setInline(false);
+          if (e.code === "Space") {
+            e.preventDefault();
+            if (!e.repeat && !drag.current) {
+              spacePanRef.current = true;
+              setSpacePan(true);
+            }
+            return;
           }
           if (e.key === "Enter") {
             e.preventDefault();
@@ -650,11 +738,23 @@ export function App() {
           }
         }}
         onPointerDown={(e) => {
+          trackPointer(e);
           if (
             e.target !== e.currentTarget &&
               !(e.target instanceof HTMLCanvasElement) || composing || inline
           ) return;
-          if (e.button !== 0) return;
+          if (e.button !== 0 || drag.current) return;
+          if (spacePanRef.current) {
+            if (!e.isPrimary) return;
+            drag.current = {
+              id: "", x: view.x, y: view.y, cx: e.clientX, cy: e.clientY,
+              view: { ...view }, pan: true, temporary: true, pointerId: e.pointerId,
+            };
+            e.currentTarget.setPointerCapture(e.pointerId);
+            setBusy(true);
+            e.preventDefault();
+            return;
+          }
           finishTextSession();
           const p = point(e);
           const hit = [...model.current.objects].reverse().find((o) =>
@@ -705,11 +805,13 @@ export function App() {
               pan: tool === "Pan",
             };}
           if (drag.current) {
+            drag.current.pointerId = e.pointerId;
             e.currentTarget.setPointerCapture(e.pointerId);
             setBusy(true);
           }
         }}
         onPointerMove={(e) => {
+          trackPointer(e);
           const d = drag.current;
           if (!d) return;
           if ((d.id === "Sticky" || d.id === "Text") &&
@@ -789,7 +891,7 @@ export function App() {
           }
         }}
         onDoubleClick={() => {
-          if (selected) edit();
+          if (!spacePanRef.current && selected) edit();
         }}
         onPointerCancel={() => {
           const d = drag.current;
@@ -1102,7 +1204,11 @@ export function App() {
       )}
       {inline && item && (
         <section
+          ref={inlineSurface}
           className="inline"
+          onPointerEnter={trackPointer}
+          onPointerDown={trackPointer}
+          onPointerMove={trackPointer}
           style={{
             left: pos(item).left + TEXT_INSET * view.z,
             top: pos(item).top + TEXT_INSET * view.z,
@@ -1142,7 +1248,7 @@ export function App() {
           className="icon-button"
           aria-label="Zoom out"
           disabled={busy || composing}
-          onClick={() => setView((v) => ({ ...v, z: clamp(v.z - .25, .5, 2) }))}
+          onClick={() => setView((v) => ({ ...v, z: stepZoom(v.z, -1) }))}
         >
           <Icon name="minus" /><span className="tooltip">Zoom out</span>
         </button>
@@ -1151,7 +1257,7 @@ export function App() {
           className="icon-button"
           aria-label="Zoom in"
           disabled={busy || composing}
-          onClick={() => setView((v) => ({ ...v, z: clamp(v.z + .25, .5, 2) }))}
+          onClick={() => setView((v) => ({ ...v, z: stepZoom(v.z, 1) }))}
         >
           <Icon name="plus" /><span className="tooltip">Zoom in</span>
         </button>

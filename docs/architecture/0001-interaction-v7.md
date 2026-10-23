@@ -1,6 +1,7 @@
 # 0001 — Interaction and browser contract
 
-Contract version: 7 (for 0001-W13 brief v1, 2026-10-23). Status: Draft. When
+Contract version: 7 (revised for 0001-W13 brief v2, 2026-10-23: editor fallback,
+board-edge and WebKit gesture rules made explicit). Status: Draft. When
 accepted it replaces [interaction v6](0001-interaction-v6.md) for later work. Uses
 unchanged [document v1](0001-document-v1.md) and [storage v1](0001-storage-v1.md).
 
@@ -18,13 +19,20 @@ point: `x = cx + (u − W/2) / z`, `y = cy + (v − H/2) / z`.
 Zoom may take **any value from 0.5 to 2.0** (v4 allowed only 0.25 steps). The
 centre stays clamped to −1,000,000…1,000,000 on both axes. The percentage control
 shows `round(z × 100)`%. The view is never saved, never advances the save revision,
-never creates a history step, and never changes selection or keyboard focus.
+never creates a history step and never changes selection. It moves keyboard focus
+only through v4's clipped-editor fallback: if panning or zooming leaves an open
+on-canvas editor clipped, outside the scene, obscured or below its minimum readable
+size (font under 12 CSS pixels, so zoom below 2/3), editing moves to Objects with
+the draft kept, exactly as v4 specifies. Otherwise focus stays where it is.
 
 **Zoom around a point.** Zooming by factor *f* at scene point *u, v* sets
 `z' = clamp(z × f, 0.5, 2.0)`, then moves the centre so the board point that was
 under *u, v* stays under it:
 `cx' = cx + (u − W/2) / z − (u − W/2) / z'` (and the same for *y* with *v, H*),
-then clamps the centre.
+then clamps the centre. The point under *u, v* stays fixed except when that clamp
+changes the centre, which can happen only near the board's ±1,000,000 edge. There
+the centre stops at the edge and the point under the pointer shifts by the clamped
+amount.
 
 ## Wheel and trackpad
 
@@ -50,12 +58,26 @@ with Ctrl set; this applies over the whole scene, including the on-canvas editor
 **Browser page zoom.** The scene's wheel listener is registered as non-passive and
 cancels every Ctrl/Cmd wheel event over the scene, so pinch and Ctrl/Cmd+wheel
 never zoom the browser page there. Plain wheel events that pan are cancelled too,
-so the page never scrolls behind the scene. Where the browser also dispatches the
-WebKit `gesturestart`, `gesturechange` and `gestureend` events over the scene,
-their default is cancelled. Their `scale` is used to zoom around the last known
-pointer position only if no Ctrl wheel event arrived during that gesture, so each
-pinch zooms exactly once. Keyboard page zoom (Cmd/Ctrl with + or −) is still never
-captured, as v4 requires.
+so the page never scrolls behind the scene. Keyboard page zoom (Cmd/Ctrl with + or
+−) is still never captured, as v4 requires.
+
+**WebKit gesture events.** Where the browser also dispatches the non-standard
+`gesturestart`, `gesturechange` and `gestureend` events over the scene, their
+default is always cancelled. A gesture runs from `gesturestart` to `gestureend`, and
+its zoom comes from exactly one source, whichever arrives first within it:
+
+- If a Ctrl wheel event arrives first, the wheel rule above zooms. The gesture's
+  events are only cancelled.
+- If a `gesturechange` arrives first, the gesture zooms. Ctrl wheel events until
+  `gestureend` are cancelled without zooming. At `gesturestart` the previous scale
+  is 1. Each `gesturechange` with `scale` *s* zooms by factor *s / previous*, and
+  *s* becomes the previous scale. A non-positive or non-finite *s* is ignored. The
+  zoom is around the last pointer position over the scene, taken from pointer
+  events, or the view centre if none is known.
+
+Once any Ctrl wheel event has arrived during a gesture, gesture `scale` is not used
+again for the rest of the page session; later gestures only cancel. Each pinch
+therefore zooms exactly once.
 
 ## Space + drag
 
@@ -87,11 +109,14 @@ but Ctrl/Cmd wheel and gesture events are still cancelled so the page does not z
 
 Desktop Chrome and Safari as installed, with a trackpad. The pure view rules (pan
 by delta at several zooms, delta-mode conversion, zoom around a point keeping it
-fixed, clamping of centre and zoom, button steps from a non-0.25 zoom) need unit
-tests. One browser pass per browser covers two-finger pan, pinch around the
-pointer with no page zoom, plain and Shift mouse wheel, native scrolling in
-Objects, Space + drag including return to an armed tool, and unchanged selection,
-focus and save status. v6's remaining rows still describe available coverage, not
+fixed away from the edge, the clamped shift at the edge, clamping of centre and
+zoom, button steps from a non-0.25 zoom) need unit
+tests, as does the gesture-scale ratio and first-source rule. One browser pass per
+browser covers two-finger pan, pinch around the pointer with no page zoom and one
+zoom per pinch, plain and Shift mouse wheel, native scrolling in Objects, Space +
+drag including return to an armed tool, unchanged selection and save status, focus
+unchanged with no editor open, and the v4 fallback to Objects when zooming below
+2/3 with an editor open. v6's remaining rows still describe available coverage, not
 automatic gates.
 
 ## Public references (retrieved 2026-10-23)

@@ -1,6 +1,7 @@
 # 0001 — Interaction and browser contract
 
-Contract version: 6. Status: Draft for 0001-W4 brief v1. When accepted it replaces
+Contract version: 6 (revised for 0001-W4 brief v2, 2026-10-22: growth stops at the
+document's bottom edge). Status: Draft. When accepted it replaces
 [interaction v5](0001-interaction-v5.md) for later work. Uses unchanged
 [document v1](0001-document-v1.md) and [storage v1](0001-storage-v1.md).
 
@@ -24,8 +25,13 @@ hidden by the object's height on the canvas.
 wraps the text into at inner width *W* − 40 with the font, size and line height
 above. Empty text counts as one line.
 
+**Allowed height.** For an object at *y*, the allowed height is
+`min(2000, 1000000 − y)`: document v1's 2,000-unit limit and its rule that the
+bottom edge is at most 1,000,000. A valid saved object's height never exceeds it.
+Growth never moves an object; *x* and *y* stay as they are.
+
 **Saved height (grow only).** When a text edit is committed, the object's saved
-height becomes `min(2000, max(current height, needed height))`. Width never changes
+height becomes `min(allowed height, max(current height, needed height))`. Width never changes
 and the font size never changes. The height change is part of the same semantic
 text transaction: it advances the draft revision once with the text and is undone
 or redone with it (one history step per editing session, as in v5). A height never
@@ -33,14 +39,14 @@ decreases automatically; deleting text leaves the height as it is. Selection, vi
 opening an editor, reopening a board or saving never change a height.
 
 **Display height.** The canvas draws each object at least as tall as its needed
-height in the current browser, up to 2,000, even when that is taller than its saved
-height. This display-only extra is never saved and never creates a transaction. It
+height in the current browser, up to its allowed height, even when that is taller
+than its saved height. This display-only extra is never saved and never creates a transaction. It
 covers small font differences between browsers.
 
-**Limit.** Heights stay within document v1's 40–2,000 range. When text needs more
-than 2,000 units, the object is drawn 2,000 tall with the last visible line faded
-to show there is more; the full text stays readable and editable in the on-canvas
-editor and the Objects panel.
+**Limit.** Heights stay within document v1's 40–2,000 range and bottom-edge rule.
+When text needs more than the allowed height, the object is drawn at the allowed
+height with the last visible line faded to show there is more; the full text stays
+readable and editable in the on-canvas editor and the Objects panel.
 
 **Editor.** The on-canvas native editor uses the displayed height and grows with it
 while typing, keeping v4's alignment of font, inset and line height with the drawn

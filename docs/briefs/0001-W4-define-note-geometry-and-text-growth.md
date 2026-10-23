@@ -1,4 +1,4 @@
-BRIEF VERSION: 0001-W4 v1 (2026-10-22)
+BRIEF VERSION: 0001-W4 v2 (2026-10-22)
 # 0001-W4 — Define note geometry and text growth
 
 Status: Draft. Implementation starts only after the maintainer commits this brief
@@ -16,17 +16,18 @@ format and saving behavior do not change.
 - [Contributor guidance](../../CONTRIBUTING.md), [agent instructions](../../AGENTS.md)
   and [engineering standards](../../DESIGN.md).
 - [0001 interaction v6](../architecture/0001-interaction-v6.md): the governing
-  behavior for this brief (default sizes, needed/saved/display height, limit,
-  editor growth, existing objects).
+  behavior for this brief (default sizes, allowed/needed/saved/display height,
+  limit, editor growth, existing objects).
 - [0001 document v1](../architecture/0001-document-v1.md) (heights 40–2,000,
-  transactions) and [0001 storage v1](../architecture/0001-storage-v1.md): unchanged.
+  bottom edge at most 1,000,000, transactions) and [0001 storage v1](../architecture/0001-storage-v1.md): unchanged.
 - [0001 toolchain v1](../architecture/0001-toolchain-v1.md): unchanged; no new dependency.
 
 ## Deliverables and boundaries
 
 1. A new pure module `apps/web/src/geometry.ts` with the sizing rule from
-   interaction v6: needed height from a line count, saved height after an edit
-   (grow only, 2,000 cap) and display height. It takes the line count as input so it
+   interaction v6: allowed height from *y* (`min(2000, 1000000 − y)`), needed height
+   from a line count, saved height after an edit (grow only, capped at the allowed
+   height) and display height. It takes the line count as input so it
    can be tested without a canvas. Erasable TypeScript only, so the Node test runner
    can load it the way the existing tests load `document.ts`.
 2. `apps/web/src/document.ts`: change only `add()` so a new sticky is 240×240. Do not
@@ -35,8 +36,9 @@ format and saving behavior do not change.
    count with the same Konva text layout the canvas draws (same width, font, size,
    line height and wrapping); apply the saved height inside the committed text
    transaction so one undo reverts text and height together; draw objects at the
-   display height; show the "more" fade at the 2,000 limit; keep the on-canvas
-   editor aligned and growing with the displayed height.
+   display height; show the "more" fade when text needs more than the allowed
+   height; never move an object to make room; keep the on-canvas editor aligned and
+   growing with the displayed height.
 4. A new `tests/geometry.test.mjs` with the unit cases listed under validation.
 
 New source files use `SPDX-License-Identifier: Apache-2.0`. Do not change
@@ -57,7 +59,7 @@ commands, results and exclusions; report the final branch tip separately.
 | --- | --- |
 | 0001-W4-AC01 | New stickies are 240×240 and text objects 320×120; typing past the box grows the note taller with width and font unchanged; one undo reverts text and height together |
 | 0001-W4-AC02 | A saved 240×160 sticky opens unchanged and only grows when its text needs more room; the canvas never hides its text |
-| 0001-W4-AC03 | Save and reload keep every object's position, text and size; editing one note never changes another; display-only extra height is never saved |
+| 0001-W4-AC03 | Save and reload keep every object's position, text and size; growth never moves a note or crosses the bottom edge; editing one note never changes another; display-only extra height is never saved |
 
 ## Validation commands and expected evidence
 
@@ -78,7 +80,9 @@ maintainer instruction (see [agent instructions](../../AGENTS.md)).
 
 `tests/geometry.test.mjs` asserts, with injected line counts: needed height for one
 and many lines; the saved height grows when more lines are needed and never
-shrinks when fewer are; width is never changed; the 2,000 cap; an existing 240×160
+shrinks when fewer are; width is never changed; the 2,000 cap; the bottom-edge cap
+(a note at y = 999,840 with height 160 stays within 1,000,000 and every result
+passes document validation); position never changes; an existing 240×160
 height is kept until its text needs more; the display height is at least the
 needed height without changing the saved value.
 
@@ -98,6 +102,12 @@ or out of scope.
 
 No new external reference. Interaction v4's references (retrieved 2026-10-22)
 apply; behavior above is a project requirement.
+
+## Version history
+
+- v2 (2026-10-22): growth and display height also stop at the document's bottom
+  edge (`y + height` at most 1,000,000), with the same fade; objects never move.
+  Interaction v6 is revised to match. No other requirement changed.
 
 ## Implementation record
 

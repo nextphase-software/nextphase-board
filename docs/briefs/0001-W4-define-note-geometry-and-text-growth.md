@@ -118,4 +118,78 @@ apply; behavior above is a project requirement.
 
 ## Implementation record
 
-Not started.
+### Implementation — 2026-10-22
+
+- Governing inputs: this brief **0001-W4 v3** and interaction **v6**, committed
+  on main at `312398b35979d676475f1343eb1d5ecf133d36d8` before implementation.
+- Branch: `codex/0001-W4-note-geometry`; dedicated worktree:
+  `.worktrees/codex-0001-W4`. Initial worktree was clean.
+- Validated source/test revision:
+  `4733929aaa5cfc393f5e51d1913fa334827ee2d5`
+  (`feat(web): grow note height with text within board bounds`).
+  Validation below used this source/test revision; installation preceded that
+  commit using the same unchanged manifest and lock. The subsequent record-only
+  commit is reported separately as the final branch tip in the handoff.
+- Toolchain: Node **24.22.1**, npm **11.19.1**, selected by prepending the
+  maintainer-provided pinned toolchain to `PATH` before every Node/npm command.
+  The local installation path is intentionally omitted from this public record.
+
+Implementation: new stickies are 240×240; text objects remain 320×120. The pure
+geometry module computes needed, allowed, saved and display heights. App measures
+full wrapped lines with an auto-height Konva Text using the same layout constants
+as the drawn text. Changed text and grow-only saved height enter one existing
+adapter transaction; the existing session history restores both together. An
+unchanged text event cannot adopt display-only height. The active-session command
+state also recognizes height growth retained after text returns to its original
+value. Canvas bounds, hit testing, context placement and the native overlay follow
+display height; editor clipping still falls back to Objects. At the allowed limit,
+the last visible line's ink fades without covering the object's fill or objects
+behind it. Native editors retain the full text.
+
+Commands ran from the repository root with the pinned toolchain active:
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; added 19 packages |
+| `npm --prefix apps/web run typecheck` | Exit 0; `tsc --noEmit` passed |
+| `node --test tests/geometry.test.mjs tests/document.test.mjs tests/history.test.mjs` | Exit 0; 24 passed, 0 failed, 0 skipped (9 geometry, 5 document, 10 history) |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified by the build |
+| `git diff --name-only main...HEAD` | Exit 0 at the validated revision; only `apps/web/src/App.tsx`, `apps/web/src/document.ts`, `apps/web/src/geometry.ts`, `tests/geometry.test.mjs`; the final handoff adds only this brief's implementation record |
+| `git diff --check main...HEAD` | Exit 0; no whitespace errors |
+| `git status --short` | Exit 0; clean at the validated revision before appending this record |
+
+The source commit ran normal Git hooks: both public-boundary checks passed.
+Git emitted a nonfatal `packed-refs.lock` permission error; the commit completed
+and its branch revision was verified. No hook was bypassed.
+
+Bounded evidence:
+
+- AC01: unit assertions cover default sizes and centering, empty/one/many-line
+  needed height, grow-only sizing, the 2,000 cap and joint text/height adapter and
+  history behavior. Konva wrapping, native editor alignment and visible fading
+  require the pending browser pass.
+- AC02: a synthetic saved 240×160 sticky roundtrips unchanged; display-only height
+  leaves its canonical bytes unchanged; shorter text keeps saved height and five
+  injected lines grow it to 171 when allowed. Actual browser reopening remains
+  unverified.
+- AC03: capped results pass unchanged document validation without moving or
+  changing width or identity, including y = 999,840 and the 40-unit bottom-edge
+  case. Canonical roundtrip preserves the edited object's text and geometry and
+  an unrelated object. The actual explicit-save/reload browser journey remains
+  unverified.
+
+Exclusions: no browser was launched because this environment cannot start one.
+The brief's single Chrome/Safari pass is left to the independent reviewer,
+including square creation, typing/editor alignment, one-step undo, old-note
+reopening and save/reload. No other unit files, full suite, fixture build,
+browser matrix, accessibility audit, native IME checks or performance/load checks
+ran. The graph discovery/index tools were unavailable under the environment's
+approval policy, so direct source reads were used after those calls failed.
+
+Added dependencies/assets: **none**. No changes to storage, history, document
+validation/canonicalization/identity/limits, package files, lock, persistence,
+explicit-save policy, placement calculations or other tools. `document.ts`
+changes only `add()`'s sticky default height. No stash, merge, push or publication.
+Independent review and browser acceptance remain pending.

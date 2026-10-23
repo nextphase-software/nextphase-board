@@ -20,6 +20,7 @@ import { Icon } from "./icons";
 import { deleteObject, duplicate, emptyHistory, record, redo, undo, type History } from "./history";
 import { allowedHeight, displayHeight, neededHeight, savedHeight, TEXT_INSET, TEXT_LAYOUT } from "./geometry";
 import { gestureScale, panView, stepZoom, wheelDelta, wheelZoomFactor, zoomView, type View } from "./view";
+import { editingCommandReason } from "./commands";
 
 function lineCount(object: Item, text = object.text): number {
   // Auto height is essential here: a fixed height would count only visible lines.
@@ -140,18 +141,20 @@ export function App() {
       window.removeEventListener("resize", update);
     };
   }, []);
+  const invalidObjectFields = board.objects.flatMap((o, i) =>
+    !validText(drafts[o.id] ?? o.text, 1000)
+      ? [
+        "Object " + (i + 1) +
+        " exceeds 1,000 code points or contains invalid Unicode. Correct it in Objects.",
+      ]
+      : []
+  );
+  const invalidObjectText = invalidObjectFields.length > 0;
   const invalidFields = [
     ...(!validText(title, 120, true)
       ? ["Board name requires 1–120 code points and cannot be blank."]
       : []),
-    ...board.objects.flatMap((o, i) =>
-      !validText(drafts[o.id] ?? o.text, 1000)
-        ? [
-          "Object " + (i + 1) +
-          " exceeds 1,000 code points or contains invalid Unicode. Correct it in Objects.",
-        ]
-        : []
-    ),
+    ...invalidObjectFields,
   ];
   const invalid = invalidFields.length > 0;
   const pending = useRef({ invalid: true, composing: false, busy: false });
@@ -593,10 +596,7 @@ export function App() {
     clearHistory();
     if (readOnly) cancel();
   }, [readOnly]);
-  const commandReason = readOnly ? "Read-only: editing commands are unavailable."
-    : composing ? "Finish text composition before using editing commands."
-    : busy ? "Finish or cancel the pointer gesture before using editing commands."
-    : invalid ? "Correct invalid drafts before using editing commands." : "";
+  const commandReason = editingCommandReason({ readOnly, composing, pointerGesture: busy, invalidObjectText });
   const session = textSession.current;
   const sessionChanged = !!session &&
     JSON.stringify(session.before.objects.find((o) => o.id === session.id)) !==

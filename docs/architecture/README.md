@@ -17,7 +17,7 @@ and includes the 0001-W3 presentation. It replaces v4 for later work.
 stickies square and lets notes grow taller to fit their text. It replaces v5 for
 later work.
 
-Draft for 0001-W13 brief v2: [0001 interaction v7](0001-interaction-v7.md) adds
+Draft for 0001-W13 brief v3: [0001 interaction v7](0001-interaction-v7.md) adds
 trackpad and mouse-wheel navigation: scroll to pan, pinch or Ctrl/Cmd+wheel to zoom
 around the pointer, and Space + drag. It replaces v6 for later work once accepted.
 

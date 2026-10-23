@@ -17,7 +17,7 @@ undo, redo, duplicate and delete for the existing objects under
 square stickies and notes that grow taller to fit their text under
 [interaction v6](../architecture/0001-interaction-v6.md), is implemented and merged into main.
 
-[0001-W13 v2 — Navigate the canvas with trackpad and mouse wheel](0001-W13-navigate-the-canvas-with-trackpad-and-mouse-wheel.md)
+[0001-W13 v3 — Navigate the canvas with trackpad and mouse wheel](0001-W13-navigate-the-canvas-with-trackpad-and-mouse-wheel.md)
 is a draft: scroll to pan, pinch or Ctrl/Cmd+wheel to zoom around the pointer, and
 Space + drag, governed by [interaction v7](../architecture/0001-interaction-v7.md).
 

@@ -174,3 +174,30 @@ placement, other tools, package files and lock are unchanged. Added dependencies
 none. Codebase graph discovery/indexing was attempted but rejected by the
 environment's approval policy; source was read directly. No push, merge,
 publication, deployment or later milestone was performed.
+
+### Fix round 1
+
+Addressed review F1 on `codex/0001-W2-edit-focus-undo` from candidate
+`d6fc73f3b305175d753a230dfdcfa58ca8c9a611`.
+Validated source/test revision: `1f8d550c6f296345e347ee3a3676c137d4df7088`;
+checks ran on the same source bytes before committing. Final branch tip is
+reported separately after this record commit.
+
+Only App.tsx changed: unavailable-command reasons no longer keep the state message
+visible or render in it. Each control retains its reason in a tooltip (native
+title for the Objects buttons) and via `aria-describedby` referencing `sr-only`
+elements outside the state message. Refused commands still call `setMessage`.
+
+With Node 24.22.1 / npm 11.19.1 selected using the supplied pinned toolchain:
+
+| Exact command | Actual result |
+| --- | --- |
+| `npm --prefix apps/web run typecheck` | PASS, exit 0 |
+| `node --test tests/history.test.mjs` | PASS, exit 0; 10 tests |
+| `npm --prefix apps/web run build` | PASS, exit 0; accepted lock, runtime inventory and distributed notices verified |
+| `git diff --check` | PASS, exit 0 |
+
+Both mandatory public-boundary hooks passed for the source commit; Git emitted
+the same sandbox-denied packed-refs lock warning, and the commit succeeded.
+No other behavior, tests, dependencies or protected files changed. No browser
+was launched; browser verification remains with the reviewer. No push performed.

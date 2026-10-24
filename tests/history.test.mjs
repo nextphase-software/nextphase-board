@@ -462,3 +462,75 @@ test("a set step counts once toward the 100-step limit and no-op preserves redo"
   assert.equal(s.revision, 202);
   s.close();
 });
+
+// W9 order steps opt in explicitly; every earlier call form stays unchanged.
+for (const name of ["Bring to front", "Bring forward", "Send backward", "Send to back"]) {
+  test(`${name} records selected orders only and restores the whole order exactly`, async () => {
+    const { arrangeOrder } = await import("../apps/web/src/arrange.ts");
+    const initial = setBoard(), s = session(initial);
+    const selected = new Set([initial.objects[0].id, initial.objects[2].id, initial.objects[4].id]);
+    const next = { ...initial, objects: arrangeOrder(name, initial.objects, selected) };
+    const h = record(s.history, initial, next, [...selected]);
+    assert.equal(h.past.length, 1);
+    assert.deepEqual(h.past[0].changes.map((c) => c.before.id), [...selected]);
+    for (const c of h.past[0].changes) {
+      assert.deepEqual(c.before, initial.objects.find((o) => o.id === c.before.id));
+      assert.deepEqual(c.after, next.objects.find((o) => o.id === c.after.id));
+    }
+    s.adopt({ board: next, history: h });
+    assert.equal(s.revision, 1);
+    const undone = undo(s.board, s.history);
+    assert.deepEqual(undone.affectedIds, [...selected]);
+    s.adopt(undone);
+    assert.deepEqual(s.board, initial);
+    s.adopt(redo(s.board, s.history));
+    assert.deepEqual(s.board, next);
+    assert.equal(s.revision, 3);
+    assert.equal(record(s.history, s.board, structuredClone(s.board), [...selected]), s.history);
+    // Removing selected members still ignores every following renumbered neighbour.
+    const removed = deleteObject(s.board, s.history, s.board.objects.filter((o) => selected.has(o.id)));
+    assert.deepEqual(new Set(removed.history.past.at(-1).changes.map((c) => c.before.id)), selected);
+    s.adopt(removed);
+    s.adopt(undo(s.board, s.history));
+    s.adopt(undo(s.board, s.history));
+    assert.deepEqual(s.board.objects.map(withoutGeneration), initial.objects.map(withoutGeneration));
+    s.adopt(redo(s.board, s.history));
+    assert.deepEqual(s.board.objects.map(withoutGeneration), next.objects.map(withoutGeneration));
+    s.close();
+  });
+}
+
+test("align positions use one ordinary step with exact undo/redo and no size changes", async () => {
+  const { arrangePositions } = await import("../apps/web/src/arrange.ts");
+  const initial = setBoard(), s = session(initial);
+  const selected = initial.objects.slice(1, 4);
+  const positions = arrangePositions("Align objects bottom", selected.map((o, i) => ({ ...o, displayHeight: o.height + i * 50 })));
+  const next = { ...initial, objects: initial.objects.map((o) => {
+    const p = positions.find((p) => p.id === o.id);
+    return p ? { ...o, x: p.x, y: p.y } : o;
+  }) };
+  s.record(next);
+  assert.equal(s.history.past.length, 1);
+  assert.equal(s.revision, 1);
+  for (const o of next.objects) assert.equal(o.height, initial.objects.find((v) => v.id === o.id).height);
+  s.adopt(undo(s.board, s.history));
+  assert.deepEqual(s.board, initial);
+  s.adopt(redo(s.board, s.history));
+  assert.deepEqual(s.board, next);
+  assert.equal(s.revision, 3);
+  assert.equal(record(s.history, next, structuredClone(next)), s.history);
+  s.close();
+});
+
+test("order-only changes remain ignored by legacy recording and removal excludes renumbering", async () => {
+  const { arrangeOrder } = await import("../apps/web/src/arrange.ts");
+  const initial = setBoard(), history = emptyHistory();
+  const next = { ...initial, objects: arrangeOrder("Bring to front", initial.objects, new Set([initial.objects[1].id])) };
+  assert.equal(record(history, initial, next), history);
+  const removed = deleteObject(initial, history, initial.objects[1]);
+  assert.equal(removed.history.past.length, 1);
+  assert.equal(removed.history.past[0].changes.length, 1);
+  assert.deepEqual(removed.history.past[0].changes[0], { before: initial.objects[1], after: null });
+  const undone = undo(removed.board, removed.history);
+  assert.deepEqual(undone.board.objects.map(withoutGeneration), initial.objects.map(withoutGeneration));
+});

@@ -477,3 +477,32 @@ small {
 .resize-handle.nw, .resize-handle.se { cursor: nwse-resize; }
 .resize-handle.ne, .resize-handle.sw { cursor: nesw-resize; }
 .sizes { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+
+/* W9 uses the same commands in the contextual popover and Objects. */
+.arrange-control { display: inline-flex; }
+.arrange-menu {
+  position: absolute;
+  width: 268px;
+  padding: 10px;
+  overflow: auto;
+  background: white;
+  color: #29272e;
+  border: 1px solid #e9e7ed;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px #29202e20;
+}
+.arrange-group { display: grid; gap: 4px; }
+.arrange-group + .arrange-group { margin-top: 8px; }
+.arrange-group h3 { margin: 0; font-size: 12px; color: #79737f; }
+.arrange-group > span { display: block; }
+.arrange-group button,
+.context .arrange-group button {
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 8px;
+  color: #29272e;
+  text-align: left;
+  background: white;
+  border: 1px solid #e8e7ed;
+}
+.objects-arrange { display: grid; gap: 8px; }

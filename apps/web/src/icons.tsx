@@ -15,6 +15,7 @@ const paths = {
   status: "M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0M10 7v3l2 2",
   Undo: "M7 4 3 8l4 4M3 8h8a5 5 0 0 1 0 10",
   Redo: "m13 4 4 4-4 4M17 8H9a5 5 0 0 0 0 10",
+  Arrange: "M3 3h9v6H3ZM8 11h9v6H8ZM3 13v4h3M14 3h3v6",
   Duplicate: "M7 7h10v10H7ZM3 13V3h10",
   left: "M3 4h14M3 8h9M3 12h14M3 16h9",
   center: "M3 4h14M6 8h8M3 12h14M6 16h8",

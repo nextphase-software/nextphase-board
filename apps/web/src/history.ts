@@ -8,13 +8,17 @@ export type Change = { board: Board; history: History; affectedId: string; affec
 export const emptyHistory = (): History => ({ past: [], future: [] });
 
 // Only object transactions enter history. Title, view and storage are independent.
-export function record(history: History, before: Board, after: Board): History {
-  const ids = new Set([...before.objects, ...after.objects].map((o) => o.id));
+export function record(history: History, before: Board, after: Board, orderIds?: readonly string[]): History {
+  // Order commands explicitly record every selected object, even a member that
+  // stays at its current index. Ordinary callers still ignore renumbering.
+  if (orderIds && !orderIds.some((id) => before.objects.find((o) => o.id === id)?.order !==
+    after.objects.find((o) => o.id === id)?.order)) return history;
+  const ids = new Set(orderIds ?? [...before.objects, ...after.objects].map((o) => o.id));
   const changed = [...ids].filter((id) => {
     const a = before.objects.find((o) => o.id === id);
     const b = after.objects.find((o) => o.id === id);
     // Removing an object also renumbers following objects; that is not another step.
-    return JSON.stringify(a && { ...a, order: 0 }) !==
+    return !!orderIds || JSON.stringify(a && { ...a, order: 0 }) !==
       JSON.stringify(b && { ...b, order: 0 });
   });
   if (!changed.length) return history;

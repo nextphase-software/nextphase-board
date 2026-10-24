@@ -23,6 +23,7 @@ import { gestureScale, panView, stepZoom, wheelDelta, wheelZoomFactor, zoomView,
 import { boundingBox, boxSelection, limitMove } from "./selection";
 import { editingCommandReason } from "./commands";
 import { resizeObject, resizeSet, type Corner, type Rectangle } from "./resize";
+import { ARRANGE_GROUPS, arrangeOrder, arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "./arrange";
 
 const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
 type ResizeStart = { object: Item; rectangle: Rectangle };
@@ -50,6 +51,8 @@ export function App() {
     [panel, setPanel] = useState(""),
     [inline, setInline] = useState(false),
     [swatchFor, setSwatchFor] = useState(""),
+    [arrangeFor, setArrangeFor] = useState(""),
+    [arrangeHeight, setArrangeHeight] = useState(0),
     [contextWidth, setContextWidth] = useState(0),
     [readOnly, setReadOnly] = useState(true),
     [message, setMessage] = useState("Opening local board…"),
@@ -76,6 +79,9 @@ export function App() {
     colourControl = useRef<HTMLSpanElement>(null),
     colourButton = useRef<HTMLButtonElement>(null),
     swatches = useRef<HTMLDivElement>(null),
+    arrangeControl = useRef<HTMLSpanElement>(null),
+    arrangeButton = useRef<HTMLButtonElement>(null),
+    arrangeMenu = useRef<HTMLDivElement>(null),
     inlineSurface = useRef<HTMLElement>(null),
     spacePanRef = useRef(false),
     lastPointer = useRef<{ x: number; y: number } | null>(null),
@@ -245,6 +251,7 @@ export function App() {
     finishTextSession();
     setInline(false);
     setSwatchFor("");
+    setArrangeFor("");
     setSelected(new Set(typeof value === "string" ? value ? [value] : [] : value));
   }
   function clearHistory() {
@@ -261,13 +268,13 @@ export function App() {
     textSession.current = null;
     if (session) updateHistory(record(historyRef.current, session.before, model.current));
   }
-  function commit(input: SavedBoard, recordObject = false) {
+  function commit(input: SavedBoard, recordObject = false, orderIds?: readonly string[]) {
     const next = upgrade(input);
     if (readOnly) return;
     if (JSON.stringify(next) === JSON.stringify(model.current)) return;
     if (recordObject) {
       finishTextSession();
-      updateHistory(record(historyRef.current, model.current, next));
+      updateHistory(record(historyRef.current, model.current, next, orderIds));
     }
     model.current = next;
     adapter.current!.set(next);
@@ -776,6 +783,70 @@ export function App() {
       document.removeEventListener("focusin", outside);
     };
   }, [swatchOpen]);
+  const arrangeOpen = arrangeFor === selectionKey && selected.size > 0 && contextFits && !selectionReason;
+  useEffect(() => {
+    if (!arrangeOpen) setArrangeFor("");
+  }, [arrangeOpen, selectionKey]);
+  useLayoutEffect(() => {
+    if (!arrangeOpen || !arrangeMenu.current) return;
+    const menu = arrangeMenu.current;
+    const measure = () => setArrangeHeight(menu.getBoundingClientRect().height);
+    const observer = new ResizeObserver(measure);
+    observer.observe(menu);
+    measure();
+    return () => observer.disconnect();
+  }, [arrangeOpen]);
+  useEffect(() => {
+    if (!arrangeOpen) return;
+    arrangeMenu.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+    const outside = (event: Event) => {
+      if (event.target instanceof Node && !arrangeControl.current?.contains(event.target)) {
+        setArrangeFor("");
+      }
+    };
+    document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("focusin", outside);
+    return () => {
+      document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("focusin", outside);
+    };
+  }, [arrangeOpen]);
+  const editingState = { readOnly, composing, pointerGesture: busy, invalidObjectText };
+  const arrangementMembers = displayedObjects.filter((o) => selected.has(o.id));
+  function arrange(name: ArrangeCommand) {
+    if (arrangeReason(name, arrangementMembers, editingState)) return;
+    finishTextSession();
+    setInline(false);
+    const current = model.current;
+    if (isOrderCommand(name)) {
+      commit({ ...current, objects: arrangeOrder(name, current.objects, selected) }, true,
+        current.objects.filter((o) => selected.has(o.id)).map((o) => o.id));
+    } else {
+      const positions = new Map(arrangePositions(name, arrangementMembers).map((p) => [p.id, p]));
+      commit({ ...current, objects: current.objects.map((o) => positions.has(o.id)
+        ? { ...o, x: positions.get(o.id)!.x, y: positions.get(o.id)!.y } : o) }, true);
+    }
+  }
+  function closeArrange() {
+    setArrangeFor("");
+    arrangeButton.current?.focus();
+  }
+  function arrangementControls(prefix: string, choose: (name: ArrangeCommand) => void) {
+    return ARRANGE_GROUPS.map((group) => <div key={group.label} className="arrange-group"
+      role="group" aria-label={group.label}>
+      <h3>{group.label}</h3>
+      {group.commands.map((name) => {
+        const reason = arrangeReason(name, arrangementMembers, editingState);
+        const description = prefix + "-" + name.replaceAll(" ", "-");
+        return <span key={name}>
+          <button disabled={!!reason} title={reason || name}
+            aria-describedby={reason ? description : undefined}
+            onClick={(e) => { e.currentTarget.focus(); choose(name); }}>{name}</button>
+          {reason && <span className="sr-only" id={description}>{reason}</span>}
+        </span>;
+      })}
+    </div>);
+  }
   function changeStyle<K extends keyof Style>(key: K, value: Style[K]) {
     if (selectionReason) return;
     finishTextSession();
@@ -1358,6 +1429,10 @@ export function App() {
               disabled={!selected.size || readOnly || composing || busy}
               onClick={() => resizeBy(Number(x), Number(y))}>{name}</button>)}
           </div>
+          {selected.size > 0 && <div className="objects-arrange" role="group" aria-label="Arrange">
+            <h2>Arrange</h2>
+            {arrangementControls("objects-arrange", arrange)}
+          </div>}
           <div>
             {(["sticky", "text"] as const).map((type) => (
               <button
@@ -1415,6 +1490,7 @@ export function App() {
               aria-controls={swatchOpen ? "colour-swatches" : undefined}
               onClick={(e) => {
                 e.currentTarget.focus();
+                setArrangeFor("");
                 setSwatchFor(swatchOpen ? "" : selectionKey);
               }}>
               <span className={"colour-dot" + (!selectionColor ? " mixed" : "")} style={selectionColor ? { background: colorEntry(selectionColor).fill } : undefined} />
@@ -1453,6 +1529,34 @@ export function App() {
               onClick={(e) => { e.currentTarget.focus(); changeStyle("align", a.name); }}>
               <Icon name={a.name} /><span className="tooltip">{selectionReason || a.action}</span>
             </button>)}
+          </span>
+          <span className="arrange-control" ref={arrangeControl}>
+            <button ref={arrangeButton} className="icon-button" disabled={!!selectionReason}
+              aria-label="Arrange" title={selectionReason || "Arrange"}
+              aria-describedby="selection-reason" aria-expanded={arrangeOpen}
+              aria-controls={arrangeOpen ? "arrange-menu" : undefined}
+              onClick={(e) => {
+                e.currentTarget.focus();
+                setSwatchFor("");
+                setArrangeFor(arrangeOpen ? "" : selectionKey);
+              }}>
+              <Icon name="Arrange" /><span className="tooltip">{selectionReason || "Arrange"}</span>
+            </button>
+            {arrangeOpen && <div id="arrange-menu" ref={arrangeMenu} className="arrange-menu"
+              role="group" aria-label="Arrange" style={{
+                left: clamp(arrangeButton.current?.offsetLeft ?? 0, 12 - contextLeft,
+                  size.w - 280 - contextLeft),
+                top: clamp(48, 12 - contextTop, size.h - 12 - arrangeHeight - contextTop),
+                maxHeight: size.h - 24,
+              }} onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  closeArrange();
+                }
+              }}>
+              {arrangementControls("menu-arrange", (name) => { arrange(name); closeArrange(); })}
+            </div>}
           </span>
           {(["Duplicate", "Delete"] as const).map((name) => (
             <button key={name} className="icon-button" aria-label={name}

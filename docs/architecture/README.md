@@ -31,10 +31,16 @@ work.
 invalid board name block only Save, so editing commands stay available on an
 unnamed board. It replaces v8 for later work.
 
-Draft for 0001-W7 brief v1: [0001 interaction v10](0001-interaction-v10.md) lets
+[0001 interaction v10](0001-interaction-v10.md), accepted with 0001-W7, lets
 several objects be selected, with a selection box, Shift-click, Cmd/Ctrl+A or the
 Objects list, and moved, styled, duplicated, deleted and undone together. It
-replaces v9 for later work once accepted.
+replaces v9 for later work.
+
+Draft for 0001-W8 brief v1: [0001 interaction v11](0001-interaction-v11.md) adds
+corner handles that resize one object or a set, with minimum sizes, a floor that
+keeps text visible within the height limits and size buttons in Objects, and corrects
+two sentences of v10. It replaces
+v10 for later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

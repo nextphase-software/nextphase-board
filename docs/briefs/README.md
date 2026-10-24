@@ -30,10 +30,15 @@ eight colours, four text sizes and alignment saved through
 board name blocking only Save under
 [interaction v9](../architecture/0001-interaction-v9.md), is implemented and merged into main.
 
-[0001-W7 v1 — Select and move multiple objects](0001-W7-select-and-move-multiple-objects.md)
-is a draft: a selection box, Shift-click, select all and a multiple-selection Objects
-list, with moves, commands and undo acting on the whole set, governed by
-[interaction v10](../architecture/0001-interaction-v10.md).
+[0001-W7 v1 — Select and move multiple objects](0001-W7-select-and-move-multiple-objects.md),
+a selection box, Shift-click, select all and a multiple-selection Objects list, with
+moves, commands and undo acting on the whole set under
+[interaction v10](../architecture/0001-interaction-v10.md), is implemented and merged into main.
+
+[0001-W8 v1 — Resize selected objects](0001-W8-resize-selected-objects.md) is a draft:
+corner handles for one object or a set, minimum sizes, a floor that keeps text
+visible within the height limits, and size buttons in Objects, governed by
+[interaction v11](../architecture/0001-interaction-v11.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

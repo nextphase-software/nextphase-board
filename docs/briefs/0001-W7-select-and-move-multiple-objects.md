@@ -1,8 +1,10 @@
 BRIEF VERSION: 0001-W7 v1 (2026-10-23)
 # 0001-W7 — Select and move multiple objects
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 interaction v10](../architecture/0001-interaction-v10.md) to main.
+Status: Implemented. Independently reviewed at `25f4f3e` (pass) and merged into
+main on 2026-10-23 with [0001 interaction v10](../architecture/0001-interaction-v10.md).
+The implementation record below, which lists the validated revisions, was written
+before that review.
 
 ## Outcome
 

@@ -444,3 +444,17 @@ small {
   outline: 2px solid #7051cf;
   outline-offset: 3px;
 }
+
+/* W7 selection preview sits above objects and below floating controls. */
+.selection-box {
+  position: absolute;
+  border: 1px solid #518de0;
+  background: rgb(81 141 224 / 12%);
+  pointer-events: none;
+}
+.colour-dot.mixed {
+  background: conic-gradient(#f2dce5 0deg 45deg, #f8e9a6 45deg 90deg,
+    #f9d9bd 90deg 135deg, #d6ecc9 135deg 180deg, #cbe9e3 180deg 225deg,
+    #d4e3f8 225deg 270deg, #e2dbf6 270deg 315deg, #e9e7ed 315deg 360deg);
+}
+.objects select[multiple] { min-height: 132px; overflow-y: auto; }

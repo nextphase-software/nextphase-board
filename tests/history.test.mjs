@@ -307,3 +307,158 @@ test("finishing text before a style change yields separate steps; a no-op preser
   assert.equal(s.revision, 6);
   s.close();
 });
+
+// W7 set operations extend the original single-object regression cases above.
+const setBoard = () => {
+  let initial = board();
+  for (let i = 0; i < 5; i++) initial = add(initial, i % 2 ? "text" : "sticky", i * 400, i * 20);
+  initial.objects[1].text = "One\nTwo\nThree\nFour\nFive";
+  return initial;
+};
+const ids = (objects) => objects.map((o) => o.id);
+
+for (const kind of ["move", "style with growth"]) {
+  test(`set ${kind} is one step and revision, with exact undo/redo and untouched neighbours`, () => {
+    const initial = setBoard(), s = session(initial);
+    const next = { ...initial, objects: initial.objects.map((o, i) => i === 1 || i === 3
+      ? { ...o, ...(kind === "move" ? { x: o.x + 37, y: o.y - 19 }
+        : { color: "green", textSize: "extra-large", align: "right", height: i === 1 ? 272 : o.height }) } : o) };
+    s.record(next);
+    assert.equal(s.revision, 1);
+    assert.equal(s.history.past.length, 1);
+    const undone = undo(s.board, s.history);
+    assert.deepEqual(undone.affectedIds, ids([initial.objects[1], initial.objects[3]]));
+    assert.equal(undone.affectedId, initial.objects[1].id);
+    s.adopt(undone);
+    assert.deepEqual(s.board, initial);
+    s.adopt(redo(s.board, s.history));
+    assert.deepEqual(s.board, next);
+    assert.equal(s.revision, 3);
+    assert.equal(record(s.history, s.board, structuredClone(s.board)), s.history);
+    s.close();
+  });
+}
+
+test("set duplicate appends in source order, retires copies together and renews each generation", () => {
+  const initial = setBoard(), s = session(initial);
+  const sources = [initial.objects[3], initial.objects[1]];
+  const copied = duplicate(s.board, s.history, sources);
+  s.adopt(copied);
+  const copies = s.board.objects.slice(5);
+  assert.deepEqual(copied.affectedIds, ids(copies));
+  assert.equal(copied.affectedId, copies[0].id);
+  assert.equal(s.revision, 1);
+  assert.equal(s.history.past.length, 1);
+  for (const [i, source] of [...sources].reverse().entries()) {
+    assert.deepEqual(copies[i], { ...source, id: copies[i].id, generation: copies[i].generation,
+      x: source.x + 24, y: source.y + 24, order: 5 + i });
+  }
+  const identities = s.board.objects.flatMap((o) => [o.id, o.generation]);
+  assert.equal(new Set(identities).size, identities.length);
+  s.adopt(undo(s.board, s.history));
+  assert.deepEqual(s.board.objects, initial.objects);
+  assert.deepEqual(s.board.retiredGenerations, copies.map((o) => o.generation).sort());
+  s.adopt(redo(s.board, s.history));
+  assert.deepEqual(s.board.objects.slice(5).map(withoutGeneration), copies.map(withoutGeneration));
+  for (const copy of s.board.objects.slice(5)) assert.ok(!copies.some((o) => o.generation === copy.generation));
+  assert.equal(s.revision, 3);
+  // A second cycle must target the new incarnations of every copy.
+  s.adopt(undo(s.board, s.history));
+  assert.equal(s.board.retiredGenerations.length, 4);
+  s.adopt(redo(s.board, s.history));
+  assert.deepEqual(s.board.objects.slice(5).map(withoutGeneration), copies.map(withoutGeneration));
+  s.close();
+});
+
+test("set delete restores non-adjacent reading positions and retargets earlier set history", () => {
+  const initial = setBoard(), s = session(initial);
+  const targets = [initial.objects[1], initial.objects[3]];
+  const moved = { ...initial, objects: initial.objects.map((o) => targets.some((t) => t.id === o.id)
+    ? { ...o, x: o.x + 10 } : o) };
+  s.record(moved);
+  const result = deleteObject(s.board, s.history, [moved.objects[3], moved.objects[1]]);
+  s.adopt(result);
+  assert.deepEqual(result.affectedIds, ids(targets));
+  assert.equal(s.revision, 2);
+  assert.equal(s.history.past.length, 2);
+  assert.deepEqual(ids(s.board.objects), ids(initial.objects.filter((o) => !ids(targets).includes(o.id))));
+  assert.deepEqual(s.board.objects.map((o) => o.order), [0, 1, 2]);
+  assert.deepEqual(s.board.retiredGenerations, targets.map((o) => o.generation).sort());
+  s.adopt(undo(s.board, s.history));
+  assert.deepEqual(s.board.objects.map(withoutGeneration), moved.objects.map(withoutGeneration));
+  const renewed = s.board.objects.filter((o) => ids(targets).includes(o.id));
+  for (const o of renewed) assert.ok(!targets.some((t) => t.generation === o.generation));
+  s.adopt(undo(s.board, s.history));
+  assert.deepEqual(s.board.objects.map(withoutGeneration), initial.objects.map(withoutGeneration));
+  s.adopt(redo(s.board, s.history));
+  s.adopt(redo(s.board, s.history));
+  assert.deepEqual(ids(s.board.objects), ids(initial.objects.filter((o) => !ids(targets).includes(o.id))));
+  assert.deepEqual(s.board.retiredGenerations, [...targets, ...renewed].map((o) => o.generation).sort());
+  assert.equal(s.revision, 6);
+  s.close();
+});
+
+test("set capacity and retirement limits refuse the entire command without mutation", () => {
+  let full = board();
+  for (let i = 0; i < 249; i++) full = add(full, "sticky", 0, 0);
+  const h = emptyHistory(), targets = full.objects.slice(0, 2);
+  const before = structuredClone({ board: full, history: h });
+  assert.throws(() => duplicate(full, h, targets), /250 object limit/);
+  assert.deepEqual({ board: full, history: h }, before);
+  const deleted = deleteObject(full, h, targets);
+  const filled = add(add(deleted.board, "text", 0, 0), "sticky", 0, 0);
+  const snapshot = structuredClone({ board: filled, history: deleted.history });
+  assert.throws(() => undo(filled, deleted.history), /250 object limit/);
+  assert.deepEqual({ board: filled, history: deleted.history }, snapshot);
+  const near = { ...setBoard(), retiredGenerations: Array.from({ length: 9999 }, () => crypto.randomUUID()).sort() };
+  const nearBefore = structuredClone({ board: near, history: h });
+  assert.throws(() => deleteObject(near, h, near.objects.slice(0, 2)), /10,000 retired-generation limit/);
+  assert.deepEqual({ board: near, history: h }, nearBefore);
+  const room = { ...near, retiredGenerations: near.retiredGenerations.slice(0, 9998) };
+  const removed = deleteObject(room, h, room.objects.slice(0, 2));
+  assert.equal(removed.board.retiredGenerations.length, 10000);
+  const restored = undo(removed.board, removed.history);
+  const restoredBefore = structuredClone(restored);
+  assert.throws(() => redo(restored.board, restored.history), /10,000 retired-generation limit/);
+  assert.deepEqual(restored, restoredBefore);
+  const created = duplicate(near, h, near.objects.slice(0, 2));
+  const createdBefore = structuredClone(created);
+  assert.throws(() => undo(created.board, created.history), /10,000 retired-generation limit/);
+  assert.deepEqual(created, createdBefore);
+});
+
+test("one stale member refuses every member of a set command and history step", () => {
+  const initial = setBoard();
+  const next = { ...initial, objects: initial.objects.map((o, i) => i < 2 ? { ...o, x: o.x + 10 } : o) };
+  const history = record(emptyHistory(), initial, next);
+  const replaced = { ...next, objects: next.objects.map((o, i) => i === 1 ? { ...o, generation: crypto.randomUUID() } : o) };
+  const snapshot = structuredClone({ board: replaced, history });
+  assert.throws(() => undo(replaced, history), /incarnation/);
+  assert.throws(() => duplicate(replaced, history, next.objects.slice(0, 2)), /incarnation/);
+  assert.throws(() => deleteObject(replaced, history, next.objects.slice(0, 2)), /incarnation/);
+  assert.deepEqual({ board: replaced, history }, snapshot);
+  const reverted = undo(next, history);
+  const staleRedo = { ...reverted.board, objects: reverted.board.objects.map((o, i) => i === 1 ? { ...o, generation: crypto.randomUUID() } : o) };
+  const redoBefore = structuredClone({ board: staleRedo, history: reverted.history });
+  assert.throws(() => redo(staleRedo, reverted.history), /incarnation/);
+  assert.deepEqual({ board: staleRedo, history: reverted.history }, redoBefore);
+});
+
+test("a set step counts once toward the 100-step limit and no-op preserves redo", () => {
+  const initial = setBoard(), s = session(initial);
+  for (let i = 1; i <= 101; i++) s.record({ ...s.board, objects: s.board.objects.map((o, index) =>
+    index < 2 ? { ...o, x: initial.objects[index].x + i } : o) });
+  assert.equal(s.history.past.length, 100);
+  assert.equal(s.revision, 101);
+  for (let i = 0; i < 100; i++) s.adopt(undo(s.board, s.history));
+  assert.equal(s.board.objects[0].x, initial.objects[0].x + 1);
+  assert.equal(s.board.objects[1].x, initial.objects[1].x + 1);
+  assert.deepEqual(s.board.objects.slice(2), initial.objects.slice(2));
+  assert.equal(s.history.future.length, 100);
+  assert.equal(s.revision, 201);
+  assert.equal(record(s.history, s.board, structuredClone(s.board)), s.history);
+  s.record({ ...s.board, objects: s.board.objects.map((o, i) => i < 2 ? { ...o, align: "right" } : o) });
+  assert.equal(s.history.future.length, 0);
+  assert.equal(s.revision, 202);
+  s.close();
+});

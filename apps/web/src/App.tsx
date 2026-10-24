@@ -20,6 +20,7 @@ import { Icon } from "./icons";
 import { deleteObject, duplicate, emptyHistory, record, redo, undo, type History } from "./history";
 import { allowedHeight, displayHeight, neededHeight, savedHeight, TEXT_INSET, TEXT_LAYOUT } from "./geometry";
 import { gestureScale, panView, stepZoom, wheelDelta, wheelZoomFactor, zoomView, type View } from "./view";
+import { boundingBox, boxSelection, limitMove } from "./selection";
 import { editingCommandReason } from "./commands";
 
 function lineCount(object: Item, text = object.text): number {
@@ -39,7 +40,8 @@ export function App() {
   const [board, setBoard] = useState<Board>(empty),
     [title, setTitle] = useState(""),
     [drafts, setDrafts] = useState<Record<string, string>>({}),
-    [selected, select] = useState(""),
+    [selected, setSelected] = useState<Set<string>>(() => new Set()),
+    [selectionBox, setSelectionBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null),
     [tool, setTool] = useState("Select"),
     [panel, setPanel] = useState(""),
     [inline, setInline] = useState(false),
@@ -80,6 +82,10 @@ export function App() {
     drag = useRef<
       {
         id: string;
+        ids?: string[];
+        previous?: string[];
+        box?: boolean;
+        additive?: boolean;
         x: number;
         y: number;
         cx: number;
@@ -93,11 +99,14 @@ export function App() {
     >(null),
     alive = useRef(true);
   if (!adapter.current) adapter.current = new Adapter();
-  const item = board.objects.find((o) => o.id === selected),
+  const selectedObjects = board.objects.filter((o) => selected.has(o.id));
+  const selectionKey = JSON.stringify(selectedObjects.map((o) => o.id));
+  const selectedId = selectedObjects.length === 1 ? selectedObjects[0].id : "";
+  const item = board.objects.find((o) => o.id === selectedId),
     text = item ? (drafts[item.id] ?? item.text) : "";
   const objectLayouts = useMemo(() => new Map(board.objects.map((o) => {
     // Uncommitted composition/invalid input may grow the editor's preview only.
-    const lines = lineCount(o, inline && o.id === selected ? text : o.text);
+    const lines = lineCount(o, inline && o.id === selectedId ? text : o.text);
     const fontSize = textUnits(o.textSize);
     const height = displayHeight(o, lines, fontSize);
     const innerHeight = height - 2 * TEXT_INSET;
@@ -109,7 +118,15 @@ export function App() {
       fadeStart: Math.max(0, visibleLines - 1) * lineHeight,
       fadeEnd: Math.max(1, Math.min(innerHeight, Math.max(1, visibleLines) * lineHeight)),
     }];
-  })), [board.objects, inline, selected, text]);
+  })), [board.objects, inline, selectedId, text]);
+  const displayedObjects = board.objects.map((o) => ({ ...o, displayHeight: objectLayouts.get(o.id)!.height }));
+  const bounds = boundingBox(displayedObjects.filter((o) => selected.has(o.id)));
+  const commonStyle = <K extends keyof Style>(key: K): Style[K] | "" => {
+    const value = selectedObjects[0]?.[key];
+    return value && selectedObjects.every((o) => o[key] === value) ? value : "";
+  };
+  const selectionColor = commonStyle("color"), selectionSize = commonStyle("textSize"), selectionAlign = commonStyle("align");
+  const colourLabel = selectionColor ? colorEntry(selectionColor).label : "Mixed";
   const itemHeight = item ? objectLayouts.get(item.id)!.height : 0;
   const lockTask = useRef<Promise<void> | null>(null),
     fallbackFocus = useRef(false);
@@ -205,6 +222,12 @@ export function App() {
   function updateHistory(next: History) {
     historyRef.current = next;
     setHistory(next);
+  }
+  function select(value: string | Iterable<string>) {
+    finishTextSession();
+    setInline(false);
+    setSwatchFor("");
+    setSelected(new Set(typeof value === "string" ? value ? [value] : [] : value));
   }
   function clearHistory() {
     textSession.current = null;
@@ -371,7 +394,7 @@ export function App() {
       } else selector.current?.focus();
     }
   }, [panel]);
-  const pos = (o: Item) => ({
+  const pos = (o: { x: number; y: number }) => ({
     left: size.w / 2 + (o.x - view.x) * view.z,
     top: size.h / 2 + (o.y - view.y) * view.z,
   });
@@ -479,20 +502,15 @@ export function App() {
     setSnapshots([]);
     await start();
   }
+  function movedBoard(ids: string[], dx: number, dy: number) {
+    const members = model.current.objects.filter((o) => ids.includes(o.id));
+    const delta = limitMove(members, { x: dx, y: dy });
+    return { ...model.current, objects: model.current.objects.map((o) => ids.includes(o.id)
+      ? { ...o, x: o.x + delta.x, y: o.y + delta.y } : o) };
+  }
   function move(dx: number, dy: number) {
-    if (!item || readOnly || composing || busy) return;
-    commit({
-      ...model.current,
-      objects: model.current.objects.map((o) =>
-        o.id === item.id
-          ? {
-            ...o,
-            x: clamp(o.x + dx, -1e6, 1e6 - o.width),
-            y: clamp(o.y + dy, -1e6, 1e6 - o.height),
-          }
-          : o
-      ),
-    }, true);
+    if (!selected.size || readOnly || composing || busy) return;
+    commit(movedBoard([...selected], dx, dy), true);
   }
   function toggle(name: string) {
     if (composing || busy) return;
@@ -538,10 +556,12 @@ export function App() {
   function cancel() {
     const d = drag.current;
     if (d?.pan) setView(d.view);
+    if (d?.box) select(d.previous ?? []);
+    setSelectionBox(null);
     drag.current = null;
     setBusy(false);
     if (!d?.temporary) setTool("Select");
-    if (d?.temporary) releaseCapture(d.pointerId);
+    releaseCapture(d?.pointerId);
     setBoard({ ...model.current });
   }
   useEffect(() => {
@@ -577,9 +597,9 @@ export function App() {
         onCompositionEnd={(e) => {
           setComposing(false);
           const value = e.currentTarget.value;
-          setDrafts((d) => ({ ...d, [selected]: value }));
+          setDrafts((d) => ({ ...d, [selectedId]: value }));
           if (item && validText(value, 1000) && !readOnly) {
-            commitText(selected, value);
+            commitText(selectedId, value);
           }
         }}
         onBlur={() => {
@@ -603,7 +623,7 @@ export function App() {
       JSON.stringify(model.current.objects.find((o) => o.id === session.id));
   const undoReason = commandReason || (!history.past.length && !sessionChanged ? "Nothing to undo." : "");
   const redoReason = commandReason || (sessionChanged || !history.future.length ? "Nothing to redo." : "");
-  const selectionReason = commandReason || (!item ? "Select an object to duplicate or delete." : "");
+  const selectionReason = commandReason || (!selected.size ? "Select an object to duplicate or delete." : "");
   function command(name: "Undo" | "Redo" | "Duplicate" | "Delete") {
     if (commandReason) {
       setMessage(commandReason);
@@ -611,38 +631,46 @@ export function App() {
     }
     finishTextSession();
     try {
-      const current = model.current.objects.find((o) => o.id === selected);
+      const targets = model.current.objects.filter((o) => selected.has(o.id));
+      const current = targets[0];
       if ((name === "Duplicate" || name === "Delete") && !current) {
         setMessage("Select an object to " + name.toLowerCase() + ".");
         return;
       }
       const result = name === "Undo" ? undo(model.current, historyRef.current)
         : name === "Redo" ? redo(model.current, historyRef.current)
-        : name === "Duplicate" ? duplicate(model.current, historyRef.current, current!)
-        : deleteObject(model.current, historyRef.current, current!);
-      const affected = result.board.objects.find((o) => o.id === result.affectedId);
+        : name === "Duplicate" ? duplicate(model.current, historyRef.current, targets)
+        : deleteObject(model.current, historyRef.current, targets);
+      const affected = result.board.objects.filter((o) => result.affectedIds.includes(o.id));
       commit(result.board);
       updateHistory(result.history);
       setDrafts((d) => {
         const next = { ...d };
-        delete next[result.affectedId];
+        for (const id of result.affectedIds) delete next[id];
         return next;
       });
       // A history command closes the previous editing route without moving its focus.
       setInline(false);
-      const removedSelection = !affected && selected === result.affectedId;
-      if (affected) select(affected.id);
+      const remaining = [...selected].filter((id) => !result.affectedIds.includes(id));
+      const removedSelection = remaining.length < selected.size;
+      if (affected.length) select(affected.map((o) => o.id));
       else if (removedSelection || name === "Delete") {
-        select("");
-        scene.current?.focus();
+        select(name === "Delete" ? [] : remaining);
+        if (name === "Delete" || !remaining.length) scene.current?.focus();
       }
       const label = current
         ? current.type + " " + (current.order + 1) + " · " + (current.text.slice(0, 36) || "Empty")
         : "object";
-      setMessage(name === "Delete" ? "Deleted " + label + ". Undo restores it."
-        : name === "Duplicate" ? "Duplicated " + label + ". Copy selected."
-        : name + " complete. " + (affected ? "Affected object selected."
-          : removedSelection ? "Selection cleared." : "Selection unchanged."));
+      setMessage(name === "Delete" ? (targets.length > 1
+        ? "Deleted " + targets.length + " objects. Undo restores them."
+        : "Deleted " + label + ". Undo restores it.")
+        : name === "Duplicate" ? (targets.length > 1
+          ? "Duplicated " + targets.length + " objects. Copies selected."
+          : "Duplicated " + label + ". Copy selected.")
+        : name + " complete. " + (affected.length > 1 ? affected.length + " affected objects selected."
+          : affected.length ? "Affected object selected."
+          : removedSelection ? remaining.length ? "Removed objects deselected." : "Selection cleared."
+          : "Selection unchanged."));
     } catch (error) {
       setMessage(String(error));
     }
@@ -663,12 +691,12 @@ export function App() {
     observer.observe(bar);
     measure();
     return () => observer.disconnect();
-  }, [item?.id]);
-  const contextLeft = item
-    ? clamp(pos(item).left + item.width * view.z / 2 - contextWidth / 2,
+  }, [selectionKey]);
+  const contextLeft = bounds
+    ? clamp(pos(bounds).left + bounds.width * view.z / 2 - contextWidth / 2,
       12, Math.max(12, size.w - contextWidth - 12)) : 12;
-  const contextAbove = item ? pos(item).top - 48 : 0;
-  const contextBelow = item ? pos(item).top + itemHeight * view.z + 8 : 0;
+  const contextAbove = bounds ? pos(bounds).top - 48 : 0;
+  const contextBelow = bounds ? pos(bounds).top + bounds.height * view.z + 8 : 0;
   const contextTop = clamp(contextAbove >= layout.panel ? contextAbove : contextBelow,
     layout.panel, Math.max(layout.panel, size.h - 52));
   const overlapsEditor = inline && item &&
@@ -678,13 +706,14 @@ export function App() {
     contextLeft + contextWidth > pos(item).left + 20 * view.z;
   const contextFits = size.w >= 768 && contextWidth > 0 && contextWidth <= size.w - 24 &&
     contextTop + 40 <= size.h - 12 && !overlapsEditor;
-  const swatchOpen = swatchFor === selected && !!selected && contextFits && !selectionReason;
+  const swatchOpen = swatchFor === selectionKey && selected.size > 0 && contextFits && !selectionReason;
   useEffect(() => {
     if (!swatchOpen) setSwatchFor("");
-  }, [swatchOpen, selected]);
+  }, [swatchOpen, selectionKey]);
   useEffect(() => {
     if (!swatchOpen) return;
-    swatches.current?.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus();
+    (swatches.current?.querySelector<HTMLButtonElement>('[aria-pressed="true"]') ??
+      swatches.current?.querySelector<HTMLButtonElement>("button"))?.focus();
     const outside = (event: Event) => {
       if (event.target instanceof Node && !colourControl.current?.contains(event.target)) {
         setSwatchFor("");
@@ -701,14 +730,16 @@ export function App() {
     if (selectionReason) return;
     finishTextSession();
     setInline(false);
-    const current = model.current.objects.find((o) => o.id === selected);
-    if (!current || current[key] === value) return;
-    const styled = { ...current, [key]: value };
-    const next = key === "textSize"
-      ? { ...styled, height: savedHeight(styled, lineCount(styled), textUnits(styled.textSize)) }
-      : styled;
-    commit({ ...model.current, objects: model.current.objects.map((o) => o.id === next.id ? next : o) }, true);
+    const objects = model.current.objects.map((current) => {
+      if (!selected.has(current.id) || current[key] === value) return current;
+      const styled = { ...current, [key]: value };
+      return key === "textSize"
+        ? { ...styled, height: savedHeight(styled, lineCount(styled), textUnits(styled.textSize)) }
+        : styled;
+    });
+    commit({ ...model.current, objects }, true);
   }
+
   function closeSwatches() {
     setSwatchFor("");
     colourButton.current?.focus();
@@ -727,6 +758,13 @@ export function App() {
           if (key === "z" || (key === "y" && e.ctrlKey && !e.metaKey && !e.shiftKey)) {
             e.preventDefault();
             command(key === "y" || e.shiftKey ? "Redo" : "Undo");
+            return;
+          }
+          if (key === "a" && !e.shiftKey && e.target === scene.current) {
+            if (!busy && !composing && model.current.objects.length) {
+              e.preventDefault();
+              select(model.current.objects.map((o) => o.id));
+            }
             return;
           }
           if (key === "d" && !e.shiftKey && e.target === scene.current) {
@@ -783,7 +821,7 @@ export function App() {
             }
             return;
           }
-          if (e.key === "Enter") {
+          if (e.key === "Enter" && !drag.current) {
             e.preventDefault();
             if (tool === "Sticky" || tool === "Text") {
               create(
@@ -791,7 +829,8 @@ export function App() {
                 view.x,
                 view.y,
               );
-            } else edit();
+            } else if (selected.size > 1) setMessage("Select one object to edit its text.");
+            else edit();
           }
         }}
         onPointerDown={(e) => {
@@ -828,39 +867,39 @@ export function App() {
               view: { ...view },
               pan: true,
             };
-          } else if (tool === "Select" || hit) {
-            select(hit?.id ?? "");
-            if (hit && !readOnly && tool === "Select") {
+          } else if (tool === "Select") {
+            if (hit) {
+              if (e.shiftKey) {
+                const next = new Set(selected);
+                if (next.has(hit.id)) next.delete(hit.id); else next.add(hit.id);
+                select(next);
+              } else {
+                const ids = selected.has(hit.id) ? [...selected] : [hit.id];
+                if (readOnly || !selected.has(hit.id)) select(hit.id);
+                if (!readOnly) drag.current = {
+                  id: hit.id, ids, x: hit.x, y: hit.y,
+                  cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false,
+                };
+              }
+            } else {
+              const previous = [...selected];
+              if (!e.shiftKey) select("");
               drag.current = {
-                id: hit.id,
-                x: hit.x,
-                y: hit.y,
-                cx: e.clientX,
-                cy: e.clientY,
-                view: { ...view },
-                pan: false,
-              };
-            } else if (tool === "Pan" && !hit) {
-              drag.current = {
-                id: "",
-                x: view.x,
-                y: view.y,
-                cx: e.clientX,
-                cy: e.clientY,
-                view: { ...view },
-                pan: true,
+                id: "", box: true, additive: e.shiftKey, previous,
+                x: p.x, y: p.y, cx: e.clientX, cy: e.clientY,
+                view: { ...view }, pan: false,
               };
             }
-            if (hit) setTool("Select");
-          } else {drag.current = {
-              id: tool,
-              x: p.x,
-              y: p.y,
-              cx: e.clientX,
-              cy: e.clientY,
-              view: { ...view },
-              pan: tool === "Pan",
-            };}
+          } else if (hit) {
+            select(hit.id);
+            setTool("Select");
+          } else {
+            drag.current = {
+              id: tool, x: p.x, y: p.y, cx: e.clientX, cy: e.clientY,
+              view: { ...view }, pan: false,
+            };
+          }
+          scene.current?.focus();
           if (drag.current) {
             drag.current.pointerId = e.pointerId;
             e.currentTarget.setPointerCapture(e.pointerId);
@@ -883,20 +922,18 @@ export function App() {
               y: clamp(d.y - dy, -1e6, 1e6),
               z: d.view.z,
             });
-          } else if (d.id !== "Sticky" && d.id !== "Text") {
-            setBoard({
-              ...model.current,
-              objects: model.current.objects.map((o) =>
-                o.id === d.id
-                  ? {
-                    ...o,
-                    x: clamp(d.x + dx, -1e6, 1e6 - o.width),
-                    y: clamp(d.y + dy, -1e6, 1e6 - o.height),
-                  }
-                  : o
-              ),
-            });
-          }
+          } else if (d.box) {
+            if (Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3) {
+              const end = { x: d.x + dx, y: d.y + dy };
+              setSelectionBox({ x: Math.min(d.x, end.x), y: Math.min(d.y, end.y), width: Math.abs(dx), height: Math.abs(dy) });
+              select([...(d.additive ? d.previous ?? [] : []), ...boxSelection(d, end, displayedObjects)]);
+            } else {
+              setSelectionBox(null);
+              select(d.additive ? d.previous ?? [] : []);
+            }
+          } else if (d.ids && Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3) {
+            setBoard(movedBoard(d.ids, dx, dy));
+          } else setBoard({ ...model.current });
         }}
         onPointerUp={(e) => {
           const d = drag.current;
@@ -922,33 +959,24 @@ export function App() {
                 setMessage(String(error));
               }
             } else setTool("Select");
-          } else if (!d.pan) {
+          } else if (d.box) {
             if (delta >= 3) {
-              commit({
-                ...model.current,
-                objects: model.current.objects.map((o) =>
-                  o.id === d.id
-                    ? {
-                      ...o,
-                      x: clamp(
-                        d.x + (e.clientX - d.cx) / d.view.z,
-                        -1e6,
-                        1e6 - o.width,
-                      ),
-                      y: clamp(
-                        d.y + (e.clientY - d.cy) / d.view.z,
-                        -1e6,
-                        1e6 - o.height,
-                      ),
-                    }
-                    : o
-                ),
-              }, true);
-            } else setBoard({ ...model.current });
+              const end = { x: d.x + (e.clientX - d.cx) / d.view.z, y: d.y + (e.clientY - d.cy) / d.view.z };
+              select([...(d.additive ? d.previous ?? [] : []), ...boxSelection(d, end, displayedObjects)]);
+            } else select(d.additive ? d.previous ?? [] : []);
+          } else if (!d.pan) {
+            if (delta >= 3 && d.ids) commit(movedBoard(d.ids,
+              (e.clientX - d.cx) / d.view.z, (e.clientY - d.cy) / d.view.z), true);
+            else {
+              select(d.id);
+              setBoard({ ...model.current });
+            }
           }
+          setSelectionBox(null);
+          releaseCapture(d.pointerId);
         }}
         onDoubleClick={() => {
-          if (!spacePanRef.current && selected) edit();
+          if (!spacePanRef.current && selected.size === 1) edit();
         }}
         onPointerCancel={() => {
           const d = drag.current;
@@ -980,14 +1008,14 @@ export function App() {
                     width={o.width}
                     height={layout.height}
                     fill={o.type === "sticky" ? colorEntry(o.color).fill : undefined}
-                    stroke={selected === o.id
+                    stroke={selected.has(o.id)
                       ? "#518de0"
                       : o.type === "sticky"
                       ? colorEntry(o.color).edge
                       : undefined}
-                    strokeWidth={selected === o.id ? 2 / view.z : 1}
+                    strokeWidth={selected.has(o.id) ? 2 / view.z : 1}
                   />
-                  {!(inline && selected === o.id) && layout.height > 2 * TEXT_INSET &&
+                  {!(inline && selected.has(o.id)) && layout.height > 2 * TEXT_INSET &&
                     o.width > 2 * TEXT_INSET && (
                     <Group
                       clipX={o.x + TEXT_INSET}
@@ -1017,6 +1045,10 @@ export function App() {
             })}
           </Layer>
         </Stage>
+        {selectionBox && <div className="selection-box" aria-hidden="true" style={{
+          left: pos(selectionBox).left, top: pos(selectionBox).top,
+          width: selectionBox.width * view.z, height: selectionBox.height * view.z,
+        }} />}
       </div>
       <section className="file floating">
         <button
@@ -1092,6 +1124,7 @@ export function App() {
         {snapshots.map((s) => (
           <button
             key={s.revision}
+            disabled={busy || composing}
             onClick={() => {
               adopt(s.board, true);
               setReadOnly(true);
@@ -1118,7 +1151,7 @@ export function App() {
               }
             }}
             value={title}
-            readOnly={readOnly}
+            readOnly={readOnly || busy}
             onChange={(e) => {
               const value = e.target.value;
               setTitle(value);
@@ -1153,6 +1186,7 @@ export function App() {
           <header>
             <h2>Objects {board.objects.length} / 250</h2>
             <button
+              disabled={busy || composing}
               onClick={() => {
                 setPanel("");
                 objectsButton.current?.focus();
@@ -1161,18 +1195,19 @@ export function App() {
               Close
             </button>
           </header>
-          <label htmlFor="selection">Selected object</label>
+          <label htmlFor="selection">Selected objects</label>
           <select
             disabled={composing || busy}
             ref={selector}
             id="selection"
-            value={selected}
+            multiple
+            size={5}
+            value={[...selected]}
             onChange={(e) => {
               finishTextSession();
-              select(e.target.value);
+              select(Array.from(e.currentTarget.selectedOptions, (o) => o.value));
             }}
           >
-            <option value="">Choose an object</option>
             {board.objects.map((o, i) => (
               <option key={o.id} value={o.id}>
                 {o.type} {i + 1} ·{" "}
@@ -1180,24 +1215,27 @@ export function App() {
               </option>
             ))}
           </select>
-          {nativeEditor}
-          {item && <div className="object-styles">
+          {selected.size > 1 ? <p>{selected.size} objects selected</p> : nativeEditor}
+          {selected.size > 0 && <div className="object-styles">
             <label htmlFor="object-colour">Colour</label>
-            <select id="object-colour" value={item.color} disabled={!!selectionReason}
+            <select id="object-colour" value={selectionColor} disabled={!!selectionReason}
               title={selectionReason || "Colour"} aria-describedby="selection-reason"
               onChange={(e) => changeStyle("color", e.target.value as Style["color"])}>
+              {!selectionColor && <option value="" disabled>Mixed</option>}
               {COLORS.map((c) => <option key={c.name} value={c.name}>{c.label}</option>)}
             </select>
             <label htmlFor="object-size">Text size</label>
-            <select id="object-size" value={item.textSize} disabled={!!selectionReason}
+            <select id="object-size" value={selectionSize} disabled={!!selectionReason}
               title={selectionReason || "Text size"} aria-describedby="selection-reason"
               onChange={(e) => changeStyle("textSize", e.target.value as Style["textSize"])}>
+              {!selectionSize && <option value="" disabled>Mixed</option>}
               {TEXT_SIZES.map((s) => <option key={s.name} value={s.name}>{s.label}</option>)}
             </select>
             <label htmlFor="object-align">Alignment</label>
-            <select id="object-align" value={item.align} disabled={!!selectionReason}
+            <select id="object-align" value={selectionAlign} disabled={!!selectionReason}
               title={selectionReason || "Alignment"} aria-describedby="selection-reason"
               onChange={(e) => changeStyle("align", e.target.value as Style["align"])}>
+              {!selectionAlign && <option value="" disabled>Mixed</option>}
               {ALIGNMENTS.map((a) => <option key={a.name} value={a.name}>{a.label}</option>)}
             </select>
           </div>}
@@ -1218,8 +1256,8 @@ export function App() {
             ].map(([name, x, y, s]) => (
               <button
                 key={name}
-                aria-label={"Move object " + name}
-                disabled={!item || readOnly || composing || busy}
+                aria-label={(selected.size > 1 ? "Move objects " : "Move object ") + name}
+                disabled={!selected.size || readOnly || composing || busy}
                 onClick={() => move(Number(x), Number(y))}
               >
                 {s}
@@ -1227,7 +1265,7 @@ export function App() {
             ))}
           </div>
           <small>
-            X {item?.x ?? "—"} · Y {item?.y ?? "—"} · 10 units per step
+            X {bounds?.x ?? "—"} · Y {bounds?.y ?? "—"} · 10 units per step
           </small>
           <div>
             {(["sticky", "text"] as const).map((type) => (
@@ -1245,7 +1283,7 @@ export function App() {
           </div>
         </section>
       )}
-      {item && (
+      {selected.size > 0 && (
         <section
           ref={contextBar}
           className="context"
@@ -1257,8 +1295,9 @@ export function App() {
             visibility: contextFits ? "visible" : "hidden",
           }}
         >
-          <span>{item.type === "sticky" ? "Sticky" : "Text"}</span>
+          <span>{item ? item.type === "sticky" ? "Sticky" : "Text" : selected.size + " objects"}</span>
           <span className="divider" aria-hidden="true" />
+          {item && <>
           <button
             disabled={readOnly || composing || busy}
             onMouseDown={(e) => {
@@ -1276,18 +1315,19 @@ export function App() {
           </button>
           <span className="divider" aria-hidden="true" />
           <small>{count(text)} / 1,000</small>
+          </>}
           <span className="colour-control" ref={colourControl}>
             <button ref={colourButton} className="icon-button" disabled={!!selectionReason}
-              aria-label={"Colour: " + colorEntry(item.color).label}
-              title={"Colour: " + colorEntry(item.color).label}
+              aria-label={"Colour: " + colourLabel}
+              title={"Colour: " + colourLabel}
               aria-describedby="selection-reason" aria-expanded={swatchOpen}
               aria-controls={swatchOpen ? "colour-swatches" : undefined}
               onClick={(e) => {
                 e.currentTarget.focus();
-                setSwatchFor(swatchOpen ? "" : selected);
+                setSwatchFor(swatchOpen ? "" : selectionKey);
               }}>
-              <span className="colour-dot" style={{ background: colorEntry(item.color).fill }} />
-              <span className="tooltip">Colour: {colorEntry(item.color).label}</span>
+              <span className={"colour-dot" + (!selectionColor ? " mixed" : "")} style={selectionColor ? { background: colorEntry(selectionColor).fill } : undefined} />
+              <span className="tooltip">Colour: {colourLabel}</span>
             </button>
             {swatchOpen && <div id="colour-swatches" ref={swatches} className="swatches"
               role="group" aria-label="Colour" style={{
@@ -1302,7 +1342,7 @@ export function App() {
                 }
               }}>
               {COLORS.map((c) => <button key={c.name} className="icon-button"
-                aria-label={c.label} title={c.label} aria-pressed={item.color === c.name}
+                aria-label={c.label} title={c.label} aria-pressed={selectionColor === c.name}
                 onClick={() => { changeStyle("color", c.name); closeSwatches(); }}>
                 <span className="colour-dot" style={{ background: c.fill }} />
                 <span className="tooltip">{c.label}</span>
@@ -1310,13 +1350,14 @@ export function App() {
             </div>}
           </span>
           <select className="context-size" aria-label="Text size" title={selectionReason || "Text size"}
-            value={item.textSize} disabled={!!selectionReason} aria-describedby="selection-reason"
+            value={selectionSize} disabled={!!selectionReason} aria-describedby="selection-reason"
             onChange={(e) => changeStyle("textSize", e.target.value as Style["textSize"])}>
+            {!selectionSize && <option value="" disabled>Mixed</option>}
             {TEXT_SIZES.map((s) => <option key={s.name} value={s.name}>{s.label}</option>)}
           </select>
           <span className="alignments" role="group" aria-label="Alignment">
             {ALIGNMENTS.map((a) => <button key={a.name} className="icon-button"
-              aria-label={a.action} title={selectionReason || a.action} aria-pressed={item.align === a.name}
+              aria-label={a.action} title={selectionReason || a.action} aria-pressed={selectionAlign === a.name}
               disabled={!!selectionReason} aria-describedby="selection-reason"
               onClick={(e) => { e.currentTarget.focus(); changeStyle("align", a.name); }}>
               <Icon name={a.name} /><span className="tooltip">{selectionReason || a.action}</span>
@@ -1417,7 +1458,7 @@ export function App() {
       {panel === "Information" && (
         <section className="information-panel floating" aria-label="About local storage">
           <p>One board in this browser origin/profile. Browser storage is not a backup.</p>
-          <button onClick={() => toggle("Information")}>Close</button>
+          <button disabled={busy || composing} onClick={() => toggle("Information")}>Close</button>
         </section>
       )}
       {panel === "Navigation" && (
@@ -1430,6 +1471,7 @@ export function App() {
           ]].map(([s, x, y]) => (
             <button
               key={s}
+              disabled={busy || composing}
               onClick={() =>
                 setView((v) => ({
                   ...v,
@@ -1440,10 +1482,11 @@ export function App() {
               Pan {s}
             </button>
           ))}
-          <button onClick={() => setView({ x: 0, y: 0, z: 1 })}>
+          <button disabled={busy || composing} onClick={() => setView({ x: 0, y: 0, z: 1 })}>
             Reset view
           </button>
           <button
+            disabled={busy || composing}
             onClick={() => {
               setPanel("");
               navButton.current?.focus();

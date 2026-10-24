@@ -37,7 +37,7 @@ function click(name) {
   button.click();
 }
 function count() {
-  return host.querySelectorAll("#selection option").length - 1;
+  return host.querySelectorAll("#selection option").length;
 }
 async function mount(noLocks = false) {
   if (noLocks) Object.defineProperty(navigator, "locks", { configurable: true, value: undefined });

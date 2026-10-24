@@ -201,4 +201,95 @@ None beyond the repository's own documents.
 
 ## Implementation record
 
-Not started.
+### Implementer handoff — 2026-10-24
+
+- Brief implemented: **0001-W15 v1**, governed by web modules v1, both committed
+  on main at starting revision `6e8dccab183015de547a2c3205142a9f50d63459`.
+- Branch: `codex/0001-W15-screen-parts`.
+- Validated source/test revision: `b5da116a4d7defd2de7250c29a89a0e5938bdb01`
+  (`refactor(web): extract screen parts from App`). The subsequent implementation
+  record commit changes only this record; the final branch tip is reported
+  separately in the handoff.
+- Delivered the twelve named components and `tests/modules.test.mjs`. Mounting
+  conditions, live state, refs, named handlers, hidden reason elements, canvas and
+  shared editor construction remain in `App.tsx`. Both arrange sites use
+  `ArrangeControls`; visibility attributes remain on their original elements.
+- `App.tsx` newline count: **1,790 before → 1,379 after**. The literal test budget
+  is **1,379**. Moved bodies retain the baseline expressions and handlers, with
+  indentation and the two arrange helper calls adjusted for their new locations.
+- Added dependencies: **none**. Package files, lock, styles, existing tests and
+  other modules are unchanged. The implementation worktree started clean.
+
+Commands ran from the repository root using the pinned toolchain selected in the
+shell before every Node/npm invocation. Its machine-specific installation path
+is deliberately omitted. Installation ran before extraction; dependency inputs
+were unchanged at the validated source/test revision. The typecheck, focused test,
+full unit suite and build below were run on that committed revision.
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed |
+| `npm --prefix apps/web run typecheck` | Exit 0; no diagnostics |
+| `node --test tests/modules.test.mjs` | Exit 0; 5 passed, 0 failed |
+| `npm --prefix apps/web test` | Exit 0; 219 passed, 0 failed, 0 skipped; existing tests unchanged |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified |
+| `git diff --check` | Exit 0; no whitespace errors |
+| `git diff --name-only main...HEAD` | Exit 0 at the validated source/test revision; only `App.tsx`, the twelve named `ui/` files and `tests/modules.test.mjs` |
+| `git diff main -- apps/web/package.json apps/web/package-lock.json` | Exit 0; empty diff |
+| `wc -l apps/web/src/App.tsx` | Exit 0; 1,379 |
+
+The following focused negative probes ran against disposable copies, without
+changing the validated source/test revision. The command exited 0; each of the four
+deliberate violations made the copied module test exit 1 as expected:
+
+```sh
+node --input-type=module <<'JS'
+import assert from 'node:assert/strict';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+const root = mkdtempSync(join(tmpdir(), 'board-w15-'));
+try {
+  mkdirSync(join(root, 'tests'), { recursive: true });
+  mkdirSync(join(root, 'apps/web/src'), { recursive: true });
+  cpSync('tests/modules.test.mjs', join(root, 'tests/modules.test.mjs'));
+  cpSync('apps/web/src/ui', join(root, 'apps/web/src/ui'), { recursive: true });
+  cpSync('apps/web/src/App.tsx', join(root, 'apps/web/src/App.tsx'));
+  const cases = [
+    ['line budget', 'apps/web/src/App.tsx', '\n'],
+    ['hook call', 'apps/web/src/ui/notice.tsx', '\nuseState();\n'],
+    ['aliased React import', 'apps/web/src/ui/notice.tsx', '\nimport { useState as state } from "react";\n'],
+    ['App import', 'apps/web/src/ui/notice.tsx', '\nimport { App } from "../App.tsx";\n'],
+  ];
+  for (const [name, file, addition] of cases) {
+    const target = join(root, file), original = readFileSync(target, 'utf8');
+    writeFileSync(target, original + addition);
+    const result = spawnSync(process.execPath, ['--test', 'tests/modules.test.mjs'], { cwd: root, encoding: 'utf8' });
+    assert.equal(result.status, 1, `${name}: expected a failing guardrail`);
+    writeFileSync(target, original);
+    console.log(`PASS: ${name} rejected (exit 1)`);
+  }
+} finally {
+  rmSync(root, { recursive: true, force: true });
+}
+JS
+```
+
+Mandatory pre-commit and commit-message privacy hooks passed for the source/test
+commit without bypasses. Git also emitted a nonfatal sandbox permission warning
+while attempting to create `packed-refs.lock`; the commit succeeded and its branch
+tip was verified with `git rev-parse HEAD`.
+
+**Exclusions and review status.** No browser or browser regression harness was
+launched, as instructed: browsers cannot start in the implementation environment.
+The eight harness PASS lines, eleven markup checkpoints, saved-record comparison
+and Chromium/Safari smoke remain for the independent reviewer. AC01's runtime
+markup evidence and AC03's browser evidence are therefore pending; the non-browser
+checks above pass, and AC02's module guardrails pass and reject the deliberate
+violations. No fixtures build, browser matrix, accessibility audit or IME sweep
+ran. No behaviour fixes, other modules, contracts or dependencies were added to
+scope. Graph discovery/indexing calls required unavailable approval, so source
+inspection used direct reads. No merge or push is part of this handoff.

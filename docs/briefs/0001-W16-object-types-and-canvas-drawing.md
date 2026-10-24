@@ -233,4 +233,58 @@ None beyond the repository's own documents.
 
 ## Implementation record
 
-Not started.
+### 2026-10-24 — v1 implementation handoff
+
+- Branch: `codex/0001-W16-object-types`, based on committed main
+  `23ead7ac5ed43e38672db44fcc6bc0093f5007d1` in the designated milestone worktree.
+- Validated source/test revision: `fd66a9c13e63cbb161dbfda9cf900028df420921`.
+  Commands below ran against the source/test tree committed at that revision;
+  only this implementation record changes afterward. The final branch tip is
+  reported separately in the handoff, rather than claiming this record's commit
+  was the tested source revision.
+- Implemented the three object-type modules, four stateless scene components,
+  the five registry replacements, and the two specified test files. State, refs,
+  effects, layouts, named functions and canvas event handlers remain in `App.tsx`.
+- `App.tsx` newline counts: **1,379 before; 1,305 after**. The literal module-test
+  budget is **1,305**.
+- Added dependencies: **none**. No package, lock, style, rules-module, contract or
+  other existing test changes.
+
+Commands ran from the repository root. Before every Node/npm invocation, the shell
+PATH was prefixed with the maintainer-supplied pinned toolchain directory; that
+machine-specific path is intentionally not recorded here.
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed |
+| `node --test tests/objects.test.mjs` | Exit 0; 10 passed, 0 failed (registry slice) |
+| `npm --prefix apps/web run typecheck` | Exit 0 |
+| `node --test tests/objects.test.mjs tests/modules.test.mjs` | Exit 0; 19 passed, 0 failed |
+| `npm --prefix apps/web test` | Exit 0; 233 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; accepted lock, runtime inventory and distributed notices verified; application built |
+| `git diff 437092b..23ead7a --stat -- apps/web/src tests/modules.test.mjs` | Exit 0; empty (the starting source and module test match the drawing baseline) |
+| `git diff --check` | Exit 0; no whitespace errors |
+| `git diff --cached --check` | Exit 0 before each implementation commit; no whitespace errors |
+| `git diff --name-only main...HEAD` | Exit 0 at the validated revision; exactly the 12 allowed source/test deliverables |
+
+Source inspection compared each extracted block with `437092b`, ignoring moved
+indentation and applying only the required registry substitutions and `NoteBody`
+placement. The four blocks matched. Reinserting the original blocks and reversing
+the two placement lookups reproduced the entire `App.tsx` body from `const CORNERS`
+onward exactly. The changed-file allowlist and resulting newline count also matched.
+This source inspection is not browser markup, pixel or saved-record evidence.
+
+Normal Git/privacy hooks ran and reported `PUBLIC BOUNDARY: PASS`; no hooks were
+bypassed. Git also emitted a non-fatal permission error while attempting to lock
+packed refs; both implementation commits succeeded. Graph discovery and indexing
+were attempted first but rejected because the MCP tools require approval and the
+session disallows approval; file reads were used as the fallback.
+
+Exclusions: no browsers were launched and no browser regression harness was run,
+as instructed by the maintainer. The eight regression PASS lines, repeated-baseline
+markup/canvas comparison, saved-record comparison, and Chromium/Safari smoke checks
+remain for the independent reviewer. No browser matrix, fixtures sweep,
+accessibility audit, IME, performance or unrelated checks ran. AC02's visual equality
+and AC03's browser portion remain unverified pending that review. No merge or push.

@@ -159,4 +159,58 @@ No new external reference. Document v1's and interaction v4's references (retrie
 
 ## Implementation record
 
-Not started.
+### Implementation handoff — 2026-10-24
+
+- Brief: **0001-W10 v1** only, governed by document v3 and interaction v13.
+- Branch: `codex/0001-W10-group`, based on committed main
+  `d054d80c5681ad27e81a1efa6d82b9336e439d88`.
+- Validated source/test revision:
+  `b5fd4518d6a78bd9eccb4ca5618dde0bdfe71c4e`
+  (`feat(web): group and ungroup board objects`). The later implementation-record
+  commit changes this brief only; the final branch tip is reported separately in
+  the handoff.
+- Toolchain: Node **24.22.1**, npm **11.19.1**, with the pinned distribution
+  selected through the session PATH before every Node/npm command.
+- Implemented version 3 validation, per-version canonical output, in-memory
+  upgrades and the adapter's atomic group value; Group/Ungroup and ordered
+  availability reasons; group selection expansion, Shift toggling, live box
+  selection, single-member double-click editing, dashed group outlines and
+  Objects labels; fresh IDs and whole/partial-group Duplicate rules.
+- Existing history cases are unchanged. Existing document/storage case updates
+  are limited to the permitted version/default/helper/key-order changes; the
+  mixed-record case still uses a version 2 head and version 1 previous record.
+
+| Exact command from repository root | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed. Ran before the source/test commit with the same unchanged manifest and lock |
+| `npm --prefix apps/web run typecheck` | Exit 0 at the validated revision |
+| `node --test tests/group.test.mjs tests/document.test.mjs tests/history.test.mjs tests/storage.test.mjs` | Exit 0 at the validated revision; 71 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web test` | Exit 0 at the validated revision; 191 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0 at the validated revision; application built; accepted lock, runtime inventory and distributed notices verified |
+| `git diff --check` | Exit 0 before the source/test commit |
+| `git diff --name-only main...HEAD` | Exit 0 at the validated revision; the ten source/test deliverables only. The subsequent record commit adds this brief to that list |
+
+The focused unit cases cover grouping and regrouping without identity changes,
+whole and partial Ungroup, availability precedence, press/release and Shift/box
+expansion, whole groups and numbering including singleton groups, exact Group and
+Ungroup undo/redo with one transaction per command, Duplicate and resurrection,
+forced identifier collisions, version 3 validation and adapter membership, exact
+version 1/2 payloads and version 3 head/version 2 previous decoding. UI behavior
+has source inspection and build evidence only, pending the browser pass.
+
+**Exclusions:** No browsers, browser regression harness, fixture builds, browser
+matrix, accessibility audit, native IME checks, performance/load tests or server
+were launched. Chrome and Safari's W10 browser pass remains for the reviewer,
+including pointer/focus behavior, outlines at zoom, save/reload and older-board
+opening without writes or an Unsaved state. No claim of browser acceptance is made.
+No new dependencies, package/lock changes, storage-rule changes, merge or push.
+Only the brief's listed deliverables changed; the worktree started clean.
+
+Graph discovery/indexing was attempted but unavailable because the tools required
+approval under a policy that permits none; discovery used file reads and text
+search instead. Normal Git/privacy hooks reported `PUBLIC BOUNDARY: PASS` on the
+source/test commit. Git also emitted a nonfatal lock-permission diagnostic; the
+commit succeeded with exit 0. No hook was bypassed. Independent review remains
+pending against the exact source/test revision above.

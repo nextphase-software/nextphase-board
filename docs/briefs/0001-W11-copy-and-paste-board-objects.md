@@ -159,4 +159,67 @@ Interaction v4's references (retrieved 2026-10-22) still apply.
 
 ## Implementation record
 
-Not started.
+### 2026-10-24 — W11 v1 implementation handoff
+
+- Branch: `codex/0001-W11-clipboard`, based on committed main
+  `a724aeefb7efbe9bd2908d5d054e1b6305f9411b`.
+- Validated source/test revision:
+  `747512db272f979b2410b018a77b8d8177c59b9e`
+  (`feat(web): copy, cut and paste board objects`). The commands below ran on
+  the source/test contents committed at this revision. After committing,
+  `git diff --exit-code HEAD -- apps/web/src/App.tsx apps/web/src/clipboard.ts tests/clipboard.test.mjs`
+  exited 0, confirming those contents were unchanged.
+- Governing requirements: this brief v1 and interaction v14, committed in the
+  base revision. No other milestone was implemented.
+- Changes: the pure clipboard module snapshots committed objects and drawn edges,
+  maps whole groups and fresh identifiers, produces plain text, and applies Paste's
+  placement, bounds, count and availability rules. App owns the tab clipboard,
+  handles scene-only shortcuts and Objects buttons, shares Delete's transaction
+  and focus rules for Cut, records each Paste once, selects copies and starts
+  asynchronous plain-text writes from the initiating handler. A monotonically
+  increasing message counter suppresses stale write-failure messages, including
+  after a later identical Copy message. Existing CSS supplies the button layout.
+- Added dependencies: none. The saved format, existing modules and tests, package
+  manifest and lock are unchanged.
+
+Pinned toolchain selected in the shell environment: `node --version` returned
+`v24.22.1`; `npm --version` returned `11.19.1`. Commands from the repository root:
+
+| Command | Result |
+| --- | --- |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; added 19 packages |
+| `npm --prefix apps/web run typecheck` | Exit 0; no TypeScript errors |
+| `node --test tests/clipboard.test.mjs` | Exit 0; 23 tests passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; accepted lock, runtime inventory and complete distributed notices verified; application built |
+| `git diff --check` | Exit 0; no whitespace errors |
+| `git diff --name-only main...HEAD` | Exit 0 at the source/test revision; only `apps/web/src/App.tsx`, `apps/web/src/clipboard.ts`, `tests/clipboard.test.mjs` |
+
+The new unit file covers snapshot order/content, whole/partial/singleton group
+marks, drawn source edges, source identifiers, plain text, fresh identities and
+per-paste group mapping (including forced UUID collisions after Cut), the three
+cascade offsets, every touching/partly-outside view edge, stored-right floating
+point classification, pan-away centring, each board bound and fractional saved
+dimensions, the 250-object refusal without mutation, ordered reasons with read-only
+Copy, and one-step Paste/Cut history through the existing history API.
+
+Source review confirmed shortcut target/modifier guards leave native fields and
+Objects' list alone, Paste never reads the system clipboard, Copy records no
+history, and Save/Reopen do not clear the tab clipboard. These are source-review
+findings; live browser behaviour is pending independent review.
+
+Exclusions: no browser was launched and no browser regression harness, Chrome or
+Safari pass, native clipboard/focus check, fixture build/sweep, existing test file,
+full suite, accessibility audit, IME check, performance/load test or unrelated
+acceptance sweep was run. The maintainer specified that browsers cannot start in
+this implementation environment. The reviewer must run the browser pass above,
+including asynchronous clipboard rejection/missing-API/stale-message cases.
+Milestone acceptance remains pending that pass and independent review.
+
+Graph project discovery and indexing were attempted first but unavailable under
+the session approval policy; source discovery used read-only file inspection.
+Mandatory pre-commit and commit-message privacy hooks both reported
+`PUBLIC BOUNDARY: PASS` for the source/test commit. Git also reported a sandbox
+denial creating its packed-refs lock; the commit succeeded (exit 0), and its branch
+tip and clean worktree were verified. No hook was bypassed. This record is a
+separate documentation commit; report the final branch tip separately from the
+validated source/test revision. No merge, push or publication was performed.

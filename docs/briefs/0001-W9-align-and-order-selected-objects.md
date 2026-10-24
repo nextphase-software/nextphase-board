@@ -143,4 +143,76 @@ apply.
 
 ## Implementation record
 
-Not started.
+Implementation handoff dated 2026-10-24 for **0001-W9 v1**, governed by
+**0001 interaction v12**.
+
+- Branch: `codex/0001-W9-arrange`.
+- Worktree: `.worktrees/codex-0001-W9`.
+- Committed main base: `b2ac7810ecc0e4570695835c9aa0bb607e3771f8`.
+- Validated source/test revision: `60611f8074440ec72ed4f953fc8778334b17a54a`.
+  The final checks below ran against the exact source/test bytes committed there.
+  This implementation record is a separate documentation commit; the final branch
+  tip is reported separately in the handoff.
+
+Implemented the six alignments from drawn rectangles, both equal-gap distributions,
+all four order commands, and the ordered availability reasons in a new pure module.
+Every position is kept inside the measured selection box at double precision;
+edge correction finds the nearest valid representable position, including the case
+near zero where subtracting the object's length alone would overcorrect. Saved
+sizes do not change. Order steps explicitly record every selected object's before
+and after order, including a selected member that stays at its index. Ordinary
+history callers still ignore order-only renumbering, including removals.
+
+The selection bar has an original Arrange icon between Alignment and Duplicate.
+Its bounded, scrollable popover and the Objects Arrange group share the same twelve
+buttons, names and availability. The popover has native Tab navigation, disabled
+button reasons, Escape/command focus return, outside-click/focus dismissal,
+selection/bar-visibility dismissal and mutual exclusion with colour swatches.
+Commands use the existing single-transaction commit path and skip unchanged boards.
+The existing canvas and Objects list both consume the reordered saved array.
+Document format, storage and explicit saving remain unchanged.
+
+The pinned runtime was selected in the shell before every Node/npm invocation,
+including the commit shell for hooks. Its environment-specific location is omitted
+from this public record. No dependency, external asset, package or lock change was
+added. The new source and test files carry Apache-2.0 SPDX identifiers.
+
+| Exact command | Actual result |
+| --- | --- |
+| `node --version` | PASS, exit 0: `v24.22.1` |
+| `npm --version` | PASS, exit 0: `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | PASS, exit 0; added 19 packages |
+| `npm --prefix apps/web run typecheck` | PASS, exit 0; final run includes all source changes |
+| `node --test tests/arrange.test.mjs tests/history.test.mjs` | Final PASS, exit 0: 77/77. The first run passed 71/72: one new assertion expected decimal `60.1` instead of the specified double-precision subtraction. Corrected that assertion; all existing history cases passed unchanged. Subsequent focused runs passed, including the added nearest-double regression. |
+| `npm --prefix apps/web test` | PASS, exit 0: 166/166 unit tests |
+| `npm --prefix apps/web run build` | PASS, exit 0; accepted lock, runtime inventory and complete distributed notices verified; application built |
+| `git diff --check` | PASS, exit 0 |
+| `git diff --cached --check` | PASS, exit 0 before source commit |
+| `git diff --cached --stat` | Inspected: source commit contains only the seven permitted source/test files |
+| `git commit -m "feat(web): align distribute and order selected objects"` | PASS; source/test revision above created, both mandatory public-boundary hooks reported PASS. Git also reported a sandbox-denied packed-refs lock operation; the commit and branch ref exist. No hook was bypassed. |
+| `git diff --name-only main...HEAD` | Source commit lists only the seven permitted source/test files; final handoff check also includes this brief's implementation record |
+
+Additional source/diff inspection verified that the original
+`tests/history.test.mjs` bytes remain an unchanged prefix: cases were appended only.
+Changed tracked and untracked files were checked against the maintainer's explicit
+allowlist. No unrelated work was present or changed.
+
+| Criterion | Evidence and remaining boundary |
+| --- | --- |
+| 0001-W9-AC01 | Unit cases cover all six alignments for two and several objects, taller display heights, both distributions, differing sizes, order tie-breaks, zero/negative free space, sequential fractional accumulation and rounding at the board edges. Browser commands on a box-selected set and visible reasons remain pending. |
+| 0001-W9-AC02 | Unit cases cover each command for one object and sets with gaps, contiguous members, top/bottom members and unchanged orders. Forward/backward follow v12's position sequence. Visible canvas restacking and Objects labels remain pending browser review. |
+| 0001-W9-AC03 | Added history cases verify each order command as one step/revision, exact whole-order Undo/Redo, arranged selection IDs, unchanged recording, align Undo/Redo, generation retargeting after deletion/restoration and removal without renumbering changes. Every pre-existing history case passes unchanged. Menu focus/dismissal, Objects command activation and actual Save/reload persistence remain pending browser review. |
+
+No browser or browser regression harness was launched: browsers cannot start in
+this environment, and the maintainer explicitly assigned that pass to the reviewer.
+The brief's one Chrome and Safari pass (menu commands and Undo, order for one/set,
+Tab/Escape/outside click and focus, Objects equivalence, Save and reload) is
+**UNVERIFIED**. Unit and source evidence do not establish browser acceptance.
+No browser matrix, fixture sweep, accessibility audit, native IME check,
+performance/load test or unrelated acceptance campaign ran.
+
+Codebase-memory project listing, indexing and symbol search were attempted first,
+but each was blocked by the environment's approval policy. Direct source reads
+were used as the fallback. No merge, push, publication, deployment or later
+milestone was performed; independent review of the exact validated revision is
+still required.

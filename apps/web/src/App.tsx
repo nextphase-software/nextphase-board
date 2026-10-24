@@ -25,6 +25,7 @@ import { editingCommandReason } from "./commands";
 import { resizeObject, resizeSet, type Corner, type Rectangle } from "./resize";
 import { ARRANGE_GROUPS, arrangeOrder, arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "./arrange";
 import { expandSelection, groupNumbers, groupObjects, groupReason, pressSelection, toggleGroup, ungroupObjects, wholeGroups } from "./group";
+import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "./clipboard";
 
 const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
 type ResizeStart = { object: Item; rectangle: Rectangle };
@@ -56,7 +57,7 @@ export function App() {
     [arrangeHeight, setArrangeHeight] = useState(0),
     [contextWidth, setContextWidth] = useState(0),
     [readOnly, setReadOnly] = useState(true),
-    [message, setMessage] = useState("Opening local board…"),
+    [message, setMessageState] = useState("Opening local board…"),
     [status, setStatus] = useState("Unsaved"),
     [view, setView] = useState<View>({ x: 0, y: 0, z: 1 }),
     [size, setSize] = useState({ w: innerWidth, h: innerHeight }),
@@ -64,10 +65,12 @@ export function App() {
     [spacePan, setSpacePan] = useState(false),
     [composing, setComposing] = useState(false),
     [history, setHistory] = useState<History>(emptyHistory),
+    [objectClipboard, setObjectClipboard] = useState<Snapshot | null>(null),
     [snapshots, setSnapshots] = useState<{ board: SavedBoard; revision: number }[]>(
       [],
     );
   const model = useRef(board),
+    messageSequence = useRef(0),
     historyRef = useRef<History>(history),
     textSession = useRef<{ before: Board; id: string } | null>(null),
     revision = useRef(0),
@@ -112,6 +115,10 @@ export function App() {
       } | null
     >(null),
     alive = useRef(true);
+  function setMessage(value: string) {
+    messageSequence.current++;
+    setMessageState(value);
+  }
   if (!adapter.current) adapter.current = new Adapter();
   const selectedObjects = board.objects.filter((o) => selected.has(o.id));
   const selectionKey = JSON.stringify(selectedObjects.map((o) => o.id));
@@ -684,16 +691,57 @@ export function App() {
   const undoReason = commandReason || (!history.past.length && !sessionChanged ? "Nothing to undo." : "");
   const redoReason = commandReason || (sessionChanged || !history.future.length ? "Nothing to redo." : "");
   const selectionReason = commandReason || (!selected.size ? "Select an object to duplicate or delete." : "");
-  function command(name: "Undo" | "Redo" | "Duplicate" | "Delete") {
+  const clipboardState = { readOnly, composing, pointerGesture: busy, invalidObjectText };
+  function writePlainText(snapshot: Snapshot, copiedMessage: string) {
+    const sequence = messageSequence.current;
+    const failed = () => {
+      if (alive.current && sequence === messageSequence.current) {
+        setMessage(copiedMessage + " Text could not be placed on the system clipboard.");
+      }
+    };
+    try {
+      // Start in the command's event handler, while transient activation exists.
+      if (!navigator.clipboard?.writeText) failed();
+      else void navigator.clipboard.writeText(plainText(snapshot)).catch(failed);
+    } catch { failed(); }
+  }
+  function clipboardCommand(name: ClipboardCommand) {
+    const reason = clipboardReason(name, selected, objectClipboard, clipboardState);
+    if (reason) { setMessage(reason); return; }
+    try {
+      if (name === "Paste") {
+        const result = buildPaste(model.current, objectClipboard!, {
+          centerX: view.x, centerY: view.y, zoom: view.z,
+          width: scene.current!.clientWidth, height: scene.current!.clientHeight,
+        });
+        const ids = result.board.objects.slice(model.current.objects.length).map((o) => o.id);
+        commit(result.board, true);
+        select(ids);
+        setObjectClipboard({ ...objectClipboard!, pasteCount: result.pasteCount });
+        setMessage("Pasted " + ids.length + (ids.length === 1 ? " object." : " objects."));
+      } else {
+        const snapshot = buildSnapshot(model.current, selected, displayedObjects)!;
+        const copiedMessage = name === "Cut" ? command("Cut")
+          : "Copied " + snapshot.objects.length + (snapshot.objects.length === 1 ? " object." : " objects.");
+        // Delete can refuse (for example at the retired-generation limit).
+        if (!copiedMessage) return;
+        setObjectClipboard(snapshot);
+        if (name === "Copy") setMessage(copiedMessage);
+        writePlainText(snapshot, copiedMessage);
+      }
+    } catch (error) { setMessage(String(error)); }
+  }
+  function command(name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut") {
     if (commandReason) {
       setMessage(commandReason);
       return;
     }
     finishTextSession();
     try {
+      const deleting = name === "Delete" || name === "Cut";
       const targets = model.current.objects.filter((o) => selected.has(o.id));
       const current = targets[0];
-      if ((name === "Duplicate" || name === "Delete") && !current) {
+      if ((name === "Duplicate" || deleting) && !current) {
         setMessage("Select an object to " + name.toLowerCase() + ".");
         return;
       }
@@ -714,23 +762,25 @@ export function App() {
       const remaining = [...selected].filter((id) => !result.affectedIds.includes(id));
       const removedSelection = remaining.length < selected.size;
       if (affected.length) select(affected.map((o) => o.id));
-      else if (removedSelection || name === "Delete") {
-        select(name === "Delete" ? [] : remaining);
-        if (name === "Delete" || !remaining.length) scene.current?.focus();
+      else if (removedSelection || deleting) {
+        select(deleting ? [] : remaining);
+        if (deleting || !remaining.length) scene.current?.focus();
       }
       const label = current
         ? current.type + " " + (current.order + 1) + " · " + (current.text.slice(0, 36) || "Empty")
         : "object";
-      setMessage(name === "Delete" ? (targets.length > 1
-        ? "Deleted " + targets.length + " objects. Undo restores them."
-        : "Deleted " + label + ". Undo restores it.")
+      const resultMessage = deleting ? (targets.length > 1
+        ? (name === "Cut" ? "Cut " : "Deleted ") + targets.length + " objects. Undo restores them."
+        : (name === "Cut" ? "Cut " : "Deleted ") + label + ". Undo restores it.")
         : name === "Duplicate" ? (targets.length > 1
           ? "Duplicated " + targets.length + " objects. Copies selected."
           : "Duplicated " + label + ". Copy selected.")
         : name + " complete. " + (affected.length > 1 ? affected.length + " affected objects selected."
           : affected.length ? "Affected object selected."
           : removedSelection ? remaining.length ? "Removed objects deselected." : "Selection cleared."
-          : "Selection unchanged."));
+          : "Selection unchanged.");
+      setMessage(resultMessage);
+      return resultMessage;
     } catch (error) {
       setMessage(String(error));
     }
@@ -901,6 +951,11 @@ export function App() {
           if (key === "d" && !e.shiftKey && e.target === scene.current) {
             e.preventDefault();
             command("Duplicate");
+            return;
+          }
+          if ((key === "c" || key === "x" || key === "v") && !e.shiftKey && e.target === scene.current) {
+            e.preventDefault();
+            clipboardCommand(key === "c" ? "Copy" : key === "x" ? "Cut" : "Paste");
             return;
           }
         }
@@ -1460,6 +1515,18 @@ export function App() {
             <h2>Arrange</h2>
             {arrangementControls("objects-arrange", arrange)}
           </div>}
+          <div className="object-commands" role="group" aria-label="Clipboard">
+            {(["Copy", "Cut", "Paste"] as const).map((name) => {
+              const reason = clipboardReason(name, selected, objectClipboard, clipboardState);
+              const description = "clipboard-" + name.toLowerCase() + "-reason";
+              return <span key={name}>
+                <button disabled={!!reason} title={reason || name}
+                  aria-describedby={reason ? description : undefined}
+                  onClick={(e) => { e.currentTarget.focus(); clipboardCommand(name); }}>{name}</button>
+                {reason && <span className="sr-only" id={description}>{reason}</span>}
+              </span>;
+            })}
+          </div>
           <div>
             {(["sticky", "text"] as const).map((type) => (
               <button

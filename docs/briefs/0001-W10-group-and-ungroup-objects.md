@@ -1,9 +1,10 @@
 BRIEF VERSION: 0001-W10 v1 (2026-10-24)
 # 0001-W10 — Group and ungroup objects
 
-Status: Draft. Implementation starts only after the maintainer commits this brief,
-[0001 document v3](../architecture/0001-document-v3.md) and
-[0001 interaction v13](../architecture/0001-interaction-v13.md) to main.
+Status: Implemented. Independently reviewed at `54fe133` (pass) and merged into
+main on 2026-10-24 with [0001 document v3](../architecture/0001-document-v3.md) and
+[0001 interaction v13](../architecture/0001-interaction-v13.md). The implementation
+record below, which lists the validated revisions, was written before that review.
 
 ## Outcome
 

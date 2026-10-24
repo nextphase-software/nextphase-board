@@ -44,10 +44,14 @@ the height limits, and size buttons in Objects under
 aligning, distributing and restacking selected objects from an Arrange menu and
 Objects under [interaction v12](../architecture/0001-interaction-v12.md), is implemented and merged into main.
 
-[0001-W10 v1 — Group and ungroup objects](0001-W10-group-and-ungroup-objects.md) is a
-draft: one-level groups selected and edited together, saved through
-[document v3](../architecture/0001-document-v3.md) and governed by
-[interaction v13](../architecture/0001-interaction-v13.md).
+[0001-W10 v1 — Group and ungroup objects](0001-W10-group-and-ungroup-objects.md),
+one-level groups selected and edited together, saved through
+[document v3](../architecture/0001-document-v3.md) under
+[interaction v13](../architecture/0001-interaction-v13.md), is implemented and merged into main.
+
+[0001-W11 v1 — Copy and paste board objects](0001-W11-copy-and-paste-board-objects.md)
+is a draft: copy, cut and paste selected objects within Board, governed by
+[interaction v14](../architecture/0001-interaction-v14.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

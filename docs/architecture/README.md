@@ -45,11 +45,16 @@ sentences of v10. It replaces v10 for later work.
 aligning, distributing and restacking selected objects, from an Arrange menu and
 Objects, with order recorded in undo history. It replaces v11 for later work.
 
-Drafts for 0001-W10 brief v1: [0001 document v3](0001-document-v3.md) adds each
-object's group to the saved format and defines how version 1 and 2 boards are read;
-[0001 interaction v13](0001-interaction-v13.md) adds grouping, ungrouping and
-selecting groups. They replace document v2 and interaction v12 for later work once
-accepted.
+[0001 document v3](0001-document-v3.md), accepted with 0001-W10, adds each object's
+group to the saved format and defines how version 1 and 2 boards are read;
+[0001 interaction v13](0001-interaction-v13.md), accepted with it, adds grouping,
+ungrouping and selecting groups. They replace document v2 and interaction v12 for
+later work.
+
+Draft for 0001-W11 brief v1: [0001 interaction v14](0001-interaction-v14.md) adds
+copying, cutting and pasting selected objects through a per-tab object clipboard,
+with their text written to the system clipboard as plain text. It replaces v13 for
+later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

@@ -14,18 +14,29 @@ import {
   upgrade,
   validText,
 } from "./document";
-import { ALIGNMENTS, COLORS, TEXT_SIZES, colorEntry, textColor, textUnits, type Style } from "./styles";
+import { colorEntry, textColor, textUnits, type Style } from "./styles";
 import { decode, LocalStore, readPair } from "./storage";
-import { Icon } from "./icons";
 import { deleteObject, duplicate, emptyHistory, record, redo, undo, type History } from "./history";
 import { allowedHeight, displayHeight, neededHeight, savedHeight, TEXT_INSET, TEXT_LAYOUT } from "./geometry";
-import { gestureScale, panView, stepZoom, wheelDelta, wheelZoomFactor, zoomView, type View } from "./view";
+import { gestureScale, panView, wheelDelta, wheelZoomFactor, zoomView, type View } from "./view";
 import { boundingBox, boxSelection, limitMove } from "./selection";
 import { editingCommandReason } from "./commands";
 import { resizeObject, resizeSet, type Corner, type Rectangle } from "./resize";
-import { ARRANGE_GROUPS, arrangeOrder, arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "./arrange";
+import { arrangeOrder, arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "./arrange";
 import { expandSelection, groupNumbers, groupObjects, groupReason, pressSelection, toggleGroup, ungroupObjects, wholeGroups } from "./group";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "./clipboard";
+
+import { FileBar } from "./ui/file-bar";
+import { SaveArea } from "./ui/save-area";
+import { Notice } from "./ui/notice";
+import { BoardPanel } from "./ui/board-panel";
+import { ObjectsPanel } from "./ui/objects-panel";
+import { ContextBar } from "./ui/context-bar";
+import { Palette } from "./ui/palette";
+import { ZoomControls } from "./ui/zoom-controls";
+import { InformationButton } from "./ui/information-button";
+import { InformationPanel } from "./ui/information-panel";
+import { NavigationPanel } from "./ui/navigation-panel";
 
 const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
 type ResizeStart = { object: Item; rectangle: Rectangle };
@@ -891,22 +902,6 @@ export function App() {
     setArrangeFor("");
     arrangeButton.current?.focus();
   }
-  function arrangementControls(prefix: string, choose: (name: ArrangeCommand) => void) {
-    return ARRANGE_GROUPS.map((group) => <div key={group.label} className="arrange-group"
-      role="group" aria-label={group.label}>
-      <h3>{group.label}</h3>
-      {group.commands.map((name) => {
-        const reason = arrangementReason(name);
-        const description = prefix + "-" + name.replaceAll(" ", "-");
-        return <span key={name}>
-          <button disabled={!!reason} title={reason || name}
-            aria-describedby={reason ? description : undefined}
-            onClick={(e) => { e.currentTarget.focus(); choose(name); }}>{name}</button>
-          {reason && <span className="sr-only" id={description}>{reason}</span>}
-        </span>;
-      })}
-    </div>);
-  }
   function changeStyle<K extends keyof Style>(key: K, value: Style[K]) {
     if (selectionReason) return;
     finishTextSession();
@@ -1285,381 +1280,57 @@ export function App() {
           width: selectionBox.width * view.z, height: selectionBox.height * view.z,
         }} />}
       </div>
-      <section className="file floating">
-        <button
-          ref={boardButton}
-          disabled={composing || busy}
-          onClick={() => toggle("Board")}
-          aria-expanded={panel === "Board"}
-        >
-          <b className="brand" aria-hidden="true">N</b>
-          <span className="board-title">{title || "Untitled board"}</span>
-          <Icon name="chevron" />
-        </button>
-        <small>Local</small>
-        <span className="divider" aria-hidden="true" />
-        <button
-          className="icon-button"
-          ref={objectsButton}
-          onClick={() => toggle("Objects")}
-          aria-label="Objects"
-          aria-expanded={panel === "Objects"}
-          disabled={composing || busy}
-        >
-          <Icon name="objects" /><span className="tooltip">Objects</span>
-        </button>
-        {(["Undo", "Redo"] as const).map((name) => (
-          <button
-            key={name}
-            className="icon-button"
-            aria-label={name}
-            aria-describedby={name === "Undo" ? "undo-reason" : "redo-reason"}
-            aria-disabled={!!(name === "Undo" ? undoReason : redoReason)}
-            onClick={() => command(name)}
-          >
-            <Icon name={name} /><span className="tooltip">{(name === "Undo" ? undoReason : redoReason) || name}</span>
-          </button>
-        ))}
-      </section>
-      <section className="actions floating" aria-describedby={latestAcknowledgement.current ? "save-acknowledgement" : undefined}>
-        <span className="save-status" role="status">
-          <Icon name="status" />{status}{invalid ? " · Invalid draft" : ""}
-        </span>
-        <span id="save-acknowledgement" className="sr-only">{latestAcknowledgement.current}</span>
-        <button
-          className={status === "Save failed" ? "error" : status === "Unsaved" ? "primary" : ""}
-          onClick={save}
-          disabled={readOnly || invalid || composing || busy}
-        >
-          {status === "Save failed" ? "Retry save" : "Save"}
-        </button>
-      </section>
+      <FileBar
+        boardButton={boardButton} composing={composing} busy={busy} toggle={toggle} panel={panel}
+        title={title} objectsButton={objectsButton} undoReason={undoReason} redoReason={redoReason}
+        command={command}
+      />
+      <SaveArea
+        latestAcknowledgement={latestAcknowledgement} status={status} invalid={invalid} save={save}
+        readOnly={readOnly} composing={composing} busy={busy}
+      />
       <span id="undo-reason" className="sr-only">{undoReason}</span>
       <span id="redo-reason" className="sr-only">{redoReason}</span>
       <span id="selection-reason" className="sr-only">{selectionReason}</span>
-      <aside className="notice" role="status" hidden={!showNotice}>
-        {visibleMessage}
-        {invalidFields.map((s) => <div key={s}>{s}</div>)}
-        {busy && (
-          <div>
-            Gesture in progress. Save, selection and view controls are paused
-            until release or cancellation.
-          </div>
-        )}
-        {(tool === "Sticky" || tool === "Text") && (
-          <div>
-            Click empty canvas or press Enter to place one {tool.toLowerCase()}
-            {" "}
-            object. Escape cancels.
-          </div>
-        )}
-        {readOnly && !snapshots.length && (
-          <button onClick={reopen}>Retry editing</button>
-        )}
-        {snapshots.map((s) => (
-          <button
-            key={s.revision}
-            disabled={busy || composing}
-            onClick={() => {
-              adopt(s.board, true);
-              setReadOnly(true);
-              setMessage(
-                "Viewing valid snapshot revision " + s.revision +
-                  " · read-only. Original saved records are preserved.",
-              );
-            }}
-          >
-            View valid snapshot {s.revision}
-          </button>
-        ))}
-      </aside>
+      <Notice
+        showNotice={showNotice} visibleMessage={visibleMessage} invalidFields={invalidFields}
+        busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen}
+        composing={composing} adopt={adopt} setReadOnly={setReadOnly} setMessage={setMessage}
+      />
       {panel === "Board" && (
-        <section className="details floating">
-          <label htmlFor="title">Board name</label>
-          <input
-            id="title"
-            onCompositionStart={() => setComposing(true)}
-            onCompositionEnd={(e) => {
-              setComposing(false);
-              if (validText(e.currentTarget.value, 120, true)) {
-                commit({ ...model.current, title: e.currentTarget.value });
-              }
-            }}
-            value={title}
-            readOnly={readOnly || busy}
-            onChange={(e) => {
-              const value = e.target.value;
-              setTitle(value);
-              setStatus("Unsaved");
-              if (validText(value, 120, true) && !composing) {
-                commit({ ...model.current, title: value });
-              }
-            }}
-          />
-          <small>{count(title)} / 120 · nonblank name required</small>
-          <button onClick={reopen} disabled={busy || composing}>Reopen</button>
-          <p>
-            One board in this browser origin/profile. Browser storage is not a
-            backup.
-          </p>
-          <button
-            disabled={composing || busy}
-            onClick={() => {
-              setPanel("");
-              boardButton.current?.focus();
-            }}
-          >
-            Close board details
-          </button>
-        </section>
+        <BoardPanel
+          setComposing={setComposing} commit={commit} model={model} title={title} readOnly={readOnly}
+          busy={busy} setTitle={setTitle} setStatus={setStatus} composing={composing} reopen={reopen}
+          setPanel={setPanel} boardButton={boardButton}
+        />
       )}
       {panel === "Objects" && (
-        <section
-          className="objects floating"
-          aria-label="Objects and keyboard editing"
-        >
-          <header>
-            <h2>Objects {board.objects.length} / 250</h2>
-            <button
-              disabled={busy || composing}
-              onClick={() => {
-                setPanel("");
-                objectsButton.current?.focus();
-              }}
-            >
-              Close
-            </button>
-          </header>
-          <label htmlFor="selection">Selected objects</label>
-          <select
-            disabled={composing || busy}
-            ref={selector}
-            id="selection"
-            multiple
-            size={5}
-            value={[...selected]}
-            onChange={(e) => {
-              finishTextSession();
-              select(Array.from(e.currentTarget.selectedOptions, (o) => o.value));
-            }}
-          >
-            {board.objects.map((o, i) => (
-              <option key={o.id} value={o.id}>
-                {o.type} {i + 1}{o.group !== null ? " · Group " + numbers.get(o.group) : ""} ·{" "}
-                {(drafts[o.id] ?? o.text).slice(0, 36) || "Empty"}
-              </option>
-            ))}
-          </select>
-          {selected.size > 1 ? <p>{selected.size} objects selected</p> : nativeEditor}
-          {selected.size > 0 && <div className="object-styles">
-            <label htmlFor="object-colour">Colour</label>
-            <select id="object-colour" value={selectionColor} disabled={!!selectionReason}
-              title={selectionReason || "Colour"} aria-describedby="selection-reason"
-              onChange={(e) => changeStyle("color", e.target.value as Style["color"])}>
-              {!selectionColor && <option value="" disabled>Mixed</option>}
-              {COLORS.map((c) => <option key={c.name} value={c.name}>{c.label}</option>)}
-            </select>
-            <label htmlFor="object-size">Text size</label>
-            <select id="object-size" value={selectionSize} disabled={!!selectionReason}
-              title={selectionReason || "Text size"} aria-describedby="selection-reason"
-              onChange={(e) => changeStyle("textSize", e.target.value as Style["textSize"])}>
-              {!selectionSize && <option value="" disabled>Mixed</option>}
-              {TEXT_SIZES.map((s) => <option key={s.name} value={s.name}>{s.label}</option>)}
-            </select>
-            <label htmlFor="object-align">Alignment</label>
-            <select id="object-align" value={selectionAlign} disabled={!!selectionReason}
-              title={selectionReason || "Alignment"} aria-describedby="selection-reason"
-              onChange={(e) => changeStyle("align", e.target.value as Style["align"])}>
-              {!selectionAlign && <option value="" disabled>Mixed</option>}
-              {ALIGNMENTS.map((a) => <option key={a.name} value={a.name}>{a.label}</option>)}
-            </select>
-          </div>}
-          <div className="object-commands">
-            {(["Duplicate", "Delete"] as const).map((name) => (
-              <button key={name} disabled={!!selectionReason} title={selectionReason || name}
-                aria-describedby="selection-reason" onClick={() => command(name)}>
-                <Icon name={name} />{name}
-              </button>
-            ))}
-          </div>
-          <div className="moves">
-            {[
-              ["left", -10, 0, "←"],
-              ["up", 0, -10, "↑"],
-              ["down", 0, 10, "↓"],
-              ["right", 10, 0, "→"],
-            ].map(([name, x, y, s]) => (
-              <button
-                key={name}
-                aria-label={(selected.size > 1 ? "Move objects " : "Move object ") + name}
-                disabled={!selected.size || readOnly || composing || busy}
-                onClick={() => move(Number(x), Number(y))}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-          <small>
-            X {bounds?.x ?? "—"} · Y {bounds?.y ?? "—"} · 10 units per step
-          </small>
-          <small>W {bounds ? Math.round(bounds.width) : "—"} · H {bounds ? Math.round(bounds.height) : "—"}</small>
-          <div className="sizes">
-            {[
-              ["Wider", 10, 0], ["Narrower", -10, 0], ["Taller", 0, 10], ["Shorter", 0, -10],
-            ].map(([name, x, y]) => <button key={name}
-              aria-label={(selected.size > 1 ? "Make objects " : "Make object ") + String(name).toLowerCase()}
-              disabled={!selected.size || readOnly || composing || busy}
-              onClick={() => resizeBy(Number(x), Number(y))}>{name}</button>)}
-          </div>
-          {selected.size > 0 && <div className="objects-arrange" role="group" aria-label="Arrange">
-            <h2>Arrange</h2>
-            {arrangementControls("objects-arrange", arrange)}
-          </div>}
-          <div className="object-commands" role="group" aria-label="Clipboard">
-            {(["Copy", "Cut", "Paste"] as const).map((name) => {
-              const reason = clipboardReason(name, selected, objectClipboard, clipboardState);
-              const description = "clipboard-" + name.toLowerCase() + "-reason";
-              return <span key={name}>
-                <button disabled={!!reason} title={reason || name}
-                  aria-describedby={reason ? description : undefined}
-                  onClick={(e) => { e.currentTarget.focus(); clipboardCommand(name); }}>{name}</button>
-                {reason && <span className="sr-only" id={description}>{reason}</span>}
-              </span>;
-            })}
-          </div>
-          <div>
-            {(["sticky", "text"] as const).map((type) => (
-              <button
-                key={type}
-                disabled={readOnly || composing || busy}
-                onClick={() => {
-                  const offset = 24 * (board.objects.length % 10);
-                  create(type, view.x + offset, view.y + offset, true);
-                }}
-              >
-                Add {type}
-              </button>
-            ))}
-          </div>
-        </section>
+        <ObjectsPanel
+          board={board} busy={busy} composing={composing} setPanel={setPanel}
+          objectsButton={objectsButton} selector={selector} selected={selected}
+          finishTextSession={finishTextSession} select={select} numbers={numbers} drafts={drafts}
+          nativeEditor={nativeEditor} selectionColor={selectionColor} selectionSize={selectionSize}
+          selectionAlign={selectionAlign} selectionReason={selectionReason} changeStyle={changeStyle}
+          command={command} readOnly={readOnly} move={move} bounds={bounds} resizeBy={resizeBy}
+          arrange={arrange} arrangementReason={arrangementReason} objectClipboard={objectClipboard}
+          clipboardState={clipboardState} clipboardCommand={clipboardCommand} create={create} view={view}
+        />
       )}
       {selected.size > 0 && (
-        <section
-          ref={contextBar}
-          className="context"
-          aria-hidden={!contextFits}
-          inert={!contextFits}
-          style={{
-            left: contextLeft,
-            top: contextTop,
-            visibility: contextFits ? "visible" : "hidden",
-          }}
-        >
-          <span>{item ? item.type === "sticky" ? "Sticky" : "Text" : selected.size + " objects"}</span>
-          <span className="divider" aria-hidden="true" />
-          {item && <>
-          <button
-            disabled={readOnly || composing || busy}
-            onMouseDown={(e) => {
-              if (inline) e.preventDefault();
-            }}
-            onClick={() => {
-              if (inline) {
-                finishTextSession();
-                setInline(false);
-                scene.current?.focus();
-              } else edit();
-            }}
-          >
-            <Icon name="pencil" />{inline ? "Done" : "Edit text"}
-          </button>
-          <span className="divider" aria-hidden="true" />
-          <small>{count(text)} / 1,000</small>
-          </>}
-          <span className="colour-control" ref={colourControl}>
-            <button ref={colourButton} className="icon-button" disabled={!!selectionReason}
-              aria-label={"Colour: " + colourLabel}
-              title={"Colour: " + colourLabel}
-              aria-describedby="selection-reason" aria-expanded={swatchOpen}
-              aria-controls={swatchOpen ? "colour-swatches" : undefined}
-              onClick={(e) => {
-                e.currentTarget.focus();
-                setArrangeFor("");
-                setSwatchFor(swatchOpen ? "" : selectionKey);
-              }}>
-              <span className={"colour-dot" + (!selectionColor ? " mixed" : "")} style={selectionColor ? { background: colorEntry(selectionColor).fill } : undefined} />
-              <span className="tooltip">Colour: {colourLabel}</span>
-            </button>
-            {swatchOpen && <div id="colour-swatches" ref={swatches} className="swatches"
-              role="group" aria-label="Colour" style={{
-                left: clamp(colourButton.current?.offsetLeft ?? 0, 0, contextWidth - 196),
-                top: clamp(48, 12 - contextTop, size.h - 120 - contextTop),
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  closeSwatches();
-                }
-              }}>
-              {COLORS.map((c) => <button key={c.name} className="icon-button"
-                aria-label={c.label} title={c.label} aria-pressed={selectionColor === c.name}
-                onClick={() => { changeStyle("color", c.name); closeSwatches(); }}>
-                <span className="colour-dot" style={{ background: c.fill }} />
-                <span className="tooltip">{c.label}</span>
-              </button>)}
-            </div>}
-          </span>
-          <select className="context-size" aria-label="Text size" title={selectionReason || "Text size"}
-            value={selectionSize} disabled={!!selectionReason} aria-describedby="selection-reason"
-            onChange={(e) => changeStyle("textSize", e.target.value as Style["textSize"])}>
-            {!selectionSize && <option value="" disabled>Mixed</option>}
-            {TEXT_SIZES.map((s) => <option key={s.name} value={s.name}>{s.label}</option>)}
-          </select>
-          <span className="alignments" role="group" aria-label="Alignment">
-            {ALIGNMENTS.map((a) => <button key={a.name} className="icon-button"
-              aria-label={a.action} title={selectionReason || a.action} aria-pressed={selectionAlign === a.name}
-              disabled={!!selectionReason} aria-describedby="selection-reason"
-              onClick={(e) => { e.currentTarget.focus(); changeStyle("align", a.name); }}>
-              <Icon name={a.name} /><span className="tooltip">{selectionReason || a.action}</span>
-            </button>)}
-          </span>
-          <span className="arrange-control" ref={arrangeControl}>
-            <button ref={arrangeButton} className="icon-button" disabled={!!selectionReason}
-              aria-label="Arrange" title={selectionReason || "Arrange"}
-              aria-describedby="selection-reason" aria-expanded={arrangeOpen}
-              aria-controls={arrangeOpen ? "arrange-menu" : undefined}
-              onClick={(e) => {
-                e.currentTarget.focus();
-                setSwatchFor("");
-                setArrangeFor(arrangeOpen ? "" : selectionKey);
-              }}>
-              <Icon name="Arrange" /><span className="tooltip">{selectionReason || "Arrange"}</span>
-            </button>
-            {arrangeOpen && <div id="arrange-menu" ref={arrangeMenu} className="arrange-menu"
-              role="group" aria-label="Arrange" style={{
-                left: clamp(arrangeButton.current?.offsetLeft ?? 0, 12 - contextLeft,
-                  size.w - 280 - contextLeft),
-                top: clamp(48, 12 - contextTop, size.h - 12 - arrangeHeight - contextTop),
-                maxHeight: size.h - 24,
-              }} onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  closeArrange();
-                }
-              }}>
-              {arrangementControls("menu-arrange", (name) => { arrange(name); closeArrange(); })}
-            </div>}
-          </span>
-          {(["Duplicate", "Delete"] as const).map((name) => (
-            <button key={name} className="icon-button" aria-label={name}
-              aria-describedby="selection-reason" disabled={!!selectionReason}
-              onClick={() => command(name)}>
-              <Icon name={name} /><span className="tooltip">{selectionReason || name}</span>
-            </button>
-          ))}
-        </section>
+        <ContextBar
+          contextBar={contextBar} contextFits={contextFits} contextLeft={contextLeft}
+          contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
+          composing={composing} busy={busy} inline={inline} finishTextSession={finishTextSession}
+          setInline={setInline} scene={scene} edit={edit} text={text} colourControl={colourControl}
+          colourButton={colourButton} selectionReason={selectionReason} colourLabel={colourLabel}
+          swatchOpen={swatchOpen} setArrangeFor={setArrangeFor} setSwatchFor={setSwatchFor}
+          selectionKey={selectionKey} selectionColor={selectionColor} swatches={swatches}
+          contextWidth={contextWidth} size={size} closeSwatches={closeSwatches} changeStyle={changeStyle}
+          selectionSize={selectionSize} selectionAlign={selectionAlign} arrangeControl={arrangeControl}
+          arrangeButton={arrangeButton} arrangeOpen={arrangeOpen} arrangeMenu={arrangeMenu}
+          arrangeHeight={arrangeHeight} closeArrange={closeArrange} arrange={arrange}
+          arrangementReason={arrangementReason} command={command}
+        />
       )}
       {inline && item && (
         <section
@@ -1682,108 +1353,26 @@ export function App() {
           {nativeEditor}
         </section>
       )}
-      <nav className="palette floating" aria-label="Board tools">
-        {(["Select", "Pan", "Sticky", "Text"] as const).map((
-          name,
-        ) => (
-          <button
-            key={name}
-            className={"icon-button" + (name === "Sticky" ? " tool-divider" : "")}
-            aria-label={name + " tool"}
-            aria-pressed={tool === name}
-            disabled={busy || composing ||
-              (readOnly && ["Sticky", "Text"].includes(name))}
-            onClick={() => {
-              setTool(name);
-              setInline(false);
-              scene.current?.focus();
-            }}
-          >
-            <Icon name={name} />
-            <span className="tooltip">{name}</span>
-          </button>
-        ))}
-      </nav>
-      <nav className="zoom floating">
-        <button
-          className="icon-button"
-          aria-label="Zoom out"
-          disabled={busy || composing}
-          onClick={() => setView((v) => ({ ...v, z: stepZoom(v.z, -1) }))}
-        >
-          <Icon name="minus" /><span className="tooltip">Zoom out</span>
-        </button>
-        <span>{Math.round(view.z * 100)}%</span>
-        <button
-          className="icon-button"
-          aria-label="Zoom in"
-          disabled={busy || composing}
-          onClick={() => setView((v) => ({ ...v, z: stepZoom(v.z, 1) }))}
-        >
-          <Icon name="plus" /><span className="tooltip">Zoom in</span>
-        </button>
-        <span className="divider" aria-hidden="true" />
-        <button
-          className="icon-button"
-          aria-label="Navigation"
-          aria-expanded={panel === "Navigation"}
-          ref={navButton}
-          onClick={() => toggle("Navigation")}
-          disabled={busy || composing}
-        >
-          <Icon name="navigation" /><span className="tooltip">Navigation</span>
-        </button>
-      </nav>
-      <button
-        className="information floating icon-button"
-        ref={infoButton}
-        aria-label="About local storage"
-        aria-expanded={panel === "Information"}
-        disabled={busy || composing}
-        onClick={() => toggle("Information")}
-      >
-        <Icon name="information" /><span className="tooltip">About local storage</span>
-      </button>
+      <Palette
+        tool={tool} busy={busy} composing={composing} readOnly={readOnly} setTool={setTool}
+        setInline={setInline} scene={scene}
+      />
+      <ZoomControls
+        busy={busy} composing={composing} setView={setView} view={view} panel={panel}
+        navButton={navButton} toggle={toggle}
+      />
+      <InformationButton
+        infoButton={infoButton} panel={panel} busy={busy} composing={composing} toggle={toggle}
+      />
       {panel === "Information" && (
-        <section className="information-panel floating" aria-label="About local storage">
-          <p>One board in this browser origin/profile. Browser storage is not a backup.</p>
-          <button disabled={busy || composing} onClick={() => toggle("Information")}>Close</button>
-        </section>
+        <InformationPanel
+          busy={busy} composing={composing} toggle={toggle}
+        />
       )}
       {panel === "Navigation" && (
-        <section className="navigation floating">
-          <h2>Move around the board</h2>
-          {[["left", -100, 0], ["right", 100, 0], ["up", 0, -100], [
-            "down",
-            0,
-            100,
-          ]].map(([s, x, y]) => (
-            <button
-              key={s}
-              disabled={busy || composing}
-              onClick={() =>
-                setView((v) => ({
-                  ...v,
-                  x: clamp(v.x + Number(x), -1e6, 1e6),
-                  y: clamp(v.y + Number(y), -1e6, 1e6),
-                }))}
-            >
-              Pan {s}
-            </button>
-          ))}
-          <button disabled={busy || composing} onClick={() => setView({ x: 0, y: 0, z: 1 })}>
-            Reset view
-          </button>
-          <button
-            disabled={busy || composing}
-            onClick={() => {
-              setPanel("");
-              navButton.current?.focus();
-            }}
-          >
-            Close navigation
-          </button>
-        </section>
+        <NavigationPanel
+          busy={busy} composing={composing} setView={setView} setPanel={setPanel} navButton={navButton}
+        />
       )}
     </main>
   );

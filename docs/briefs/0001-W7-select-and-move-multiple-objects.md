@@ -178,4 +178,69 @@ Interaction v4's references (retrieved 2026-10-22) still apply.
 
 ## Implementation record
 
-Not started.
+Implementation handoff dated 2026-10-23 for **0001-W7 v1**, governed by
+[interaction v10](../architecture/0001-interaction-v10.md).
+
+- Branch: `codex/0001-W7-multi-select`.
+- Worktree: `.worktrees/codex-0001-W7`.
+- Committed main base: `39ca6455521ebf5e7635a9ebd3247606c9a1433f`.
+- Validated source/test revision: `a5c7d2f41b63bb22af9629ed1b86b0f35d09feea`.
+  Checks ran on the identical source/test bytes before this implementation commit.
+  This record is a separate documentation commit; the final branch tip is reported
+  separately in the handoff.
+
+Implemented session-only selection by logical ID, inclusive display-height box
+selection and live preview, Shift selection, scene select-all, bounded set movement
+and cancellation. The context bar and native multiple-selection Objects list show
+set counts and Mixed style values. Duplicate, Delete and styles act on sets;
+Undo/Redo select the surviving affected objects and report the specified selection
+outcome. History applies each set atomically, restores reading order, renews and
+retires generations per object, and preserves the single-object call forms.
+
+All 309 original lines of `tests/history.test.mjs` remain byte-for-byte unchanged;
+new cases were appended. The browser harness change is solely removal of the
+placeholder subtraction in its option-count helper. Source review checked the
+native text shortcut boundary, read-only selection, box capture/cancellation,
+gesture blocking, command messages/focus and Mixed controls. These are source
+observations, not browser acceptance evidence.
+
+The supplied pinned toolchain was selected in the shell before every Node/npm
+command and both Git commit invocations. Its machine-specific location is omitted
+from this public record. No dependency, manifest, lock, saved format, storage rule
+or file outside the deliverables changed. Added dependencies: **none**.
+
+| Exact command | Actual result |
+| --- | --- |
+| `node --version` | PASS, exit 0: `v24.22.1`. |
+| `npm --version` | PASS, exit 0: `11.19.1`. |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | PASS, exit 0; added 19 packages, manifest and lock unchanged. |
+| `npm --prefix apps/web run typecheck` | PASS, exit 0, including final implementation bytes. |
+| `node --test tests/selection.test.mjs tests/history.test.mjs` | PASS, exit 0; 25 tests, zero failures. These two modules/tests were unchanged afterwards. |
+| `npm --prefix apps/web test` | PASS, exit 0; 75 tests, zero failures, on final implementation bytes. This includes all existing single-object history cases unchanged. |
+| `npm --prefix apps/web run build` | PASS, exit 0; accepted lock, runtime inventory and complete distributed notices verified; application built on final implementation bytes. |
+| `git diff --check` | PASS, exit 0 before the implementation commit and for this record. |
+| `git diff --cached --stat` | Inspected before each commit; seven permitted implementation/test files in the source commit, only this brief in the record commit. |
+| `git commit -m "feat(web): select and move multiple board objects"` | PASS; created the validated revision above. Both mandatory public-boundary hooks reported PASS. Git emitted a sandbox-denied `packed-refs.lock` diagnostic, but the commit exists and the branch revision was verified. No hook was bypassed. |
+| `git commit -m "docs(web): record W7 multi-select implementation evidence"` | Record commit; final result and branch tip are reported separately in the handoff. |
+| `git diff --name-only main...HEAD` | Inspected after the record commit: only the seven permitted implementation/test files and this brief's implementation record. |
+| `git status --short` | Clean after each commit. |
+
+Unit evidence covers AC01's inclusive box intersection (including zero-width and
+zero-height boxes, reversed corners and taller display height), AC02's shared
+move limits at all four bounds and preserved relative positions, and AC03's set
+move/style/duplicate/delete history, atomic capacity/retirement/incarnation refusals,
+reading-order restoration and the 100-step limit. Runtime/visual acceptance of
+**AC01–AC03 remains pending** the independent reviewer on the exact validated
+revision.
+
+No browser was launched and the browser regression harness was not run, as
+instructed: browsers cannot start in this environment. The brief's single Chrome
+and Safari pass, including trusted pointer input, native list keyboard ranges,
+focus, text-only shortcuts, visual placement/Mixed states and cancellations, is
+**UNVERIFIED** and left to the reviewer. No browser matrix, fixture build/sweep,
+accessibility audit, performance/load test or native IME check ran. No browser
+claim from another milestone is reused. Graph discovery was attempted first but
+blocked by the environment's approval policy; source was read directly.
+
+No stash, hook bypass, push, merge, publication, deployment or later milestone was
+performed.

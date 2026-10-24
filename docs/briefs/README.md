@@ -40,9 +40,14 @@ handles for one object or a set, minimum sizes, a floor that keeps text visible 
 the height limits, and size buttons in Objects under
 [interaction v11](../architecture/0001-interaction-v11.md), is implemented and merged into main.
 
-[0001-W9 v1 — Align and order selected objects](0001-W9-align-and-order-selected-objects.md)
-is a draft: align, distribute and restack selected objects from an Arrange menu and
-Objects, governed by [interaction v12](../architecture/0001-interaction-v12.md).
+[0001-W9 v1 — Align and order selected objects](0001-W9-align-and-order-selected-objects.md),
+aligning, distributing and restacking selected objects from an Arrange menu and
+Objects under [interaction v12](../architecture/0001-interaction-v12.md), is implemented and merged into main.
+
+[0001-W10 v1 — Group and ungroup objects](0001-W10-group-and-ungroup-objects.md) is a
+draft: one-level groups selected and edited together, saved through
+[document v3](../architecture/0001-document-v3.md) and governed by
+[interaction v13](../architecture/0001-interaction-v13.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

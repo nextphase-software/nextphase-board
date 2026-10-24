@@ -41,9 +41,14 @@ handles that resize one object or a set, with minimum sizes, a floor that keeps 
 visible within the height limits and size buttons in Objects, and corrects two
 sentences of v10. It replaces v10 for later work.
 
-Draft for 0001-W9 brief v1: [0001 interaction v12](0001-interaction-v12.md) adds
+[0001 interaction v12](0001-interaction-v12.md), accepted with 0001-W9, adds
 aligning, distributing and restacking selected objects, from an Arrange menu and
-Objects, with order recorded in undo history. It replaces v11 for later work once
+Objects, with order recorded in undo history. It replaces v11 for later work.
+
+Drafts for 0001-W10 brief v1: [0001 document v3](0001-document-v3.md) adds each
+object's group to the saved format and defines how version 1 and 2 boards are read;
+[0001 interaction v13](0001-interaction-v13.md) adds grouping, ungrouping and
+selecting groups. They replace document v2 and interaction v12 for later work once
 accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps

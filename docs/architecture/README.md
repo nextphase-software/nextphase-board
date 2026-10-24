@@ -56,10 +56,15 @@ copying, cutting and pasting selected objects through a per-tab object clipboard
 with their text written to the system clipboard as plain text. It replaces v13 for
 later work.
 
-Draft for 0001-W15 brief v1: [0001 web modules v1](0001-web-modules-v1.md) describes
-how the web app's source is organised (rules, state, object types, screen parts and
+[0001 web modules v1](0001-web-modules-v1.md), accepted with 0001-W15, describes how
+the web app's source is organised (rules, state, object types, screen parts and
 composition), who owns what, and the rules every later brief follows. It changes no
 behaviour or contract.
+
+Draft for 0001-W16 brief v1: [0001 web modules v2](0001-web-modules-v2.md) adds the
+object-type registry under `objects/` and the canvas drawing under `scene/`, and the
+rule that shared code asks the registry instead of comparing type names. It replaces
+v1 for later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

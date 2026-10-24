@@ -1,8 +1,10 @@
 BRIEF VERSION: 0001-W15 v1 (2026-10-24)
 # 0001-W15 — Move the screen parts out of App.tsx
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 web modules v1](../architecture/0001-web-modules-v1.md) to main.
+Status: Implemented. Independently reviewed at `437092b` (pass) and merged into
+main on 2026-10-24 with [0001 web modules v1](../architecture/0001-web-modules-v1.md).
+The implementation record below, which lists the validated revisions, was written
+before that review.
 
 ## Outcome
 

@@ -53,9 +53,13 @@ one-level groups selected and edited together, saved through
 copying, cutting and pasting selected objects within Board under
 [interaction v14](../architecture/0001-interaction-v14.md), is implemented and merged into main.
 
-[0001-W15 v1 — Move the screen parts out of App.tsx](0001-W15-move-screen-parts-out-of-app.md)
-is a draft: the bars and panels around the canvas move into their own components with
-no change in behaviour, following [web modules v1](../architecture/0001-web-modules-v1.md).
+[0001-W15 v1 — Move the screen parts out of App.tsx](0001-W15-move-screen-parts-out-of-app.md),
+moving the bars and panels around the canvas into their own components with no change
+in behaviour under [web modules v1](../architecture/0001-web-modules-v1.md), is implemented and merged into main.
+
+[0001-W16 v1 — Object types and the canvas drawing](0001-W16-object-types-and-canvas-drawing.md)
+is a draft: an object-type registry and the canvas drawing in their own modules, with
+no change in behaviour, following [web modules v2](../architecture/0001-web-modules-v2.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

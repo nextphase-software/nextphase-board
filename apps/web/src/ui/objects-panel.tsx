@@ -2,6 +2,7 @@
 import type { Dispatch, SetStateAction, RefObject, ReactNode } from "react";
 import type { BoardV3 as Board, ItemV3 as Item } from "../document";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "../styles";
+import { OBJECT_TYPES } from "../objects/registry";
 import { Icon } from "../icons";
 import type { Rectangle } from "../resize";
 import type { ArrangeCommand } from "../arrange";
@@ -162,7 +163,7 @@ export function ObjectsPanel({
         })}
       </div>
       <div>
-        {(["sticky", "text"] as const).map((type) => (
+        {OBJECT_TYPES.map((t) => t.type).map((type) => (
           <button
             key={type}
             disabled={readOnly || composing || busy}

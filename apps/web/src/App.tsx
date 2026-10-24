@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Konva from "konva";
-import { Group, Layer, Rect, Stage, Text } from "react-konva";
 import {
   Adapter,
   add,
@@ -14,7 +13,7 @@ import {
   upgrade,
   validText,
 } from "./document";
-import { colorEntry, textColor, textUnits, type Style } from "./styles";
+import { colorEntry, textUnits, type Style } from "./styles";
 import { decode, LocalStore, readPair } from "./storage";
 import { deleteObject, duplicate, emptyHistory, record, redo, undo, type History } from "./history";
 import { allowedHeight, displayHeight, neededHeight, savedHeight, TEXT_INSET, TEXT_LAYOUT } from "./geometry";
@@ -25,6 +24,11 @@ import { resizeObject, resizeSet, type Corner, type Rectangle } from "./resize";
 import { arrangeOrder, arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "./arrange";
 import { expandSelection, groupNumbers, groupObjects, groupReason, pressSelection, toggleGroup, ungroupObjects, wholeGroups } from "./group";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "./clipboard";
+
+import { typeForTool } from "./objects/registry";
+import { BoardDrawing } from "./scene/board-drawing";
+import { Overlays } from "./scene/overlays";
+import { InlineEditor } from "./scene/inline-editor";
 
 import { FileBar } from "./ui/file-bar";
 import { SaveArea } from "./ui/save-area";
@@ -1008,7 +1012,7 @@ export function App() {
             e.preventDefault();
             if (tool === "Sticky" || tool === "Text") {
               create(
-                tool === "Sticky" ? "sticky" : "text",
+                typeForTool(tool),
                 view.x,
                 view.y,
               );
@@ -1154,7 +1158,7 @@ export function App() {
               try {
                 const next = add(
                   model.current,
-                  d.id === "Sticky" ? "sticky" : "text",
+                  typeForTool(d.id),
                   d.x,
                   d.y,
                 );
@@ -1209,76 +1213,13 @@ export function App() {
           }
         }}
       >
-        <Stage width={size.w} height={size.h} listening={false}>
-          <Layer
-            x={size.w / 2 - view.x * view.z}
-            y={size.h / 2 - view.y * view.z}
-            scaleX={view.z}
-            scaleY={view.z}
-          >
-            {board.objects.map((o) => {
-              const layout = objectLayouts.get(o.id)!;
-              return (
-                <Group key={o.id}>
-                  <Rect
-                    x={o.x}
-                    y={o.y}
-                    width={o.width}
-                    height={layout.height}
-                    fill={o.type === "sticky" ? colorEntry(o.color).fill : undefined}
-                    stroke={selected.has(o.id)
-                      ? "#518de0"
-                      : o.type === "sticky"
-                      ? colorEntry(o.color).edge
-                      : undefined}
-                    strokeWidth={selected.has(o.id) ? 2 / view.z : 1}
-                  />
-                  {!(inline && selected.has(o.id)) && layout.height > 2 * TEXT_INSET &&
-                    o.width > 2 * TEXT_INSET && (
-                    <Group
-                      clipX={o.x + TEXT_INSET}
-                      clipY={o.y + TEXT_INSET}
-                      clipWidth={o.width - 2 * TEXT_INSET}
-                      clipHeight={layout.height - 2 * TEXT_INSET}
-                    >
-                      <Text
-                        {...TEXT_LAYOUT}
-                        fontSize={textUnits(o.textSize)}
-                        align={o.align}
-                        x={o.x + TEXT_INSET}
-                        y={o.y + TEXT_INSET}
-                        width={o.width - 2 * TEXT_INSET}
-                        height={layout.height - 2 * TEXT_INSET}
-                        text={o.text}
-                        fill={textColor(o)}
-                        fillPriority={layout.limited ? "linear-gradient" : "color"}
-                        fillLinearGradientStartPoint={{ x: 0, y: layout.fadeStart }}
-                        fillLinearGradientEndPoint={{ x: 0, y: layout.fadeEnd }}
-                        fillLinearGradientColorStops={[0, textColor(o), 1, textColor(o) + "00"]}
-                      />
-                    </Group>
-                  )}
-                </Group>
-              );
-            })}
-          </Layer>
-        </Stage>
-        {[...selectedGroups].filter(([, members]) => members.length >= 2).map(([id, members]) => {
-          const box = boundingBox(members)!;
-          return <svg key={id} className="group-outline" aria-hidden="true"
-            style={{ left: pos(box).left, top: pos(box).top }}
-            width={box.width * view.z} height={box.height * view.z}>
-            <rect width={box.width * view.z} height={box.height * view.z} />
-          </svg>;
-        })}
-        {handlesVisible && handlePoints.map((h) => <div key={h.corner}
-          className={"resize-handle " + h.corner} aria-hidden="true"
-          style={{ left: pos(h).left, top: pos(h).top,
-            cursor: spacePan ? "grab" : undefined }} />)}
-        {selectionBox && <div className="selection-box" aria-hidden="true" style={{
-          left: pos(selectionBox).left, top: pos(selectionBox).top,
-          width: selectionBox.width * view.z, height: selectionBox.height * view.z,
-        }} />}
+        <BoardDrawing
+          size={size} view={view} board={board} objectLayouts={objectLayouts} selected={selected} inline={inline}
+        />
+        <Overlays
+          selectedGroups={selectedGroups} pos={pos} view={view} handlesVisible={handlesVisible}
+          handlePoints={handlePoints} spacePan={spacePan} selectionBox={selectionBox}
+        />
       </div>
       <FileBar
         boardButton={boardButton} composing={composing} busy={busy} toggle={toggle} panel={panel}
@@ -1333,25 +1274,10 @@ export function App() {
         />
       )}
       {inline && item && (
-        <section
-          ref={inlineSurface}
-          className="inline"
-          onPointerEnter={trackPointer}
-          onPointerDown={trackPointer}
-          onPointerMove={trackPointer}
-          style={{
-            left: pos(item).left + TEXT_INSET * view.z,
-            top: pos(item).top + TEXT_INSET * view.z,
-            width: (item.width - 2 * TEXT_INSET) * view.z,
-            height: (itemHeight - 2 * TEXT_INSET) * view.z,
-            fontFamily: TEXT_LAYOUT.fontFamily,
-            fontSize: textUnits(item.textSize) * view.z,
-            textAlign: item.align,
-            color: textColor(item),
-          }}
-        >
-          {nativeEditor}
-        </section>
+        <InlineEditor
+          inlineSurface={inlineSurface} trackPointer={trackPointer} pos={pos} item={item}
+          view={view} itemHeight={itemHeight} nativeEditor={nativeEditor}
+        />
       )}
       <Palette
         tool={tool} busy={busy} composing={composing} readOnly={readOnly} setTool={setTool}

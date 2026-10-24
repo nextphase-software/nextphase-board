@@ -15,6 +15,12 @@ function files(directory, prefix = "") {
 }
 const screenParts = files(ui).sort();
 const contents = screenParts.map((name) => [name, readFileSync(new URL(name, ui), "utf8")]);
+const scene = new URL("scene/", source);
+const sceneParts = files(scene).sort();
+const sceneContents = sceneParts.map((name) => [name, readFileSync(new URL(name, scene), "utf8")]);
+const objects = new URL("objects/", source);
+const objectTypes = files(objects).sort();
+const objectContents = objectTypes.map((name) => [name, readFileSync(new URL(name, objects), "utf8")]);
 
 test("screen parts contain exactly the twelve modules named by 0001-W15 v1", () => {
   assert.deepEqual(screenParts, [
@@ -36,11 +42,11 @@ test("screen parts contain exactly the twelve modules named by 0001-W15 v1", () 
 test("App.tsx stays within its extracted composition line budget", () => {
   const app = readFileSync(new URL("App.tsx", source), "utf8");
   const lines = (app.match(/\n/g) ?? []).length;
-  assert(lines <= 1379, `App.tsx has ${lines} newlines; budget is 1379`);
+  assert(lines <= 1305, `App.tsx has ${lines} newlines; budget is 1305`);
 });
 
 test("screen parts hold no React state or context and import React only for types", () => {
-  for (const [name, content] of contents) {
+  for (const [name, content] of [...contents, ...sceneContents]) {
     assert.doesNotMatch(content, /\buse[A-Z]\w*\s*\(/, name);
     assert.doesNotMatch(content, /\bcreateContext\b/, name);
     const reactImports = content.matchAll(/\bimport\s+(?:(type)\s+)?(?:[^;]*?\s+from\s*)?["']react["']/g);
@@ -51,7 +57,7 @@ test("screen parts hold no React state or context and import React only for type
 });
 
 test("screen parts never import or re-export App", () => {
-  for (const [name, content] of contents) {
+  for (const [name, content] of [...contents, ...sceneContents, ...objectContents]) {
     const declarations = content.matchAll(/\b(?:import|export)\s+(?:[^;]*?\s+from\s*)?["']([^"']+)["']/g);
     for (const declaration of declarations) {
       const module = declaration[1].replace(/\.(?:ts|tsx|js|jsx)$/, "");
@@ -61,7 +67,35 @@ test("screen parts never import or re-export App", () => {
 });
 
 test("every screen part begins with the Apache-2.0 licence header", () => {
-  for (const [name, content] of contents) {
+  for (const [name, content] of [...contents, ...sceneContents, ...objectContents]) {
     assert.equal(content.split("\n")[0], "// SPDX-License-Identifier: Apache-2.0", name);
+  }
+});
+
+test("scene parts contain exactly the four modules named by 0001-W16 v1", () => {
+  assert.deepEqual(sceneParts, [
+    "board-drawing.tsx",
+    "inline-editor.tsx",
+    "note-body.tsx",
+    "overlays.tsx",
+  ]);
+});
+
+test("object types contain exactly the three modules named by 0001-W16 v1", () => {
+  assert.deepEqual(objectTypes, ["registry.ts", "sticky.ts", "text.ts"]);
+});
+
+test("object types never import React or Konva", () => {
+  for (const [name, content] of objectContents) {
+    assert.doesNotMatch(content, /\bimport\s+(?:[^;]*?\s+from\s*)?["'](?:react|react-konva|konva)["']/, name);
+  }
+});
+
+test("composition and screen parts ask the registry instead of comparing type names", () => {
+  const app = readFileSync(new URL("App.tsx", source), "utf8");
+  for (const [name, content] of [["App.tsx", app], ...contents, ...sceneContents]) {
+    assert.doesNotMatch(content, /===\s*["'](?:sticky|text)["']/, name);
+    assert.doesNotMatch(content, /["']sticky["']\s*:\s*["']text["']/, name);
+    assert.doesNotMatch(content, /\[\s*["']sticky["']\s*,\s*["']text["']\s*\]/, name);
   }
 });

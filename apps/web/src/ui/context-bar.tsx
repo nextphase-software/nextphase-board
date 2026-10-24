@@ -2,6 +2,7 @@
 import type { Dispatch, SetStateAction, RefObject } from "react";
 import { clamp, count, type ItemV3 as Item } from "../document";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, colorEntry, type Style } from "../styles";
+import { objectType } from "../objects/registry";
 import { Icon } from "../icons";
 import type { ArrangeCommand } from "../arrange";
 import { ArrangeControls } from "./arrange-controls";
@@ -69,7 +70,7 @@ export function ContextBar({
         visibility: contextFits ? "visible" : "hidden",
       }}
     >
-      <span>{item ? item.type === "sticky" ? "Sticky" : "Text" : selected.size + " objects"}</span>
+      <span>{item ? objectType(item.type).label : selected.size + " objects"}</span>
       <span className="divider" aria-hidden="true" />
       {item && <>
       <button

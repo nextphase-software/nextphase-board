@@ -101,3 +101,44 @@ apply.
 ## Implementation record
 
 Not started.
+
+### Implementation — 2026-10-23
+
+- Branch: `codex/0001-W14-unnamed-board`, based on committed main
+  `bf92e65b7653a1e70801686b5eeb349be335c42b`.
+- Validated source/test revision: `ac5f45115852f32b65c0dfa5fb13aa439cf42aed`.
+  Checks below ran against the source/test tree committed unchanged at this revision.
+  The subsequent implementation-record commit changes documentation only; its final
+  branch tip is reported separately in the handoff.
+- Implemented the pure editing-command reason function with no board-name input.
+  App computes object-text validity separately and retains combined validation for
+  Save, the status note and explanations. Existing reason wording and priority,
+  storage, saved format and history remain unchanged.
+- Toolchain: `node --version` returned `v24.22.1`; `npm --version` returned
+  `11.19.1`. The pinned toolchain was prepended to PATH before Node/npm commands
+  and commits; machine-specific setup is intentionally omitted from this record.
+
+| Exact command from repository root | Result |
+| --- | --- |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Passed; installed 19 packages |
+| `npm --prefix apps/web run typecheck` | Passed; no TypeScript errors |
+| `node --test tests/commands.test.mjs` | Passed; 8 tests, 0 failures; no blocker, four individual reasons and three priority cases |
+| `npm --prefix apps/web run build` | Passed; accepted lock, runtime inventory and distributed notices verified; application built |
+| `git diff --check` | Passed |
+| `git diff --cached --check` | Passed before the implementation commit |
+| `git diff --name-only main...HEAD` | Passed scope inspection; source/test revision lists only `App.tsx`, `commands.ts` and `tests/commands.test.mjs`; final handoff adds only this brief's implementation record |
+
+- Source review: the command reason receives only read-only, composition,
+  pointer-gesture and invalid-object-text state. Undo/Redo, Duplicate/Delete and
+  style controls continue to use that shared reason. Save still uses the combined
+  invalid state, including the board name, with unchanged explanations.
+- Dependencies added: none. No package, lock, styles, document, storage, history,
+  geometry or view files changed.
+- Exclusions: no browsers launched because this environment cannot start them.
+  The specified Chrome/Safari pass remains pending with the reviewer, including
+  blank/121-character names, editing commands and styles, Save after valid naming,
+  and over-long object text. No other unit files, broader suites, fixtures,
+  accessibility audits or IME checks ran. Browser acceptance is not claimed.
+- Both mandatory public-boundary hook checks passed on the implementation commit.
+  Git reported a permission error creating `packed-refs.lock`, but the commit
+  succeeded. Hooks were not bypassed. No push or merge performed.

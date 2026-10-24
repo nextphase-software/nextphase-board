@@ -142,4 +142,78 @@ apply.
 
 ## Implementation record
 
-Not started.
+Implementation handoff dated 2026-10-24 for **0001-W8 v1**, governed by
+[interaction v11](../architecture/0001-interaction-v11.md).
+
+- Branch: `codex/0001-W8-resize`.
+- Worktree: `.worktrees/codex-0001-W8`.
+- Committed main base: `89f66014d5d49ab6821228a63a1b186ec2e4590e`.
+- Validated source/test revision: `c10e30d8298d8249f7ab9d606b85146588fc6893`.
+  Checks ran on identical source/test bytes before this implementation commit;
+  the working-tree comparison against that commit was empty afterwards. This
+  record is a separate documentation commit. The final branch tip is reported
+  separately in the handoff.
+
+Implemented pure single-object and set resizing from all four corners, shared
+scale limits, Shift proportions and per-object text floors. Floating-point
+boundary overshoots are prevented by adjusting the shared scale toward 1 to the
+next representable value when necessary; positions and sizes are not rounded.
+The scene routes handle presses ahead of object/empty-space hits, after temporary
+pan, using its existing pointer capture and cancellation. Resize previews use
+starting drawn rectangles and frozen zoom, cross the 3 CSS-pixel threshold, and
+commit once on release. Returning to the starting rectangle records nothing,
+including when its drawn height exceeds its saved height. Objects shows the
+rounded size line and four size buttons with the same availability as move buttons.
+Existing history records every resized object's geometry in one step.
+
+Source inspection checked handle visibility, fixed CSS-pixel dimensions and hit
+areas, stacking, read-only/composition/editor exclusions, Space priority, capture
+release, cancellation, expected-geometry checks, gesture control blocking and the
+single transaction path. Move, selection-box, Pan, Space + drag and placement
+branches retain their existing behavior outside the newly defined handle hit
+areas. v11's two corrections to v10 required no code change. These are source
+observations, not browser acceptance evidence.
+
+The supplied pinned toolchain was selected in the shell before every Node/npm
+command and both Git commit invocations. Its machine-specific location is omitted
+from this public record. Only the four implementation/test deliverables and this
+record changed. Added dependencies: **none**. No dependency version or license,
+manifest, lock, saved format, storage rule, other module or existing test changed.
+
+| Exact command | Actual result |
+| --- | --- |
+| `node --version` | PASS, exit 0: `v24.22.1`. |
+| `npm --version` | PASS, exit 0: `11.19.1`. |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | PASS, exit 0; added 19 packages, manifest and lock unchanged. |
+| `npm --prefix apps/web run typecheck` | PASS, exit 0 on both runs, including final source/test bytes. |
+| `node --test tests/resize.test.mjs` | First run: exit 1, 30 passed and 2 failed; exposed unnecessary scale-ratio arithmetic for ordinary single-object deltas. After using direct width/height arithmetic: exit 0, 32 passed. Final run after boundary and history cases: PASS, exit 0, 35 passed, zero failures. |
+| `npm --prefix apps/web run build` | PASS, exit 0 on final implementation bytes; accepted lock, runtime inventory and complete distributed notices verified; application built. |
+| `git diff --check` | PASS, exit 0 before the implementation commit and for this record. |
+| `git diff --cached --check` | PASS, exit 0 before each commit. |
+| `git diff --cached --stat` | Inspected before each commit: four permitted source/test files, then only this brief. |
+| `git diff --cached --name-only` | Inspected before the implementation commit: only `App.tsx`, `resize.ts`, `style.css` and `resize.test.mjs` at their declared paths. |
+| `git commit -m "feat(web): resize selected objects with corner handles"` | PASS, exit 0; created the validated revision above. Both mandatory public-boundary hooks reported PASS. Git emitted a sandbox-denied `packed-refs.lock` diagnostic; the commit exists and the branch revision was verified. No hook was bypassed. |
+| `git rev-parse HEAD` | Verified the validated source/test revision above after the implementation commit. |
+| `git diff HEAD -- apps/web/src/resize.ts apps/web/src/App.tsx apps/web/style.css tests/resize.test.mjs` | PASS, exit 0, empty after the implementation commit: the tested bytes match the committed files. |
+| `git commit -m "docs(web): record W8 resize implementation evidence"` | Record commit; actual result and final branch tip are reported separately in the handoff. |
+| `git diff --name-only main...HEAD` | Inspected after implementation and after the record commit: final scope is exactly the four implementation/test files and this brief. |
+| `git status --short` | Clean after the implementation commit and after the record commit. |
+
+| Criterion | Bounded implementation evidence |
+| --- | --- |
+| 0001-W8-AC01 | Unit cases cover all corners, width/height and board limits, narrower starting widths, top- and bottom-fixed text floors and their caps/edge exception, Shift dominance/ties/limits and zero delta. UI behavior awaits the browser pass. |
+| 0001-W8-AC02 | Unit cases cover each fixed corner, independently limited axes, joint Shift limits, every member size/board bound, per-member downward text growth and exact document limits despite fractional boundary quotients. Visual set behavior and unchanged rendered text sizes await the browser pass. |
+| 0001-W8-AC03 | Focused cases in the new file apply single and set resize geometry through the unchanged adapter/history: one transaction and step, exact Undo/Redo and unaffected unselected objects. Button deltas and no-change results are tested. Real pointer cancellation, native button activation and save/reload await the browser pass. |
+
+No browser was launched and the browser regression harness was not run, as
+instructed: browsers cannot start in this environment. The brief's single Chrome
+and Safari pass is **UNVERIFIED** and left to the independent reviewer on the exact
+validated revision. Runtime/visual acceptance of **AC01–AC03 remains pending**.
+No other unit test file, full suite, fixture build/sweep, browser matrix,
+accessibility audit, performance/load test or native IME check ran. No evidence
+from another milestone is reused as browser acceptance. Graph discovery and
+indexing were attempted first, but both tools were blocked by the environment's
+approval policy; source was read directly instead.
+
+No stash, hook bypass, push, merge, publication, deployment or later milestone was
+performed.

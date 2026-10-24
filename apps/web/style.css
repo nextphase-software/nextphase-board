@@ -458,3 +458,22 @@ small {
     #d4e3f8 225deg 270deg, #e2dbf6 270deg 315deg, #e9e7ed 315deg 360deg);
 }
 .objects select[multiple] { min-height: 132px; overflow-y: auto; }
+
+/* W8 handles use CSS pixels and route presses through the scene's capture. */
+.scene > .resize-handle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+.resize-handle::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  background: white;
+  border: 1px solid #518de0;
+}
+.resize-handle.nw, .resize-handle.se { cursor: nwse-resize; }
+.resize-handle.ne, .resize-handle.sw { cursor: nesw-resize; }
+.sizes { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }

@@ -22,6 +22,10 @@ import { allowedHeight, displayHeight, neededHeight, savedHeight, TEXT_INSET, TE
 import { gestureScale, panView, stepZoom, wheelDelta, wheelZoomFactor, zoomView, type View } from "./view";
 import { boundingBox, boxSelection, limitMove } from "./selection";
 import { editingCommandReason } from "./commands";
+import { resizeObject, resizeSet, type Corner, type Rectangle } from "./resize";
+
+const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
+type ResizeStart = { object: Item; rectangle: Rectangle };
 
 function lineCount(object: Item, text = object.text): number {
   // Auto height is essential here: a fixed height would count only visible lines.
@@ -86,6 +90,9 @@ export function App() {
         previous?: string[];
         box?: boolean;
         additive?: boolean;
+        corner?: Corner;
+        resizeStart?: ResizeStart[];
+        crossed?: boolean;
         x: number;
         y: number;
         cx: number;
@@ -121,6 +128,17 @@ export function App() {
   })), [board.objects, inline, selectedId, text]);
   const displayedObjects = board.objects.map((o) => ({ ...o, displayHeight: objectLayouts.get(o.id)!.height }));
   const bounds = boundingBox(displayedObjects.filter((o) => selected.has(o.id)));
+  const handlesVisible = !!bounds && tool === "Select" && !readOnly && !inline && !composing &&
+    (!busy || !!drag.current?.corner);
+  const handlePoints = bounds ? CORNERS.map((corner) => ({
+    corner, ...posForCorner(corner, bounds),
+  })) : [];
+  function posForCorner(corner: Corner, rectangle: Rectangle) {
+    return {
+      x: rectangle.x + (corner.endsWith("e") ? rectangle.width : 0),
+      y: rectangle.y + (corner.startsWith("s") ? rectangle.height : 0),
+    };
+  }
   const commonStyle = <K extends keyof Style>(key: K): Style[K] | "" => {
     const value = selectedObjects[0]?.[key];
     return value && selectedObjects.every((o) => o[key] === value) ? value : "";
@@ -512,6 +530,38 @@ export function App() {
     if (!selected.size || readOnly || composing || busy) return;
     commit(movedBoard([...selected], dx, dy), true);
   }
+  function resizeStart(): ResizeStart[] {
+    return model.current.objects.filter((o) => selected.has(o.id)).map((object) => ({
+      object, rectangle: { x: object.x, y: object.y, width: object.width,
+        height: objectLayouts.get(object.id)!.height },
+    }));
+  }
+  function resizeStillValid(start: ResizeStart[]) {
+    return start.every(({ object }) => {
+      const live = model.current.objects.find((o) => o.id === object.id);
+      return live && live.generation === object.generation && live.x === object.x &&
+        live.y === object.y && live.width === object.width && live.height === object.height;
+    });
+  }
+  function resizedBoard(corner: Corner, start: ResizeStart[], dx: number, dy: number, shift: boolean) {
+    const members = start.map(({ object, rectangle }) => ({ ...rectangle,
+      neededHeight: (width: number) => neededHeight(lineCount({ ...object, width }), textUnits(object.textSize)),
+    }));
+    const geometry = members.length === 1
+      ? [resizeObject(corner, start[0].rectangle, { x: dx, y: dy }, shift, members[0].neededHeight)]
+      : resizeSet(corner, members, { x: dx, y: dy }, shift);
+    // Starting drawn heights may exceed saved heights. An unchanged resize saves nothing.
+    if (geometry.every((g, i) => Object.keys(g).every((key) =>
+      g[key as keyof Rectangle] === start[i].rectangle[key as keyof Rectangle]))) return model.current;
+    const changes = new Map(start.map(({ object }, i) => [object.id, geometry[i]]));
+    return { ...model.current, objects: model.current.objects.map((o) =>
+      changes.has(o.id) ? { ...o, ...changes.get(o.id)! } : o) };
+  }
+  function resizeBy(dx: number, dy: number) {
+    if (!selected.size || readOnly || composing || busy) return;
+    finishTextSession();
+    commit(resizedBoard("se", resizeStart(), dx, dy, false), true);
+  }
   function toggle(name: string) {
     if (composing || busy) return;
     finishTextSession();
@@ -803,6 +853,8 @@ export function App() {
         ref={scene}
         className={"scene" + (spacePan ? busy ? " grabbing" : " grab" : "")}
         style={{
+          cursor: drag.current?.corner ? (drag.current.corner === "nw" || drag.current.corner === "se"
+            ? "nwse-resize" : "nesw-resize") : undefined,
           backgroundSize: `${24 * view.z}px ${24 * view.z}px`,
           backgroundPosition: `${size.w / 2 - view.x * view.z}px ${
             size.h / 2 - view.y * view.z
@@ -837,7 +889,8 @@ export function App() {
           trackPointer(e);
           if (
             e.target !== e.currentTarget &&
-              !(e.target instanceof HTMLCanvasElement) || composing || inline
+              !(e.target instanceof HTMLCanvasElement) &&
+              !(e.target instanceof Element && e.target.closest(".resize-handle")) || composing || inline
           ) return;
           if (e.button !== 0 || drag.current) return;
           if (spacePanRef.current) {
@@ -853,6 +906,20 @@ export function App() {
           }
           finishTextSession();
           const p = point(e);
+          const handle = handlesVisible ? handlePoints.find((h) =>
+            Math.abs((p.x - h.x) * view.z) <= 8 && Math.abs((p.y - h.y) * view.z) <= 8) : undefined;
+          if (handle) {
+            drag.current = {
+              id: "", corner: handle.corner, resizeStart: resizeStart(),
+              x: p.x, y: p.y, cx: e.clientX, cy: e.clientY,
+              view: { ...view }, pan: false, pointerId: e.pointerId,
+            };
+            scene.current?.focus();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            setBusy(true);
+            e.preventDefault();
+            return;
+          }
           const hit = [...model.current.objects].reverse().find((o) =>
             p.x >= o.x && p.x <= o.x + o.width && p.y >= o.y &&
             p.y <= o.y + objectLayouts.get(o.id)!.height
@@ -916,7 +983,12 @@ export function App() {
           }
           const dx = (e.clientX - d.cx) / d.view.z,
             dy = (e.clientY - d.cy) / d.view.z;
-          if (d.pan) {
+          if (d.corner && d.resizeStart) {
+            if (!resizeStillValid(d.resizeStart)) { cancel(); return; }
+            d.crossed ||= Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3;
+            setBoard(d.crossed ? resizedBoard(d.corner, d.resizeStart, dx, dy, e.shiftKey)
+              : { ...model.current });
+          } else if (d.pan) {
             setView({
               x: clamp(d.x - dx, -1e6, 1e6),
               y: clamp(d.y - dy, -1e6, 1e6),
@@ -941,7 +1013,13 @@ export function App() {
           setBusy(false);
           if (!d) return;
           const delta = Math.hypot(e.clientX - d.cx, e.clientY - d.cy);
-          if (!d.pan && (d.id === "Sticky" || d.id === "Text")) {
+          if (d.corner && d.resizeStart) {
+            if ((d.crossed || delta >= 3) && resizeStillValid(d.resizeStart)) {
+              commit(resizedBoard(d.corner, d.resizeStart,
+                (e.clientX - d.cx) / d.view.z, (e.clientY - d.cy) / d.view.z, e.shiftKey), true);
+            }
+            setBoard({ ...model.current });
+          } else if (!d.pan && (d.id === "Sticky" || d.id === "Text")) {
             if (delta < 3 && !d.cancelled) {
               try {
                 const next = add(
@@ -1045,6 +1123,10 @@ export function App() {
             })}
           </Layer>
         </Stage>
+        {handlesVisible && handlePoints.map((h) => <div key={h.corner}
+          className={"resize-handle " + h.corner} aria-hidden="true"
+          style={{ left: pos(h).left, top: pos(h).top,
+            cursor: spacePan ? "grab" : undefined }} />)}
         {selectionBox && <div className="selection-box" aria-hidden="true" style={{
           left: pos(selectionBox).left, top: pos(selectionBox).top,
           width: selectionBox.width * view.z, height: selectionBox.height * view.z,
@@ -1267,6 +1349,15 @@ export function App() {
           <small>
             X {bounds?.x ?? "—"} · Y {bounds?.y ?? "—"} · 10 units per step
           </small>
+          <small>W {bounds ? Math.round(bounds.width) : "—"} · H {bounds ? Math.round(bounds.height) : "—"}</small>
+          <div className="sizes">
+            {[
+              ["Wider", 10, 0], ["Narrower", -10, 0], ["Taller", 0, 10], ["Shorter", 0, -10],
+            ].map(([name, x, y]) => <button key={name}
+              aria-label={(selected.size > 1 ? "Make objects " : "Make object ") + String(name).toLowerCase()}
+              disabled={!selected.size || readOnly || composing || busy}
+              onClick={() => resizeBy(Number(x), Number(y))}>{name}</button>)}
+          </div>
           <div>
             {(["sticky", "text"] as const).map((type) => (
               <button

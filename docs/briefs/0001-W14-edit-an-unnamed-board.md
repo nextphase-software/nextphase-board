@@ -1,8 +1,10 @@
 BRIEF VERSION: 0001-W14 v1 (2026-10-23)
 # 0001-W14 — Edit an unnamed board
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 interaction v9](../architecture/0001-interaction-v9.md) to main.
+Status: Implemented. Independently reviewed at `7492784` (pass) and merged into
+main on 2026-10-23 with [0001 interaction v9](../architecture/0001-interaction-v9.md).
+The implementation record below, which lists the validated revisions, was written
+before that review.
 
 ## Outcome
 

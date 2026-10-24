@@ -26,9 +26,14 @@ eight colours, four text sizes and alignment saved through
 [document v2](../architecture/0001-document-v2.md) under
 [interaction v8](../architecture/0001-interaction-v8.md), is implemented and merged into main.
 
-[0001-W14 v1 — Edit an unnamed board](0001-W14-edit-an-unnamed-board.md) is a draft:
-an invalid board name blocks only Save, governed by
-[interaction v9](../architecture/0001-interaction-v9.md).
+[0001-W14 v1 — Edit an unnamed board](0001-W14-edit-an-unnamed-board.md), an invalid
+board name blocking only Save under
+[interaction v9](../architecture/0001-interaction-v9.md), is implemented and merged into main.
+
+[0001-W7 v1 — Select and move multiple objects](0001-W7-select-and-move-multiple-objects.md)
+is a draft: a selection box, Shift-click, select all and a multiple-selection Objects
+list, with moves, commands and undo acting on the whole set, governed by
+[interaction v10](../architecture/0001-interaction-v10.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

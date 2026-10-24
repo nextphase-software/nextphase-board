@@ -51,10 +51,15 @@ group to the saved format and defines how version 1 and 2 boards are read;
 ungrouping and selecting groups. They replace document v2 and interaction v12 for
 later work.
 
-Draft for 0001-W11 brief v1: [0001 interaction v14](0001-interaction-v14.md) adds
+[0001 interaction v14](0001-interaction-v14.md), accepted with 0001-W11, adds
 copying, cutting and pasting selected objects through a per-tab object clipboard,
 with their text written to the system clipboard as plain text. It replaces v13 for
-later work once accepted.
+later work.
+
+Draft for 0001-W15 brief v1: [0001 web modules v1](0001-web-modules-v1.md) describes
+how the web app's source is organised (rules, state, object types, screen parts and
+composition), who owns what, and the rules every later brief follows. It changes no
+behaviour or contract.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

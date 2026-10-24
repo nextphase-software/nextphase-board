@@ -49,9 +49,13 @@ one-level groups selected and edited together, saved through
 [document v3](../architecture/0001-document-v3.md) under
 [interaction v13](../architecture/0001-interaction-v13.md), is implemented and merged into main.
 
-[0001-W11 v1 — Copy and paste board objects](0001-W11-copy-and-paste-board-objects.md)
-is a draft: copy, cut and paste selected objects within Board, governed by
-[interaction v14](../architecture/0001-interaction-v14.md).
+[0001-W11 v1 — Copy and paste board objects](0001-W11-copy-and-paste-board-objects.md),
+copying, cutting and pasting selected objects within Board under
+[interaction v14](../architecture/0001-interaction-v14.md), is implemented and merged into main.
+
+[0001-W15 v1 — Move the screen parts out of App.tsx](0001-W15-move-screen-parts-out-of-app.md)
+is a draft: the bars and panels around the canvas move into their own components with
+no change in behaviour, following [web modules v1](../architecture/0001-web-modules-v1.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

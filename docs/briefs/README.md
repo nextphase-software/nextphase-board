@@ -35,10 +35,14 @@ a selection box, Shift-click, select all and a multiple-selection Objects list, 
 moves, commands and undo acting on the whole set under
 [interaction v10](../architecture/0001-interaction-v10.md), is implemented and merged into main.
 
-[0001-W8 v1 — Resize selected objects](0001-W8-resize-selected-objects.md) is a draft:
-corner handles for one object or a set, minimum sizes, a floor that keeps text
-visible within the height limits, and size buttons in Objects, governed by
-[interaction v11](../architecture/0001-interaction-v11.md).
+[0001-W8 v1 — Resize selected objects](0001-W8-resize-selected-objects.md), corner
+handles for one object or a set, minimum sizes, a floor that keeps text visible within
+the height limits, and size buttons in Objects under
+[interaction v11](../architecture/0001-interaction-v11.md), is implemented and merged into main.
+
+[0001-W9 v1 — Align and order selected objects](0001-W9-align-and-order-selected-objects.md)
+is a draft: align, distribute and restack selected objects from an Arrange menu and
+Objects, governed by [interaction v12](../architecture/0001-interaction-v12.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

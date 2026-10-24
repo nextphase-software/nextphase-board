@@ -36,11 +36,15 @@ several objects be selected, with a selection box, Shift-click, Cmd/Ctrl+A or th
 Objects list, and moved, styled, duplicated, deleted and undone together. It
 replaces v9 for later work.
 
-Draft for 0001-W8 brief v1: [0001 interaction v11](0001-interaction-v11.md) adds
-corner handles that resize one object or a set, with minimum sizes, a floor that
-keeps text visible within the height limits and size buttons in Objects, and corrects
-two sentences of v10. It replaces
-v10 for later work once accepted.
+[0001 interaction v11](0001-interaction-v11.md), accepted with 0001-W8, adds corner
+handles that resize one object or a set, with minimum sizes, a floor that keeps text
+visible within the height limits and size buttons in Objects, and corrects two
+sentences of v10. It replaces v10 for later work.
+
+Draft for 0001-W9 brief v1: [0001 interaction v12](0001-interaction-v12.md) adds
+aligning, distributing and restacking selected objects, from an Arrange menu and
+Objects, with order recorded in undo history. It replaces v11 for later work once
+accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

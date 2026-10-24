@@ -1,8 +1,10 @@
 BRIEF VERSION: 0001-W8 v1 (2026-10-23)
 # 0001-W8 — Resize selected objects
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 interaction v11](../architecture/0001-interaction-v11.md) to main.
+Status: Implemented. Independently reviewed at `9348c83` (pass) and merged into
+main on 2026-10-24 with [0001 interaction v11](../architecture/0001-interaction-v11.md).
+The implementation record below, which lists the validated revisions, was written
+before that review.
 
 ## Outcome
 

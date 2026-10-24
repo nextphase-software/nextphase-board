@@ -11,11 +11,13 @@ import {
   validText,
 } from "../apps/web/src/document.ts";
 import { ALIGNMENTS, COLORS, DEFAULT_STYLES, TEXT_SIZES } from "../apps/web/src/styles.ts";
-const legacy = (b) => ({ ...b, schemaVersion: 1, objects: b.objects.map(({ color, textSize, align, ...o }) => o) });
-for (const version of [1, 2]) {
+const legacy = (b) => ({ ...b, schemaVersion: 1, objects: b.objects.map(({ color, textSize, align, group, ...o }) => o) });
+const v2 = (b) => ({ ...b, schemaVersion: 2, objects: b.objects.map(({ group, ...o }) => o) });
+const versioned = (b, version) => version === 1 ? legacy(b) : version === 2 ? v2(b) : b;
+for (const version of [1, 2, 3]) {
   const test = (name, fn) => nodeTest(`v${version}: ${name}`, fn);
-  const empty = () => version === 1 ? legacy(emptyV2()) : emptyV2();
-  const add = (...args) => version === 1 ? legacy(addV2(...args)) : addV2(...args);
+  const empty = () => versioned(emptyV2(), version);
+  const add = (...args) => versioned(addV2(...args), version);
 test("named board canonical roundtrip, independent identities and exact Unicode", () => {
   let b = { ...empty(), title: "Team 🧭" };
   b = add(b, "sticky", 0, 0);
@@ -34,7 +36,7 @@ test("malformed schemas, duplicate identities and invalid geometry fail closed",
   const b = add({ ...empty(), title: "Example" }, "text", 0, 0);
   for (
     const mutate of [
-      (x) => x.schemaVersion = 3,
+      (x) => x.schemaVersion = 4,
       (x) => x.unknown = true,
       (x) => x.objects[0].id = x.boardId,
       (x) => x.objects[0].x = Infinity,
@@ -108,7 +110,8 @@ nodeTest("v1 canonical bytes stay exact and upgrading adds only defaults", () =>
   const decoded = validate(JSON.parse(bytes));
   assert.equal(canonical(decoded), bytes);
   const upgraded = upgrade(decoded);
-  assert.equal(upgraded.schemaVersion, 2);
+  assert.equal(upgraded.schemaVersion, 3);
+  assert(upgraded.objects.every((o) => o.group === null));
   assert.deepEqual(legacy(upgraded), b);
   assert.deepEqual(upgraded.objects.map(({ color, textSize, align }) => ({ color, textSize, align })),
     [DEFAULT_STYLES.sticky, DEFAULT_STYLES.text]);
@@ -121,17 +124,21 @@ nodeTest("v1 canonical bytes stay exact and upgrading adds only defaults", () =>
   adapter.destroy();
 });
 nodeTest("v2 accepts every style combination on both object types", () => {
-  assert.equal(emptyV2().schemaVersion, 2);
+  assert.equal(emptyV2().schemaVersion, 3);
   for (const type of ["sticky", "text"]) {
     const b = addV2({ ...emptyV2(), title: "Styles" }, type, 0, 0);
-    assert.equal(b.schemaVersion, 2);
+    assert.equal(b.schemaVersion, 3);
+    assert.equal(b.objects[0].group, null);
     for (const key of ["color", "textSize", "align"]) assert.equal(b.objects[0][key], DEFAULT_STYLES[type][key]);
     for (const c of COLORS) for (const s of TEXT_SIZES) for (const a of ALIGNMENTS) {
       const styled = { ...b, objects: [{ ...b.objects[0], color: c.name, textSize: s.name, align: a.name }] };
-      assert.deepEqual(validate(JSON.parse(canonical(styled))), styled);
-      assert.deepEqual(Object.keys(JSON.parse(canonical(styled)).objects[0]), [
-        "id", "generation", "type", "text", "color", "textSize", "align", "x", "y", "width", "height", "order",
-      ]);
+      for (const versioned of [v2(styled), styled]) {
+        assert.deepEqual(validate(JSON.parse(canonical(versioned))), versioned);
+        assert.deepEqual(Object.keys(JSON.parse(canonical(versioned)).objects[0]), [
+          "id", "generation", "type", "text", "color", "textSize", "align",
+          ...(versioned.schemaVersion === 3 ? ["group"] : []), "x", "y", "width", "height", "order",
+        ]);
+      }
     }
     for (const key of ["color", "textSize", "align"]) {
       for (const value of ["unknown", "", null, 1, {}, [b.objects[0][key]]]) {
@@ -183,5 +190,84 @@ nodeTest("adapter stores style atomically with size growth in one transaction", 
   const recreated = new Adapter();
   recreated.set(validate(JSON.parse(canonical(after))));
   assert.deepEqual(recreated.doc.getMap("objects").get(b.objects[0].id).get("style"), map.get("style"));
+  adapter.destroy(); recreated.destroy();
+});
+
+nodeTest("v3 group validation accepts shared IDs, null and singleton groups and rejects collisions", () => {
+  let b = addV2(addV2({ ...emptyV2(), title: "Group validation" }, "sticky", 0, 0), "text", 400, 0);
+  b = addV2(b, "sticky", 800, 0);
+  b.retiredGenerations = [crypto.randomUUID()];
+  const group = crypto.randomUUID();
+  for (const membership of [[null, null, null], [group, group, null], [group, null, null]]) {
+    const grouped = { ...b, objects: b.objects.map((o, i) => ({ ...o, group: membership[i] })) };
+    assert.deepEqual(validate(JSON.parse(canonical(grouped))), grouped);
+  }
+  const invalidValues = [undefined, 42, {}, [group], "", group.toUpperCase(), "not-a-uuid",
+    group.slice(0, 14) + "5" + group.slice(15), b.boardId, ...b.objects.flatMap((o) => [o.id, o.generation]), ...b.retiredGenerations];
+  for (const value of invalidValues) {
+    const invalid = structuredClone(b);
+    invalid.objects[0].group = value;
+    const before = structuredClone(invalid);
+    assert.throws(() => validate(invalid));
+    assert.throws(() => canonical(invalid));
+    assert.deepEqual(invalid, before);
+  }
+  const missing = structuredClone(b);
+  delete missing.objects[0].group;
+  assert.throws(() => validate(missing));
+  const extra = structuredClone(b);
+  extra.objects[0].groups = [];
+  assert.throws(() => validate(extra));
+  for (const old of [legacy(b), v2(b)]) {
+    old.objects[0].group = null;
+    assert.throws(() => validate(old));
+  }
+});
+
+for (const version of [1, 2]) nodeTest(`v${version} exact bytes survive decoding and in-memory v3 upgrade`, () => {
+  const current = addV2(addV2({ ...emptyV2(), title: "Legacy groups 🧭" }, "sticky", 0, 0), "text", 400, 0);
+  current.objects[1].color = "teal";
+  current.objects[1].text = "你好\ne\u0301";
+  const old = versioned(current, version), bytes = JSON.stringify(old);
+  const decoded = validate(JSON.parse(bytes)), before = structuredClone(decoded);
+  const upgraded = upgrade(decoded);
+  assert.equal(canonical(decoded), bytes);
+  assert.deepEqual(decoded, before);
+  assert.equal(upgraded.schemaVersion, 3);
+  assert(upgraded.objects.every((o) => o.group === null));
+  assert.deepEqual(versioned(upgraded, version), old);
+  assert.equal(upgrade(upgraded), upgraded);
+  assert.equal(upgraded.objects[1].color, version === 1 ? "neutral" : "teal");
+  if (version === 2) assert.deepEqual(Object.keys(JSON.parse(bytes).objects[0]), [
+    "id", "generation", "type", "text", "color", "textSize", "align", "x", "y", "width", "height", "order",
+  ]);
+});
+
+nodeTest("v3 canonical group key order and atomic adapter membership survive recreation", () => {
+  const b = addV2(addV2({ ...emptyV2(), title: "Atomic group" }, "sticky", 0, 0), "text", 400, 0);
+  const group = crypto.randomUUID();
+  const grouped = { ...b, objects: b.objects.map((o) => ({ ...o, group })) };
+  const shuffled = { ...grouped, objects: grouped.objects.map((o) => Object.fromEntries(Object.entries(o).reverse())) };
+  assert.equal(canonical(shuffled), canonical(grouped));
+  assert.deepEqual(Object.keys(JSON.parse(canonical(grouped)).objects[0]), [
+    "id", "generation", "type", "text", "color", "textSize", "align", "group", "x", "y", "width", "height", "order",
+  ]);
+  const adapter = new Adapter();
+  adapter.set(b);
+  const maps = b.objects.map((o) => adapter.doc.getMap("objects").get(o.id));
+  assert(maps.every((m) => m.get("group") === null));
+  const changes = [];
+  for (const m of maps) m.observe((event) => changes.push([...event.keysChanged]));
+  let revisions = 0;
+  adapter.doc.on("afterTransaction", () => revisions++);
+  adapter.set(grouped);
+  assert.equal(revisions, 1);
+  assert.deepEqual(changes, [["group"], ["group"]]);
+  assert(maps.every((m, i) => m === adapter.doc.getMap("objects").get(b.objects[i].id) && m.get("group") === group));
+  const recreated = new Adapter();
+  recreated.set(validate(JSON.parse(canonical(grouped))));
+  assert(b.objects.every((o) => recreated.doc.getMap("objects").get(o.id).get("group") === group));
+  adapter.set(b);
+  assert(maps.every((m) => m.get("group") === null));
   adapter.destroy(); recreated.destroy();
 });

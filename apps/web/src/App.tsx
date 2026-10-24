@@ -6,11 +6,11 @@ import {
   Adapter,
   add,
   type Board as SavedBoard,
-  type BoardV2 as Board,
+  type BoardV3 as Board,
   clamp,
   count,
   empty,
-  type ItemV2 as Item,
+  type ItemV3 as Item,
   upgrade,
   validText,
 } from "./document";
@@ -24,6 +24,7 @@ import { boundingBox, boxSelection, limitMove } from "./selection";
 import { editingCommandReason } from "./commands";
 import { resizeObject, resizeSet, type Corner, type Rectangle } from "./resize";
 import { ARRANGE_GROUPS, arrangeOrder, arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "./arrange";
+import { expandSelection, groupNumbers, groupObjects, groupReason, pressSelection, toggleGroup, ungroupObjects, wholeGroups } from "./group";
 
 const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
 type ResizeStart = { object: Item; rectangle: Rectangle };
@@ -134,6 +135,8 @@ export function App() {
   })), [board.objects, inline, selectedId, text]);
   const displayedObjects = board.objects.map((o) => ({ ...o, displayHeight: objectLayouts.get(o.id)!.height }));
   const bounds = boundingBox(displayedObjects.filter((o) => selected.has(o.id)));
+  const selectedGroups = wholeGroups(displayedObjects, selected);
+  const numbers = groupNumbers(board.objects);
   const handlesVisible = !!bounds && tool === "Select" && !readOnly && !inline && !composing &&
     (!busy || !!drag.current?.corner);
   const handlePoints = bounds ? CORNERS.map((corner) => ({
@@ -584,7 +587,7 @@ export function App() {
         : navButton).current?.focus();
     }
   }
-  function point(e: React.PointerEvent) {
+  function point(e: { clientX: number; clientY: number }) {
     const r = scene.current!.getBoundingClientRect();
     return {
       x: view.x + (e.clientX - r.left - size.w / 2) / view.z,
@@ -813,12 +816,19 @@ export function App() {
   }, [arrangeOpen]);
   const editingState = { readOnly, composing, pointerGesture: busy, invalidObjectText };
   const arrangementMembers = displayedObjects.filter((o) => selected.has(o.id));
+  function arrangementReason(name: ArrangeCommand) {
+    return name === "Group" || name === "Ungroup"
+      ? groupReason(name, model.current, selected, editingState)
+      : arrangeReason(name, arrangementMembers, editingState);
+  }
   function arrange(name: ArrangeCommand) {
-    if (arrangeReason(name, arrangementMembers, editingState)) return;
+    if (arrangementReason(name)) return;
     finishTextSession();
     setInline(false);
     const current = model.current;
-    if (isOrderCommand(name)) {
+    if (name === "Group" || name === "Ungroup") {
+      commit(name === "Group" ? groupObjects(current, selected) : ungroupObjects(current, selected), true);
+    } else if (isOrderCommand(name)) {
       commit({ ...current, objects: arrangeOrder(name, current.objects, selected) }, true,
         current.objects.filter((o) => selected.has(o.id)).map((o) => o.id));
     } else {
@@ -836,7 +846,7 @@ export function App() {
       role="group" aria-label={group.label}>
       <h3>{group.label}</h3>
       {group.commands.map((name) => {
-        const reason = arrangeReason(name, arrangementMembers, editingState);
+        const reason = arrangementReason(name);
         const description = prefix + "-" + name.replaceAll(" ", "-");
         return <span key={name}>
           <button disabled={!!reason} title={reason || name}
@@ -1008,12 +1018,11 @@ export function App() {
           } else if (tool === "Select") {
             if (hit) {
               if (e.shiftKey) {
-                const next = new Set(selected);
-                if (next.has(hit.id)) next.delete(hit.id); else next.add(hit.id);
-                select(next);
+                select(toggleGroup(model.current.objects, selected, hit.id));
               } else {
-                const ids = selected.has(hit.id) ? [...selected] : [hit.id];
-                if (readOnly || !selected.has(hit.id)) select(hit.id);
+                const expanded = pressSelection(model.current.objects, selected, hit.id);
+                const ids = selected.has(hit.id) ? [...selected] : [...expanded];
+                if (readOnly || !selected.has(hit.id)) select(expanded);
                 if (!readOnly) drag.current = {
                   id: hit.id, ids, x: hit.x, y: hit.y,
                   cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false,
@@ -1029,7 +1038,7 @@ export function App() {
               };
             }
           } else if (hit) {
-            select(hit.id);
+            select(pressSelection(model.current.objects, selected, hit.id));
             setTool("Select");
           } else {
             drag.current = {
@@ -1069,7 +1078,7 @@ export function App() {
             if (Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3) {
               const end = { x: d.x + dx, y: d.y + dy };
               setSelectionBox({ x: Math.min(d.x, end.x), y: Math.min(d.y, end.y), width: Math.abs(dx), height: Math.abs(dy) });
-              select([...(d.additive ? d.previous ?? [] : []), ...boxSelection(d, end, displayedObjects)]);
+              select(expandSelection(model.current.objects, [...(d.additive ? d.previous ?? [] : []), ...boxSelection(d, end, displayedObjects)]));
             } else {
               setSelectionBox(null);
               select(d.additive ? d.previous ?? [] : []);
@@ -1111,21 +1120,31 @@ export function App() {
           } else if (d.box) {
             if (delta >= 3) {
               const end = { x: d.x + (e.clientX - d.cx) / d.view.z, y: d.y + (e.clientY - d.cy) / d.view.z };
-              select([...(d.additive ? d.previous ?? [] : []), ...boxSelection(d, end, displayedObjects)]);
+              select(expandSelection(model.current.objects, [...(d.additive ? d.previous ?? [] : []), ...boxSelection(d, end, displayedObjects)]));
             } else select(d.additive ? d.previous ?? [] : []);
           } else if (!d.pan) {
             if (delta >= 3 && d.ids) commit(movedBoard(d.ids,
               (e.clientX - d.cx) / d.view.z, (e.clientY - d.cy) / d.view.z), true);
             else {
-              select(d.id);
+              select(pressSelection(model.current.objects, selected, d.id));
               setBoard({ ...model.current });
             }
           }
           setSelectionBox(null);
           releaseCapture(d.pointerId);
         }}
-        onDoubleClick={() => {
-          if (!spacePanRef.current && selected.size === 1) edit();
+        onDoubleClick={(e) => {
+          if (spacePanRef.current || composing || busy) return;
+          const p = point(e);
+          const hit = [...model.current.objects].reverse().find((o) =>
+            p.x >= o.x && p.x <= o.x + o.width && p.y >= o.y &&
+            p.y <= o.y + objectLayouts.get(o.id)!.height);
+          if (!hit) return;
+          select(hit.id);
+          if (!readOnly) {
+            setPanel("");
+            setInline(true);
+          }
         }}
         onPointerCancel={() => {
           const d = drag.current;
@@ -1194,6 +1213,14 @@ export function App() {
             })}
           </Layer>
         </Stage>
+        {[...selectedGroups].filter(([, members]) => members.length >= 2).map(([id, members]) => {
+          const box = boundingBox(members)!;
+          return <svg key={id} className="group-outline" aria-hidden="true"
+            style={{ left: pos(box).left, top: pos(box).top }}
+            width={box.width * view.z} height={box.height * view.z}>
+            <rect width={box.width * view.z} height={box.height * view.z} />
+          </svg>;
+        })}
         {handlesVisible && handlePoints.map((h) => <div key={h.corner}
           className={"resize-handle " + h.corner} aria-hidden="true"
           style={{ left: pos(h).left, top: pos(h).top,
@@ -1363,7 +1390,7 @@ export function App() {
           >
             {board.objects.map((o, i) => (
               <option key={o.id} value={o.id}>
-                {o.type} {i + 1} ·{" "}
+                {o.type} {i + 1}{o.group !== null ? " · Group " + numbers.get(o.group) : ""} ·{" "}
                 {(drafts[o.id] ?? o.text).slice(0, 36) || "Empty"}
               </option>
             ))}

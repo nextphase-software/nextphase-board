@@ -534,3 +534,106 @@ test("order-only changes remain ignored by legacy recording and removal excludes
   const undone = undo(removed.board, removed.history);
   assert.deepEqual(undone.board.objects.map(withoutGeneration), initial.objects.map(withoutGeneration));
 });
+
+for (const name of ["Group", "Ungroup"]) test(`${name} is one transaction and history step with exact undo and redo`, async () => {
+  const { groupObjects, ungroupObjects } = await import("../apps/web/src/group.ts");
+  let initial = setBoard();
+  initial = groupObjects(initial, new Set(initial.objects.slice(0, 2).map((o) => o.id)));
+  const s = session(initial);
+  const selection = new Set([initial.objects[0].id, initial.objects[2].id]);
+  const next = name === "Group" ? groupObjects(initial, selection) : ungroupObjects(initial, selection);
+  s.record(next);
+  assert.equal(s.revision, 1);
+  assert.equal(s.history.past.length, 1);
+  const changed = initial.objects.filter((o, i) => o.group !== next.objects[i].group).map((o) => o.id);
+  assert.deepEqual(s.history.past[0].changes.map((c) => c.before.id), changed);
+  const reverted = undo(s.board, s.history);
+  assert.deepEqual(reverted.affectedIds, changed);
+  s.adopt(reverted);
+  assert.equal(s.revision, 2);
+  assert.deepEqual(s.board, initial);
+  s.adopt(redo(s.board, s.history));
+  assert.equal(s.revision, 3);
+  assert.deepEqual(s.board, next);
+  s.close();
+});
+
+test("Duplicate gives each whole group its own fresh ID and leaves partial and ungrouped copies null", async () => {
+  const { groupObjects } = await import("../apps/web/src/group.ts");
+  let initial = setBoard();
+  initial = groupObjects(initial, new Set(initial.objects.slice(0, 2).map((o) => o.id)));
+  initial = groupObjects(initial, new Set(initial.objects.slice(2, 4).map((o) => o.id)));
+  // A singleton is still a whole group when copied.
+  initial.objects[4].group = crypto.randomUUID();
+  const full = duplicate(initial, emptyHistory(), initial.objects);
+  const copies = full.board.objects.slice(initial.objects.length);
+  assert.equal(copies[0].group, copies[1].group);
+  assert.equal(copies[2].group, copies[3].group);
+  assert.equal(new Set(copies.map((o) => o.group)).size, 3);
+  const originals = new Set([initial.boardId, ...initial.retiredGenerations,
+    ...initial.objects.flatMap((o) => [o.id, o.generation, o.group])]);
+  for (const o of copies) for (const id of [o.id, o.generation, o.group]) assert(!originals.has(id));
+  assert.equal(new Set(copies.flatMap((o) => [o.id, o.generation])).size, copies.length * 2);
+  assert(copies.every((o) => !copies.some((other) => other.id === o.group || other.generation === o.group)));
+  validate(full.board);
+  const reverted = undo(full.board, full.history);
+  assert.deepEqual(reverted.board.objects, initial.objects);
+  const reapplied = redo(reverted.board, reverted.history);
+  assert.deepEqual(reapplied.board.objects.slice(initial.objects.length).map(withoutGeneration), copies.map(withoutGeneration));
+  validate(reapplied.board);
+  const partial = duplicate(initial, emptyHistory(), [initial.objects[0], initial.objects[2]]);
+  assert.deepEqual(partial.board.objects.slice(initial.objects.length).map((o) => o.group), [null, null]);
+  const plain = add(initial, "text", 900, 0);
+  const ungrouped = duplicate(plain, emptyHistory(), plain.objects.at(-1));
+  assert.equal(ungrouped.board.objects.at(-1).group, null);
+  const removed = deleteObject(initial, emptyHistory(), initial.objects[0]);
+  assert.equal(removed.board.objects[0].group, initial.objects[1].group);
+  const restored = undo(removed.board, removed.history);
+  assert.deepEqual(restored.board.objects.map(withoutGeneration), initial.objects.map(withoutGeneration));
+  validate(restored.board);
+});
+
+test("fresh IDs for add, grouping, duplicate and resurrection avoid group IDs and all same-command IDs", async (t) => {
+  const { groupObjects } = await import("../apps/web/src/group.ts");
+  let initial = setBoard();
+  initial = groupObjects(initial, new Set(initial.objects.slice(0, 2).map((o) => o.id)));
+  initial = groupObjects(initial, new Set(initial.objects.slice(2, 4).map((o) => o.id)));
+  initial.retiredGenerations = [crypto.randomUUID()];
+  const random = crypto.randomUUID.bind(crypto);
+  const forbidden = [initial.boardId, ...initial.retiredGenerations,
+    ...initial.objects.flatMap((o) => [o.id, o.generation, ...(o.group ? [o.group] : [])])];
+  let sequence = [];
+  t.mock.method(crypto, "randomUUID", () => sequence.length ? sequence.shift() : random());
+  const a = random(), b = random();
+  sequence = [...forbidden, a, ...forbidden, a, b];
+  const added = add(initial, "text", 0, 0);
+  assert.equal(added.objects.at(-1).id, a);
+  assert.equal(added.objects.at(-1).generation, b);
+  assert.equal(sequence.length, 0);
+  const g = random();
+  sequence = [...forbidden, g];
+  const grouped = groupObjects(initial, new Set(initial.objects.map((o) => o.id)));
+  assert(grouped.objects.every((o) => o.group === g));
+  assert.equal(sequence.length, 0);
+  const g1 = random(), g2 = random(), id1 = random(), gen1 = random(), id2 = random(), gen2 = random();
+  sequence = [...forbidden, g1, ...forbidden, g1, g2,
+    ...forbidden, g1, g2, id1, g1, g2, id1, gen1, id1, gen1, id2, id2, gen2];
+  const copied = duplicate(initial, emptyHistory(), initial.objects.slice(0, 4));
+  const copies = copied.board.objects.slice(initial.objects.length);
+  assert.equal(copies[0].group, g1);
+  assert.equal(copies[2].group, g2);
+  assert.equal(copies[0].id, id1);
+  assert.equal(copies[0].generation, gen1);
+  assert.equal(copies[1].id, id2);
+  assert.equal(copies[1].generation, gen2);
+  assert.equal(sequence.length, 0);
+  validate(copied.board);
+  const removed = deleteObject(initial, emptyHistory(), initial.objects.slice(0, 2));
+  const fresh = random(), fresh2 = random();
+  sequence = [...forbidden, fresh, fresh, fresh2];
+  const restored = undo(removed.board, removed.history);
+  assert.equal(restored.board.objects[0].generation, fresh);
+  assert.equal(restored.board.objects[1].generation, fresh2);
+  assert.equal(sequence.length, 0);
+  validate(restored.board);
+});

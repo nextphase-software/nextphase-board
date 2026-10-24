@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { Board, Item } from "./document.ts";
+import { freshIdentifier as fresh, type Board, type Item } from "./document.ts";
 
 type ObjectChange = { before: Item | null; after: Item | null };
 export type Step = { changes: ObjectChange[] };
@@ -29,16 +29,6 @@ export function record(history: History, before: Board, after: Board, orderIds?:
   return { past: [...history.past, structuredClone(step)].slice(-100), future: [] };
 }
 
-function fresh(board: Board, extra: string[] = []): string {
-  const used = new Set([
-    board.boardId, ...board.retiredGenerations, ...extra,
-    ...board.objects.flatMap((o) => [o.id, o.generation]),
-  ]);
-  let id: string;
-  do id = crypto.randomUUID(); while (used.has(id));
-  return id;
-}
-
 function apply(board: Board, changes: { source: Item | null; target: Item | null }[]): Board {
   const current = new Map(board.objects.map((o) => [o.id, o]));
   for (const { source, target } of changes) {
@@ -60,7 +50,7 @@ function apply(board: Board, changes: { source: Item | null; target: Item | null
     : board.retiredGenerations;
   const ids = new Set(changes.map((c) => (c.source ?? c.target)!.id));
   const objects = board.objects.filter((o) => !ids.has(o.id));
-  const reserved = changes.flatMap((c) => c.target ? [c.target.id, c.target.generation] : []);
+  const reserved = changes.flatMap((c) => c.target ? [c.target.id, c.target.generation, ...("group" in c.target && c.target.group ? [c.target.group] : [])] : []);
   for (const { target } of changes.filter((c) => c.target).sort((a, b) => a.target!.order - b.target!.order)) {
     const generation = current.get(target!.id)?.generation ?? fresh(board, reserved);
     reserved.push(generation);
@@ -119,11 +109,20 @@ export function duplicate(board: Board, history: History, target: Item | Item[])
   const items = targets(board, target);
   if (board.objects.length + items.length > 250) throw Error("250 object limit reached");
   const objects = [...board.objects];
+  const selected = new Set(items.map((o) => o.id));
+  const groups = new Map<string, string | null>();
+  for (const item of items) {
+    if (!("group" in item) || !item.group || groups.has(item.group)) continue;
+    const whole = board.objects.every((o) => !("group" in o) || o.group !== item.group || selected.has(o.id));
+    groups.set(item.group, whole ? fresh(board, [...groups.values()].filter((id) => id !== null)) : null);
+  }
+  const reserved = [...groups.values()].filter((id) => id !== null);
   for (const item of items) {
     const current = { ...board, objects };
-    const id = fresh(current);
+    const id = fresh(current, reserved);
     objects.push({
-      ...item, id, generation: fresh(current, [id]),
+      ...item, id, generation: fresh(current, [...reserved, id]),
+      ...("group" in item ? { group: item.group ? groups.get(item.group)! : null } : {}),
       x: Math.max(-1e6, Math.min(1e6 - item.width, item.x + 24)),
       y: Math.max(-1e6, Math.min(1e6 - item.height, item.y + 24)),
       order: objects.length,

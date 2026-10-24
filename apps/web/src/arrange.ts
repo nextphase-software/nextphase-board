@@ -9,6 +9,7 @@ export const ARRANGE_GROUPS = [
   ] },
   { label: "Distribute", commands: ["Distribute horizontally", "Distribute vertically"] },
   { label: "Order", commands: ["Bring to front", "Bring forward", "Send backward", "Send to back"] },
+  { label: "Group", commands: ["Group", "Ungroup"] },
 ] as const;
 export type ArrangeCommand = typeof ARRANGE_GROUPS[number]["commands"][number];
 export type OrderCommand = typeof ARRANGE_GROUPS[2]["commands"][number];

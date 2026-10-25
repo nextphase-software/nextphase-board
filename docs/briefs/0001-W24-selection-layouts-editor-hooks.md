@@ -1,8 +1,10 @@
 BRIEF VERSION: 0001-W24 v1 (2026-10-25)
 # 0001-W24 — Move selection, object layouts, the editor and panels into hooks
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 web modules v10](../architecture/0001-web-modules-v10.md) to main.
+Status: Implemented. Independently reviewed at `fa0d1da` (pass) and merged into main
+on 2026-10-25 with [0001 web modules v10](../architecture/0001-web-modules-v10.md). The
+implementation record below, which lists the validated revisions, was written before
+that review.
 
 ## Outcome
 

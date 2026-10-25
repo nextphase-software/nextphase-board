@@ -90,10 +90,16 @@ the canvas element's pointer and key handlers with their helpers and the two eff
 end a gesture in one hook called where they were, and the page's keyboard shortcuts in a
 second, with no change in behaviour under [web modules v9](../architecture/0001-web-modules-v9.md), is implemented and merged into main.
 
-[0001-W24 v1 — Move selection, object layouts, the editor and panels into hooks](0001-W24-selection-layouts-editor-hooks.md)
-is a draft: the selection values, the object layouts and resize handles, and where the
-text editor opens with the panels and their three effects, in three hooks, with no change
-in behaviour, following [web modules v10](../architecture/0001-web-modules-v10.md).
+[0001-W24 v1 — Move selection, object layouts, the editor and panels into hooks](0001-W24-selection-layouts-editor-hooks.md),
+the selection values, the object layouts and resize handles, and where the text editor
+opens with the panels and their three effects in three hooks, with no change in behaviour
+under [web modules v10](../architecture/0001-web-modules-v10.md), is implemented and merged into main.
+
+[0001-W25 v1 — Make App.tsx composition only](0001-W25-composition-only.md) is a draft:
+owners for the remaining state and element refs, the pure helpers as rules functions,
+the Content field as a screen part and a check that `App.tsx` creates no React state of
+its own, with no change in behaviour, following
+[web modules v11](../architecture/0001-web-modules-v11.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

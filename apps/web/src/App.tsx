@@ -2,20 +2,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Konva from "konva";
 import {
-  Adapter,
   add,
   type Board as SavedBoard,
-  type BoardV3 as Board,
   clamp,
   count,
   empty,
   type ItemV3 as Item,
-  upgrade,
   validText,
 } from "./document";
 import { colorEntry, textUnits, type Style } from "./styles";
 import { decode, LocalStore, readPair } from "./storage";
-import { deleteObject, duplicate, emptyHistory, record, redo, undo, type History } from "./history";
+import { deleteObject, duplicate, redo, undo } from "./history";
 import { allowedHeight, displayHeight, neededHeight, savedHeight, TEXT_INSET, TEXT_LAYOUT } from "./geometry";
 import { gestureScale, panView, wheelDelta, wheelZoomFactor, zoomView, type View } from "./view";
 import { boundingBox, boxSelection, limitMove } from "./selection";
@@ -25,6 +22,8 @@ import { arrangeOrder, arrangePositions, arrangeReason, isOrderCommand, type Arr
 import { expandSelection, groupNumbers, groupObjects, groupReason, pressSelection, toggleGroup, ungroupObjects, wholeGroups } from "./group";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "./clipboard";
 
+import { useMessages } from "./state/use-messages";
+import { useBoardDocument } from "./state/use-board-document";
 import { usePanelLayout } from "./state/use-panel-layout";
 import { useContextBar } from "./state/use-context-bar";
 
@@ -62,35 +61,30 @@ function lineCount(object: Item, text = object.text): number {
 }
 
 export function App() {
-  const [board, setBoard] = useState<Board>(empty),
-    [title, setTitle] = useState(""),
-    [drafts, setDrafts] = useState<Record<string, string>>({}),
-    [selected, setSelected] = useState<Set<string>>(() => new Set()),
+  const [selected, setSelected] = useState<Set<string>>(() => new Set()),
     [selectionBox, setSelectionBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null),
     [tool, setTool] = useState("Select"),
     [panel, setPanel] = useState(""),
     [inline, setInline] = useState(false),
     [readOnly, setReadOnly] = useState(true),
-    [message, setMessageState] = useState("Opening local board…"),
     [status, setStatus] = useState("Unsaved"),
     [view, setView] = useState<View>({ x: 0, y: 0, z: 1 }),
     [size, setSize] = useState({ w: innerWidth, h: innerHeight }),
     [busy, setBusy] = useState(false),
     [spacePan, setSpacePan] = useState(false),
     [composing, setComposing] = useState(false),
-    [history, setHistory] = useState<History>(emptyHistory),
     [objectClipboard, setObjectClipboard] = useState<Snapshot | null>(null),
     [snapshots, setSnapshots] = useState<{ board: SavedBoard; revision: number }[]>(
       [],
     );
-  const model = useRef(board),
-    messageSequence = useRef(0),
-    historyRef = useRef<History>(history),
-    textSession = useRef<{ before: Board; id: string } | null>(null),
-    revision = useRef(0),
-    ack = useRef(-1),
+  const { setMessage, messageSequence, latestAcknowledgement, visibleMessage } = useMessages();
+  const {
+    board, setBoard, title, setTitle, drafts, setDrafts, history,
+    model, historyRef, textSession, revision, adapter,
+    updateHistory, clearHistory, beginTextSession, finishTextSession, commit, load,
+  } = useBoardDocument({ readOnly, setStatus });
+  const ack = useRef(-1),
     store = useRef<LocalStore | null>(null),
-    adapter = useRef<Adapter | null>(null),
     release = useRef<(() => void) | null>(null),
     scene = useRef<HTMLDivElement>(null),
     contextBar = useRef<HTMLElement>(null),
@@ -129,11 +123,6 @@ export function App() {
       } | null
     >(null),
     alive = useRef(true);
-  function setMessage(value: string) {
-    messageSequence.current++;
-    setMessageState(value);
-  }
-  if (!adapter.current) adapter.current = new Adapter();
   const selectedObjects = board.objects.filter((o) => selected.has(o.id));
   const selectionKey = JSON.stringify(selectedObjects.map((o) => o.id));
   const selectedId = selectedObjects.length === 1 ? selectedObjects[0].id : "";
@@ -243,10 +232,6 @@ export function App() {
       }
     };
   }, [inline]);
-  function updateHistory(next: History) {
-    historyRef.current = next;
-    setHistory(next);
-  }
   function select(value: string | Iterable<string>) {
     finishTextSession();
     setInline(false);
@@ -254,48 +239,11 @@ export function App() {
     setArrangeFor("");
     setSelected(new Set(typeof value === "string" ? value ? [value] : [] : value));
   }
-  function clearHistory() {
-    textSession.current = null;
-    updateHistory(emptyHistory());
-  }
-  function beginTextSession() {
-    if (!item || readOnly || textSession.current?.id === item.id) return;
-    finishTextSession();
-    textSession.current = { before: model.current, id: item.id };
-  }
-  function finishTextSession() {
-    const session = textSession.current;
-    textSession.current = null;
-    if (session) updateHistory(record(historyRef.current, session.before, model.current));
-  }
-  function commit(input: SavedBoard, recordObject = false, orderIds?: readonly string[]) {
-    const next = upgrade(input);
-    if (readOnly) return;
-    if (JSON.stringify(next) === JSON.stringify(model.current)) return;
-    if (recordObject) {
-      finishTextSession();
-      updateHistory(record(historyRef.current, model.current, next, orderIds));
-    }
-    model.current = next;
-    adapter.current!.set(next);
-    revision.current++;
-    setBoard(next);
-    setStatus("Unsaved");
-  }
   function adopt(input: SavedBoard, saved: boolean) {
-    const b = upgrade(input);
-    clearHistory();
-    model.current = b;
-    setBoard(b);
-    adapter.current?.destroy();
-    adapter.current = new Adapter();
-    adapter.current.set(b);
-    setTitle(b.title);
-    setDrafts({});
+    load(input);
     select("");
     setInline(false);
     setView({ x: 0, y: 0, z: 1 });
-    revision.current = 0;
     ack.current = saved ? 0 : -1;
     setStatus(saved ? "Locally saved" : "Unsaved");
   }
@@ -435,7 +383,7 @@ export function App() {
   }
   function changeText(value: string) {
     if (!item || readOnly) return;
-    beginTextSession();
+    beginTextSession(item);
     setDrafts((d) => ({ ...d, [item.id]: value }));
     setStatus("Unsaved");
     if (validText(value, 1000) && !composing) {
@@ -648,7 +596,7 @@ export function App() {
         value={text}
         readOnly={readOnly || busy}
         disabled={!item}
-        onFocus={beginTextSession}
+        onFocus={() => beginTextSession(item)}
         onChange={(e) => changeText(e.target.value)}
         onCompositionStart={() => setComposing(true)}
         onCompositionEnd={(e) => {
@@ -775,11 +723,6 @@ export function App() {
       setMessage(String(error));
     }
   }
-  const acknowledgement = /^Local revision \d+ acknowledged after transaction completion\.$/.test(message);
-  const latestAcknowledgement = useRef("");
-  if (acknowledgement) latestAcknowledgement.current = message;
-  const routineStorage = message === "Stored only in this browser profile. Browser storage is not a backup.";
-  const visibleMessage = acknowledgement || routineStorage ? "" : message;
   const showNotice = !!(visibleMessage || invalid || busy || readOnly ||
     tool === "Sticky" || tool === "Text" || snapshots.length);
   // The context surface follows transformed bounds without changing board geometry.

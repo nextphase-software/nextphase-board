@@ -177,3 +177,65 @@ None beyond the repository's own documents.
 ## Implementation record
 
 Not started.
+
+### 2026-10-25 — Implementation and non-browser validation
+
+- Branch: `codex/0001-W22-geometry-edits`, based on committed main
+  `e302bfae45449beb339a9351bdd0dd82596bcf46`, which contains this v1 brief and
+  web modules v8. The preceding "Not started" entry is superseded by this record.
+- Validated source/test revision: `22cda189d558b85c7d2af86f4714cc54d04574b8`
+  (`refactor(web): extract geometry edits hook`). The commands below ran on the
+  identical source/test contents immediately before that commit; only this
+  implementation record changes afterward. The final branch tip is reported
+  separately in the handoff.
+- `useGeometryEdits` holds `commitText`, `changeText`, `create`, `movedBoard`,
+  `move`, `resizeStart`, `resizeStillValid`, `resizedBoard` and `resizeBy`, moved
+  verbatim in that order from `a054b8a`. Inputs retain their originating types;
+  the local `ResizeStart` type has the original shape. The hook has no effects,
+  uses the Apache-2.0 SPDX header, and imports only React types and rules modules.
+- `App.tsx` newline count: **818 before, 752 after**. The guardrail budget is
+  **752**, its recursive inventory names all nine hooks, and the new check rejects
+  either effect name in the geometry hook. All existing guardrails remain.
+- Additional in-memory source comparison passed: the nine moved functions match
+  `a054b8a` verbatim and in order. Reversing only the permitted extraction and
+  import changes restores `App.tsx` byte-for-byte, including every effect and its
+  order, `fallbackEditor`, `edit`, `ResizeStart`, `lineCount`, markup and handlers.
+  This is source evidence; browser behavior equivalence remains unverified.
+
+Commands ran from the repository root with the pinned distribution selected in
+`PATH` before every Node/npm invocation and the commit's hooks. No machine-specific
+path is recorded.
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed |
+| `npm --prefix apps/web run typecheck` | Exit 0; no diagnostics |
+| `node --test tests/modules.test.mjs` | Exit 0; 19 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web test` | Exit 0; 260 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; accepted lock, runtime inventory and complete distributed notices verified |
+| `git diff --check` | Exit 0; no whitespace errors in implementation diff |
+| `git diff --cached --check` | Exit 0; no whitespace errors in staged implementation diff |
+| `git commit -m 'refactor(web): extract geometry edits hook'` | Exit 0; source/test revision above created; both public-boundary hook checks passed. Git also emitted a `packed-refs.lock` permission error; the commit and branch ref were verified afterward. No hook was bypassed |
+| `git rev-parse HEAD` | Exit 0; `22cda189d558b85c7d2af86f4714cc54d04574b8` after source/test commit |
+| `git rev-parse refs/heads/codex/0001-W22-geometry-edits` | Exit 0; matches the source/test revision above |
+| `git diff --name-only main...HEAD` | Exit 0 after source/test commit; exactly `apps/web/src/App.tsx`, `apps/web/src/state/use-geometry-edits.ts` and `tests/modules.test.mjs`. The final handoff additionally includes this brief's implementation record |
+| `git status --short` | Exit 0; clean after source/test commit |
+
+Dependencies added: **none**. Package manifests, locks, other modules, styles,
+contracts and other existing tests are unchanged. Generated build outputs and
+installed dependencies are ignored and uncommitted. No stash, push or merge.
+
+Not run, per maintainer instruction and the environment's browser limitation:
+browsers, the browser regression harness (both fixture pages), and the W21 A–G
+plus W22 H markup/focus/drawing/saved-record comparison against two baseline runs
+and the candidate. Those checks remain for the independent reviewer. No browser
+matrix, Safari, accessibility, native IME, performance/load or unrelated acceptance
+sweep was run. Fixture compilation does not establish browser fixture passes.
+
+Graph listing, indexing and search were attempted first; each was unavailable
+because the tool required approval under a never-approve policy. File reading was
+used as the discovery fallback. Independent review and browser acceptance remain
+pending; this handoff does not authorize merging or another milestone.

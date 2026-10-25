@@ -83,9 +83,13 @@ for later work.
 unchanged and updates the module inventory for the editing commands hook. It replaces v5
 for later work.
 
-Draft for 0001-W21 brief v1: [0001 web modules v7](0001-web-modules-v7.md) keeps v3's
-rules unchanged and updates the module inventory for the viewport and canvas size hooks.
-It replaces v6 for later work once accepted.
+[0001 web modules v7](0001-web-modules-v7.md), accepted with 0001-W21, keeps v3's rules
+unchanged and updates the module inventory for the viewport and canvas size hooks. It
+replaces v6 for later work.
+
+Draft for 0001-W22 brief v1: [0001 web modules v8](0001-web-modules-v8.md) keeps v3's
+rules unchanged, updates the module inventory for the geometry edits hook and records the
+five-step plan for input and actions. It replaces v7 for later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

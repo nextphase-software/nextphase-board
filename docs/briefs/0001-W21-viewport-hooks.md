@@ -1,8 +1,10 @@
 BRIEF VERSION: 0001-W21 v1 (2026-10-25)
 # 0001-W21 — Move the viewport into hooks
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 web modules v7](../architecture/0001-web-modules-v7.md) to main.
+Status: Implemented. Independently reviewed at `a054b8a` (pass) and merged into main
+on 2026-10-25 with [0001 web modules v7](../architecture/0001-web-modules-v7.md). The
+implementation record below, which lists the validated revisions, was written before
+that review.
 
 ## Outcome
 

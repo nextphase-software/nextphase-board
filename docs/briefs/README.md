@@ -77,10 +77,14 @@ behaviour and one stale browser regression line fixed under [web modules v5](../
 undo, redo, duplicate, delete, the clipboard, arrange and styles in their own hook with no
 change in behaviour under [web modules v6](../architecture/0001-web-modules-v6.md), is implemented and merged into main.
 
-[0001-W21 v1 — Move the viewport into hooks](0001-W21-viewport-hooks.md) is a draft: the
-view with wheel and trackpad zoom, and the canvas size, in two hooks each called where its
-effect was, with no change in behaviour, following
-[web modules v7](../architecture/0001-web-modules-v7.md).
+[0001-W21 v1 — Move the viewport into hooks](0001-W21-viewport-hooks.md), the view with
+wheel and trackpad zoom, and the canvas size, in two hooks each called where its effect
+was, with no change in behaviour under [web modules v7](../architecture/0001-web-modules-v7.md), is implemented and merged into main.
+
+[0001-W22 v1 — Move the geometry edits into a hook](0001-W22-geometry-edits-hook.md) is a
+draft: creating, moving and resizing objects and committing their text in their own hook,
+with no change in behaviour and no effect moved, following
+[web modules v8](../architecture/0001-web-modules-v8.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

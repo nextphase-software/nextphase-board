@@ -1,18 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useMemo, useRef, useState } from "react";
-import Konva from "konva";
+import { useRef, useState } from "react";
 import {
   count,
   type ItemV3 as Item,
   validText,
 } from "./document";
-import { colorEntry, textUnits, type Style } from "./styles";
-import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT } from "./geometry";
 import { type View } from "./view";
-import { boundingBox } from "./selection";
 import { editingCommandReason } from "./commands";
 import { type Corner, type Rectangle } from "./resize";
-import { groupNumbers, wholeGroups } from "./group";
 
 import { useMessages } from "./state/use-messages";
 import { useBoardDocument } from "./state/use-board-document";
@@ -25,6 +20,9 @@ import { usePanelLayout } from "./state/use-panel-layout";
 import { useContextBar } from "./state/use-context-bar";
 import { useViewport } from "./state/use-viewport";
 import { useSceneSize } from "./state/use-scene-size";
+import { useSelection } from "./state/use-selection";
+import { useObjectLayouts } from "./state/use-object-layouts";
+import { useEditorPlacement } from "./state/use-editor-placement";
 
 import { BoardDrawing } from "./scene/board-drawing";
 import { Overlays } from "./scene/overlays";
@@ -42,27 +40,11 @@ import { InformationButton } from "./ui/information-button";
 import { InformationPanel } from "./ui/information-panel";
 import { NavigationPanel } from "./ui/navigation-panel";
 
-const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
 type ResizeStart = { object: Item; rectangle: Rectangle };
 
-function lineCount(object: Item, text = object.text): number {
-  // Auto height is essential here: a fixed height would count only visible lines.
-  const measurement = new Konva.Text({
-    ...TEXT_LAYOUT,
-    fontSize: textUnits(object.textSize),
-    width: object.width - 2 * TEXT_INSET,
-    text,
-  });
-  const lines = Math.max(1, measurement.textArr.length);
-  measurement.destroy();
-  return lines;
-}
-
 export function App() {
-  const [selected, setSelected] = useState<Set<string>>(() => new Set()),
-    [selectionBox, setSelectionBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null),
+  const [selectionBox, setSelectionBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null),
     [tool, setTool] = useState("Select"),
-    [panel, setPanel] = useState(""),
     [inline, setInline] = useState(false),
     [readOnly, setReadOnly] = useState(true),
     [status, setStatus] = useState("Unsaved"),
@@ -109,49 +91,16 @@ export function App() {
         cancelled?: boolean;
       } | null
     >(null);
-  const selectedObjects = board.objects.filter((o) => selected.has(o.id));
-  const selectionKey = JSON.stringify(selectedObjects.map((o) => o.id));
-  const selectedId = selectedObjects.length === 1 ? selectedObjects[0].id : "";
-  const item = board.objects.find((o) => o.id === selectedId),
-    text = item ? (drafts[item.id] ?? item.text) : "";
-  const objectLayouts = useMemo(() => new Map(board.objects.map((o) => {
-    // Uncommitted composition/invalid input may grow the editor's preview only.
-    const lines = lineCount(o, inline && o.id === selectedId ? text : o.text);
-    const fontSize = textUnits(o.textSize);
-    const height = displayHeight(o, lines, fontSize);
-    const innerHeight = height - 2 * TEXT_INSET;
-    const lineHeight = fontSize * TEXT_LAYOUT.lineHeight;
-    const visibleLines = Math.floor(innerHeight / lineHeight);
-    return [o.id, {
-      height,
-      limited: neededHeight(lines, fontSize) > allowedHeight(o.y),
-      fadeStart: Math.max(0, visibleLines - 1) * lineHeight,
-      fadeEnd: Math.max(1, Math.min(innerHeight, Math.max(1, visibleLines) * lineHeight)),
-    }];
-  })), [board.objects, inline, selectedId, text]);
-  const displayedObjects = board.objects.map((o) => ({ ...o, displayHeight: objectLayouts.get(o.id)!.height }));
-  const bounds = boundingBox(displayedObjects.filter((o) => selected.has(o.id)));
-  const selectedGroups = wholeGroups(displayedObjects, selected);
-  const numbers = groupNumbers(board.objects);
-  const handlesVisible = !!bounds && tool === "Select" && !readOnly && !inline && !composing &&
-    (!busy || !!drag.current?.corner);
-  const handlePoints = bounds ? CORNERS.map((corner) => ({
-    corner, ...posForCorner(corner, bounds),
-  })) : [];
-  function posForCorner(corner: Corner, rectangle: Rectangle) {
-    return {
-      x: rectangle.x + (corner.endsWith("e") ? rectangle.width : 0),
-      y: rectangle.y + (corner.startsWith("s") ? rectangle.height : 0),
-    };
-  }
-  const commonStyle = <K extends keyof Style>(key: K): Style[K] | "" => {
-    const value = selectedObjects[0]?.[key];
-    return value && selectedObjects.every((o) => o[key] === value) ? value : "";
-  };
-  const selectionColor = commonStyle("color"), selectionSize = commonStyle("textSize"), selectionAlign = commonStyle("align");
-  const colourLabel = selectionColor ? colorEntry(selectionColor).label : "Mixed";
-  const itemHeight = item ? objectLayouts.get(item.id)!.height : 0;
-  const fallbackFocus = useRef(false);
+  const {
+    selected, setSelected, selectionKey, selectedId, item, text,
+    selectionColor, selectionSize, selectionAlign, colourLabel,
+  } = useSelection({ board, drafts });
+  const {
+    lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
+    handlesVisible, handlePoints, itemHeight,
+  } = useObjectLayouts({
+    board, selected, selectedId, item, text, inline, tool, readOnly, composing, busy, drag,
+  });
   const boardButton = useRef<HTMLButtonElement>(null),
     navButton = useRef<HTMLButtonElement>(null),
     infoButton = useRef<HTMLButtonElement>(null);
@@ -187,20 +136,14 @@ export function App() {
     revision, adapter, select, setInline, setView, invalid, busy, composing, pending,
   });
   const size = useSceneSize(scene);
-  useEffect(() => {
-    if (inline && !composing) editor.current?.focus();
-  }, [inline, selected]);
-  useEffect(() => {
-    if (panel === "Objects") {
-      if (fallbackFocus.current) {
-        fallbackFocus.current = false;
-        editor.current?.focus();
-      } else selector.current?.focus();
-    }
-  }, [panel]);
   const pos = (o: { x: number; y: number }) => ({
     left: size.w / 2 + (o.x - view.x) * view.z,
     top: size.h / 2 + (o.y - view.y) * view.z,
+  });
+  const { panel, setPanel, edit, toggle } = useEditorPlacement({
+    finishTextSession, view, size, selected, item, itemHeight, inline, setInline,
+    composing, busy, readOnly, pos, editor, selector, objectsButton, boardButton,
+    infoButton, navButton,
   });
   const {
     commitText, changeText, create, movedBoard, move, resizeStart,
@@ -210,52 +153,6 @@ export function App() {
     item, selected, select, objectLayouts, readOnly, busy, composing,
     setStatus, setTool, setPanel, setInline, editor, lineCount,
   });
-  function fallbackEditor() {
-    finishTextSession();
-    fallbackFocus.current = true;
-    setPanel("Objects");
-    setInline(false);
-  }
-  function edit() {
-    if (!item || readOnly || busy || composing) return;
-    finishTextSession();
-    setPanel("");
-    setInline(true);
-  }
-  useEffect(() => {
-    if (!inline || !item || composing) return;
-    const p = pos(item), rect = editor.current?.getBoundingClientRect();
-    const obscured = rect &&
-      Array.from(
-        document.querySelectorAll(".file,.actions,.palette,.zoom,.notice"),
-      ).some((el) => {
-        const r = el.getBoundingClientRect();
-        return rect.left < r.right && rect.right > r.left &&
-          rect.top < r.bottom && rect.bottom > r.top;
-      });
-    if (
-      size.w < 768 || p.left < 0 || p.top < 0 ||
-      p.left + item.width * view.z > size.w ||
-      p.top + itemHeight * view.z > size.h ||
-      (item.width - 40) * view.z < 120 || (itemHeight - 40) * view.z < 60 ||
-      textUnits(item.textSize) * view.z < 12 || obscured
-    ) fallbackEditor();
-  }, [inline, selected, view, size, composing, itemHeight, item?.width, item?.textSize]);
-  function toggle(name: string) {
-    if (composing || busy) return;
-    finishTextSession();
-    setInline(false);
-    setPanel((p) => p === name ? "" : name);
-    if (panel === name) {
-      (name === "Objects"
-        ? objectsButton
-        : name === "Board"
-        ? boardButton
-        : name === "Information"
-        ? infoButton
-        : navButton).current?.focus();
-    }
-  }
   const {
     cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,
     pointerCancel, lostPointerCapture,

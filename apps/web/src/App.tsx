@@ -2,31 +2,30 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Konva from "konva";
 import {
-  add,
-  clamp,
   count,
   type ItemV3 as Item,
   validText,
 } from "./document";
 import { colorEntry, textUnits, type Style } from "./styles";
 import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT } from "./geometry";
-import { panView, zoomView, type View } from "./view";
-import { boundingBox, boxSelection } from "./selection";
+import { type View } from "./view";
+import { boundingBox } from "./selection";
 import { editingCommandReason } from "./commands";
 import { type Corner, type Rectangle } from "./resize";
-import { expandSelection, groupNumbers, pressSelection, toggleGroup, wholeGroups } from "./group";
+import { groupNumbers, wholeGroups } from "./group";
 
 import { useMessages } from "./state/use-messages";
 import { useBoardDocument } from "./state/use-board-document";
 import { useStorageSession } from "./state/use-storage-session";
 import { useEditingCommands } from "./state/use-editing-commands";
 import { useGeometryEdits } from "./state/use-geometry-edits";
+import { useCanvasInput } from "./state/use-canvas-input";
+import { usePageKeys } from "./state/use-page-keys";
 import { usePanelLayout } from "./state/use-panel-layout";
 import { useContextBar } from "./state/use-context-bar";
 import { useViewport } from "./state/use-viewport";
 import { useSceneSize } from "./state/use-scene-size";
 
-import { typeForTool } from "./objects/registry";
 import { BoardDrawing } from "./scene/board-drawing";
 import { Overlays } from "./scene/overlays";
 import { InlineEditor } from "./scene/inline-editor";
@@ -257,56 +256,16 @@ export function App() {
         : navButton).current?.focus();
     }
   }
-  function point(e: { clientX: number; clientY: number }) {
-    const r = scene.current!.getBoundingClientRect();
-    return {
-      x: view.x + (e.clientX - r.left - size.w / 2) / view.z,
-      y: view.y + (e.clientY - r.top - size.h / 2) / view.z,
-    };
-  }
-  function releaseCapture(pointerId?: number) {
-    if (pointerId !== undefined && scene.current?.hasPointerCapture(pointerId)) {
-      scene.current.releasePointerCapture(pointerId);
-    }
-  }
-  function endSpacePan() {
-    if (drag.current?.temporary) {
-      const d = drag.current;
-      drag.current = null;
-      setBusy(false);
-      releaseCapture(d.pointerId);
-    }
-    spacePanRef.current = false;
-    setSpacePan(false);
-  }
-  function cancel() {
-    const d = drag.current;
-    if (d?.pan) setView(d.view);
-    if (d?.box) select(d.previous ?? []);
-    setSelectionBox(null);
-    drag.current = null;
-    setBusy(false);
-    if (!d?.temporary) setTool("Select");
-    releaseCapture(d?.pointerId);
-    setBoard({ ...model.current });
-  }
-  useEffect(() => {
-    const blur = () => {
-      if (spacePanRef.current) {
-        if (drag.current?.temporary) cancel();
-        endSpacePan();
-      } else cancel();
-    };
-    const keyup = (event: KeyboardEvent) => {
-      if (event.code === "Space" && spacePanRef.current) endSpacePan();
-    };
-    window.addEventListener("blur", blur);
-    window.addEventListener("keyup", keyup);
-    return () => {
-      window.removeEventListener("blur", blur);
-      window.removeEventListener("keyup", keyup);
-    };
-  }, []);
+  const {
+    cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,
+    pointerCancel, lostPointerCapture,
+  } = useCanvasInput({
+    model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+    setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
+    scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
+    selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
+    handlesVisible, handlePoints, objectLayouts, displayedObjects, edit,
+  });
   const nativeEditor = (
     <>
       <label htmlFor="content">Content</label>
@@ -338,10 +297,6 @@ export function App() {
       <small>{count(text)} / 1,000 code points</small>
     </>
   );
-  useEffect(() => {
-    clearHistory();
-    if (readOnly) cancel();
-  }, [readOnly]);
   const commandReason = editingCommandReason({ readOnly, composing, pointerGesture: busy, invalidObjectText });
   const session = textSession.current;
   const sessionChanged = !!session &&
@@ -370,6 +325,10 @@ export function App() {
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
     arrangementMembers, lineCount,
   });
+  const { pageKeyDown } = usePageKeys({
+    command, clipboardCommand, model, cancel, scene, busy, composing, select,
+    setInline, panel, setPanel, objectsButton, boardButton, infoButton, navButton,
+  });
 
   return (
     <main
@@ -377,59 +336,7 @@ export function App() {
         "--notice-top": layout.notice + "px",
         "--panel-top": layout.panel + "px",
       } as React.CSSProperties}
-      onKeyDown={(e) => {
-        const nativeText = e.target instanceof Element &&
-          !!e.target.closest("input,textarea,[contenteditable]:not([contenteditable=false])");
-        if (!nativeText && (e.ctrlKey || e.metaKey) && !e.altKey) {
-          const key = e.key.toLowerCase();
-          if (key === "z" || (key === "y" && e.ctrlKey && !e.metaKey && !e.shiftKey)) {
-            e.preventDefault();
-            command(key === "y" || e.shiftKey ? "Redo" : "Undo");
-            return;
-          }
-          if (key === "a" && !e.shiftKey && e.target === scene.current) {
-            if (!busy && !composing && model.current.objects.length) {
-              e.preventDefault();
-              select(model.current.objects.map((o) => o.id));
-            }
-            return;
-          }
-          if (key === "d" && !e.shiftKey && e.target === scene.current) {
-            e.preventDefault();
-            command("Duplicate");
-            return;
-          }
-          if ((key === "c" || key === "x" || key === "v") && !e.shiftKey && e.target === scene.current) {
-            e.preventDefault();
-            clipboardCommand(key === "c" ? "Copy" : key === "x" ? "Cut" : "Paste");
-            return;
-          }
-        }
-        if (e.target === scene.current && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
-          (e.key === "Delete" || e.key === "Backspace")) {
-          e.preventDefault();
-          command("Delete");
-          return;
-        }
-        if (
-          e.key !== "Escape" || composing ||
-          e.target instanceof HTMLInputElement ||
-          e.target instanceof HTMLTextAreaElement ||
-          e.target instanceof HTMLSelectElement
-        ) return;
-        cancel();
-        setInline(false);
-        if (panel) {
-          setPanel("");
-          (panel === "Objects"
-            ? objectsButton
-            : panel === "Board"
-            ? boardButton
-            : panel === "Information"
-            ? infoButton
-            : navButton).current?.focus();
-        }
-      }}
+      onKeyDown={pageKeyDown}
     >
       <div
         ref={scene}
@@ -445,220 +352,13 @@ export function App() {
         tabIndex={0}
         aria-label="Board canvas. Use Objects to read and edit. Enter places an armed tool or edits the selection."
         onPointerEnter={trackPointer}
-        onKeyDown={(e) => {
-          if (e.target !== e.currentTarget || composing) return;
-          if (e.code === "Space") {
-            e.preventDefault();
-            if (!e.repeat && !drag.current) {
-              spacePanRef.current = true;
-              setSpacePan(true);
-            }
-            return;
-          }
-          if (e.key === "Enter" && !drag.current) {
-            e.preventDefault();
-            if (tool === "Sticky" || tool === "Text") {
-              create(
-                typeForTool(tool),
-                view.x,
-                view.y,
-              );
-            } else if (selected.size > 1) setMessage("Select one object to edit its text.");
-            else edit();
-          }
-        }}
-        onPointerDown={(e) => {
-          trackPointer(e);
-          if (
-            e.target !== e.currentTarget &&
-              !(e.target instanceof HTMLCanvasElement) &&
-              !(e.target instanceof Element && e.target.closest(".resize-handle")) || composing || inline
-          ) return;
-          if (e.button !== 0 || drag.current) return;
-          if (spacePanRef.current) {
-            if (!e.isPrimary) return;
-            drag.current = {
-              id: "", x: view.x, y: view.y, cx: e.clientX, cy: e.clientY,
-              view: { ...view }, pan: true, temporary: true, pointerId: e.pointerId,
-            };
-            e.currentTarget.setPointerCapture(e.pointerId);
-            setBusy(true);
-            e.preventDefault();
-            return;
-          }
-          finishTextSession();
-          const p = point(e);
-          const handle = handlesVisible ? handlePoints.find((h) =>
-            Math.abs((p.x - h.x) * view.z) <= 8 && Math.abs((p.y - h.y) * view.z) <= 8) : undefined;
-          if (handle) {
-            drag.current = {
-              id: "", corner: handle.corner, resizeStart: resizeStart(),
-              x: p.x, y: p.y, cx: e.clientX, cy: e.clientY,
-              view: { ...view }, pan: false, pointerId: e.pointerId,
-            };
-            scene.current?.focus();
-            e.currentTarget.setPointerCapture(e.pointerId);
-            setBusy(true);
-            e.preventDefault();
-            return;
-          }
-          const hit = [...model.current.objects].reverse().find((o) =>
-            p.x >= o.x && p.x <= o.x + o.width && p.y >= o.y &&
-            p.y <= o.y + objectLayouts.get(o.id)!.height
-          );
-          if (tool === "Pan") {
-            drag.current = {
-              id: "",
-              x: view.x,
-              y: view.y,
-              cx: e.clientX,
-              cy: e.clientY,
-              view: { ...view },
-              pan: true,
-            };
-          } else if (tool === "Select") {
-            if (hit) {
-              if (e.shiftKey) {
-                select(toggleGroup(model.current.objects, selected, hit.id));
-              } else {
-                const expanded = pressSelection(model.current.objects, selected, hit.id);
-                const ids = selected.has(hit.id) ? [...selected] : [...expanded];
-                if (readOnly || !selected.has(hit.id)) select(expanded);
-                if (!readOnly) drag.current = {
-                  id: hit.id, ids, x: hit.x, y: hit.y,
-                  cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false,
-                };
-              }
-            } else {
-              const previous = [...selected];
-              if (!e.shiftKey) select("");
-              drag.current = {
-                id: "", box: true, additive: e.shiftKey, previous,
-                x: p.x, y: p.y, cx: e.clientX, cy: e.clientY,
-                view: { ...view }, pan: false,
-              };
-            }
-          } else if (hit) {
-            select(pressSelection(model.current.objects, selected, hit.id));
-            setTool("Select");
-          } else {
-            drag.current = {
-              id: tool, x: p.x, y: p.y, cx: e.clientX, cy: e.clientY,
-              view: { ...view }, pan: false,
-            };
-          }
-          scene.current?.focus();
-          if (drag.current) {
-            drag.current.pointerId = e.pointerId;
-            e.currentTarget.setPointerCapture(e.pointerId);
-            setBusy(true);
-          }
-        }}
-        onPointerMove={(e) => {
-          trackPointer(e);
-          const d = drag.current;
-          if (!d) return;
-          if ((d.id === "Sticky" || d.id === "Text") &&
-            Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3) {
-            d.cancelled = true;
-          }
-          const dx = (e.clientX - d.cx) / d.view.z,
-            dy = (e.clientY - d.cy) / d.view.z;
-          if (d.corner && d.resizeStart) {
-            if (!resizeStillValid(d.resizeStart)) { cancel(); return; }
-            d.crossed ||= Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3;
-            setBoard(d.crossed ? resizedBoard(d.corner, d.resizeStart, dx, dy, e.shiftKey)
-              : { ...model.current });
-          } else if (d.pan) {
-            setView({
-              x: clamp(d.x - dx, -1e6, 1e6),
-              y: clamp(d.y - dy, -1e6, 1e6),
-              z: d.view.z,
-            });
-          } else if (d.box) {
-            if (Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3) {
-              const end = { x: d.x + dx, y: d.y + dy };
-              setSelectionBox({ x: Math.min(d.x, end.x), y: Math.min(d.y, end.y), width: Math.abs(dx), height: Math.abs(dy) });
-              select(expandSelection(model.current.objects, [...(d.additive ? d.previous ?? [] : []), ...boxSelection(d, end, displayedObjects)]));
-            } else {
-              setSelectionBox(null);
-              select(d.additive ? d.previous ?? [] : []);
-            }
-          } else if (d.ids && Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3) {
-            setBoard(movedBoard(d.ids, dx, dy));
-          } else setBoard({ ...model.current });
-        }}
-        onPointerUp={(e) => {
-          const d = drag.current;
-          drag.current = null;
-          setBusy(false);
-          if (!d) return;
-          const delta = Math.hypot(e.clientX - d.cx, e.clientY - d.cy);
-          if (d.corner && d.resizeStart) {
-            if ((d.crossed || delta >= 3) && resizeStillValid(d.resizeStart)) {
-              commit(resizedBoard(d.corner, d.resizeStart,
-                (e.clientX - d.cx) / d.view.z, (e.clientY - d.cy) / d.view.z, e.shiftKey), true);
-            }
-            setBoard({ ...model.current });
-          } else if (!d.pan && (d.id === "Sticky" || d.id === "Text")) {
-            if (delta < 3 && !d.cancelled) {
-              try {
-                const next = add(
-                  model.current,
-                  typeForTool(d.id),
-                  d.x,
-                  d.y,
-                );
-                commit(next, true);
-                select(next.objects.at(-1)!.id);
-                setTool("Select");
-                setPanel("");
-                setInline(true);
-              } catch (error) {
-                setMessage(String(error));
-              }
-            } else setTool("Select");
-          } else if (d.box) {
-            if (delta >= 3) {
-              const end = { x: d.x + (e.clientX - d.cx) / d.view.z, y: d.y + (e.clientY - d.cy) / d.view.z };
-              select(expandSelection(model.current.objects, [...(d.additive ? d.previous ?? [] : []), ...boxSelection(d, end, displayedObjects)]));
-            } else select(d.additive ? d.previous ?? [] : []);
-          } else if (!d.pan) {
-            if (delta >= 3 && d.ids) commit(movedBoard(d.ids,
-              (e.clientX - d.cx) / d.view.z, (e.clientY - d.cy) / d.view.z), true);
-            else {
-              select(pressSelection(model.current.objects, selected, d.id));
-              setBoard({ ...model.current });
-            }
-          }
-          setSelectionBox(null);
-          releaseCapture(d.pointerId);
-        }}
-        onDoubleClick={(e) => {
-          if (spacePanRef.current || composing || busy) return;
-          const p = point(e);
-          const hit = [...model.current.objects].reverse().find((o) =>
-            p.x >= o.x && p.x <= o.x + o.width && p.y >= o.y &&
-            p.y <= o.y + objectLayouts.get(o.id)!.height);
-          if (!hit) return;
-          select(hit.id);
-          if (!readOnly) {
-            setPanel("");
-            setInline(true);
-          }
-        }}
-        onPointerCancel={() => {
-          const d = drag.current;
-          if (d?.pan) setView(d.view);
-          cancel();
-        }}
-        onLostPointerCapture={() => {
-          if (drag.current) {
-            const d = drag.current;
-            if (d.pan) setView(d.view);
-            cancel();
-          }
-        }}
+        onKeyDown={sceneKeyDown}
+        onPointerDown={pointerDown}
+        onPointerMove={pointerMove}
+        onPointerUp={pointerUp}
+        onDoubleClick={doubleClick}
+        onPointerCancel={pointerCancel}
+        onLostPointerCapture={lostPointerCapture}
       >
         <BoardDrawing
           size={size} view={view} board={board} objectLayouts={objectLayouts} selected={selected} inline={inline}

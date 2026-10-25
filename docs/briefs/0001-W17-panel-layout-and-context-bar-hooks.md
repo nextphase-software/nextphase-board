@@ -230,3 +230,63 @@ None beyond the repository's own documents.
 ## Implementation record
 
 Not started.
+
+### 2026-10-24 — Implementer handoff
+
+- Implemented **0001-W17 v1** with **web modules v3** on
+  `codex/0001-W17-state-hooks`, based on committed main
+  `7d6eb197a828b2bf5797737f6db573e18a3be69f`.
+- Validated source/test revision:
+  **`416bc8f588776c76357e04bf1451835ce6cd4f01`**. The final branch tip is reported
+  separately in the handoff; the following documentation commit only appends this
+  record.
+- `App.tsx` newline count: **1,305 before; 1,209 after**. The guardrail's literal
+  budget is now 1,209; its W15 and W16 checks remain.
+- Source inspection against `1d68c8e` confirms the position expressions, panel
+  effect, menu effects, dependency lists, state initializers and close functions
+  moved unchanged. Hook calls occupy the original effect locations, preserving
+  layout/passive effect order. The markup and event-handler bodies remain unchanged.
+  Runtime markup, focus, drawing and saved-record equivalence await reviewer checks.
+
+All Node/npm commands used the maintainer-provided pinned toolchain PATH override;
+its machine-specific location is omitted from this public record. Checks ran on
+the source/test tree committed as the validated revision above, with no subsequent
+source/test changes.
+
+| Exact command from repository root | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; added 19 packages; no manifest or lock change |
+| `npm --prefix apps/web run typecheck` | Exit 0; no diagnostics |
+| `node --test tests/context-bar-position.test.mjs tests/modules.test.mjs` | Exit 0; 24 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web test` | Exit 0; full unit suite: 248 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; accepted lock, runtime inventory and complete distributed notices verified; application built |
+| `git diff --check` | Exit 0; no whitespace errors |
+| `git diff --cached --check` | Exit 0; no staged whitespace errors |
+| `git diff --name-only main...HEAD` | Exit 0 at validated revision; exactly the six allowed source/test deliverables below |
+
+Source/test scope at the validated revision:
+
+```text
+apps/web/src/App.tsx
+apps/web/src/context-bar-position.ts
+apps/web/src/state/use-context-bar.ts
+apps/web/src/state/use-panel-layout.ts
+tests/context-bar-position.test.mjs
+tests/modules.test.mjs
+```
+
+Added dependencies: **none**. No other module, stylesheet, existing test, package,
+lock or contract changed. This appended implementation record is the only
+documentation change. Both public-boundary checks printed PASS during the source
+commit, with hooks enabled. Git also printed a non-blocking
+`packed-refs.lock: Operation not permitted` environment warning; the commit
+succeeded (exit 0) and the worktree was clean afterward.
+
+Not run: any browser, server, regression harness, markup/focus/drawing comparison,
+saved-record comparison, Chromium/Safari smoke, fixture build/sweep, accessibility
+audit, native IME check, performance/load test or other broader campaign. Browsers
+cannot start in the implementer environment; the brief's browser procedures remain
+assigned to the independent reviewer. AC01 has unit evidence; AC02's runtime
+equivalence and AC03's browser evidence remain pending. No merge or push performed.

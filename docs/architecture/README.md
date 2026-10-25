@@ -91,9 +91,14 @@ replaces v6 for later work.
 unchanged, updates the module inventory for the geometry edits hook and records the
 five-step plan for input and actions. It replaces v7 for later work.
 
-Draft for 0001-W23 brief v1: [0001 web modules v9](0001-web-modules-v9.md) keeps v3's
-rules unchanged and updates the module inventory for the canvas input and page keys hooks.
-It replaces v8 for later work once accepted.
+[0001 web modules v9](0001-web-modules-v9.md), accepted with 0001-W23, keeps v3's rules
+unchanged and updates the module inventory for the canvas input and page keys hooks. It
+replaces v8 for later work.
+
+Draft for 0001-W24 brief v1: [0001 web modules v10](0001-web-modules-v10.md) keeps v3's
+rules unchanged, updates the module inventory for the selection, object layouts and editor
+placement hooks, and records the last part of the move in two steps. It replaces v9 for
+later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

@@ -1,8 +1,10 @@
 BRIEF VERSION: 0001-W23 v1 (2026-10-25)
 # 0001-W23 — Move the pointer and keyboard handlers into hooks
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 web modules v9](../architecture/0001-web-modules-v9.md) to main.
+Status: Implemented. Independently reviewed at `25d2d74` (pass) and merged into main
+on 2026-10-25 with [0001 web modules v9](../architecture/0001-web-modules-v9.md). The
+implementation record below, which lists the validated revisions, was written before
+that review.
 
 ## Outcome
 

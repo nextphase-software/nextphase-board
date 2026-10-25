@@ -69,10 +69,14 @@ behaviour under [web modules v3](../architecture/0001-web-modules-v3.md), is imp
 the board document and the messages in their own hooks and a tested notice-message
 module with no change in behaviour under [web modules v4](../architecture/0001-web-modules-v4.md), is implemented and merged into main.
 
-[0001-W19 v1 — Move the storage session into a hook](0001-W19-storage-session-hook.md)
-is a draft: the writer lock, opening, saving and reopening in their own hook, with no
-change in behaviour, and one stale browser regression line fixed, following
-[web modules v5](../architecture/0001-web-modules-v5.md).
+[0001-W19 v1 — Move the storage session into a hook](0001-W19-storage-session-hook.md),
+the writer lock, opening, saving and reopening in their own hook with no change in
+behaviour and one stale browser regression line fixed under [web modules v5](../architecture/0001-web-modules-v5.md), is implemented and merged into main.
+
+[0001-W20 v1 — Move the editing commands into a hook](0001-W20-editing-commands-hook.md)
+is a draft: undo, redo, duplicate, delete, the clipboard, arrange and styles in their own
+hook, with no change in behaviour and no effect moved, following
+[web modules v6](../architecture/0001-web-modules-v6.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

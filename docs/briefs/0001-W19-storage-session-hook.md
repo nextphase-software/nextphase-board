@@ -1,8 +1,10 @@
 BRIEF VERSION: 0001-W19 v1 (2026-10-25)
 # 0001-W19 — Move the storage session into a hook
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 web modules v5](../architecture/0001-web-modules-v5.md) to main.
+Status: Implemented. Independently reviewed at `f4048d5` (pass) and merged into main
+on 2026-10-25 with [0001 web modules v5](../architecture/0001-web-modules-v5.md). The
+implementation record below, which lists the validated revisions, was written before
+that review.
 
 ## Outcome
 

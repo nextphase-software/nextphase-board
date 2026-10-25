@@ -207,3 +207,74 @@ None beyond the repository's own documents.
 ## Implementation record
 
 Not started.
+
+### 0001-W19 v1 implementation — 2026-10-25
+
+- Branch: `codex/0001-W19-storage-hook`, from committed main
+  `80580408c6e747bda386dc8caa47f14c7a80932e`, which contains this brief v1 and
+  web modules v5. The worktree was clean at the start. `App.tsx` at that revision
+  matches the brief's `ed51fcd` baseline.
+- Validated source/test revision: `ddc30b5b6df4b6081fed9c78e943812add7e058a`
+  (`refactor(web): extract storage session hook`). The successful checks below ran
+  on the source and tests committed unchanged at this revision. The later record
+  commit changes only this implementation record; its final branch tip is reported
+  separately in the handoff.
+- Moved snapshots, the five session refs, `adopt`, `start`, `save` and `reopen`
+  into `use-storage-session.ts`, preserving their initial values, bodies and order.
+  The hook's single passive effect contains the specified session setup and cleanup
+  lines verbatim. Its call occupies the former effect's position, immediately
+  followed by the window-size effect with the specified unchanged resize lines.
+  Other effects and their order, markup and handlers are unchanged. `App.tsx`
+  reads the returned `alive` ref without assigning to it.
+- Changed only line 239 of `tests/browser/app-regressions.mjs`: the older receipt
+  wait now reads `#save-acknowledgement`. The browser harness was not executed.
+- `App.tsx` newline count: **1,152 before, 1,001 after**. The literal module-test
+  budget is 1,001. The inventory and existing state guardrails cover all five
+  hooks; the new check requires exactly one `useEffect` call and no
+  `useLayoutEffect` in the storage hook.
+- Added dependencies: **none**. No other module, style, package, lock, contract or
+  existing test changed. Web modules v5 was already committed on main and was not
+  edited.
+- Toolchain: Node **24.22.1**, npm **11.19.1**, selected through the shell's `PATH`
+  before every Node/npm command and inherited by Git hooks. No machine-specific
+  toolchain path is committed.
+
+Commands run from the repository root with that toolchain:
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed |
+| `npm --prefix apps/web run typecheck` | First run exited 1: the extraction initially left a duplicate snapshots declaration in App. Removed that leftover declaration within the allowed scope; final run exited 0 |
+| `node --test tests/modules.test.mjs` | Exit 0 on both runs; final run: 16 passed, 0 failed, 0 skipped, with the final 1,001-line budget |
+| `npm --prefix apps/web test` | Exit 0; full unit suite: 257 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; accepted lock, runtime inventory and complete distributed notices verified; application built |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; accepted lock, runtime inventory and complete distributed notices verified; disposable fixtures built, not executed |
+| `git diff ed51fcd -- apps/web/src/App.tsx` | Exit 0 before implementation; no difference from the baseline |
+| `git diff --check` | Exit 0 before source/test commit; no whitespace errors |
+| `git diff --color-moved=plain -- apps/web/src/App.tsx tests/modules.test.mjs tests/browser/app-regressions.mjs` | Exit 0; inspected the extraction, effect split, guardrails and single browser-line correction; inspected the new hook against the named baseline blocks |
+| `git diff --cached --check` | Exit 0 before source/test commit; no staged whitespace errors |
+| `git diff --cached --name-only` | Exit 0 before source/test commit; exactly the four allowed source/test deliverables |
+| `git commit -m "refactor(web): extract storage session hook"` | Exit 0; created `ddc30b5b6df4b6081fed9c78e943812add7e058a`; both public-boundary hook checks reported PASS |
+| `git rev-parse HEAD` | Exit 0 after source/test commit; `ddc30b5b6df4b6081fed9c78e943812add7e058a` |
+| `git status --short` | Exit 0 after source/test commit; empty output, clean worktree |
+| `git diff --name-only main...HEAD` | Exit 0 after source/test commit; exactly the four allowed source/test deliverables |
+| `wc -l apps/web/src/App.tsx` | Exit 0 after source/test commit; 1,001 lines |
+| `git diff --exit-code ddc30b5b6df4b6081fed9c78e943812add7e058a -- apps/web/src tests` | Exit 0 after appending the record; source and tests still match the validated revision |
+
+Git emitted a sandbox denial while creating `packed-refs.lock`, but the source/test
+commit succeeded; its branch ref and clean worktree were verified. No hook was
+bypassed.
+
+Exclusions: no browser was launched. The eight app regressions, eight storage
+fixtures, baseline/candidate markup, focus, drawing and saved-record comparisons,
+and Chromium/Safari smoke remain reviewer checks. Consequently browser equivalence,
+0001-W19-AC02's runtime evidence and final milestone acceptance remain pending.
+No browser regression harness, fixture execution, browser matrix, accessibility
+audit, native IME check, performance/load test or unrelated test campaign ran.
+Nothing was merged or pushed.
+
+The graph inventory, indexing and symbol-search tools were attempted first but
+returned an approval-policy error. Source discovery therefore used the brief's
+named files directly; no graph artifact was written to the repository.

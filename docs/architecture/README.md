@@ -66,10 +66,15 @@ object-type registry under `objects/` and the canvas drawing under `scene/`, and
 rule that composition and screen parts ask the registry instead of comparing type
 names. It replaces v1 for later work.
 
-Draft for 0001-W17 brief v1: [0001 web modules v3](0001-web-modules-v3.md) starts the
+[0001 web modules v3](0001-web-modules-v3.md), accepted with 0001-W17, starts the
 state layer under `state/` with the panel layout and the context bar, and adds the
 state-hook rules (one owner per piece of state, explicit inputs, effect order kept,
-calculations in tested rules modules). It replaces v2 for later work once accepted.
+calculations in tested rules modules). It replaces v2 for later work.
+
+Draft for 0001-W18 brief v1: [0001 web modules v4](0001-web-modules-v4.md) keeps v3's
+rules unchanged and updates the module inventory for the board document and messages
+hooks and the notice-message rules module. It replaces v3 for later work once
+accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

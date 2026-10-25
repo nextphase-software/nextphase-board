@@ -1,8 +1,11 @@
 BRIEF VERSION: 0001-W17 v1 (2026-10-24)
 # 0001-W17 — Move panel layout and context bar state into hooks
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 web modules v3](../architecture/0001-web-modules-v3.md) to main.
+Status: Implemented. Independently reviewed at `ffe5c0f` (pass on code and unit
+evidence; the browser checks were done by hand by the maintainer) and merged into
+main on 2026-10-24 with [0001 web modules v3](../architecture/0001-web-modules-v3.md).
+The implementation record below, which lists the validated revisions, was written
+before that review.
 
 ## Outcome
 

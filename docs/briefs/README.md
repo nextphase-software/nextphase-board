@@ -61,9 +61,14 @@ in behaviour under [web modules v1](../architecture/0001-web-modules-v1.md), is 
 an object-type registry and the canvas drawing in their own modules with no change in
 behaviour under [web modules v2](../architecture/0001-web-modules-v2.md), is implemented and merged into main.
 
-[0001-W17 v1 — Move panel layout and context bar state into hooks](0001-W17-panel-layout-and-context-bar-hooks.md)
-is a draft: the first state hooks and a tested context-bar position module, with no
-change in behaviour, following [web modules v3](../architecture/0001-web-modules-v3.md).
+[0001-W17 v1 — Move panel layout and context bar state into hooks](0001-W17-panel-layout-and-context-bar-hooks.md),
+the first state hooks and a tested context-bar position module with no change in
+behaviour under [web modules v3](../architecture/0001-web-modules-v3.md), is implemented and merged into main.
+
+[0001-W18 v1 — Move the board document and messages into hooks](0001-W18-board-document-and-messages-hooks.md)
+is a draft: the board document and the messages in their own hooks and a tested
+notice-message module, with no change in behaviour and no effect moved, following
+[web modules v4](../architecture/0001-web-modules-v4.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

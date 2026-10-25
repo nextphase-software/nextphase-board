@@ -1,8 +1,10 @@
 BRIEF VERSION: 0001-W20 v1 (2026-10-25)
 # 0001-W20 — Move the editing commands into a hook
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 web modules v6](../architecture/0001-web-modules-v6.md) to main.
+Status: Implemented. Independently reviewed at `d455ec6` (pass) and merged into main
+on 2026-10-25 with [0001 web modules v6](../architecture/0001-web-modules-v6.md). The
+implementation record below, which lists the validated revisions, was written before
+that review.
 
 ## Outcome
 

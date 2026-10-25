@@ -73,10 +73,14 @@ module with no change in behaviour under [web modules v4](../architecture/0001-w
 the writer lock, opening, saving and reopening in their own hook with no change in
 behaviour and one stale browser regression line fixed under [web modules v5](../architecture/0001-web-modules-v5.md), is implemented and merged into main.
 
-[0001-W20 v1 — Move the editing commands into a hook](0001-W20-editing-commands-hook.md)
-is a draft: undo, redo, duplicate, delete, the clipboard, arrange and styles in their own
-hook, with no change in behaviour and no effect moved, following
-[web modules v6](../architecture/0001-web-modules-v6.md).
+[0001-W20 v1 — Move the editing commands into a hook](0001-W20-editing-commands-hook.md),
+undo, redo, duplicate, delete, the clipboard, arrange and styles in their own hook with no
+change in behaviour under [web modules v6](../architecture/0001-web-modules-v6.md), is implemented and merged into main.
+
+[0001-W21 v1 — Move the viewport into hooks](0001-W21-viewport-hooks.md) is a draft: the
+view with wheel and trackpad zoom, and the canvas size, in two hooks each called where its
+effect was, with no change in behaviour, following
+[web modules v7](../architecture/0001-web-modules-v7.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

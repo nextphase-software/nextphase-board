@@ -180,3 +180,101 @@ None beyond the repository's own documents.
 ## Implementation record
 
 Not started.
+
+### 0001-W20 v1 implementation — 2026-10-25
+
+- Branch: `codex/0001-W20-editing-commands`, from committed main
+  `86082ff9ddb9fb750255a423373db486283d13ee`, which contains this brief v1 and
+  web modules v6. The worktree was clean at the start. `App.tsx` at that revision
+  matches the brief's `f4048d5` baseline.
+- Validated source/test revision: `64d9e9c06d1fbcd0b984987207da7b4ca26d0cb5`
+  (`refactor(web): extract editing commands hook`). All successful checks below ran
+  on the source and tests committed unchanged at this revision. The later record
+  commit changes only this implementation record; the final branch tip is reported
+  separately in the handoff.
+- Moved the object clipboard state and its unchanged initializer, `writePlainText`,
+  `clipboardCommand`, `command`, `arrangementReason`, `arrange` and `changeStyle`
+  into `use-editing-commands.ts`, preserving the named function blocks verbatim and
+  in order. The hook takes explicitly typed inputs, imports only React and rules,
+  contains no effects and returns the six required names. App calls it immediately
+  after `editingState` and `arrangementMembers`. `lineCount`, the derived values,
+  every effect and its declared order, markup and handlers remain unchanged.
+- `App.tsx` newline count: **1,001 before, 877 after**. The literal module-test
+  budget is 877. The inventory lists exactly six state hooks; existing state
+  guardrails cover all six. The added check rejects both effect names in the
+  commands hook. No existing test other than `tests/modules.test.mjs` changed.
+- Added dependencies: **none**. No other module, style, package, lock or contract
+  changed. Web modules v6 was already committed on main and was not edited.
+- Toolchain: Node **24.22.1**, npm **11.19.1**, selected through the shell's `PATH`
+  before every Node/npm command and inherited by Git hooks. No machine-specific
+  toolchain path is committed.
+
+Commands run from the repository root with that toolchain:
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed |
+| `npm --prefix apps/web run typecheck` | Exit 0 |
+| `node --test tests/modules.test.mjs` | Exit 0; 17 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web test` | Exit 0; full unit suite: 258 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; accepted lock, runtime inventory and complete distributed notices verified; application built |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; accepted lock, runtime inventory and complete distributed notices verified; disposable fixtures built, not executed |
+| `git diff f4048d5 -- apps/web/src/App.tsx` | Exit 0 before implementation; no baseline difference |
+| `python3 -` (inline script below) | Exit 0; moved blocks verbatim and in order, initializer unchanged, no hook effects and unchanged App remainder; 1,001 to 877 newlines |
+| `git diff --check` | Exit 0; no whitespace errors |
+| `git diff --color-moved=plain -- apps/web/src/App.tsx tests/modules.test.mjs` | Exit 0; inspected the allowed extraction and guardrail changes; also read the complete new hook |
+| `git diff --cached --check` | Exit 0 before source/test commit; no staged whitespace errors |
+| `git diff --cached --stat` | Exit 0 before source/test commit; three allowed source/test files, 188 insertions and 135 deletions |
+| `git diff --cached --name-only` | Exit 0 before source/test commit; exactly the three allowed source/test deliverables |
+| `git commit -m "refactor(web): extract editing commands hook"` | Exit 0; created `64d9e9c06d1fbcd0b984987207da7b4ca26d0cb5`; both public-boundary hook checks reported PASS |
+| `git rev-parse HEAD` | Exit 0 after source/test commit; `64d9e9c06d1fbcd0b984987207da7b4ca26d0cb5` |
+| `git status --short` | Exit 0 after source/test commit; empty output, clean worktree |
+| `git diff --name-only main...HEAD` | Exit 0 after source/test commit; exactly the three allowed source/test deliverables |
+| `wc -l apps/web/src/App.tsx` | Exit 0; 877 lines |
+| `git diff --exit-code 64d9e9c06d1fbcd0b984987207da7b4ca26d0cb5 -- apps/web/src tests` | Exit 0 after appending the record; source and tests still match the validated revision |
+
+The inline source comparison command was:
+
+```sh
+python3 - <<'PY'
+import re
+import subprocess
+from pathlib import Path
+baseline = subprocess.check_output(['git', 'show', 'f4048d5:apps/web/src/App.tsx'], text=True)
+app = Path('apps/web/src/App.tsx').read_text()
+hook = Path('apps/web/src/state/use-editing-commands.ts').read_text()
+lines = baseline.splitlines(keepends=True)
+commands = ''.join(lines[481:574])
+arrangement = ''.join(lines[587:621])
+assert commands + arrangement in hook
+assert not re.search(r'\b(?:useEffect|useLayoutEffect)\b', hook)
+assert '[objectClipboard, setObjectClipboard] = useState<Snapshot | null>(null);' in hook
+# Remove the allowed import/state/call changes and the exact moved ranges.
+def remainder(source):
+    source = re.sub(r'^import .*\n', '', source, flags=re.M)
+    source = source.replace(commands, '').replace(arrangement, '')
+    source = source.replace('    [composing, setComposing] = useState(false),\n    [objectClipboard, setObjectClipboard] = useState<Snapshot | null>(null);', '    [composing, setComposing] = useState(false);')
+    source = re.sub(r'  const \{ objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle \} = useEditingCommands\(\{\n.*?\n  \}\);\n', '', source, flags=re.S)
+    return source
+assert remainder(app) == remainder(baseline)
+print('PASS: named function blocks are verbatim and in order; clipboard initializer unchanged; hook has no effects; App remainder (including every effect, markup and handler) unchanged.')
+print(f'App.tsx newline count: {baseline.count(chr(10))} -> {app.count(chr(10))}')
+PY
+```
+
+Git emitted a sandbox denial while creating `packed-refs.lock`, but the source/test
+commit succeeded; its branch ref and clean worktree were verified. No hook was
+bypassed. The graph inventory, indexing and symbol-search tools were attempted
+first but returned an approval-policy error; discovery therefore used the brief's
+named files directly. No graph artifact was written to the repository.
+
+Exclusions: no browser was launched and no browser regression harness ran. The eight
+storage fixtures and eight app regressions, plus baseline/candidate comparison
+scenarios A–F (markup, focus, drawing, clipboard outcomes and saved records), remain
+reviewer checks. Consequently browser equivalence and final acceptance of
+0001-W20-AC01 and 0001-W20-AC02 remain pending; the source extraction and automated
+non-browser checks above are complete. No browser matrix, Safari smoke, fixture
+execution, accessibility audit, native IME check, performance/load test or unrelated
+test campaign ran. Nothing was merged or pushed.

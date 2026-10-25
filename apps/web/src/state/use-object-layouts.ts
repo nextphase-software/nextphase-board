@@ -4,13 +4,12 @@ import Konva from "konva";
 import type { BoardV3 as Board, ItemV3 as Item } from "../document";
 import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT } from "../geometry";
 import { groupNumbers, wholeGroups } from "../group";
-import { type Corner, type Rectangle } from "../resize";
+import { cornerPoint, type Corner } from "../resize";
 import { boundingBox } from "../selection";
 import { textUnits } from "../styles";
-import type { View } from "../view";
+import type { Drag } from "../gesture";
 
 const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
-type ResizeStart = { object: Item; rectangle: Rectangle };
 
 type Input = {
   board: Board;
@@ -23,27 +22,7 @@ type Input = {
   readOnly: boolean;
   composing: boolean;
   busy: boolean;
-  drag: RefObject<
-    {
-      id: string;
-      ids?: string[];
-      previous?: string[];
-      box?: boolean;
-      additive?: boolean;
-      corner?: Corner;
-      resizeStart?: ResizeStart[];
-      crossed?: boolean;
-      x: number;
-      y: number;
-      cx: number;
-      cy: number;
-      view: View;
-      pan: boolean;
-      temporary?: boolean;
-      pointerId?: number;
-      cancelled?: boolean;
-    } | null
-  >;
+  drag: RefObject<Drag | null>;
 };
 
 function lineCount(object: Item, text = object.text): number {
@@ -84,14 +63,8 @@ export function useObjectLayouts({
   const handlesVisible = !!bounds && tool === "Select" && !readOnly && !inline && !composing &&
     (!busy || !!drag.current?.corner);
   const handlePoints = bounds ? CORNERS.map((corner) => ({
-    corner, ...posForCorner(corner, bounds),
+    corner, ...cornerPoint(corner, bounds),
   })) : [];
-  function posForCorner(corner: Corner, rectangle: Rectangle) {
-    return {
-      x: rectangle.x + (corner.endsWith("e") ? rectangle.width : 0),
-      y: rectangle.y + (corner.startsWith("s") ? rectangle.height : 0),
-    };
-  }
   const itemHeight = item ? objectLayouts.get(item.id)!.height : 0;
   return {
     lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,

@@ -3,11 +3,11 @@ import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "r
 import { add, clamp, type Board as SavedBoard, type BoardV3 as Board, type ItemV3 as Item } from "../document";
 import { boxSelection } from "../selection";
 import { expandSelection, pressSelection, toggleGroup } from "../group";
-import type { Corner, Rectangle } from "../resize";
+import type { Corner } from "../resize";
 import type { View } from "../view";
 import { typeForTool } from "../objects/registry";
+import type { Drag, ResizeStart } from "../gesture";
 
-type ResizeStart = { object: Item; rectangle: Rectangle };
 type Input = {
   model: RefObject<Board>;
   commit: (input: SavedBoard, recordObject?: boolean, orderIds?: readonly string[]) => void;
@@ -25,27 +25,7 @@ type Input = {
   scene: RefObject<HTMLDivElement | null>;
   view: View;
   size: { w: number; h: number };
-  drag: RefObject<
-    {
-      id: string;
-      ids?: string[];
-      previous?: string[];
-      box?: boolean;
-      additive?: boolean;
-      corner?: Corner;
-      resizeStart?: ResizeStart[];
-      crossed?: boolean;
-      x: number;
-      y: number;
-      cx: number;
-      cy: number;
-      view: View;
-      pan: boolean;
-      temporary?: boolean;
-      pointerId?: number;
-      cancelled?: boolean;
-    } | null
-  >;
+  drag: RefObject<Drag | null>;
   busy: boolean;
   setBusy: Dispatch<SetStateAction<boolean>>;
   spacePanRef: RefObject<boolean>;

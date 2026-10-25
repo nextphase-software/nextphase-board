@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ALIGNMENTS, COLORS, DEFAULT_STYLES, LEGACY_STYLES, STICKY_TEXT, TEXT_SIZES,
-  colorEntry, textColor, textUnits,
+  colorEntry, commonStyle, textColor, textUnits,
 } from "../apps/web/src/styles.ts";
 
 function luminance(hex) {
@@ -44,4 +44,13 @@ test("new and legacy defaults reproduce the previous appearance", () => {
   assert.equal(colorEntry(DEFAULT_STYLES.sticky.color).fill, "#f2dce5");
   assert.equal(colorEntry(DEFAULT_STYLES.sticky.color).edge, "#e8cdd7");
   assert.equal(textUnits(DEFAULT_STYLES.sticky.textSize), 18);
+});
+
+test("commonStyle returns a shared colour, text size or alignment and otherwise empty", () => {
+  const object = { color: "rose", textSize: "medium", align: "left" };
+  for (const [key, different] of [["color", "blue"], ["textSize", "large"], ["align", "right"]]) {
+    assert.equal(commonStyle([object, { ...object }], key), object[key]);
+    assert.equal(commonStyle([object, { ...object, [key]: different }], key), "");
+    assert.equal(commonStyle([], key), "");
+  }
 });

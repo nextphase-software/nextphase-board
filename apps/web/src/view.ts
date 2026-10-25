@@ -60,3 +60,10 @@ export function stepZoom(zoom: number, direction: -1 | 1): number {
   const current = Math.abs(zoom - nearest) <= .001 ? nearest : zoom;
   return clamp((direction === 1 ? Math.floor(current * 4) + 1 : Math.ceil(current * 4) - 1) / 4, .5, 2);
 }
+
+export function screenPoint(o: { x: number; y: number }, view: View, size: Size) {
+  return {
+    left: size.w / 2 + (o.x - view.x) * view.z,
+    top: size.h / 2 + (o.y - view.y) * view.z,
+  };
+}

@@ -117,3 +117,10 @@ export function resizeSet(corner: Corner, members: readonly ResizeMember[], delt
       height: Math.max(o.height * scale.y, Math.min(o.neededHeight(width), 2000, 1e6 - y)) };
   });
 }
+
+export function cornerPoint(corner: Corner, rectangle: Rectangle) {
+  return {
+    x: rectangle.x + (corner.endsWith("e") ? rectangle.width : 0),
+    y: rectangle.y + (corner.startsWith("s") ? rectangle.height : 0),
+  };
+}

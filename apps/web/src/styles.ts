@@ -35,3 +35,8 @@ export const colorEntry = (color: Style["color"]) => COLORS.find((c) => c.name =
 export const textUnits = (size: Style["textSize"]) => TEXT_SIZES.find((s) => s.name === size)!.units;
 export const textColor = (object: Style & { type: "sticky" | "text" }) =>
   object.type === "sticky" ? STICKY_TEXT : colorEntry(object.color).text;
+
+export function commonStyle<K extends keyof Style>(objects: readonly Style[], key: K): Style[K] | "" {
+  const value = objects[0]?.[key];
+  return value && objects.every((o) => o[key] === value) ? value : "";
+}

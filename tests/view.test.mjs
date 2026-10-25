@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  clampView, gestureScale, panView, stepZoom, wheelDelta, wheelZoomFactor, zoomView,
+  clampView, gestureScale, panView, screenPoint, stepZoom, wheelDelta, wheelZoomFactor, zoomView,
 } from "../apps/web/src/view.ts";
 
 const size = { w: 1000, h: 800 };
@@ -103,4 +103,11 @@ test("buttons choose adjacent quarter steps with tolerance and zoom limits", () 
     assert.equal(stepZoom(zoom, -1), out);
     assert.equal(stepZoom(zoom, 1), into);
   }
+});
+
+test("screenPoint maps board points through the view and scene size", () => {
+  assert.deepEqual(screenPoint({ x: 0, y: 0 }, { x: 0, y: 0, z: 1 }, size),
+    { left: 500, top: 400 });
+  assert.deepEqual(screenPoint({ x: 150, y: 0 }, { x: 100, y: -50, z: 2 }, size),
+    { left: 600, top: 500 });
 });

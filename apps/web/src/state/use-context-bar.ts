@@ -1,25 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useLayoutEffect, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useState, useRef } from "react";
 import { contextBarPosition, type ContextBarPositionInput } from "../context-bar-position.ts";
 
 type Input = Omit<ContextBarPositionInput, "contextWidth"> & {
   selectionKey: string;
   selected: Set<string>;
   selectionReason: string;
-  contextBar: RefObject<HTMLElement | null>;
-  colourControl: RefObject<HTMLSpanElement | null>;
-  colourButton: RefObject<HTMLButtonElement | null>;
-  swatches: RefObject<HTMLDivElement | null>;
-  arrangeControl: RefObject<HTMLSpanElement | null>;
-  arrangeButton: RefObject<HTMLButtonElement | null>;
-  arrangeMenu: RefObject<HTMLDivElement | null>;
 };
 
 export function useContextBar({
   selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
-  item, itemHeight, contextBar, colourControl, colourButton, swatches,
-  arrangeControl, arrangeButton, arrangeMenu,
+  item, itemHeight,
 }: Input) {
+  const contextBar = useRef<HTMLElement>(null),
+    colourControl = useRef<HTMLSpanElement>(null),
+    colourButton = useRef<HTMLButtonElement>(null),
+    swatches = useRef<HTMLDivElement>(null),
+    arrangeControl = useRef<HTMLSpanElement>(null),
+    arrangeButton = useRef<HTMLButtonElement>(null),
+    arrangeMenu = useRef<HTMLDivElement>(null);
   const [swatchFor, setSwatchFor] = useState(""),
     [arrangeFor, setArrangeFor] = useState(""),
     [arrangeHeight, setArrangeHeight] = useState(0),
@@ -95,5 +94,6 @@ export function useContextBar({
   return {
     contextWidth, contextLeft, contextTop, contextFits, swatchOpen, arrangeOpen,
     arrangeHeight, setSwatchFor, setArrangeFor, closeSwatches, closeArrange,
+    contextBar, colourControl, colourButton, swatches, arrangeControl, arrangeButton, arrangeMenu,
   };
 }

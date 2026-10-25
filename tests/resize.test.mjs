@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resizeObject, resizeSet } from "../apps/web/src/resize.ts";
+import { cornerPoint, resizeObject, resizeSet } from "../apps/web/src/resize.ts";
 import { Adapter, add, empty, validate } from "../apps/web/src/document.ts";
 import { emptyHistory, record, redo, undo } from "../apps/web/src/history.ts";
 
@@ -305,3 +305,11 @@ for (const count of [1, 2]) {
     } finally { adapter.destroy(); }
   });
 }
+
+test("cornerPoint returns all four corners of a rectangle", () => {
+  const rectangle = { x: 10, y: 20, width: 30, height: 40 };
+  for (const [corner, expected] of [
+    ["nw", { x: 10, y: 20 }], ["ne", { x: 40, y: 20 }],
+    ["sw", { x: 10, y: 60 }], ["se", { x: 40, y: 60 }],
+  ]) assert.deepEqual(cornerPoint(corner, rectangle), expected);
+});

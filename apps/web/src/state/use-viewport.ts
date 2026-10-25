@@ -1,39 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type RefObject } from "react";
-import type { ItemV3 as Item } from "../document";
-import type { Corner, Rectangle } from "../resize";
+import type { Drag } from "../gesture";
 import { gestureScale, panView, wheelDelta, wheelZoomFactor, zoomView, type View } from "../view";
 
-type ResizeStart = { object: Item; rectangle: Rectangle };
 type Input = {
   scene: RefObject<HTMLDivElement | null>;
-  inlineSurface: RefObject<HTMLElement | null>;
   inline: boolean;
-  drag: RefObject<
-    {
-      id: string;
-      ids?: string[];
-      previous?: string[];
-      box?: boolean;
-      additive?: boolean;
-      corner?: Corner;
-      resizeStart?: ResizeStart[];
-      crossed?: boolean;
-      x: number;
-      y: number;
-      cx: number;
-      cy: number;
-      view: View;
-      pan: boolean;
-      temporary?: boolean;
-      pointerId?: number;
-      cancelled?: boolean;
-    } | null
-  >;
+  drag: RefObject<Drag | null>;
   pending: RefObject<{ invalid: boolean; composing: boolean; busy: boolean }>;
 };
 
-export function useViewport({ scene, inlineSurface, inline, drag, pending }: Input) {
+export function useViewport({ scene, inline, drag, pending }: Input) {
+  const inlineSurface = useRef<HTMLElement>(null);
   const [view, setView] = useState<View>({ x: 0, y: 0, z: 1 });
   const lastPointer = useRef<{ x: number; y: number } | null>(null),
     previousScale = useRef(1);
@@ -84,5 +62,5 @@ export function useViewport({ scene, inlineSurface, inline, drag, pending }: Inp
     const r = scene.current!.getBoundingClientRect();
     lastPointer.current = { x: e.clientX - r.left, y: e.clientY - r.top };
   }
-  return { view, setView, trackPointer };
+  return { view, setView, trackPointer, inlineSurface };
 }

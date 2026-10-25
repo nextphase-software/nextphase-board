@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { ItemV3 as Item } from "../document";
 import { textUnits } from "../styles";
 import type { View } from "../view";
@@ -17,21 +17,20 @@ type Input = {
   busy: boolean;
   readOnly: boolean;
   pos: (o: { x: number; y: number }) => { left: number; top: number };
-  editor: RefObject<HTMLTextAreaElement | null>;
-  selector: RefObject<HTMLSelectElement | null>;
-  objectsButton: RefObject<HTMLButtonElement | null>;
-  boardButton: RefObject<HTMLButtonElement | null>;
-  infoButton: RefObject<HTMLButtonElement | null>;
-  navButton: RefObject<HTMLButtonElement | null>;
 };
 
 export function useEditorPlacement({
   finishTextSession, view, size, selected, item, itemHeight, inline, setInline,
-  composing, busy, readOnly, pos, editor, selector, objectsButton, boardButton,
-  infoButton, navButton,
+  composing, busy, readOnly, pos,
 }: Input) {
   const [panel, setPanel] = useState("");
   const fallbackFocus = useRef(false);
+  const editor = useRef<HTMLTextAreaElement>(null),
+    selector = useRef<HTMLSelectElement>(null),
+    objectsButton = useRef<HTMLButtonElement>(null),
+    boardButton = useRef<HTMLButtonElement>(null),
+    navButton = useRef<HTMLButtonElement>(null),
+    infoButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (inline && !composing) editor.current?.focus();
   }, [inline, selected]);
@@ -89,5 +88,5 @@ export function useEditorPlacement({
         : navButton).current?.focus();
     }
   }
-  return { panel, setPanel, edit, toggle };
+  return { panel, setPanel, edit, toggle, editor, selector, objectsButton, boardButton, navButton, infoButton };
 }

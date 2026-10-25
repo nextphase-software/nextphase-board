@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from "react";
 import type { BoardV3 as Board } from "../document";
-import { colorEntry, type Style } from "../styles";
+import { colorEntry, commonStyle } from "../styles";
 
 type Input = {
   board: Board;
@@ -15,11 +15,7 @@ export function useSelection({ board, drafts }: Input) {
   const selectedId = selectedObjects.length === 1 ? selectedObjects[0].id : "";
   const item = board.objects.find((o) => o.id === selectedId),
     text = item ? (drafts[item.id] ?? item.text) : "";
-  const commonStyle = <K extends keyof Style>(key: K): Style[K] | "" => {
-    const value = selectedObjects[0]?.[key];
-    return value && selectedObjects.every((o) => o[key] === value) ? value : "";
-  };
-  const selectionColor = commonStyle("color"), selectionSize = commonStyle("textSize"), selectionAlign = commonStyle("align");
+  const selectionColor = commonStyle(selectedObjects, "color"), selectionSize = commonStyle(selectedObjects, "textSize"), selectionAlign = commonStyle(selectedObjects, "align");
   const colourLabel = selectionColor ? colorEntry(selectionColor).label : "Mixed";
   return {
     selected, setSelected, selectionKey, selectedId, item, text,

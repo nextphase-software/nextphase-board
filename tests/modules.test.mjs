@@ -22,10 +22,11 @@ const objects = new URL("objects/", source);
 const objectTypes = files(objects).sort();
 const objectContents = objectTypes.map((name) => [name, readFileSync(new URL(name, objects), "utf8")]);
 
-test("screen parts contain exactly the twelve modules named by 0001-W15 v1", () => {
+test("screen parts contain exactly the thirteen modules named by 0001-W15 v1 through 0001-W25 v1", () => {
   assert.deepEqual(screenParts, [
     "arrange-controls.tsx",
     "board-panel.tsx",
+    "content-field.tsx",
     "context-bar.tsx",
     "file-bar.tsx",
     "information-button.tsx",
@@ -42,7 +43,7 @@ test("screen parts contain exactly the twelve modules named by 0001-W15 v1", () 
 test("App.tsx stays within its extracted composition line budget", () => {
   const app = readFileSync(new URL("App.tsx", source), "utf8");
   const lines = (app.match(/\n/g) ?? []).length;
-  assert(lines <= 349, `App.tsx has ${lines} newlines; budget is 349`);
+  assert(lines <= 259, `App.tsx has ${lines} newlines; budget is 259`);
 });
 
 test("screen parts hold no React state or context and import React only for types", () => {
@@ -100,21 +101,26 @@ test("composition and screen parts ask the registry instead of comparing type na
   }
 });
 
-test("state contains exactly the fourteen hooks named by 0001-W17 v1 through 0001-W24 v1", () => {
+test("state contains exactly the nineteen hooks named by 0001-W17 v1 through 0001-W25 v1", () => {
   assert.deepEqual(files(new URL("state/", source)).sort(), [
     "use-board-document.ts",
     "use-canvas-input.ts",
+    "use-command-reasons.ts",
     "use-context-bar.ts",
     "use-editing-commands.ts",
     "use-editor-placement.ts",
     "use-geometry-edits.ts",
+    "use-gesture-state.ts",
     "use-messages.ts",
     "use-object-layouts.ts",
     "use-page-keys.ts",
     "use-panel-layout.ts",
     "use-scene-size.ts",
     "use-selection.ts",
+    "use-session-status.ts",
     "use-storage-session.ts",
+    "use-text-entry.ts",
+    "use-validity.ts",
     "use-viewport.ts",
   ]);
 });
@@ -205,5 +211,64 @@ test("the selection and object layouts hooks contain no effects", () => {
   for (const name of ["use-selection.ts", "use-object-layouts.ts"]) {
     const content = readFileSync(new URL("state/" + name, source), "utf8");
     assert.doesNotMatch(content, /\b(?:useEffect|useLayoutEffect)\b/, name);
+  }
+});
+
+test("the five hooks added by 0001-W25 v1 contain no effects", () => {
+  for (const name of [
+    "use-command-reasons.ts", "use-gesture-state.ts", "use-session-status.ts",
+    "use-text-entry.ts", "use-validity.ts",
+  ]) {
+    const content = readFileSync(new URL("state/" + name, source), "utf8");
+    assert.doesNotMatch(content, /\b(?:useEffect|useLayoutEffect)\b/, name);
+  }
+});
+
+function compositionProblems(source) {
+  const problems = [];
+  const stateHooks = new Set();
+  const declarations = source.matchAll(/\bimport\s+(?:(type)\s+)?(?:([^;]*?)\s+from\s*)?["']([^"']+)["']/g);
+  for (const declaration of declarations) {
+    const [, type, bindings = "", module] = declaration;
+    if (type) continue;
+    if (module === "react") problems.push("React value import");
+    const names = bindings.replace(/[{}]/g, "").split(",");
+    for (const binding of names) {
+      const name = binding.trim();
+      if (!name || /^type\s/.test(name)) continue;
+      const [imported, local = imported] = name.split(/\s+as\s+/);
+      if (module.startsWith("./state/")) stateHooks.add(local);
+      else if (/^use[A-Z]/.test(imported) || /^use[A-Z]/.test(local)) {
+        problems.push(`Hook value import outside state: ${name}`);
+      }
+    }
+  }
+  const calls = source.matchAll(/\b(use[A-Z]\w*)\s*(?:<[^()]*?>)?\s*\(/g);
+  for (const call of calls) {
+    if (!stateHooks.has(call[1])) problems.push(`Hook call outside state: ${call[1]}`);
+  }
+  return problems;
+}
+
+test("App.tsx is composition only", () => {
+  const app = readFileSync(new URL("App.tsx", source), "utf8");
+  assert.deepEqual(compositionProblems(app), []);
+});
+
+test("composition guard detects each forbidden form and allows state hooks and React types", () => {
+  for (const source of [
+    'import { createElement } from "react";',
+    'import { useThing as thing } from "./ui/thing";',
+    'useThing<number>();',
+    'import { useSelection } from "./state/use-selection"; useSelection(); useOther();',
+    'import { useThing } from "./ui/thing"; useThing<number>();',
+  ]) {
+    assert(compositionProblems(source).length > 0, source);
+  }
+  for (const source of [
+    'import type { CSSProperties } from "react";',
+    'import { useSelection } from "./state/use-selection"; useSelection<number>({});',
+  ]) {
+    assert.deepEqual(compositionProblems(source), [], source);
   }
 });

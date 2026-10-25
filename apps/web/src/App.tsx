@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useRef, useState } from "react";
-import {
-  count,
-  type ItemV3 as Item,
-  validText,
-} from "./document";
-import { type View } from "./view";
-import { editingCommandReason } from "./commands";
-import { type Corner, type Rectangle } from "./resize";
+import { screenPoint } from "./view";
+
+import { useSessionStatus } from "./state/use-session-status";
+import { useGestureState } from "./state/use-gesture-state";
+import { useTextEntry } from "./state/use-text-entry";
+import { useValidity } from "./state/use-validity";
+import { useCommandReasons } from "./state/use-command-reasons";
 
 import { useMessages } from "./state/use-messages";
 import { useBoardDocument } from "./state/use-board-document";
@@ -33,6 +31,7 @@ import { SaveArea } from "./ui/save-area";
 import { Notice } from "./ui/notice";
 import { BoardPanel } from "./ui/board-panel";
 import { ObjectsPanel } from "./ui/objects-panel";
+import { ContentField } from "./ui/content-field";
 import { ContextBar } from "./ui/context-bar";
 import { Palette } from "./ui/palette";
 import { ZoomControls } from "./ui/zoom-controls";
@@ -40,57 +39,19 @@ import { InformationButton } from "./ui/information-button";
 import { InformationPanel } from "./ui/information-panel";
 import { NavigationPanel } from "./ui/navigation-panel";
 
-type ResizeStart = { object: Item; rectangle: Rectangle };
-
 export function App() {
-  const [selectionBox, setSelectionBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null),
-    [tool, setTool] = useState("Select"),
-    [inline, setInline] = useState(false),
-    [readOnly, setReadOnly] = useState(true),
-    [status, setStatus] = useState("Unsaved"),
-    [busy, setBusy] = useState(false),
-    [spacePan, setSpacePan] = useState(false),
-    [composing, setComposing] = useState(false);
+  const { readOnly, setReadOnly, status, setStatus } = useSessionStatus();
+  const {
+    selectionBox, setSelectionBox, tool, setTool, busy, setBusy, spacePan, setSpacePan,
+    scene, spacePanRef, drag,
+  } = useGestureState();
+  const { inline, setInline, composing, setComposing } = useTextEntry();
   const { setMessage, messageSequence, latestAcknowledgement, visibleMessage } = useMessages();
   const {
     board, setBoard, title, setTitle, drafts, setDrafts, history,
     model, historyRef, textSession, revision, adapter,
     updateHistory, clearHistory, beginTextSession, finishTextSession, commit, load,
   } = useBoardDocument({ readOnly, setStatus });
-  const scene = useRef<HTMLDivElement>(null),
-    contextBar = useRef<HTMLElement>(null),
-    colourControl = useRef<HTMLSpanElement>(null),
-    colourButton = useRef<HTMLButtonElement>(null),
-    swatches = useRef<HTMLDivElement>(null),
-    arrangeControl = useRef<HTMLSpanElement>(null),
-    arrangeButton = useRef<HTMLButtonElement>(null),
-    arrangeMenu = useRef<HTMLDivElement>(null),
-    inlineSurface = useRef<HTMLElement>(null),
-    spacePanRef = useRef(false),
-    editor = useRef<HTMLTextAreaElement>(null),
-    selector = useRef<HTMLSelectElement>(null),
-    objectsButton = useRef<HTMLButtonElement>(null),
-    drag = useRef<
-      {
-        id: string;
-        ids?: string[];
-        previous?: string[];
-        box?: boolean;
-        additive?: boolean;
-        corner?: Corner;
-        resizeStart?: ResizeStart[];
-        crossed?: boolean;
-        x: number;
-        y: number;
-        cx: number;
-        cy: number;
-        view: View;
-        pan: boolean;
-        temporary?: boolean;
-        pointerId?: number;
-        cancelled?: boolean;
-      } | null
-    >(null);
   const {
     selected, setSelected, selectionKey, selectedId, item, text,
     selectionColor, selectionSize, selectionAlign, colourLabel,
@@ -101,29 +62,11 @@ export function App() {
   } = useObjectLayouts({
     board, selected, selectedId, item, text, inline, tool, readOnly, composing, busy, drag,
   });
-  const boardButton = useRef<HTMLButtonElement>(null),
-    navButton = useRef<HTMLButtonElement>(null),
-    infoButton = useRef<HTMLButtonElement>(null);
   const layout = usePanelLayout(scene);
-  const invalidObjectFields = board.objects.flatMap((o, i) =>
-    !validText(drafts[o.id] ?? o.text, 1000)
-      ? [
-        "Object " + (i + 1) +
-        " exceeds 1,000 code points or contains invalid Unicode. Correct it in Objects.",
-      ]
-      : []
-  );
-  const invalidObjectText = invalidObjectFields.length > 0;
-  const invalidFields = [
-    ...(!validText(title, 120, true)
-      ? ["Board name requires 1–120 code points and cannot be blank."]
-      : []),
-    ...invalidObjectFields,
-  ];
-  const invalid = invalidFields.length > 0;
-  const pending = useRef({ invalid: true, composing: false, busy: false });
-  pending.current = { invalid, composing, busy };
-  const { view, setView, trackPointer } = useViewport({ scene, inlineSurface, inline, drag, pending });
+  const { invalidObjectText, invalidFields, invalid, pending } = useValidity({
+    board, drafts, title, composing, busy,
+  });
+  const { view, setView, trackPointer, inlineSurface } = useViewport({ scene, inline, drag, pending });
   function select(value: string | Iterable<string>) {
     finishTextSession();
     setInline(false);
@@ -136,14 +79,12 @@ export function App() {
     revision, adapter, select, setInline, setView, invalid, busy, composing, pending,
   });
   const size = useSceneSize(scene);
-  const pos = (o: { x: number; y: number }) => ({
-    left: size.w / 2 + (o.x - view.x) * view.z,
-    top: size.h / 2 + (o.y - view.y) * view.z,
-  });
-  const { panel, setPanel, edit, toggle } = useEditorPlacement({
+  const pos = (o: { x: number; y: number }) => screenPoint(o, view, size);
+  const {
+    panel, setPanel, edit, toggle, editor, selector, objectsButton, boardButton, navButton, infoButton,
+  } = useEditorPlacement({
     finishTextSession, view, size, selected, item, itemHeight, inline, setInline,
-    composing, busy, readOnly, pos, editor, selector, objectsButton, boardButton,
-    infoButton, navButton,
+    composing, busy, readOnly, pos,
   });
   const {
     commitText, changeText, create, movedBoard, move, resizeStart,
@@ -163,59 +104,28 @@ export function App() {
     selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
     handlesVisible, handlePoints, objectLayouts, displayedObjects, edit,
   });
-  const nativeEditor = (
-    <>
-      <label htmlFor="content">Content</label>
-      <textarea
-        id="content"
-        ref={editor}
-        aria-label={inline ? "Edit selected object on canvas" : "Content"}
-        value={text}
-        readOnly={readOnly || busy}
-        disabled={!item}
-        onFocus={() => beginTextSession(item)}
-        onChange={(e) => changeText(e.target.value)}
-        onCompositionStart={() => setComposing(true)}
-        onCompositionEnd={(e) => {
-          setComposing(false);
-          const value = e.currentTarget.value;
-          setDrafts((d) => ({ ...d, [selectedId]: value }));
-          if (item && validText(value, 1000) && !readOnly) {
-            commitText(selectedId, value);
-          }
-        }}
-        onBlur={() => {
-          if (!composing) {
-            finishTextSession();
-            setInline(false);
-          }
-        }}
-      />
-      <small>{count(text)} / 1,000 code points</small>
-    </>
-  );
-  const commandReason = editingCommandReason({ readOnly, composing, pointerGesture: busy, invalidObjectText });
-  const session = textSession.current;
-  const sessionChanged = !!session &&
-    JSON.stringify(session.before.objects.find((o) => o.id === session.id)) !==
-      JSON.stringify(model.current.objects.find((o) => o.id === session.id));
-  const undoReason = commandReason || (!history.past.length && !sessionChanged ? "Nothing to undo." : "");
-  const redoReason = commandReason || (sessionChanged || !history.future.length ? "Nothing to redo." : "");
-  const selectionReason = commandReason || (!selected.size ? "Select an object to duplicate or delete." : "");
-  const clipboardState = { readOnly, composing, pointerGesture: busy, invalidObjectText };
-  const showNotice = !!(visibleMessage || invalid || busy || readOnly ||
-    tool === "Sticky" || tool === "Text" || snapshots.length);
+  const nativeEditor = <ContentField
+    editor={editor} inline={inline} text={text} readOnly={readOnly} busy={busy} item={item}
+    selectedId={selectedId} composing={composing} beginTextSession={beginTextSession}
+    changeText={changeText} setComposing={setComposing} setDrafts={setDrafts}
+    commitText={commitText} finishTextSession={finishTextSession} setInline={setInline}
+  />;
+  const {
+    commandReason, undoReason, redoReason, selectionReason, clipboardState,
+    showNotice, editingState, arrangementMembers,
+  } = useCommandReasons({
+    readOnly, composing, busy, tool, invalidObjectText, invalid, textSession, model,
+    history, selected, visibleMessage, snapshots, displayedObjects,
+  });
   // The context surface follows transformed bounds without changing board geometry.
   const {
     contextWidth, contextLeft, contextTop, contextFits, swatchOpen, arrangeOpen,
     arrangeHeight, setSwatchFor, setArrangeFor, closeSwatches, closeArrange,
+    contextBar, colourControl, colourButton, swatches, arrangeControl, arrangeButton, arrangeMenu,
   } = useContextBar({
     selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
-    item, itemHeight, contextBar, colourControl, colourButton, swatches,
-    arrangeControl, arrangeButton, arrangeMenu,
+    item, itemHeight,
   });
-  const editingState = { readOnly, composing, pointerGesture: busy, invalidObjectText };
-  const arrangementMembers = displayedObjects.filter((o) => selected.has(o.id));
   const { objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle } = useEditingCommands({
     model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view,

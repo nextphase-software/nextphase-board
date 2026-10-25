@@ -6,7 +6,7 @@ import { limitMove } from "../selection";
 import { resizeObject, resizeSet, type Corner, type Rectangle } from "../resize";
 import { textUnits } from "../styles";
 
-type ResizeStart = { object: Item; rectangle: Rectangle };
+import type { ResizeStart } from "../gesture";
 
 type Input = {
   model: RefObject<Board>;

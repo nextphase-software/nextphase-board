@@ -3,15 +3,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Konva from "konva";
 import {
   add,
-  type Board as SavedBoard,
   clamp,
   count,
-  empty,
   type ItemV3 as Item,
   validText,
 } from "./document";
 import { colorEntry, textUnits, type Style } from "./styles";
-import { decode, LocalStore, readPair } from "./storage";
 import { deleteObject, duplicate, redo, undo } from "./history";
 import { allowedHeight, displayHeight, neededHeight, savedHeight, TEXT_INSET, TEXT_LAYOUT } from "./geometry";
 import { gestureScale, panView, wheelDelta, wheelZoomFactor, zoomView, type View } from "./view";
@@ -24,6 +21,7 @@ import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCo
 
 import { useMessages } from "./state/use-messages";
 import { useBoardDocument } from "./state/use-board-document";
+import { useStorageSession } from "./state/use-storage-session";
 import { usePanelLayout } from "./state/use-panel-layout";
 import { useContextBar } from "./state/use-context-bar";
 
@@ -73,20 +71,14 @@ export function App() {
     [busy, setBusy] = useState(false),
     [spacePan, setSpacePan] = useState(false),
     [composing, setComposing] = useState(false),
-    [objectClipboard, setObjectClipboard] = useState<Snapshot | null>(null),
-    [snapshots, setSnapshots] = useState<{ board: SavedBoard; revision: number }[]>(
-      [],
-    );
+    [objectClipboard, setObjectClipboard] = useState<Snapshot | null>(null);
   const { setMessage, messageSequence, latestAcknowledgement, visibleMessage } = useMessages();
   const {
     board, setBoard, title, setTitle, drafts, setDrafts, history,
     model, historyRef, textSession, revision, adapter,
     updateHistory, clearHistory, beginTextSession, finishTextSession, commit, load,
   } = useBoardDocument({ readOnly, setStatus });
-  const ack = useRef(-1),
-    store = useRef<LocalStore | null>(null),
-    release = useRef<(() => void) | null>(null),
-    scene = useRef<HTMLDivElement>(null),
+  const scene = useRef<HTMLDivElement>(null),
     contextBar = useRef<HTMLElement>(null),
     colourControl = useRef<HTMLSpanElement>(null),
     colourButton = useRef<HTMLButtonElement>(null),
@@ -121,8 +113,7 @@ export function App() {
         pointerId?: number;
         cancelled?: boolean;
       } | null
-    >(null),
-    alive = useRef(true);
+    >(null);
   const selectedObjects = board.objects.filter((o) => selected.has(o.id));
   const selectionKey = JSON.stringify(selectedObjects.map((o) => o.id));
   const selectedId = selectedObjects.length === 1 ? selectedObjects[0].id : "";
@@ -165,8 +156,7 @@ export function App() {
   const selectionColor = commonStyle("color"), selectionSize = commonStyle("textSize"), selectionAlign = commonStyle("align");
   const colourLabel = selectionColor ? colorEntry(selectionColor).label : "Mixed";
   const itemHeight = item ? objectLayouts.get(item.id)!.height : 0;
-  const lockTask = useRef<Promise<void> | null>(null),
-    fallbackFocus = useRef(false);
+  const fallbackFocus = useRef(false);
   const boardButton = useRef<HTMLButtonElement>(null),
     navButton = useRef<HTMLButtonElement>(null),
     infoButton = useRef<HTMLButtonElement>(null);
@@ -239,90 +229,11 @@ export function App() {
     setArrangeFor("");
     setSelected(new Set(typeof value === "string" ? value ? [value] : [] : value));
   }
-  function adopt(input: SavedBoard, saved: boolean) {
-    load(input);
-    select("");
-    setInline(false);
-    setView({ x: 0, y: 0, z: 1 });
-    ack.current = saved ? 0 : -1;
-    setStatus(saved ? "Locally saved" : "Unsaved");
-  }
-  async function start() {
-    if (release.current || store.current) return;
-    clearHistory();
-    setReadOnly(true);
-    setMessage("Checking local storage and writer ownership…");
-    let own = false;
-    let writerReason = "Another tab is editing. This board is read-only.";
-    try {
-      if (!navigator.locks) {
-        writerReason = "Web Locks unavailable. This board is read-only; editing is disabled.";
-      } else try {
-        await new Promise<void>((resolve, reject) => {
-        lockTask.current = navigator.locks.request(
-          "nextphase-board/writer/v1",
-          { mode: "exclusive", ifAvailable: true },
-          async (lock) => {
-            own = !!lock;
-            if (!lock) {
-              resolve();
-              return;
-            }
-            await new Promise<void>((done) => {
-              release.current = done;
-              resolve();
-            });
-          },
-        ).catch(reject);
-        });
-      } catch (error) {
-        writerReason = "Writer ownership unavailable. This board is read-only. " + String(error);
-      }
-      const s = new LocalStore();
-      store.current = s;
-      const pair = await s.open(() => {
-        clearHistory();
-        setReadOnly(true);
-        setMessage("Storage version changed. Reload explicitly to retry.");
-        release.current?.();
-        release.current = null;
-      });
-      try {
-        const loaded = await readPair(pair);
-        if (!alive.current) return;
-        adopt(loaded?.board ?? empty(), !!loaded);
-        setReadOnly(!own);
-        setMessage(
-          own
-            ? "Stored only in this browser profile. Browser storage is not a backup."
-            : writerReason,
-        );
-      } catch (error) {
-        const valid = [];
-        for (const raw of pair) {
-          try {
-            const x = await decode(raw);
-            valid.push({
-              board: x.board,
-              revision: x.envelope.storageRevision,
-            });
-          } catch {}
-        }
-        setSnapshots(valid);
-        setReadOnly(true);
-        setMessage(
-          "Saved data is unsupported, damaged or inconsistent. Original records are preserved. " +
-            String(error),
-        );
-      }
-    } catch (error) {
-      setReadOnly(true);
-      setMessage("Storage unavailable. " + String(error));
-    }
-  }
+  const { snapshots, alive, adopt, save, reopen } = useStorageSession({
+    readOnly, setReadOnly, setStatus, setMessage, load, clearHistory, model,
+    revision, adapter, select, setInline, setView, invalid, busy, composing, pending,
+  });
   useEffect(() => {
-    alive.current = true;
-    void start();
     const resize = () =>
       setSize({
         w: scene.current?.clientWidth ?? innerWidth,
@@ -330,30 +241,8 @@ export function App() {
       });
     resize();
     window.addEventListener("resize", resize);
-    const hide = () => {
-      clearHistory();
-      store.current?.close();
-      store.current = null;
-      release.current?.();
-      release.current = null;
-      setReadOnly(true);
-    };
-    const show = () => {
-      if (!store.current) {
-        setMessage(
-          "Editing paused. Retry editing to reacquire ownership and reload.",
-        );
-      }
-    };
-    window.addEventListener("pagehide", hide);
-    window.addEventListener("pageshow", show);
     return () => {
-      alive.current = false;
-      hide();
-      adapter.current?.destroy();
       window.removeEventListener("resize", resize);
-      window.removeEventListener("pagehide", hide);
-      window.removeEventListener("pageshow", show);
     };
   }, []);
   useEffect(() => {
@@ -434,46 +323,6 @@ export function App() {
     } catch (e) {
       setMessage(String(e));
     }
-  }
-  function save() {
-    if (invalid || readOnly || busy || composing || !store.current) return;
-    const captured = revision.current;
-    setStatus("Saving");
-    store.current.save(model.current, captured).then((receipt) => {
-      ack.current = receipt.draftRevision;
-      setStatus(
-        revision.current === captured && !pending.current.invalid &&
-          !pending.current.composing && !pending.current.busy
-          ? "Locally saved"
-          : "Unsaved",
-      );
-      setMessage(
-        "Local revision " + receipt.storageRevision +
-          " acknowledged after transaction completion.",
-      );
-    }).catch((error) => {
-      setStatus("Save failed");
-      setMessage(String(error));
-      if (String(error).includes("changed")) {
-        clearHistory();
-        setReadOnly(true);
-      }
-    });
-  }
-  async function reopen() {
-    if (composing || busy) return;
-    if (
-      (revision.current !== ack.current || invalid) &&
-      !confirm("Discard unsaved drafts and reload the saved board?")
-    ) return;
-    clearHistory();
-    store.current?.close();
-    store.current = null;
-    release.current?.();
-    release.current = null;
-    await lockTask.current;
-    setSnapshots([]);
-    await start();
   }
   function movedBoard(ids: string[], dx: number, dy: number) {
     const members = model.current.objects.filter((o) => ids.includes(o.id));

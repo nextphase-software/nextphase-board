@@ -236,7 +236,7 @@ if (workload && /^[a-z0-9-]{1,64}$/i.test(workload)) {
     crypto.subtle.digest = (...args) => { if (!held) { held = true; started(); return gate.then(() => digest(...args)); } return digest(...args); };
     try {
       click("Save"); await preparing; input("Newer retained draft"); await pause(); unblock();
-      await until(() => host.querySelector(".notice").textContent.includes("revision 2 acknowledged"), "older save acknowledgement");
+      await until(() => host.querySelector("#save-acknowledgement").textContent.includes("revision 2 acknowledged"), "older save acknowledgement");
       assert(host.querySelector(".actions [role=status]").textContent === "Unsaved" && editor.value === "Newer retained draft", "Older receipt marked newer edit saved");
       const inspect = new LocalStore(database);
       try { assert((await readPair(await inspect.open(() => {}))).board.objects[0].text === "Earlier capture", "Capture changed after Save"); }

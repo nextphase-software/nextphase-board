@@ -42,7 +42,7 @@ test("screen parts contain exactly the twelve modules named by 0001-W15 v1", () 
 test("App.tsx stays within its extracted composition line budget", () => {
   const app = readFileSync(new URL("App.tsx", source), "utf8");
   const lines = (app.match(/\n/g) ?? []).length;
-  assert(lines <= 1152, `App.tsx has ${lines} newlines; budget is 1152`);
+  assert(lines <= 1001, `App.tsx has ${lines} newlines; budget is 1001`);
 });
 
 test("screen parts hold no React state or context and import React only for types", () => {
@@ -100,12 +100,13 @@ test("composition and screen parts ask the registry instead of comparing type na
   }
 });
 
-test("state contains exactly the four hooks named by 0001-W17 v1 and 0001-W18 v1", () => {
+test("state contains exactly the five hooks named by 0001-W17 v1, 0001-W18 v1 and 0001-W19 v1", () => {
   assert.deepEqual(files(new URL("state/", source)).sort(), [
     "use-board-document.ts",
     "use-context-bar.ts",
     "use-messages.ts",
     "use-panel-layout.ts",
+    "use-storage-session.ts",
   ]);
 });
 
@@ -148,4 +149,10 @@ test("the board document and messages hooks contain no effects", () => {
 test("notice message is a rules module without React imports", () => {
   const content = readFileSync(new URL("notice-message.ts", source), "utf8");
   assert.doesNotMatch(content, /\bimport\s+(?:[^;]*?\s+from\s*)?["']react["']/);
+});
+
+test("the storage session hook holds exactly one passive effect", () => {
+  const content = readFileSync(new URL("state/use-storage-session.ts", source), "utf8");
+  assert.equal((content.match(/\buseEffect\s*\(/g) ?? []).length, 1);
+  assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });

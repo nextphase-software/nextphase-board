@@ -57,9 +57,13 @@ copying, cutting and pasting selected objects within Board under
 moving the bars and panels around the canvas into their own components with no change
 in behaviour under [web modules v1](../architecture/0001-web-modules-v1.md), is implemented and merged into main.
 
-[0001-W16 v1 — Object types and the canvas drawing](0001-W16-object-types-and-canvas-drawing.md)
-is a draft: an object-type registry and the canvas drawing in their own modules, with
-no change in behaviour, following [web modules v2](../architecture/0001-web-modules-v2.md).
+[0001-W16 v1 — Object types and the canvas drawing](0001-W16-object-types-and-canvas-drawing.md),
+an object-type registry and the canvas drawing in their own modules with no change in
+behaviour under [web modules v2](../architecture/0001-web-modules-v2.md), is implemented and merged into main.
+
+[0001-W17 v1 — Move panel layout and context bar state into hooks](0001-W17-panel-layout-and-context-bar-hooks.md)
+is a draft: the first state hooks and a tested context-bar position module, with no
+change in behaviour, following [web modules v3](../architecture/0001-web-modules-v3.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

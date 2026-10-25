@@ -185,3 +185,62 @@ None beyond the repository's own documents.
 ## Implementation record
 
 Not started.
+
+### 2026-10-25 — Implementation and non-browser validation
+
+- Branch: `codex/0001-W21-viewport`, based on committed main
+  `717e664604419078a64f7bd4c57b5dba2f382049`, which contains this v1 brief and
+  web modules v7. The preceding "Not started" entry is superseded by this record.
+- Validated source/test revision: `e1d7dfa5320ed7e2f30c81afb571f05a3d99b04c`
+  (`refactor(web): extract viewport and scene size hooks`). The commands below ran
+  on the identical source/test contents immediately before that commit; only this
+  implementation record changes afterward. The final branch tip is reported
+  separately in the handoff.
+- `useViewport` owns the view, last pointer position, previous gesture scale,
+  wheel/gesture effect and `trackPointer`; `useSceneSize` owns the size and resize
+  effect. Both are called at the effects' original positions. Inputs retain the
+  originating types, including the complete drag ref shape. Both new files have
+  the Apache-2.0 SPDX header and import only React and rules modules.
+- `App.tsx` newline count: **877 before, 818 after**. The guardrail budget is
+  **818**, its recursive inventory names all eight hooks, and both new hooks must
+  hold exactly one passive effect and no layout effect. Existing guardrails remain.
+- Additional source comparison passed: the two effects, dependency lists,
+  `trackPointer` and initial values match `d455ec6` verbatim. Reversing only the
+  permitted extraction in memory restores `App.tsx` byte-for-byte, including all
+  remaining effects and their order, markup, `pos`, `point` and event handlers.
+  This is source evidence; browser behavior equivalence remains unverified.
+
+Commands ran from the repository root with the pinned distribution selected in
+`PATH` before every Node/npm invocation. No machine-specific path is recorded.
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed |
+| `npm --prefix apps/web run typecheck` | Exit 0; no diagnostics |
+| `node --test tests/modules.test.mjs` | Exit 0; 18 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web test` | Exit 0; 259 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; accepted lock, runtime inventory and complete distributed notices verified |
+| `git diff --check` | Exit 0; no whitespace errors in implementation diff |
+| `git diff --cached --check` | Exit 0; no whitespace errors in staged implementation diff |
+| `git commit -m 'refactor(web): extract viewport and scene size hooks'` | Exit 0; source/test revision above created; both public-boundary hook checks passed. Git also emitted a `packed-refs.lock` permission error; the commit and branch ref were verified afterward. No hook was bypassed |
+| `git rev-parse HEAD` | Exit 0; `e1d7dfa5320ed7e2f30c81afb571f05a3d99b04c` after source/test commit |
+| `git diff --name-only main...HEAD` | Exit 0 after source/test commit; exactly `apps/web/src/App.tsx`, `apps/web/src/state/use-scene-size.ts`, `apps/web/src/state/use-viewport.ts` and `tests/modules.test.mjs`. The final handoff additionally includes this brief's implementation record |
+
+Dependencies added: **none**. Package manifests, locks, other modules, styles,
+contracts and other existing tests are unchanged. Generated build outputs and
+installed dependencies are ignored and uncommitted. No stash, push or merge.
+
+Not run, per maintainer instruction and the environment's browser limitation:
+browsers, the browser regression harness (both fixture pages), and the W20 A–F
+plus W21 G markup/focus/drawing/saved-record comparison against two baseline runs
+and the candidate. Those checks remain for the independent reviewer. No browser
+matrix, Safari, accessibility, native IME, performance/load or unrelated acceptance
+sweep was run. Fixture compilation does not establish browser fixture passes.
+
+Graph listing, search and indexing were attempted first; each was unavailable
+because the tool required approval under a never-approve policy. File reading was
+used as the discovery fallback. Independent review and browser acceptance remain
+pending; this handoff does not authorize merging or another milestone.

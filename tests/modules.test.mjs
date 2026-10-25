@@ -42,7 +42,7 @@ test("screen parts contain exactly the twelve modules named by 0001-W15 v1", () 
 test("App.tsx stays within its extracted composition line budget", () => {
   const app = readFileSync(new URL("App.tsx", source), "utf8");
   const lines = (app.match(/\n/g) ?? []).length;
-  assert(lines <= 1305, `App.tsx has ${lines} newlines; budget is 1305`);
+  assert(lines <= 1209, `App.tsx has ${lines} newlines; budget is 1209`);
 });
 
 test("screen parts hold no React state or context and import React only for types", () => {
@@ -98,4 +98,40 @@ test("composition and screen parts ask the registry instead of comparing type na
     assert.doesNotMatch(content, /["']sticky["']\s*:\s*["']text["']/, name);
     assert.doesNotMatch(content, /\[\s*["']sticky["']\s*,\s*["']text["']\s*\]/, name);
   }
+});
+
+test("state contains exactly the two hooks named by 0001-W17 v1", () => {
+  assert.deepEqual(files(new URL("state/", source)).sort(), [
+    "use-context-bar.ts",
+    "use-panel-layout.ts",
+  ]);
+});
+
+test("state hooks keep the licence header and never depend on App or screen parts", () => {
+  const state = new URL("state/", source);
+  for (const name of files(state)) {
+    const content = readFileSync(new URL(name, state), "utf8");
+    assert.equal(content.split("\n")[0], "// SPDX-License-Identifier: Apache-2.0", name);
+    const declarations = content.matchAll(/\b(?:import|export)\s+(?:[^;]*?\s+from\s*)?["']([^"']+)["']/g);
+    for (const declaration of declarations) {
+      const module = declaration[1].replace(/\.(?:ts|tsx|js|jsx)$/, "");
+      assert.doesNotMatch(module, /(?:^|\/)App$|\/ui\/|\/scene\//, name);
+      assert.doesNotMatch(module, /^\.\//, `${name}: hooks must not import each other`);
+    }
+  }
+});
+
+test("only App.tsx imports or re-exports state", () => {
+  for (const name of files(source).filter((name) => name !== "App.tsx")) {
+    const content = readFileSync(new URL(name, source), "utf8");
+    const declarations = content.matchAll(/\b(?:import|export)\s+(?:[^;]*?\s+from\s*)?["']([^"']+)["']/g);
+    for (const declaration of declarations) {
+      assert.doesNotMatch(declaration[1], /(?:^|\/)state\//, name);
+    }
+  }
+});
+
+test("context bar position is a rules module without React imports", () => {
+  const content = readFileSync(new URL("context-bar-position.ts", source), "utf8");
+  assert.doesNotMatch(content, /\bimport\s+(?:[^;]*?\s+from\s*)?["']react["']/);
 });

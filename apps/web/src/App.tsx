@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Konva from "konva";
 import {
   Adapter,
@@ -24,6 +24,9 @@ import { resizeObject, resizeSet, type Corner, type Rectangle } from "./resize";
 import { arrangeOrder, arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "./arrange";
 import { expandSelection, groupNumbers, groupObjects, groupReason, pressSelection, toggleGroup, ungroupObjects, wholeGroups } from "./group";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "./clipboard";
+
+import { usePanelLayout } from "./state/use-panel-layout";
+import { useContextBar } from "./state/use-context-bar";
 
 import { typeForTool } from "./objects/registry";
 import { BoardDrawing } from "./scene/board-drawing";
@@ -67,10 +70,6 @@ export function App() {
     [tool, setTool] = useState("Select"),
     [panel, setPanel] = useState(""),
     [inline, setInline] = useState(false),
-    [swatchFor, setSwatchFor] = useState(""),
-    [arrangeFor, setArrangeFor] = useState(""),
-    [arrangeHeight, setArrangeHeight] = useState(0),
-    [contextWidth, setContextWidth] = useState(0),
     [readOnly, setReadOnly] = useState(true),
     [message, setMessageState] = useState("Opening local board…"),
     [status, setStatus] = useState("Unsaved"),
@@ -182,31 +181,7 @@ export function App() {
   const boardButton = useRef<HTMLButtonElement>(null),
     navButton = useRef<HTMLButtonElement>(null),
     infoButton = useRef<HTMLButtonElement>(null);
-  const [layout, setLayout] = useState({ notice: 80, panel: 130 });
-  useEffect(() => {
-    const file = document.querySelector(".file")!,
-      actions = document.querySelector(".actions")!,
-      notice = document.querySelector<HTMLElement>(".notice")!;
-    const update = () => {
-      const top = scene.current?.getBoundingClientRect().top ?? 0;
-      const n = Math.max(
-        file.getBoundingClientRect().bottom,
-        actions.getBoundingClientRect().bottom,
-      ) - top + 8;
-      setLayout({
-        notice: n,
-        panel: n + (notice.hidden ? 0 : notice.getBoundingClientRect().height + 8),
-      });
-    };
-    const observer = new ResizeObserver(update);
-    [file, actions, notice].forEach((el) => observer.observe(el));
-    update();
-    window.addEventListener("resize", update);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", update);
-    };
-  }, []);
+  const layout = usePanelLayout(scene);
   const invalidObjectFields = board.objects.flatMap((o, i) =>
     !validText(drafts[o.id] ?? o.text, 1000)
       ? [
@@ -808,77 +783,14 @@ export function App() {
   const showNotice = !!(visibleMessage || invalid || busy || readOnly ||
     tool === "Sticky" || tool === "Text" || snapshots.length);
   // The context surface follows transformed bounds without changing board geometry.
-  useLayoutEffect(() => {
-    const bar = contextBar.current;
-    if (!bar) return;
-    const measure = () => setContextWidth(bar.getBoundingClientRect().width);
-    const observer = new ResizeObserver(measure);
-    observer.observe(bar);
-    measure();
-    return () => observer.disconnect();
-  }, [selectionKey]);
-  const contextLeft = bounds
-    ? clamp(pos(bounds).left + bounds.width * view.z / 2 - contextWidth / 2,
-      12, Math.max(12, size.w - contextWidth - 12)) : 12;
-  const contextAbove = bounds ? pos(bounds).top - 48 : 0;
-  const contextBelow = bounds ? pos(bounds).top + bounds.height * view.z + 8 : 0;
-  const contextTop = clamp(contextAbove >= layout.panel ? contextAbove : contextBelow,
-    layout.panel, Math.max(layout.panel, size.h - 52));
-  const overlapsEditor = inline && item &&
-    contextTop < pos(item).top + (itemHeight - 20) * view.z &&
-    contextTop + 40 > pos(item).top + 20 * view.z &&
-    contextLeft < pos(item).left + (item.width - 20) * view.z &&
-    contextLeft + contextWidth > pos(item).left + 20 * view.z;
-  const contextFits = size.w >= 768 && contextWidth > 0 && contextWidth <= size.w - 24 &&
-    contextTop + 40 <= size.h - 12 && !overlapsEditor;
-  const swatchOpen = swatchFor === selectionKey && selected.size > 0 && contextFits && !selectionReason;
-  useEffect(() => {
-    if (!swatchOpen) setSwatchFor("");
-  }, [swatchOpen, selectionKey]);
-  useEffect(() => {
-    if (!swatchOpen) return;
-    (swatches.current?.querySelector<HTMLButtonElement>('[aria-pressed="true"]') ??
-      swatches.current?.querySelector<HTMLButtonElement>("button"))?.focus();
-    const outside = (event: Event) => {
-      if (event.target instanceof Node && !colourControl.current?.contains(event.target)) {
-        setSwatchFor("");
-      }
-    };
-    document.addEventListener("pointerdown", outside, true);
-    document.addEventListener("focusin", outside);
-    return () => {
-      document.removeEventListener("pointerdown", outside, true);
-      document.removeEventListener("focusin", outside);
-    };
-  }, [swatchOpen]);
-  const arrangeOpen = arrangeFor === selectionKey && selected.size > 0 && contextFits && !selectionReason;
-  useEffect(() => {
-    if (!arrangeOpen) setArrangeFor("");
-  }, [arrangeOpen, selectionKey]);
-  useLayoutEffect(() => {
-    if (!arrangeOpen || !arrangeMenu.current) return;
-    const menu = arrangeMenu.current;
-    const measure = () => setArrangeHeight(menu.getBoundingClientRect().height);
-    const observer = new ResizeObserver(measure);
-    observer.observe(menu);
-    measure();
-    return () => observer.disconnect();
-  }, [arrangeOpen]);
-  useEffect(() => {
-    if (!arrangeOpen) return;
-    arrangeMenu.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
-    const outside = (event: Event) => {
-      if (event.target instanceof Node && !arrangeControl.current?.contains(event.target)) {
-        setArrangeFor("");
-      }
-    };
-    document.addEventListener("pointerdown", outside, true);
-    document.addEventListener("focusin", outside);
-    return () => {
-      document.removeEventListener("pointerdown", outside, true);
-      document.removeEventListener("focusin", outside);
-    };
-  }, [arrangeOpen]);
+  const {
+    contextWidth, contextLeft, contextTop, contextFits, swatchOpen, arrangeOpen,
+    arrangeHeight, setSwatchFor, setArrangeFor, closeSwatches, closeArrange,
+  } = useContextBar({
+    selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
+    item, itemHeight, contextBar, colourControl, colourButton, swatches,
+    arrangeControl, arrangeButton, arrangeMenu,
+  });
   const editingState = { readOnly, composing, pointerGesture: busy, invalidObjectText };
   const arrangementMembers = displayedObjects.filter((o) => selected.has(o.id));
   function arrangementReason(name: ArrangeCommand) {
@@ -902,10 +814,6 @@ export function App() {
         ? { ...o, x: positions.get(o.id)!.x, y: positions.get(o.id)!.y } : o) }, true);
     }
   }
-  function closeArrange() {
-    setArrangeFor("");
-    arrangeButton.current?.focus();
-  }
   function changeStyle<K extends keyof Style>(key: K, value: Style[K]) {
     if (selectionReason) return;
     finishTextSession();
@@ -920,10 +828,6 @@ export function App() {
     commit({ ...model.current, objects }, true);
   }
 
-  function closeSwatches() {
-    setSwatchFor("");
-    colourButton.current?.focus();
-  }
   return (
     <main
       style={{

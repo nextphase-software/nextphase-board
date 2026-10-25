@@ -245,3 +245,82 @@ None beyond the repository's own documents.
 ## Implementation record
 
 Not started.
+
+### 2026-10-25 — Implementation and non-browser validation
+
+- Branch: `codex/0001-W24-selection-editor`, based on committed main
+  `0504c5684e9c9260d5a6c205c1c7d56e4dcea296`, which contains this v1 brief and
+  web modules v10. The preceding "Not started" entry is superseded by this record.
+- Validated source/test revision: `7c7cdf8ba3c3121b1025b87789047604228f4a9d`
+  (`refactor(web): extract selection layouts and editor hooks`). The requested
+  install, typecheck, tests and builds ran on identical source/test contents
+  immediately before that commit.
+  Only this implementation record changes afterward; the final branch tip is
+  reported separately in the handoff.
+- `useSelection` owns `selected` and its setter, derives the selection values and
+  shared styles in the specified order, takes only `board` and `drafts`, and has
+  no effects. `commonStyle` is unchanged and remains local as required.
+- `useObjectLayouts` holds `CORNERS`, Konva text measurement, the memoized layouts,
+  displayed objects, bounds, groups, numbers, resize handles and selected height.
+  It has no effects; its memo dependencies and local `posForCorner` are unchanged.
+  Its drag-ref input and local `ResizeStart` have the original shapes.
+- `useEditorPlacement` owns `panel` and `fallbackFocus`, then holds the two focus
+  effects, `fallbackEditor`, `edit`, the fallback effect and `toggle`, in that
+  order. All three effects remain passive with their exact dependency lists.
+  Its call follows `useSceneSize` and the unchanged `pos`; `useGeometryEdits`
+  remains immediately afterward with no effects, preserving passive-phase order.
+- Every new hook has the Apache-2.0 SPDX header and imports only React, rules
+  and, for layouts, Konva. No existing hook changes. The remaining state, refs,
+  drag type, `select`, validity values, `pending`, Content field, command and
+  notice reasons, and markup remain in `App.tsx` as required.
+- `App.tsx` newline count: **452 before, 349 after**. The literal guardrail
+  budget is **349**; the recursive inventory and existing state checks cover
+  all fourteen hooks. Two new guardrails enforce the three passive editor
+  placement effects and the absence of effects in selection and layouts.
+- A one-off source comparison passed: reversing only the permitted moves,
+  imports and state-declaration punctuation restores `App.tsx` byte-for-byte
+  to `25d2d74`. This checks the moved bodies, effect dependencies and order,
+  and all remaining code and markup. State initializers and the full drag-ref
+  type also match. An initial comparison-script assertion rejected drag-type
+  indentation; correcting its whitespace normalization passed without changing
+  application code or tests. This is source evidence, not browser equivalence.
+
+Commands ran from the repository root with the existing pinned distribution
+selected in `PATH` before every Node/npm invocation and the commit's hooks.
+No machine-specific path is recorded.
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed |
+| `npm --prefix apps/web run typecheck` | Exit 0; no diagnostics |
+| `node --test tests/modules.test.mjs` | Exit 0; 23 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web test` | Exit 0; 264 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; accepted lock, runtime inventory and complete distributed notices verified |
+| `git diff --check` | Exit 0; no whitespace errors in implementation diff |
+| `git diff --cached --check` | Exit 0; no whitespace errors in staged implementation diff |
+| `git commit -m 'refactor(web): extract selection layouts and editor hooks'` | Exit 0; validated revision above created; both public-boundary hooks passed. Git also emitted a `packed-refs.lock` permission error; the commit and branch ref were verified afterward. No hook was bypassed |
+| `git rev-parse HEAD refs/heads/codex/0001-W24-selection-editor` | Exit 0; both refs match the validated source/test revision above |
+| `git diff --name-only main...HEAD` | Exit 0 after source/test commit; exactly `apps/web/src/App.tsx`, the three new hooks and `tests/modules.test.mjs`. The final handoff additionally includes this brief's implementation record |
+| `git status --short` | Exit 0; clean after source/test commit |
+
+Dependencies added: **none**. Package manifests, locks, rules, other modules,
+styles, contracts and other existing tests are unchanged. Web modules v10 was
+already committed on main. Generated build outputs and installed dependencies
+are ignored and uncommitted. No stash, push or merge.
+
+Not run, per maintainer instruction and the environment's browser limitation:
+any browser or browser regression harness, either fixture page's runtime checks,
+and the W23 A–I plus W24 J markup/focus/drawing/saved-record comparisons against
+two `25d2d74` baseline runs and the candidate. These remain for the independent
+reviewer. No browser matrix, Safari, accessibility, native IME, performance/load
+or unrelated acceptance sweep was run. Fixture compilation does not establish
+browser fixture passes. Browser-dependent parts of AC01 and AC02 remain pending.
+
+Graph architecture and indexing were attempted first; both were unavailable
+because the tools required approval under a never-approve policy. Direct file
+reads were used as the discovery fallback. Independent review and browser
+acceptance remain pending; this handoff does not authorize merging or another
+milestone.

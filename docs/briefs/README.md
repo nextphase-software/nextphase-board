@@ -81,10 +81,15 @@ change in behaviour under [web modules v6](../architecture/0001-web-modules-v6.m
 wheel and trackpad zoom, and the canvas size, in two hooks each called where its effect
 was, with no change in behaviour under [web modules v7](../architecture/0001-web-modules-v7.md), is implemented and merged into main.
 
-[0001-W22 v1 — Move the geometry edits into a hook](0001-W22-geometry-edits-hook.md) is a
-draft: creating, moving and resizing objects and committing their text in their own hook,
-with no change in behaviour and no effect moved, following
-[web modules v8](../architecture/0001-web-modules-v8.md).
+[0001-W22 v1 — Move the geometry edits into a hook](0001-W22-geometry-edits-hook.md),
+creating, moving and resizing objects and committing their text in their own hook, with no
+change in behaviour and no effect moved under [web modules v8](../architecture/0001-web-modules-v8.md), is implemented and merged into main.
+
+[0001-W23 v1 — Move the pointer and keyboard handlers into hooks](0001-W23-pointer-keyboard-hooks.md)
+is a draft: the canvas element's pointer and key handlers with their helpers and the two
+effects that end a gesture, in one hook called where they were, and the page's keyboard
+shortcuts in a second, with no change in behaviour, following
+[web modules v9](../architecture/0001-web-modules-v9.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

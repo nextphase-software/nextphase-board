@@ -1,8 +1,10 @@
 BRIEF VERSION: 0001-W22 v1 (2026-10-25)
 # 0001-W22 — Move the geometry edits into a hook
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 web modules v8](../architecture/0001-web-modules-v8.md) to main.
+Status: Implemented. Independently reviewed at `b2dc288` (pass) and merged into main
+on 2026-10-25 with [0001 web modules v8](../architecture/0001-web-modules-v8.md). The
+implementation record below, which lists the validated revisions, was written before
+that review.
 
 ## Outcome
 

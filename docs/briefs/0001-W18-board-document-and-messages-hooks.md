@@ -281,3 +281,59 @@ None beyond the repository's own documents.
 ## Implementation record
 
 Not started.
+
+### 0001-W18 v1 implementation — 2026-10-24
+
+- Branch: `codex/0001-W18-document-hooks`, from committed main
+  `fc4539eb11f22ade1769138236f0c9e2edc29c5a`, which contains this brief v1 and
+  web modules v4. The worktree was clean at the start.
+- Validated source/test revision: `18f517c62889362d158fe2b8f97c830c1c94be2e`
+  (`refactor(web): extract board document and message hooks`). The checks below ran
+  on the source and tests committed unchanged at this revision. The later record
+  commit changes only this implementation record; its final branch tip is reported
+  separately in the handoff.
+- Moved the notice expressions verbatim into `notice-message.ts`; moved messages
+  and board document ownership into the two specified hooks. The only function
+  changes are the specified `beginTextSession(item)` parameter/callers and the
+  `adopt`/`load` split. Source diff inspection found no effect or markup changes
+  beyond the specified focus-handler wiring; effect bodies and order stay in place.
+  `App.tsx` reads the returned refs without assigning to them.
+- `App.tsx` newline count: **1,209 before, 1,152 after**. The literal module-test
+  budget is 1,152; the state inventory and existing state guardrails cover all four
+  hooks, with added checks for effect-free new hooks and a React-free notice rule.
+- Added dependencies: **none**. No package, lock, contract, style, other module or
+  other existing test changed.
+- Toolchain: Node **24.22.1**, npm **11.19.1**, selected in the shell before every
+  Node/npm command. Toolchain selection uses environment configuration, without
+  committing a machine-specific path.
+
+Commands run from the repository root:
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed |
+| `npm --prefix apps/web run typecheck` | Exit 0; TypeScript passed |
+| `node --test tests/notice-message.test.mjs tests/modules.test.mjs` | Exit 0; 21 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web test` | Exit 0; full unit suite: 256 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; accepted lock, runtime inventory and complete distributed notices verified; application built |
+| `git diff --check` | Exit 0; no whitespace errors |
+| `git diff --color-moved=plain -- apps/web/src/App.tsx tests/modules.test.mjs` | Exit 0; inspected the extraction and guardrail changes against the unchanged baseline source |
+| `git diff --cached --check` | Exit 0 before source/test commit; no staged whitespace errors |
+| `git diff --name-only main...HEAD` | Exit 0 after source/test commit; exactly the six allowed source/test deliverables |
+| `git diff --exit-code 18f517c62889362d158fe2b8f97c830c1c94be2e -- apps/web/src tests` | Exit 0 after appending the record; source and tests still match the validated revision |
+
+Both public-boundary hook checks reported PASS for the source/test commit; no hook
+was bypassed. Git also emitted a sandbox denial while creating `packed-refs.lock`,
+but the commit succeeded and its branch ref and clean worktree were verified.
+
+Exclusions: no browser was launched; no browser regression harness, markup/focus/
+drawing comparison, saved-record comparison or Chromium/Safari smoke ran. These
+remain reviewer checks, so browser equivalence and final milestone acceptance are
+pending. No fixtures sweep, browser matrix, accessibility audit, native IME check,
+performance/load test or unrelated test campaign ran. Nothing was merged or pushed.
+
+The graph inventory, symbol search and indexing tools were attempted first but
+returned an approval-policy error. Source discovery therefore used the brief's
+named files directly; no graph artifact was written to the repository.

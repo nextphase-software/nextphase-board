@@ -250,3 +250,73 @@ None beyond the repository's own documents.
 ## Implementation record
 
 Not started.
+
+### 2026-10-25 — Implementation and non-browser validation
+
+- Branch: `codex/0001-W23-pointer-keyboard`, based on committed main
+  `dd187bbd03758dae59e07460704e73ff9b0c493d`, which contains this v1 brief and
+  web modules v9. The preceding "Not started" entry is superseded by this record.
+- Validated source/test revision: `8f9cc1024f2eb3baa18a974025200e8cce050aa1`
+  (`refactor(web): extract pointer and keyboard hooks`). The validation commands
+  ran on identical source/test contents immediately before that commit; only this
+  implementation record changes afterward. The final branch tip is reported
+  separately in the handoff.
+- `useCanvasInput` takes the specified 36 inputs and returns `cancel` and the
+  seven named canvas handlers. The four pointer helpers, the window blur/key-up
+  effect, the read-only effect and the seven handler bodies retain their order
+  and contents from `b2dc288`. The window effect keeps its empty dependency list,
+  DOM `KeyboardEvent` and first-render closures. The hook has exactly two passive
+  effects and no layout effects; its call preserves their passive-phase positions.
+- `usePageKeys` takes the specified 15 inputs, has no effects, and returns the
+  named `pageKeyDown` handler. Its body is unchanged and the hook is called after
+  `useEditingCommands`. React event parameter types match the brief. Both hooks
+  have the Apache-2.0 SPDX header and import only React, rules and, for canvas
+  input, the object registry. No existing hook is changed.
+- `App.tsx` newline count: **752 before, 452 after**. The guardrail budget is
+  **452**, its recursive inventory names all eleven hooks, and the two new checks
+  enforce the new hooks' effect counts. All prior guardrails remain.
+- A one-off source comparison passed: the four helpers and two effects match
+  verbatim, and all eight moved handler bodies match after removing indentation.
+  Reversing only the permitted extraction and import changes restores `App.tsx`
+  byte-for-byte to `b2dc288`, including the native editor, all remaining effects,
+  drag and gesture state, `pos`, `toggle`, `fallbackEditor`, `edit`, `ResizeStart`,
+  `lineCount` and markup. This is source evidence; browser equivalence remains
+  unverified.
+
+Commands ran from the repository root with the pinned distribution selected in
+`PATH` before every Node/npm invocation and the commit's hooks. No machine-specific
+path is recorded.
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed |
+| `npm --prefix apps/web run typecheck` | Exit 0; no diagnostics |
+| `node --test tests/modules.test.mjs` | Exit 0; 21 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web test` | Exit 0; 262 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; accepted lock, runtime inventory and complete distributed notices verified |
+| `git diff --check` | Exit 0; no whitespace errors in implementation diff |
+| `git diff --cached --check` | Exit 0; no whitespace errors in staged implementation diff |
+| `git commit -m 'refactor(web): extract pointer and keyboard hooks'` | Exit 0; validated revision above created; both public-boundary hooks passed. Git also emitted a `packed-refs.lock` permission error; the commit and branch ref were verified afterward. No hook was bypassed |
+| `git rev-parse HEAD refs/heads/codex/0001-W23-pointer-keyboard` | Exit 0; both refs match the validated source/test revision above |
+| `git diff --name-only main...HEAD` | Exit 0 after source/test commit; exactly `apps/web/src/App.tsx`, `apps/web/src/state/use-canvas-input.ts`, `apps/web/src/state/use-page-keys.ts` and `tests/modules.test.mjs`. The final handoff additionally includes this brief's implementation record |
+| `git status --short` | Exit 0; clean after source/test commit |
+
+Dependencies added: **none**. Package manifests, locks, other modules, styles,
+contracts and other existing tests are unchanged. Generated build outputs and
+installed dependencies are ignored and uncommitted. No stash, push or merge.
+
+Not run, per maintainer instruction and the environment's browser limitation:
+any browser or browser regression harness, either fixture page's runtime checks,
+and the W22 A–H plus W23 I markup/focus/drawing/saved-record comparison against two
+`b2dc288` baseline runs and the candidate. Those checks remain for the independent
+reviewer. No browser matrix, Safari, accessibility, native IME, performance/load or
+unrelated acceptance sweep was run. Fixture compilation does not establish browser
+fixture passes. Browser-dependent parts of AC01 and AC02 remain pending.
+
+Graph listing, indexing and search were attempted first; each was unavailable
+because the tool required approval under a never-approve policy. Direct file reads
+were used as the discovery fallback. Independent review and browser acceptance
+remain pending; this handoff does not authorize merging or another milestone.

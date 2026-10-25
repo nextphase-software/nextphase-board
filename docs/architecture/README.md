@@ -71,10 +71,13 @@ state layer under `state/` with the panel layout and the context bar, and adds t
 state-hook rules (one owner per piece of state, explicit inputs, effect order kept,
 calculations in tested rules modules). It replaces v2 for later work.
 
-Draft for 0001-W18 brief v1: [0001 web modules v4](0001-web-modules-v4.md) keeps v3's
-rules unchanged and updates the module inventory for the board document and messages
-hooks and the notice-message rules module. It replaces v3 for later work once
-accepted.
+[0001 web modules v4](0001-web-modules-v4.md), accepted with 0001-W18, keeps v3's rules
+unchanged and updates the module inventory for the board document and messages hooks
+and the notice-message rules module. It replaces v3 for later work.
+
+Draft for 0001-W19 brief v1: [0001 web modules v5](0001-web-modules-v5.md) keeps v3's
+rules unchanged and updates the module inventory for the storage session hook. It
+replaces v4 for later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

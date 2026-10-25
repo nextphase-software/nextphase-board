@@ -42,7 +42,7 @@ test("screen parts contain exactly the twelve modules named by 0001-W15 v1", () 
 test("App.tsx stays within its extracted composition line budget", () => {
   const app = readFileSync(new URL("App.tsx", source), "utf8");
   const lines = (app.match(/\n/g) ?? []).length;
-  assert(lines <= 877, `App.tsx has ${lines} newlines; budget is 877`);
+  assert(lines <= 818, `App.tsx has ${lines} newlines; budget is 818`);
 });
 
 test("screen parts hold no React state or context and import React only for types", () => {
@@ -100,14 +100,16 @@ test("composition and screen parts ask the registry instead of comparing type na
   }
 });
 
-test("state contains exactly the six hooks named by 0001-W17 v1 through 0001-W20 v1", () => {
+test("state contains exactly the eight hooks named by 0001-W17 v1 through 0001-W21 v1", () => {
   assert.deepEqual(files(new URL("state/", source)).sort(), [
     "use-board-document.ts",
     "use-context-bar.ts",
     "use-editing-commands.ts",
     "use-messages.ts",
     "use-panel-layout.ts",
+    "use-scene-size.ts",
     "use-storage-session.ts",
+    "use-viewport.ts",
   ]);
 });
 
@@ -161,4 +163,12 @@ test("the storage session hook holds exactly one passive effect", () => {
 test("the editing commands hook contains no effects", () => {
   const content = readFileSync(new URL("state/use-editing-commands.ts", source), "utf8");
   assert.doesNotMatch(content, /\b(?:useEffect|useLayoutEffect)\b/);
+});
+
+test("the viewport and scene size hooks each hold exactly one passive effect", () => {
+  for (const name of ["use-viewport.ts", "use-scene-size.ts"]) {
+    const content = readFileSync(new URL("state/" + name, source), "utf8");
+    assert.equal((content.match(/\buseEffect\s*\(/g) ?? []).length, 1, name);
+    assert.doesNotMatch(content, /\buseLayoutEffect\b/, name);
+  }
 });

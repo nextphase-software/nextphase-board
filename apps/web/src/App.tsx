@@ -10,7 +10,7 @@ import {
 } from "./document";
 import { colorEntry, textUnits, type Style } from "./styles";
 import { allowedHeight, displayHeight, neededHeight, savedHeight, TEXT_INSET, TEXT_LAYOUT } from "./geometry";
-import { gestureScale, panView, wheelDelta, wheelZoomFactor, zoomView, type View } from "./view";
+import { panView, zoomView, type View } from "./view";
 import { boundingBox, boxSelection, limitMove } from "./selection";
 import { editingCommandReason } from "./commands";
 import { resizeObject, resizeSet, type Corner, type Rectangle } from "./resize";
@@ -22,6 +22,8 @@ import { useStorageSession } from "./state/use-storage-session";
 import { useEditingCommands } from "./state/use-editing-commands";
 import { usePanelLayout } from "./state/use-panel-layout";
 import { useContextBar } from "./state/use-context-bar";
+import { useViewport } from "./state/use-viewport";
+import { useSceneSize } from "./state/use-scene-size";
 
 import { typeForTool } from "./objects/registry";
 import { BoardDrawing } from "./scene/board-drawing";
@@ -64,8 +66,6 @@ export function App() {
     [inline, setInline] = useState(false),
     [readOnly, setReadOnly] = useState(true),
     [status, setStatus] = useState("Unsaved"),
-    [view, setView] = useState<View>({ x: 0, y: 0, z: 1 }),
-    [size, setSize] = useState({ w: innerWidth, h: innerHeight }),
     [busy, setBusy] = useState(false),
     [spacePan, setSpacePan] = useState(false),
     [composing, setComposing] = useState(false);
@@ -85,8 +85,6 @@ export function App() {
     arrangeMenu = useRef<HTMLDivElement>(null),
     inlineSurface = useRef<HTMLElement>(null),
     spacePanRef = useRef(false),
-    lastPointer = useRef<{ x: number; y: number } | null>(null),
-    previousScale = useRef(1),
     editor = useRef<HTMLTextAreaElement>(null),
     selector = useRef<HTMLSelectElement>(null),
     objectsButton = useRef<HTMLButtonElement>(null),
@@ -176,49 +174,7 @@ export function App() {
   const invalid = invalidFields.length > 0;
   const pending = useRef({ invalid: true, composing: false, busy: false });
   pending.current = { invalid, composing, busy };
-  useEffect(() => {
-    const canvas = scene.current!;
-    // The native editor is a sibling overlay, so it needs the same scene rules.
-    // Floating controls and panels are outside both listener targets.
-    const surfaces = [canvas, inlineSurface.current].filter((el) => el !== null);
-    const dimensions = () => ({ w: canvas.clientWidth, h: canvas.clientHeight });
-    const wheel = (event: WheelEvent) => {
-      const zoom = event.ctrlKey || event.metaKey;
-      if (!zoom && event.target instanceof Element && event.target.closest(".inline")) return;
-      event.preventDefault();
-      if (drag.current || pending.current.composing) return;
-      const size = dimensions();
-      const delta = wheelDelta(event.deltaX, event.deltaY, event.deltaMode, size,
-        !zoom && event.shiftKey);
-      if (zoom) {
-        const rect = canvas.getBoundingClientRect();
-        const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-        setView((v) => zoomView(v, wheelZoomFactor(delta.y), point, size));
-      } else setView((v) => panView(v, delta));
-    };
-    const gesture = (event: Event) => {
-      event.preventDefault();
-      const type = event.type as "gesturestart" | "gesturechange" | "gestureend";
-      const next = gestureScale(previousScale.current, type, (event as Event & { scale?: number }).scale);
-      previousScale.current = next.previous;
-      // Consume scale even while blocked so the next delta cannot jump.
-      if (type !== "gesturechange" || drag.current || pending.current.composing || next.factor === 1) return;
-      const size = dimensions();
-      const point = lastPointer.current ?? { x: size.w / 2, y: size.h / 2 };
-      setView((v) => zoomView(v, next.factor, point, size));
-    };
-    const gestures = ["gesturestart", "gesturechange", "gestureend"];
-    for (const surface of surfaces) {
-      surface.addEventListener("wheel", wheel, { passive: false });
-      for (const name of gestures) surface.addEventListener(name, gesture, { passive: false });
-    }
-    return () => {
-      for (const surface of surfaces) {
-        surface.removeEventListener("wheel", wheel);
-        for (const name of gestures) surface.removeEventListener(name, gesture);
-      }
-    };
-  }, [inline]);
+  const { view, setView, trackPointer } = useViewport({ scene, inlineSurface, inline, drag, pending });
   function select(value: string | Iterable<string>) {
     finishTextSession();
     setInline(false);
@@ -230,18 +186,7 @@ export function App() {
     readOnly, setReadOnly, setStatus, setMessage, load, clearHistory, model,
     revision, adapter, select, setInline, setView, invalid, busy, composing, pending,
   });
-  useEffect(() => {
-    const resize = () =>
-      setSize({
-        w: scene.current?.clientWidth ?? innerWidth,
-        h: scene.current?.clientHeight ?? innerHeight,
-      });
-    resize();
-    window.addEventListener("resize", resize);
-    return () => {
-      window.removeEventListener("resize", resize);
-    };
-  }, []);
+  const size = useSceneSize(scene);
   useEffect(() => {
     if (inline && !composing) editor.current?.focus();
   }, [inline, selected]);
@@ -384,10 +329,6 @@ export function App() {
       x: view.x + (e.clientX - r.left - size.w / 2) / view.z,
       y: view.y + (e.clientY - r.top - size.h / 2) / view.z,
     };
-  }
-  function trackPointer(e: React.PointerEvent) {
-    const r = scene.current!.getBoundingClientRect();
-    lastPointer.current = { x: e.clientX - r.left, y: e.clientY - r.top };
   }
   function releaseCapture(pointerId?: number) {
     if (pointerId !== undefined && scene.current?.hasPointerCapture(pointerId)) {

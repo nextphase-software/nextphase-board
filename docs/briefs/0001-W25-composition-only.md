@@ -252,3 +252,83 @@ None beyond the repository's own documents.
 ## Implementation record
 
 Not started.
+
+### 2026-10-25 — Implementation and non-browser validation
+
+- Branch: `codex/0001-W25-composition-only`, based on committed main
+  `7362306ec09adac9617a29cbcca325ad118c6b7c`, which contains this v1 brief and
+  web modules v11. The preceding "Not started" entry is superseded by this record.
+- Validated source/test revision: `597ee1a4ddd2cba0e198ec5eeeae43db6fad0c1c`
+  (`refactor(web): make App composition only`). The checks below ran before that
+  commit; its source/test contents are the validated candidate. Only this record
+  changes afterward. The final branch tip is reported separately in the handoff.
+- `useSessionStatus`, `useGestureState` and `useTextEntry` own the specified state
+  and refs with their original names, types and initial values, take no inputs,
+  return every value/setter/ref, and contain no effects. `useValidity` preserves
+  the original statements, including `pending` and its per-render assignment.
+  `useCommandReasons` preserves both specified blocks in their required order.
+- The context bar, viewport and editor placement hooks create and return their
+  assigned element refs. Their remaining bodies, including every effect's kind,
+  dependencies and order, are unchanged. Existing hook-call order is preserved.
+- `gesture.ts` contains only type imports and the shared `ResizeStart` and `Drag`
+  shapes. The named consumers use those types without duplicate definitions.
+  `screenPoint`, `cornerPoint` and `commonStyle` contain the original helper
+  calculations; their callers change only as specified. `ContentField` renders
+  the original fragment and handlers and imports React only as types.
+- `App.tsx` newline count: **349 before, 259 after**. The literal budget is **259**.
+  Its only local action is the unchanged `select`; its one-line `pos` delegates
+  to `screenPoint`. Guardrails cover nineteen state hooks and thirteen screen
+  parts, the five new hooks' absence of effects, composition-only restrictions,
+  and all seven required fixed guard samples. The three rules functions have
+  the unit cases specified above.
+- A one-off, uncommitted source comparison passed against `fa0d1da`: reversing
+  only the specified placement changes reconstructs the entire `App` component
+  byte-for-byte. Separate assertions compare the moved validity, command and
+  notice reasons, Content fragment/handlers, state/ref initializers, gesture
+  shapes and helper calculations. Existing hook bodies match after reversing
+  only the permitted ref ownership, return values and named-helper moves, and
+  existing hook-call order matches. This is source evidence, not browser proof.
+
+Commands ran from the repository root with the existing pinned distribution
+selected in `PATH` for Node/npm and Git hooks; no machine-specific path is
+recorded. The full-unit command's output was redirected to a temporary log and
+its exit status retained. Typecheck also passed again after import-spacing
+cleanup, before the implementation commit.
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed |
+| `npm --prefix apps/web run typecheck` | Exit 0; no diagnostics |
+| `node --test tests/modules.test.mjs tests/view.test.mjs tests/resize.test.mjs tests/styles.test.mjs` | Exit 0; 76 passed, 0 failed, 0 skipped; includes all 26 module guardrails |
+| `npm --prefix apps/web test` | Exit 0; 270 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; accepted lock, runtime inventory and complete distributed notices verified |
+| `git diff --check` | Exit 0; no whitespace errors |
+| `git diff --cached --check` | Exit 0; no staged whitespace errors |
+| `git commit -m 'refactor(web): make App composition only'` | Exit 0; validated revision above created; both public-boundary hooks passed. Git also emitted a `packed-refs.lock` permission error; the resulting commit and branch ref were verified. No hook was bypassed |
+| `git rev-parse HEAD refs/heads/codex/0001-W25-composition-only` | Exit 0; both refs match the validated source/test revision above |
+| `git diff --name-only main...HEAD` | Exit 0 after the source/test commit; exactly the eighteen source files and four test files named in this brief. The final handoff additionally includes this brief's implementation record |
+| `git status --short` | Exit 0; clean after the source/test commit |
+
+Dependencies added: **none**. All seven new source files have Apache-2.0 SPDX
+headers. No package, lock, style, unrelated module, other test or contract changed.
+Web modules v11 was already committed on main and is unchanged under this brief's
+contract-edit exclusion. Generated build outputs and installed dependencies are
+ignored and uncommitted. No stash, push or merge.
+
+Not run, as explicitly directed by the maintainer and this brief: any browser,
+the browser regression harness, either fixture page's runtime checks, and the
+A–J markup/focus/drawing/saved-record comparisons using two `fa0d1da` baseline
+runs and the candidate. These remain for the independent reviewer. Fixture
+compilation does not establish browser passes. No browser matrix, Safari,
+accessibility audit, native IME, performance/load test or unrelated acceptance
+sweep was run. Browser-dependent portions of AC01 and AC02 remain pending;
+this record does not mark acceptance, publication or the plan on main complete.
+
+Graph project listing, indexing and symbol search were attempted first; each
+was unavailable because the tools required approval under a never-approve
+policy. Direct file reads were used as the discovery fallback. Independent
+review of the exact commit and browser acceptance remain pending; this handoff
+does not authorize merging or another milestone.

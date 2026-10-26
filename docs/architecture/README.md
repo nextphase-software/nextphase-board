@@ -110,14 +110,20 @@ complete. It replaces v10 for later work.
 modules ask the registry too), records that object types use `styles.ts` and that rules
 modules may ask the registry, and updates the inventory. It replaces v11 for later work.
 
-Drafts for 0001-W6 brief v1: [0001 document v4](0001-document-v4.md) adds each object's
-inline formatting (`marks`, beside the unchanged plain text) to the saved format and
-defines how version 1 to 3 boards are read;
-[0001 interaction v15](0001-interaction-v15.md) adds Bold, Italic and Strikethrough for
-whole objects, the drawing of formatted text and how formatting follows text edits; and
-[0001 web modules v13](0001-web-modules-v13.md) adds the two new rules modules to the
-inventory with v12's rules unchanged. They replace document v3, interaction v14 and web
-modules v12 for later work once accepted.
+[0001 document v4](0001-document-v4.md), accepted with 0001-W6, adds each object's inline
+formatting (`marks`, beside the unchanged plain text) to the saved format and defines how
+version 1 to 3 boards are read; [0001 interaction v15](0001-interaction-v15.md), accepted
+with it, adds Bold, Italic and Strikethrough for whole objects, the drawing of formatted
+text and how formatting follows text edits; and [0001 web modules v13](0001-web-modules-v13.md)
+adds the two new rules modules to the inventory with v12's rules unchanged. They replace
+document v3, interaction v14 and web modules v12 for later work.
+
+Drafts for 0001-W26 brief v1: [0001 interaction v16](0001-interaction-v16.md) lets the
+formatting controls act on the text field's selection while editing, keeps the editor
+open, adds Cmd/Ctrl+B, I and Shift+X and a formatted preview under the Content field; and
+[0001 web modules v14](0001-web-modules-v14.md) adds the preview part and the selection to
+the inventory with v12's rules unchanged. Document v4 is unchanged. They replace
+interaction v15 and web modules v13 for later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

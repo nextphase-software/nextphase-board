@@ -114,13 +114,21 @@ style rules keeping only what every type shares, with no change in behaviour or 
 format under [web modules v12](../architecture/0001-web-modules-v12.md), is implemented
 and merged into main.
 
-[0001-W6 v1 — Bold, italic and strikethrough for whole objects](0001-W6-whole-object-formatting.md)
-is a draft: three buttons in the context bar and Objects format whole objects, saved as
-document v4 marks beside the plain text, drawn on the canvas, kept on the same characters
-while text is edited, and copied with the object, following
+[0001-W6 v1 — Bold, italic and strikethrough for whole objects](0001-W6-whole-object-formatting.md),
+three buttons in the context bar and Objects formatting whole objects, saved as document
+v4 marks beside the plain text, drawn on the canvas, kept on the same characters while
+text is edited, and copied with the object, under
 [document v4](../architecture/0001-document-v4.md),
 [interaction v15](../architecture/0001-interaction-v15.md) and
-[web modules v13](../architecture/0001-web-modules-v13.md).
+[web modules v13](../architecture/0001-web-modules-v13.md), is implemented and merged into
+main.
+
+[0001-W26 v1 — Format selected text while editing](0001-W26-format-selected-text.md) is a
+draft: the buttons and Cmd/Ctrl+B, I and Shift+X format the text field's selection while
+editing, the editor stays open, the buttons show the selection's state and Objects shows
+a formatted preview, with no saved-format change, following
+[interaction v16](../architecture/0001-interaction-v16.md) and
+[web modules v14](../architecture/0001-web-modules-v14.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

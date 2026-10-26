@@ -39,15 +39,16 @@ export function sectionAt(objects: readonly Item[], point: Point): Item | undefi
   return [...objects].reverse().find((o) => isContainer(o) && contains(o, point));
 }
 
-export function dropTargets(board: Board, moving: ReadonlySet<string>): Map<string, string | null> {
+export function dropTargets(board: Board, moving: ReadonlySet<string>, newJoinsOnly = false): Map<string, string | null> {
   const carried = new Set(board.objects.filter((o) => isContainer(o) && moving.has(o.id)).map((o) => o.id));
   const ideas = board.objects.filter((o) => moving.has(o.id) && !isContainer(o) && !carried.has(o.section!));
-  return new Map(ideas.map((o) => {
+  return new Map(ideas.flatMap((o): [string, string | null][] => {
     const group = o.group && board.objects.filter((m) => m.group === o.group);
     const whole = group && group.every((m) => moving.has(m.id));
     const members = whole ? ideas.filter((m) => m.group === o.group) : [o];
     const box = boundingBox(members.map((m) => ({ ...m, displayHeight: m.height })))!;
-    return [o.id, sectionAt(board.objects, centre(box))?.id ?? null];
+    const target = sectionAt(board.objects, centre(box))?.id ?? null;
+    return newJoinsOnly && (target === null || target === o.section) ? [] : [[o.id, target]];
   }));
 }
 
@@ -116,7 +117,8 @@ export function objectLabel(board: Board, object: Item, numbers: ReadonlyMap<str
   const container = isContainer(object);
   const peers = board.objects.filter((o) => isContainer(o) === container);
   const prefix = object.type + " " + (peers.findIndex((o) => o.id === object.id) + 1);
-  const name = shortName(drafts[object.id] ?? object.text);
+  const text = drafts[object.id] ?? object.text;
+  const name = container ? shortName(text) : text.slice(0, 36) || "Empty";
   if (container) {
     const count = board.objects.filter((o) => o.section === object.id).length;
     return prefix + " · " + name + " · " + count + (count === 1 ? " item" : " items");

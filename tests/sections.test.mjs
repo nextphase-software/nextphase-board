@@ -332,6 +332,29 @@ test("Objects labels use band numbering, group numbers, shortened names and accu
   assert.equal(objectLabel(b, section, numbers, { [section.id]: "A\n" + "b".repeat(40) }), "section 1 · A " + "b".repeat(34) + " · 3 items");
 });
 
+test("idea labels keep line breaks while section names show spaces", () => {
+  const { b, section, a } = fixture();
+  const board = { ...b, objects: b.objects.map((o) => o.id === section.id
+    ? { ...o, text: "Plan\nNext" } : o.id === a.id ? { ...o, text: "First\nSecond" } : o) };
+  assert.equal(objectLabel(board, board.objects[1], new Map()), "sticky 1 · First\nSecond · in Plan Next");
+  assert.equal(objectLabel(board, board.objects[0], new Map()), "section 1 · Plan Next · 2 items");
+  assert.equal(objectLabel(board, board.objects[1], new Map(), { [a.id]: "Draft\nText" }),
+    "sticky 1 · Draft\nText · in Plan Next");
+});
+
+test("drop previews target only sections that dragged ideas would newly join", () => {
+  const { b, section, a, c, outside } = fixture();
+  const within = moveWithMembers(b, ids(a), 10, 10);
+  assert.equal(dropTargets(within, ids(a)).get(a.id), section.id);
+  assert.deepEqual(dropTargets(within, ids(a), true), new Map());
+  const moving = ids(a, c, outside);
+  const mixed = moveWithMembers(b, moving, -400, 0);
+  // One idea leaves, one stays, and only the outside idea joins.
+  assert.equal(dropTargets(mixed, moving).get(a.id), null);
+  assert.equal(dropTargets(mixed, moving).get(c.id), section.id);
+  assert.deepEqual(dropTargets(mixed, moving, true), new Map([[outside.id, section.id]]));
+});
+
 test("single and set section resizing obeys 200–10,000 and preserves membership", () => {
   const { b, section, a } = fixture(), range = { min: 200, max: 10000 };
   assert.equal(resizeObject("se", section, { x: 20000, y: 20000 }, false, () => 0, range).width, 10000);

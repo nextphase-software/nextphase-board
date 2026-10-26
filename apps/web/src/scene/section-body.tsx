@@ -16,7 +16,7 @@ export function SectionBody({ o, selected, inline, dropTarget }: {
       stroke={active ? "#518de0" : type.edge(o)} strokeWidth={active ? 2 : 1}
       cornerRadius={8} dash={dropTarget ? [6, 4] : undefined} />
     {!(inline && selected.has(o.id)) && <Text x={o.x + 2} y={o.y - 26}
-      width={o.width} height={26} text={o.text.replace(/\r\n|[\r\n]/g, " ")}
+      width={o.width - 2} height={26} text={o.text.replace(/\r\n|[\r\n]/g, " ")}
       fontFamily={TEXT_LAYOUT.fontFamily} fontSize={18} fontStyle="600"
       fill={active ? "#518de0" : type.textColor(o)} wrap="none" ellipsis />}
   </Group>;

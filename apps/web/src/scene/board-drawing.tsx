@@ -18,7 +18,7 @@ type Props = {
 };
 
 export function BoardDrawing({ size, view, board, objectLayouts, selected, inline, movingIds }: Props) {
-  const targets = dropTargets(board, new Set(movingIds));
+  const targets = dropTargets(board, new Set(movingIds), true);
   const sections = new Set([...targets.values()].filter((id) => id !== null));
   return (
     <Stage width={size.w} height={size.h} listening={false}>

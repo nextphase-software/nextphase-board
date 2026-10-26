@@ -100,10 +100,16 @@ unchanged, updates the module inventory for the selection, object layouts and ed
 placement hooks, and records the last part of the move in two steps. It replaces v9 for
 later work.
 
-Draft for 0001-W25 brief v1: [0001 web modules v11](0001-web-modules-v11.md) records
+[0001 web modules v11](0001-web-modules-v11.md), accepted with 0001-W25, records
 `App.tsx` as composition only, amends rule 8 with one sentence (a value derived inline in
 a hook may stay there; a named helper goes to a rules module) and marks the staged move
-complete. It replaces v10 for later work once accepted.
+complete. It replaces v10 for later work.
+
+Draft for 0016-W1 brief v1: [0001 web modules v12](0001-web-modules-v12.md) amends rule 7
+(no exceptions: everything that differs by object type lives in its record, and rules
+modules ask the registry too), records that object types use `styles.ts` and that rules
+modules may ask the registry, and updates the inventory. It replaces v11 for later work
+once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

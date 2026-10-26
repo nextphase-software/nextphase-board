@@ -1,5 +1,11 @@
 # Implementation briefs
 
+Brief and contract names start with the number of the feature they belong to: 0001 is
+the first feature, "Capture and reopen ideas". A milestone is `<feature>-W<n>`, where W
+stands for the web track and the number identifies the milestone; it is not the build
+order. From 0016, structural work (refactors, toolchain and test support) has its own
+feature number.
+
 [0001-W1 v6 — Capture and reopen a board](0001-W1-capture-and-reopen-a-board.md)
 was accepted for implementation on 2026-10-22. Three existing
 criteria are unchanged. Interaction v4 specifies the public design and behavior;
@@ -95,11 +101,17 @@ the selection values, the object layouts and resize handles, and where the text 
 opens with the panels and their three effects in three hooks, with no change in behaviour
 under [web modules v10](../architecture/0001-web-modules-v10.md), is implemented and merged into main.
 
-[0001-W25 v1 — Make App.tsx composition only](0001-W25-composition-only.md) is a draft:
-owners for the remaining state and element refs, the pure helpers as rules functions,
-the Content field as a screen part and a check that `App.tsx` creates no React state of
-its own, with no change in behaviour, following
-[web modules v11](../architecture/0001-web-modules-v11.md).
+[0001-W25 v1 — Make App.tsx composition only](0001-W25-composition-only.md), owners for
+the remaining state and element refs, the pure helpers as rules functions, the Content
+field as a screen part and a check that `App.tsx` creates no React state of its own, with
+no change in behaviour under [web modules v11](../architecture/0001-web-modules-v11.md),
+is implemented and merged into main. With it the staged move out of `App.tsx` is complete.
+
+[0016-W1 v1 — Object types own their per-type rules](0016-W1-per-type-rules.md) is a
+draft: each object type's default size and style, the style an old board gets on upgrade
+and its text colour move into the type's record, the document rules ask the registry
+and the style rules keep only what every type shares, with no change in behaviour or saved format, following
+[web modules v12](../architecture/0001-web-modules-v12.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

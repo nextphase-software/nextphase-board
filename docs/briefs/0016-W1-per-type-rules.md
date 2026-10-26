@@ -222,3 +222,68 @@ unless the maintainer asks.
 None beyond the repository's own documents.
 
 ## Implementation record
+
+### 2026-10-25 — Implementation and non-browser validation
+
+- Branch: `codex/0016-W1-per-type-rules`, in the designated milestone worktree,
+  based on committed main `7dc31cb7682724df96742e71dbb09dfe74487158`.
+  That commit contains this v1 brief and web modules v12. The source and tests
+  on main match `fab9c76` (`git diff fab9c76 main -- apps/web/src tests` is empty).
+- Validated source/test revision: `c6d1cf7380b1be5349d69bb6ce6dcf38501bf7f1`
+  (`refactor(web): move per-type rules into object records`). All requested
+  validation ran on identical source/test contents immediately before this commit.
+  Only this implementation record changes afterward; the final branch tip is
+  reported separately in the handoff.
+- Each type record now owns its literal default size, default style, separate
+  legacy style and text colour function. Sticky ink is private to `sticky.ts`.
+  `document.ts` asks the unchanged registry for registered types and their values;
+  its validation order, errors, canonical field order, limits and adapter are
+  otherwise unchanged. The two scene bodies ask the registry for text colour,
+  with their markup and drawing expressions otherwise unchanged. `styles.ts`
+  retains only the palette and shared rules and never imports object types.
+- Tests pin the moved sizes, styles, appearance and every colour's ink. The
+  unchanged luminance/contrast helpers and contrast assertions now live with the
+  object tests. Document tests read legacy and creation styles from the registry.
+  Module guards cover import direction and all root rules modules, with the
+  specified positive and negative samples for each type-name pattern.
+
+Commands ran from the repository root. The existing pinned distribution was
+selected in `PATH` for every validation Node/npm invocation and both commits'
+normal hooks; no package or toolchain files changed. Unit-suite output was
+captured in a disposable log outside the repository and its summary inspected.
+
+| Command | Result |
+| --- | --- |
+| `git rev-parse HEAD main` | Exit 0 before edits; both refs were `7dc31cb7682724df96742e71dbb09dfe74487158` |
+| `node --version` | Exit 0 with pinned distribution; `v24.22.1` |
+| `npm --version` | Exit 0 with pinned distribution; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed |
+| `npm --prefix apps/web run typecheck` | Exit 0; no diagnostics |
+| `node --test tests/objects.test.mjs tests/styles.test.mjs tests/document.test.mjs tests/modules.test.mjs` | Exit 0; 74 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web test` | Exit 0; 281 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; accepted lock, runtime inventory and complete distributed notices verified |
+| `git diff fab9c76 main -- apps/web/src tests` | Exit 0; empty diff |
+| `git diff --check` | Exit 0; no whitespace errors |
+| `git diff --cached --check` | Exit 0; no staged whitespace errors |
+| `git commit -m "refactor(web): move per-type rules into object records"` | Exit 0; validated revision created; both public-boundary hooks passed. Automatic Git maintenance emitted a `packed-refs.lock` permission error; commit and branch ref verified afterward; no hook bypass |
+| `git rev-parse HEAD refs/heads/codex/0016-W1-per-type-rules` | Exit 0; both refs match the validated source/test revision |
+| `git diff --name-only main...HEAD` | Exit 0 after source/test commit; exactly the six source modules and four tests named in this brief. The final handoff additionally includes this implementation record |
+| `git status --short` | Exit 0; clean after source/test commit |
+
+Dependencies added: **none**. The registry, other modules and tests, CSS,
+package manifests, locks and contracts are unchanged. Installed dependencies and
+build outputs are ignored and uncommitted. No stash, push, merge or next milestone.
+
+Not run, per maintainer instruction and the environment's browser limitation:
+any browser, browser regression harness, fixture-page runtime checks, or scenarios
+A–J comparing markup, focus, drawing and saved records against two `fab9c76`
+baseline runs and the candidate. These remain for the independent reviewer.
+Fixture compilation does not establish browser fixture passes. No browser matrix,
+Safari, accessibility, native IME, performance/load or unrelated acceptance sweep.
+Browser-dependent portions of AC01 and AC02 and independent review remain pending;
+this implementation handoff does not authorize a merge.
+
+Graph indexing was attempted before code exploration but was unavailable because
+the MCP tool required approval under the environment's never-approve policy.
+Direct file reads were used as the discovery fallback.

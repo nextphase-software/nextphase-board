@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject, ReactNode } from "react";
-import type { BoardV3 as Board, ItemV3 as Item } from "../document";
+import type { BoardV4 as Board, ItemV4 as Item } from "../document";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "../styles";
 import { OBJECT_TYPES } from "../objects/registry";
+import { FLAGS, FLAG_LABELS, type Flag } from "../marks";
 import { Icon } from "../icons";
 import type { Rectangle } from "../resize";
 import type { ArrangeCommand } from "../arrange";
@@ -26,6 +27,8 @@ type Props = {
   selectionColor: Style["color"] | "";
   selectionSize: Style["textSize"] | "";
   selectionAlign: Style["align"] | "";
+  selectionFormats: Record<Flag, boolean>;
+  toggleFormat: (flag: Flag) => void;
   selectionReason: string;
   changeStyle: <K extends keyof Style>(key: K, value: Style[K]) => void;
   command: (name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut") => void;
@@ -45,7 +48,7 @@ type Props = {
 export function ObjectsPanel({
   board, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
   numbers, drafts, nativeEditor, selectionColor, selectionSize, selectionAlign, selectionReason,
-  changeStyle, command, readOnly, move, bounds, resizeBy, arrange, arrangementReason,
+  selectionFormats, toggleFormat, changeStyle, command, readOnly, move, bounds, resizeBy, arrange, arrangementReason,
   objectClipboard, clipboardState, clipboardCommand, create, view
 }: Props) {
   return (
@@ -108,6 +111,13 @@ export function ObjectsPanel({
           {!selectionAlign && <option value="" disabled>Mixed</option>}
           {ALIGNMENTS.map((a) => <option key={a.name} value={a.name}>{a.label}</option>)}
         </select>
+        <span id="object-formats-label">Formatting</span>
+        <span className="object-formats" role="group" aria-labelledby="object-formats-label">
+          {FLAGS.map((flag) => <button key={flag} aria-pressed={selectionFormats[flag]}
+            disabled={!!selectionReason} title={selectionReason || FLAG_LABELS[flag]}
+            aria-describedby="selection-reason"
+            onClick={(e) => { e.currentTarget.focus(); toggleFormat(flag); }}>{FLAG_LABELS[flag]}</button>)}
+        </span>
       </div>}
       <div className="object-commands">
         {(["Duplicate", "Delete"] as const).map((name) => (

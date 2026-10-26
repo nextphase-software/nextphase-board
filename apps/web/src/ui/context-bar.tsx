@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
-import { clamp, count, type ItemV3 as Item } from "../document";
+import { clamp, count, type ItemV4 as Item } from "../document";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, colorEntry, type Style } from "../styles";
 import { objectType } from "../objects/registry";
+import { FLAGS, FLAG_LABELS, type Flag } from "../marks";
 import { Icon } from "../icons";
 import type { ArrangeCommand } from "../arrange";
 import { ArrangeControls } from "./arrange-controls";
@@ -39,6 +40,8 @@ type Props = {
   changeStyle: <K extends keyof Style>(key: K, value: Style[K]) => void;
   selectionSize: Style["textSize"] | "";
   selectionAlign: Style["align"] | "";
+  selectionFormats: Record<Flag, boolean>;
+  toggleFormat: (flag: Flag) => void;
   arrangeControl: RefObject<HTMLSpanElement | null>;
   arrangeButton: RefObject<HTMLButtonElement | null>;
   arrangeOpen: boolean;
@@ -55,7 +58,7 @@ export function ContextBar({
   inline, finishTextSession, setInline, scene, edit, text, colourControl, colourButton,
   selectionReason, colourLabel, swatchOpen, setArrangeFor, setSwatchFor, selectionKey,
   selectionColor, swatches, contextWidth, size, closeSwatches, changeStyle, selectionSize,
-  selectionAlign, arrangeControl, arrangeButton, arrangeOpen, arrangeMenu, arrangeHeight,
+  selectionAlign, selectionFormats, toggleFormat, arrangeControl, arrangeButton, arrangeOpen, arrangeMenu, arrangeHeight,
   closeArrange, arrange, arrangementReason, command
 }: Props) {
   return (
@@ -137,6 +140,14 @@ export function ContextBar({
           disabled={!!selectionReason} aria-describedby="selection-reason"
           onClick={(e) => { e.currentTarget.focus(); changeStyle("align", a.name); }}>
           <Icon name={a.name} /><span className="tooltip">{selectionReason || a.action}</span>
+        </button>)}
+      </span>
+      <span className="formats" role="group" aria-label="Formatting">
+        {FLAGS.map((flag) => <button key={flag} className="icon-button"
+          aria-label={FLAG_LABELS[flag]} title={selectionReason || FLAG_LABELS[flag]}
+          aria-pressed={selectionFormats[flag]} disabled={!!selectionReason} aria-describedby="selection-reason"
+          onClick={(e) => { e.currentTarget.focus(); toggleFormat(flag); }}>
+          <Icon name={flag} /><span className="tooltip">{selectionReason || FLAG_LABELS[flag]}</span>
         </button>)}
       </span>
       <span className="arrange-control" ref={arrangeControl}>

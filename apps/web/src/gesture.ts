@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { ItemV3 as Item } from "./document";
+import type { ItemV4 as Item } from "./document";
 import type { Corner, Rectangle } from "./resize";
 import type { View } from "./view";
 

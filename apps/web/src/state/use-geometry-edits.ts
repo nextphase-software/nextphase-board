@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { add, type Board as SavedBoard, type BoardV3 as Board, type ItemV3 as Item, validText } from "../document";
+import { add, type Board as SavedBoard, type BoardV4 as Board, type ItemV4 as Item, validText } from "../document";
 import { neededHeight, savedHeight } from "../geometry";
 import { limitMove } from "../selection";
 import { resizeObject, resizeSet, type Corner, type Rectangle } from "../resize";
+import { remap } from "../marks";
 import { textUnits } from "../styles";
 
 import type { ResizeStart } from "../gesture";
@@ -40,7 +41,7 @@ export function useGeometryEdits({
       ...model.current,
       objects: model.current.objects.map((o) =>
         o.id === id && o.text !== value
-          ? { ...o, text: value, height: savedHeight(o, lineCount(o, value), textUnits(o.textSize)) }
+          ? { ...o, text: value, marks: remap(o.marks, o.text, value), height: savedHeight(o, lineCount(o, value), textUnits(o.textSize)) }
           : o
       ),
     });

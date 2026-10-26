@@ -20,6 +20,9 @@ const paths = {
   left: "M3 4h14M3 8h9M3 12h14M3 16h9",
   center: "M3 4h14M6 8h8M3 12h14M6 16h8",
   right: "M3 4h14M8 8h9M3 12h14M8 16h9",
+  bold: "M6 3h5a3.5 3.5 0 0 1 0 7H6Zm0 7h6a3.5 3.5 0 0 1 0 7H6Z",
+  italic: "M9 3h7M4 17h7M13 3 7 17",
+  strike: "M15 5c-1-2-9-3-9 1 0 2 2 3 4 4M5 15c1 3 10 3 10-1 0-2-2-3-5-4M3 10h14",
   Delete: "M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6",
 };
 export function Icon({ name }: { name: keyof typeof paths }) {

@@ -409,7 +409,8 @@ small {
 
 /* W5 controls share the shell's target sizes, focus and icon states. */
 .object-styles { display: grid; gap: 8px; }
-.alignments, .colour-control { display: inline-flex; gap: 4px; }
+.object-formats { display: flex; gap: 8px; flex-wrap: wrap; }
+.alignments, .formats, .colour-control { display: inline-flex; gap: 4px; }
 .context .context-size {
   width: 124px;
   min-height: 40px;

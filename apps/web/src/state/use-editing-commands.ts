@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { Board as SavedBoard, BoardV3 as Board, ItemV3 as Item } from "../document";
+import type { Board as SavedBoard, BoardV4 as Board, ItemV4 as Item } from "../document";
+import { count } from "../document";
+import { formatted, toggle, type Flag } from "../marks";
 import { deleteObject, duplicate, redo, undo, type History } from "../history";
 import { savedHeight } from "../geometry";
 import { textUnits, type Style } from "../styles";
@@ -167,5 +169,18 @@ export function useEditingCommands({
     });
     commit({ ...model.current, objects }, true);
   }
-  return { objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle };
+  function toggleFormat(flag: Flag) {
+    if (selectionReason) return;
+    finishTextSession();
+    setInline(false);
+    const targets = model.current.objects.filter((o) => selected.has(o.id) && o.text.length > 0);
+    const remove = targets.every((o) => formatted(o.marks, count(o.text), flag));
+    const objects = model.current.objects.map((o) => {
+      if (!selected.has(o.id) || !o.text.length || formatted(o.marks, count(o.text), flag) !== remove) return o;
+      const next = { ...o, marks: toggle(o.marks, count(o.text), 0, count(o.text), flag) };
+      return { ...next, height: savedHeight(next, lineCount(next), textUnits(next.textSize)) };
+    });
+    commit({ ...model.current, objects }, true);
+  }
+  return { objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
 }

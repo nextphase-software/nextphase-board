@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Group, Rect, Text } from "react-konva";
-import type { ItemV3 as Item } from "../document";
+import type { ItemV4 as Item } from "../document";
 import { TEXT_INSET, TEXT_LAYOUT } from "../geometry";
 import { objectType } from "../objects/registry";
 import { textUnits } from "../styles";
+import { lineOffset, type RunLine } from "../text-runs";
 import type { View } from "../view";
 
 export type ObjectLayout = {
   height: number;
+  runs: RunLine[] | null;
   limited: boolean;
   fadeStart: number;
   fadeEnd: number;
@@ -43,7 +45,7 @@ export function NoteBody({ o, layout, selected, inline, view }: Props) {
           clipWidth={o.width - 2 * TEXT_INSET}
           clipHeight={layout.height - 2 * TEXT_INSET}
         >
-          <Text
+          {layout.runs === null ? <Text
             {...TEXT_LAYOUT}
             fontSize={textUnits(o.textSize)}
             align={o.align}
@@ -57,7 +59,22 @@ export function NoteBody({ o, layout, selected, inline, view }: Props) {
             fillLinearGradientStartPoint={{ x: 0, y: layout.fadeStart }}
             fillLinearGradientEndPoint={{ x: 0, y: layout.fadeEnd }}
             fillLinearGradientColorStops={[0, objectType(o.type).textColor(o), 1, objectType(o.type).textColor(o) + "00"]}
-          />
+          /> : layout.runs.map((line, i) => line.pieces.map((piece, j) => <Text
+            key={i + ":" + j}
+            fontFamily={TEXT_LAYOUT.fontFamily}
+            lineHeight={TEXT_LAYOUT.lineHeight}
+            fontSize={textUnits(o.textSize)}
+            fontStyle={piece.style.italic ? piece.style.bold ? "italic bold" : "italic" : piece.style.bold ? "bold" : "normal"}
+            textDecoration={piece.style.strike ? "line-through" : ""}
+            x={o.x + TEXT_INSET + lineOffset(o.align, o.width - 2 * TEXT_INSET, line.width) + piece.x}
+            y={o.y + TEXT_INSET + i * textUnits(o.textSize) * TEXT_LAYOUT.lineHeight}
+            text={piece.text}
+            fill={objectType(o.type).textColor(o)}
+            fillPriority={layout.limited ? "linear-gradient" : "color"}
+            fillLinearGradientStartPoint={{ x: 0, y: layout.fadeStart - i * textUnits(o.textSize) * TEXT_LAYOUT.lineHeight }}
+            fillLinearGradientEndPoint={{ x: 0, y: layout.fadeEnd - i * textUnits(o.textSize) * TEXT_LAYOUT.lineHeight }}
+            fillLinearGradientColorStops={[0, objectType(o.type).textColor(o), 1, objectType(o.type).textColor(o) + "00"]}
+          />))}
         </Group>
       )}
     </Group>

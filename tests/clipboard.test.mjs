@@ -274,3 +274,18 @@ test("one history step removes a whole paste; one restores a Cut with its group 
   validate(restoredPaste);
   validate(restoredCut);
 });
+
+test("copy and paste retain owned marks while the system clipboard remains plain text", () => {
+  const b = board(2);
+  b.objects[0].marks = [{ start: 0, end: 3, bold: true, italic: true }];
+  b.objects[1].marks = [{ start: 2, end: 5, strike: true }];
+  const before = structuredClone(b), s = snapshot(b);
+  assert.deepEqual(s.objects.map((o) => o.marks), b.objects.map((o) => o.marks));
+  assert.equal(plainText(s), b.objects.map((o) => o.text).join("\n\n"));
+  b.objects[0].marks[0].end = 2;
+  assert.deepEqual(s.objects[0].marks, before.objects[0].marks);
+  const pasted = buildPaste(before, s, view).board;
+  assert.deepEqual(pasted.objects.slice(2).map((o) => o.marks), before.objects.map((o) => o.marks));
+  assert.deepEqual(pasted.objects.slice(2).map((o) => o.text), before.objects.map((o) => o.text));
+  validate(pasted);
+});

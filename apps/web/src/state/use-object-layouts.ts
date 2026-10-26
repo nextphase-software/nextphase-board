@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useMemo, type RefObject } from "react";
 import Konva from "konva";
-import type { BoardV3 as Board, ItemV3 as Item } from "../document";
+import type { BoardV4 as Board, ItemV4 as Item } from "../document";
 import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT } from "../geometry";
 import { groupNumbers, wholeGroups } from "../group";
 import { cornerPoint, type Corner } from "../resize";
 import { boundingBox } from "../selection";
 import { textUnits } from "../styles";
+import { remap } from "../marks";
+import { layoutRuns, type RunStyle } from "../text-runs";
 import type { Drag } from "../gesture";
 
 const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
@@ -25,7 +27,25 @@ type Input = {
   drag: RefObject<Drag | null>;
 };
 
+const measurements = new Map<string, Konva.Text>();
+function measure(text: string, style: RunStyle, fontSize: number): number {
+  const fontStyle = style.italic ? style.bold ? "italic bold" : "italic" : style.bold ? "bold" : "normal";
+  const key = fontStyle + ":" + fontSize;
+  let measurement = measurements.get(key);
+  if (!measurement) {
+    measurement = new Konva.Text({ ...TEXT_LAYOUT, fontStyle, fontSize });
+    measurements.set(key, measurement);
+  }
+  return measurement.measureSize(text).width;
+}
+function runLines(object: Item, text = object.text) {
+  const marks = text === object.text ? object.marks : remap(object.marks, object.text, text);
+  return marks.length ? layoutRuns(text, marks, object.width - 2 * TEXT_INSET,
+    (value, style) => measure(value, style, textUnits(object.textSize))) : null;
+}
 function lineCount(object: Item, text = object.text): number {
+  const runs = runLines(object, text);
+  if (runs) return Math.max(1, runs.length);
   // Auto height is essential here: a fixed height would count only visible lines.
   const measurement = new Konva.Text({
     ...TEXT_LAYOUT,
@@ -51,6 +71,7 @@ export function useObjectLayouts({
     const visibleLines = Math.floor(innerHeight / lineHeight);
     return [o.id, {
       height,
+      runs: runLines(o),
       limited: neededHeight(lines, fontSize) > allowedHeight(o.y),
       fadeStart: Math.max(0, visibleLines - 1) * lineHeight,
       fadeEnd: Math.max(1, Math.min(innerHeight, Math.max(1, visibleLines) * lineHeight)),

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { add, clamp, type Board as SavedBoard, type BoardV3 as Board, type ItemV3 as Item } from "../document";
+import { add, clamp, type Board as SavedBoard, type BoardV4 as Board, type ItemV4 as Item } from "../document";
 import { boxSelection } from "../selection";
 import { expandSelection, pressSelection, toggleGroup } from "../group";
 import type { Corner } from "../resize";

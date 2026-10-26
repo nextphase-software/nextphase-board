@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import type { BoardV3 as Board } from "../document";
+import type { BoardV4 as Board } from "../document";
 import type { ClipboardCommand } from "../clipboard";
 
 type Input = {

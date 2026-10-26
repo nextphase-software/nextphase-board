@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
+import { validMarks, type Mark } from "./marks.ts";
 import { OBJECT_TYPES, objectType, type ObjectType } from "./objects/registry.ts";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "./styles.ts";
 export type ItemV1 = {
@@ -15,7 +16,8 @@ export type ItemV1 = {
 };
 export type ItemV2 = ItemV1 & Style;
 export type ItemV3 = ItemV2 & { group: string | null };
-export type Item = ItemV1 | ItemV2 | ItemV3;
+export type ItemV4 = ItemV3 & { marks: Mark[] };
+export type Item = ItemV1 | ItemV2 | ItemV3 | ItemV4;
 type BoardFields = {
   boardId: string;
   title: string;
@@ -24,7 +26,8 @@ type BoardFields = {
 export type BoardV1 = BoardFields & { schemaVersion: 1; objects: ItemV1[] };
 export type BoardV2 = BoardFields & { schemaVersion: 2; objects: ItemV2[] };
 export type BoardV3 = BoardFields & { schemaVersion: 3; objects: ItemV3[] };
-export type Board = BoardFields & { schemaVersion: 1 | 2 | 3; objects: Item[] };
+export type BoardV4 = BoardFields & { schemaVersion: 4; objects: ItemV4[] };
+export type Board = BoardFields & { schemaVersion: 1 | 2 | 3 | 4; objects: Item[] };
 const uuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export const count = (s: string) => Array.from(s).length;
@@ -45,7 +48,7 @@ export function validate(value: unknown): Board {
       "title",
       "objects",
       "retiredGenerations",
-    ]) || ![1, 2, 3].includes(b.schemaVersion) || typeof b.boardId !== "string" || !uuid.test(b.boardId) ||
+    ]) || ![1, 2, 3, 4].includes(b.schemaVersion) || typeof b.boardId !== "string" || !uuid.test(b.boardId) ||
     typeof b.title !== "string" || !validText(b.title, 120, true) ||
     !Array.isArray(b.objects) || b.objects.length > 250 ||
     !Array.isArray(b.retiredGenerations) || b.retiredGenerations.length > 10000
@@ -61,7 +64,8 @@ export function validate(value: unknown): Board {
         "type",
         "text",
         ...(b.schemaVersion >= 2 ? ["color", "textSize", "align"] : []),
-        ...(b.schemaVersion === 3 ? ["group"] : []),
+        ...(b.schemaVersion >= 3 ? ["group"] : []),
+        ...(b.schemaVersion === 4 ? ["marks"] : []),
         "x",
         "y",
         "width",
@@ -82,6 +86,7 @@ export function validate(value: unknown): Board {
         !TEXT_SIZES.some((s) => s.name === styled.textSize) ||
         !ALIGNMENTS.some((a) => a.name === styled.align)) throw Error("Invalid style");
     }
+    if (b.schemaVersion === 4 && !validMarks((o as ItemV4).marks, count(o.text))) throw Error("Invalid marks");
     ids.add(o.id);
     gens.add(o.generation);
   }
@@ -91,7 +96,7 @@ export function validate(value: unknown): Board {
       typeof g !== "string" || !uuid.test(g) || gens.has(g) || (i > 0 && a[i - 1] > g)
     )
   ) throw Error("Invalid generations");
-  if (b.schemaVersion === 3) {
+  if (b.schemaVersion >= 3) {
     const reserved = new Set([...ids, ...gens, ...b.retiredGenerations]);
     for (const o of b.objects as ItemV3[]) {
       if (o.group !== null && (typeof o.group !== "string" || !uuid.test(o.group) || reserved.has(o.group))) {
@@ -113,7 +118,8 @@ export function canonical(b: Board) {
       type: o.type,
       text: o.text,
       ...(b.schemaVersion >= 2 ? styleOf(o as ItemV2) : {}),
-      ...(b.schemaVersion === 3 ? { group: (o as ItemV3).group } : {}),
+      ...(b.schemaVersion >= 3 ? { group: (o as ItemV3).group } : {}),
+      ...(b.schemaVersion === 4 ? { marks: (o as ItemV4).marks.map(markOf) } : {}),
       x: o.x,
       y: o.y,
       width: o.width,
@@ -130,20 +136,28 @@ export function canonical(b: Board) {
 function styleOf(o: ItemV2): Style {
   return { color: o.color, textSize: o.textSize, align: o.align };
 }
+function markOf(m: Mark): Mark {
+  return { start: m.start, end: m.end,
+    ...(m.bold ? { bold: true } : {}),
+    ...(m.italic ? { italic: true } : {}),
+    ...(m.strike ? { strike: true } : {}),
+  };
+}
 // Adoption is deliberately separate from decoding/canonicalization: opening
 // legacy bytes never rewrites them or advances the editing revision.
-export function upgrade(b: Board): BoardV3 {
-  if (b.schemaVersion === 3) return b as BoardV3;
+export function upgrade(b: Board): BoardV4 {
+  if (b.schemaVersion === 4) return b as BoardV4;
   return {
-    ...b, schemaVersion: 3,
+    ...b, schemaVersion: 4,
     objects: b.objects.map((o) => ({ ...o,
-      ...(b.schemaVersion === 1 ? objectType(o.type).legacyStyle : styleOf(o as ItemV2)), group: null,
+      ...(b.schemaVersion === 1 ? objectType(o.type).legacyStyle : styleOf(o as ItemV2)),
+      group: b.schemaVersion === 3 ? (o as ItemV3).group : null, marks: [],
     })),
   };
 }
-export function empty(): BoardV3 {
+export function empty(): BoardV4 {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     boardId: crypto.randomUUID(),
     title: "",
     objects: [],
@@ -161,7 +175,7 @@ export function freshIdentifier(board: Board, extra: readonly string[] = []): st
   do id = crypto.randomUUID(); while (used.has(id));
   return id;
 }
-export function add(input: Board, type: Item["type"], x: number, y: number): BoardV3 {
+export function add(input: Board, type: Item["type"], x: number, y: number): BoardV4 {
   const b = upgrade(input);
   if (b.objects.length >= 250) throw Error("250 object limit reached");
   const { width, height } = objectType(type).defaultSize;
@@ -175,6 +189,7 @@ export function add(input: Board, type: Item["type"], x: number, y: number): Boa
       text: "",
       ...objectType(type).defaultStyle,
       group: null,
+      marks: [],
       x: clamp(x - width / 2, -1e6, 1e6 - width),
       y: clamp(y - height / 2, -1e6, 1e6 - height),
       width,
@@ -218,6 +233,10 @@ export class Adapter {
         const style = styleOf(o);
         if (JSON.stringify(m.get("style")) !== JSON.stringify(style)) {
           m.set("style", style);
+        }
+        const marks = o.marks.map(markOf);
+        if (JSON.stringify(m.get("marks")) !== JSON.stringify(marks)) {
+          m.set("marks", marks);
         }
         const geometry = { x: o.x, y: o.y, width: o.width, height: o.height };
         if (JSON.stringify(m.get("geometry")) !== JSON.stringify(geometry)) {

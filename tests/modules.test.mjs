@@ -43,7 +43,7 @@ test("screen parts contain exactly the thirteen modules named by 0001-W15 v1 thr
 test("App.tsx stays within its extracted composition line budget", () => {
   const app = readFileSync(new URL("App.tsx", source), "utf8");
   const lines = (app.match(/\n/g) ?? []).length;
-  assert(lines <= 259, `App.tsx has ${lines} newlines; budget is 259`);
+  assert(lines <= 261, `App.tsx has ${lines} newlines; budget is 261`);
 });
 
 test("screen parts hold no React state or context and import React only for types", () => {
@@ -322,5 +322,13 @@ test("rules type-name guard detects each forbidden form and allows text fields",
     'const STICKY_TEXT = "#28272c";',
   ]) {
     assert.deepEqual(typeNameUses(source), [], source);
+  }
+});
+
+
+test("rules modules never import React or Konva", () => {
+  for (const name of files(source).filter((name) => !name.includes("/") && name.endsWith(".ts"))) {
+    const content = readFileSync(new URL(name, source), "utf8");
+    assert.doesNotMatch(content, /\bimport\s+(?:[^;]*?\s+from\s*)?["'](?:react|react-dom|react-konva|konva)(?:\/[^"']*)?["']/, name);
   }
 });

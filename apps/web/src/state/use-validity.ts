@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef } from "react";
-import { type BoardV3 as Board, validText } from "../document";
+import { type BoardV4 as Board, validText } from "../document";
 
 type Input = {
   board: Board;

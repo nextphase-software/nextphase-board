@@ -54,7 +54,7 @@ export function App() {
   } = useBoardDocument({ readOnly, setStatus });
   const {
     selected, setSelected, selectionKey, selectedId, item, text,
-    selectionColor, selectionSize, selectionAlign, colourLabel,
+    selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats,
   } = useSelection({ board, drafts });
   const {
     lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
@@ -126,7 +126,7 @@ export function App() {
     selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
     item, itemHeight,
   });
-  const { objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle } = useEditingCommands({
+  const { objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
     model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
@@ -201,6 +201,7 @@ export function App() {
       )}
       {panel === "Objects" && (
         <ObjectsPanel
+          selectionFormats={selectionFormats} toggleFormat={toggleFormat}
           board={board} busy={busy} composing={composing} setPanel={setPanel}
           objectsButton={objectsButton} selector={selector} selected={selected}
           finishTextSession={finishTextSession} select={select} numbers={numbers} drafts={drafts}
@@ -213,6 +214,7 @@ export function App() {
       )}
       {selected.size > 0 && (
         <ContextBar
+          selectionFormats={selectionFormats} toggleFormat={toggleFormat}
           contextBar={contextBar} contextFits={contextFits} contextLeft={contextLeft}
           contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
           composing={composing} busy={busy} inline={inline} finishTextSession={finishTextSession}

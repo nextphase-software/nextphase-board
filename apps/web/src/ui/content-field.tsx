@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { count, type ItemV3 as Item, validText } from "../document";
+import { count, type ItemV4 as Item, validText } from "../document";
 
 type Props = {
   editor: RefObject<HTMLTextAreaElement | null>;

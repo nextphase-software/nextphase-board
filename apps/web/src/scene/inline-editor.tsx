@@ -2,7 +2,8 @@
 import type { PointerEventHandler, ReactNode, RefObject } from "react";
 import type { ItemV3 as Item } from "../document";
 import { TEXT_INSET, TEXT_LAYOUT } from "../geometry";
-import { textColor, textUnits } from "../styles";
+import { objectType } from "../objects/registry";
+import { textUnits } from "../styles";
 import type { View } from "../view";
 
 type Props = {
@@ -31,7 +32,7 @@ export function InlineEditor({ inlineSurface, trackPointer, pos, item, view, ite
         fontFamily: TEXT_LAYOUT.fontFamily,
         fontSize: textUnits(item.textSize) * view.z,
         textAlign: item.align,
-        color: textColor(item),
+        color: objectType(item.type).textColor(item),
       }}
     >
       {nativeEditor}

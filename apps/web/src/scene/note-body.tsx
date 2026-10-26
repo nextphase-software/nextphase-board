@@ -3,7 +3,7 @@ import { Group, Rect, Text } from "react-konva";
 import type { ItemV3 as Item } from "../document";
 import { TEXT_INSET, TEXT_LAYOUT } from "../geometry";
 import { objectType } from "../objects/registry";
-import { textColor, textUnits } from "../styles";
+import { textUnits } from "../styles";
 import type { View } from "../view";
 
 export type ObjectLayout = {
@@ -52,11 +52,11 @@ export function NoteBody({ o, layout, selected, inline, view }: Props) {
             width={o.width - 2 * TEXT_INSET}
             height={layout.height - 2 * TEXT_INSET}
             text={o.text}
-            fill={textColor(o)}
+            fill={objectType(o.type).textColor(o)}
             fillPriority={layout.limited ? "linear-gradient" : "color"}
             fillLinearGradientStartPoint={{ x: 0, y: layout.fadeStart }}
             fillLinearGradientEndPoint={{ x: 0, y: layout.fadeEnd }}
-            fillLinearGradientColorStops={[0, textColor(o), 1, textColor(o) + "00"]}
+            fillLinearGradientColorStops={[0, objectType(o.type).textColor(o), 1, objectType(o.type).textColor(o) + "00"]}
           />
         </Group>
       )}

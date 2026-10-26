@@ -25,16 +25,8 @@ export type Style = {
   textSize: typeof TEXT_SIZES[number]["name"];
   align: typeof ALIGNMENTS[number]["name"];
 };
-export const DEFAULT_STYLES = {
-  sticky: { color: "rose", textSize: "medium", align: "left" },
-  text: { color: "neutral", textSize: "medium", align: "left" },
-} as const satisfies Record<"sticky" | "text", Style>;
-export const LEGACY_STYLES = DEFAULT_STYLES;
-export const STICKY_TEXT = "#28272c";
 export const colorEntry = (color: Style["color"]) => COLORS.find((c) => c.name === color)!;
 export const textUnits = (size: Style["textSize"]) => TEXT_SIZES.find((s) => s.name === size)!.units;
-export const textColor = (object: Style & { type: "sticky" | "text" }) =>
-  object.type === "sticky" ? STICKY_TEXT : colorEntry(object.color).text;
 
 export function commonStyle<K extends keyof Style>(objects: readonly Style[], key: K): Style[K] | "" {
   const value = objects[0]?.[key];

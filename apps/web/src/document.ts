@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
-import { ALIGNMENTS, COLORS, DEFAULT_STYLES, LEGACY_STYLES, TEXT_SIZES, type Style } from "./styles.ts";
+import { OBJECT_TYPES, objectType, type ObjectType } from "./objects/registry.ts";
+import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "./styles.ts";
 export type ItemV1 = {
   id: string;
   generation: string;
-  type: "sticky" | "text";
+  type: ObjectType["type"];
   text: string;
   x: number;
   y: number;
@@ -69,7 +70,7 @@ export function validate(value: unknown): Board {
       ]) || typeof o.id !== "string" || typeof o.generation !== "string" ||
       !uuid.test(o.id) || !uuid.test(o.generation) || ids.has(o.id) ||
       ids.has(o.generation) || gens.has(o.id) || gens.has(o.generation) ||
-      o.id === o.generation || !["sticky", "text"].includes(o.type) ||
+      o.id === o.generation || !OBJECT_TYPES.some((t) => t.type === o.type) ||
       typeof o.text !== "string" || !validText(o.text, 1000) || o.order !== i ||
       ![o.x, o.y, o.width, o.height].every(Number.isFinite) || o.x < -1e6 ||
       o.y < -1e6 || o.width < 40 || o.width > 2000 || o.height < 40 ||
@@ -136,7 +137,7 @@ export function upgrade(b: Board): BoardV3 {
   return {
     ...b, schemaVersion: 3,
     objects: b.objects.map((o) => ({ ...o,
-      ...(b.schemaVersion === 1 ? LEGACY_STYLES[o.type] : styleOf(o as ItemV2)), group: null,
+      ...(b.schemaVersion === 1 ? objectType(o.type).legacyStyle : styleOf(o as ItemV2)), group: null,
     })),
   };
 }
@@ -163,8 +164,7 @@ export function freshIdentifier(board: Board, extra: readonly string[] = []): st
 export function add(input: Board, type: Item["type"], x: number, y: number): BoardV3 {
   const b = upgrade(input);
   if (b.objects.length >= 250) throw Error("250 object limit reached");
-  const width = type === "sticky" ? 240 : 320,
-    height = type === "sticky" ? 240 : 120;
+  const { width, height } = objectType(type).defaultSize;
   const id = freshIdentifier(b);
   return {
     ...b,
@@ -173,7 +173,7 @@ export function add(input: Board, type: Item["type"], x: number, y: number): Boa
       generation: freshIdentifier(b, [id]),
       type,
       text: "",
-      ...DEFAULT_STYLES[type],
+      ...objectType(type).defaultStyle,
       group: null,
       x: clamp(x - width / 2, -1e6, 1e6 - width),
       y: clamp(y - height / 2, -1e6, 1e6 - height),

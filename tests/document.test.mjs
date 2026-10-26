@@ -10,7 +10,8 @@ import {
   validate,
   validText,
 } from "../apps/web/src/document.ts";
-import { ALIGNMENTS, COLORS, DEFAULT_STYLES, TEXT_SIZES } from "../apps/web/src/styles.ts";
+import { objectType } from "../apps/web/src/objects/registry.ts";
+import { ALIGNMENTS, COLORS, TEXT_SIZES } from "../apps/web/src/styles.ts";
 const legacy = (b) => ({ ...b, schemaVersion: 1, objects: b.objects.map(({ color, textSize, align, group, ...o }) => o) });
 const v2 = (b) => ({ ...b, schemaVersion: 2, objects: b.objects.map(({ group, ...o }) => o) });
 const versioned = (b, version) => version === 1 ? legacy(b) : version === 2 ? v2(b) : b;
@@ -114,12 +115,12 @@ nodeTest("v1 canonical bytes stay exact and upgrading adds only defaults", () =>
   assert(upgraded.objects.every((o) => o.group === null));
   assert.deepEqual(legacy(upgraded), b);
   assert.deepEqual(upgraded.objects.map(({ color, textSize, align }) => ({ color, textSize, align })),
-    [DEFAULT_STYLES.sticky, DEFAULT_STYLES.text]);
+    [objectType("sticky").legacyStyle, objectType("text").legacyStyle]);
   assert.equal(canonical(decoded), bytes);
   assert.equal(upgrade(upgraded), upgraded);
   const adapter = new Adapter();
   adapter.set(decoded);
-  assert.deepEqual(adapter.doc.getMap("objects").get(b.objects[1].id).get("style"), DEFAULT_STYLES.text);
+  assert.deepEqual(adapter.doc.getMap("objects").get(b.objects[1].id).get("style"), objectType("text").legacyStyle);
   assert.equal(canonical(decoded), bytes);
   adapter.destroy();
 });
@@ -129,7 +130,7 @@ nodeTest("v2 accepts every style combination on both object types", () => {
     const b = addV2({ ...emptyV2(), title: "Styles" }, type, 0, 0);
     assert.equal(b.schemaVersion, 3);
     assert.equal(b.objects[0].group, null);
-    for (const key of ["color", "textSize", "align"]) assert.equal(b.objects[0][key], DEFAULT_STYLES[type][key]);
+    for (const key of ["color", "textSize", "align"]) assert.equal(b.objects[0][key], objectType(type).defaultStyle[key]);
     for (const c of COLORS) for (const s of TEXT_SIZES) for (const a of ALIGNMENTS) {
       const styled = { ...b, objects: [{ ...b.objects[0], color: c.name, textSize: s.name, align: a.name }] };
       for (const versioned of [v2(styled), styled]) {
@@ -182,7 +183,7 @@ nodeTest("adapter stores style atomically with size growth in one transaction", 
   adapter.set(after);
   assert.equal(revisions, 1);
   assert.deepEqual(changedKeys, [["geometry", "style"]]);
-  assert.deepEqual(beforeStyle, DEFAULT_STYLES.sticky);
+  assert.deepEqual(beforeStyle, objectType("sticky").defaultStyle);
   assert.deepEqual(map.get("style"), { color: "teal", textSize: "extra-large", align: "right" });
   assert.equal(map.get("geometry").height, 400);
   assert.equal(map.get("text"), text);

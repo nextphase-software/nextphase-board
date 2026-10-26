@@ -272,3 +272,55 @@ test("composition guard detects each forbidden form and allows state hooks and R
     assert.deepEqual(compositionProblems(source), [], source);
   }
 });
+
+test("object types import only siblings or styles, which never imports object types", () => {
+  for (const [name, content] of objectContents) {
+    const declarations = content.matchAll(/\b(?:import|export)\s+(?:[^;]*?\s+from\s*)?["']([^"']+)["']/g);
+    for (const declaration of declarations) {
+      assert.match(declaration[1], /^(?:\.\/[^/]+\.ts|\.\.\/styles\.ts)$/, name);
+    }
+  }
+  const styles = readFileSync(new URL("styles.ts", source), "utf8");
+  const declarations = styles.matchAll(/\b(?:import|export)\s+(?:[^;]*?\s+from\s*)?["']([^"']+)["']/g);
+  for (const declaration of declarations) {
+    assert.doesNotMatch(declaration[1], /(?:^|\/)objects(?:\/|$)/);
+  }
+});
+
+function typeNameUses(source) {
+  return [
+    /\bsticky\b/,
+    /[=!]==\s*["'](?:sticky|text)["']/,
+    /["'](?:sticky|text)["']\s*[=!]==/,
+  ].filter((pattern) => pattern.test(source));
+}
+
+test("rules modules ask the registry instead of naming types", () => {
+  const rules = readdirSync(source).filter((name) => name.endsWith(".ts"));
+  assert(rules.includes("document.ts"));
+  assert(rules.includes("styles.ts"));
+  for (const name of rules) {
+    assert.deepEqual(typeNameUses(readFileSync(new URL(name, source), "utf8")), [], name);
+  }
+});
+
+test("rules type-name guard detects each forbidden form and allows text fields", () => {
+  for (const source of [
+    'type: "sticky" | "text";',
+    'const width = type === "sticky" ? 240 : 320;',
+    '!["sticky", "text"].includes(o.type)',
+    'const DEFAULT = { sticky: { color: "rose" } };',
+    'if (o.type !== "text") return;',
+    'if ("text" === o.type) return;',
+  ]) {
+    assert(typeNameUses(source).length > 0, source);
+  }
+  for (const source of [
+    'const keys = ["id", "type", "text"];',
+    'let text = m.get("text");',
+    'objects.map(({ type, text }) => ({ type, text }))',
+    'const STICKY_TEXT = "#28272c";',
+  ]) {
+    assert.deepEqual(typeNameUses(source), [], source);
+  }
+});

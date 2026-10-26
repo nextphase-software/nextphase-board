@@ -28,6 +28,9 @@ Saving stores one board only in this origin and browser profile. Browser storage
 not a backup. A second tab is read-only until the writer closes and Retry editing
 is selected. Use synthetic or disposable content in this development build.
 
+To check that your setup works and try each feature, follow
+[Try and test NextPhase Board](docs/guides/try-board.md).
+
 ## Verify and contribute
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md), [DESIGN.md](DESIGN.md), and

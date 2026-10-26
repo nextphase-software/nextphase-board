@@ -380,3 +380,85 @@ grapheme split, `fontStyle`, `textDecoration`, `measureSize`) is read from the l
 dependency in the repository.
 
 ## Implementation record
+
+### 2026-10-25 — v1 implementation and non-browser validation
+
+- Branch: `codex/0001-W6-whole-object-formatting`, in the milestone worktree,
+  based on committed main `647d8a4637d4bd62ff8f86133b589c2c56effa5d`.
+  That revision contains this v1 brief, document v4, interaction v15 and web
+  modules v13. Only this milestone is implemented.
+- Validated source/test revision: `b83f0bf9c4c9ea514abaa564d65265c995d5ca31`
+  (`feat(web): add whole-object text formatting`). The checks below ran on
+  identical source/test contents immediately before that commit. Only this
+  implementation record changes afterward; the final branch tip is reported
+  separately in the handoff.
+- Added the two pure rules modules: normalized code-point marks, validation,
+  whole-range toggling and edit remapping; and grapheme-based run layout with
+  the locked Konva 10.9.0 segmentation, wrapping and whitespace rules. Runs
+  retain their individual font measurements, positions and alignment offsets.
+- Document v4 validates and canonically serializes marks. Versions 1–3 retain
+  their exact original canonical bytes; editing upgrades them in memory to v4
+  with empty marks, preserving existing styles and groups. The adapter stores
+  canonical marks only when changed, alongside style in the same transaction.
+- Both formatting groups expose Bold, Italic and Strikethrough with pressed
+  state, existing availability reasons and button focus. Commands finish text
+  sessions, preserve selection and plain text, record one history step and
+  adopt any required height growth. Committed text edits remap marks in the
+  same object update. Object copies retain marks; system clipboard text is
+  unchanged. Formatted canvas pieces use their font style, strike, line
+  alignment and line-relative fade. The unformatted drawing and measurement
+  paths are retained.
+- The twenty-two named modules use the v4 types. Fourteen modules with no
+  additional behavior changes were compared against the base after only the
+  permitted type-name substitutions; their remaining contents match exactly.
+  `App.tsx` has **261 newlines**, up from **259**, with the two new prop
+  placement lines. State and screen-part inventories are unchanged.
+- Only the brief's allowed source/style files and six named test files changed
+  in the validated revision. The later documentation change is confined to
+  this implementation record. Dependencies added: **none**; packages, locks,
+  other contracts and all other tests are unchanged. Installed dependencies
+  and generated application/fixture builds are ignored and uncommitted.
+
+The initial shell resolved Node `v26.11.1` / npm `11.20.0`. Its first install
+exited 0 with an `EBADENGINE` warning. The pinned distribution was then selected
+in `PATH`, and installation was repeated successfully with Node **24.22.1** /
+npm **11.19.1**. All typechecking, tests, builds and commit hooks used that pinned
+distribution. No machine-specific toolchain path is part of the implementation.
+
+Commands ran from the repository root. Test output was captured in disposable
+logs outside the repository; the table gives the exact validation invocations.
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; initially `v26.11.1`, then pinned `v24.22.1` |
+| `npm --version` | Exit 0; initially `11.20.0`, then pinned `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0 on both invocations; 19 packages installed each time. Initial engine warning superseded by the pinned installation |
+| `npm --prefix apps/web run typecheck` | Exit 0 on both invocations; no diagnostics |
+| `node --test tests/marks.test.mjs tests/text-runs.test.mjs tests/document.test.mjs tests/storage.test.mjs tests/clipboard.test.mjs tests/modules.test.mjs` | Exit 0; **134 passed, 0 failed, 0 skipped** |
+| `npm --prefix apps/web test` | Exit 0; **334 passed, 0 failed, 0 skipped** |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; accepted lock, runtime inventory and complete distributed notices verified |
+| `git diff --check` | Exit 0; no whitespace errors |
+| `git diff --cached --check` | Exit 0; no staged whitespace errors |
+| `git commit -m 'feat(web): add whole-object text formatting'` | Exit 0; validated revision above created; both public-boundary hooks passed. Git also emitted a permission error for its packed-refs lock; the commit and branch ref were verified afterward. No hook was bypassed |
+| `git rev-parse HEAD refs/heads/codex/0001-W6-whole-object-formatting main` | Exit 0; HEAD and milestone ref both equal the validated revision above; main remains the base revision above |
+| `git diff --name-only main...HEAD` | Exit 0 after the source/test commit; exactly the 34 permitted implementation/test files. The final handoff additionally includes this brief's implementation record |
+| `git status --short` | Exit 0; clean after the source/test commit |
+
+Not run, per maintainer instruction and the environment's browser limitation:
+any browser, the browser regression harness, either fixture page's runtime
+checks, the A–J comparisons against two `333e9f4` baseline runs and the candidate,
+and scenario K. The reviewer retains those checks, including button keyboard
+activation/focus, mixed selections, composition, canvas/Konva wrap comparison,
+Undo/Redo, copy/paste and saved-format reopening. Safari formatting, Undo and
+reopening also remain for the maintainer. Fixture compilation is not a browser
+fixture pass. Browser-dependent acceptance remains pending; no browser matrix,
+accessibility audit, native IME, performance/load or unrelated acceptance sweep
+was run.
+
+Graph discovery and indexing were attempted first; both tools required approval
+under a never-approve policy and were unavailable. Direct file reads were used
+as the discovery fallback. No unrelated work was present or changed. No stash,
+hook bypass, push or merge was performed. Independent review of the exact
+revision remains pending; this handoff does not authorize a merge or another
+milestone.

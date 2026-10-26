@@ -123,12 +123,19 @@ text is edited, and copied with the object, under
 [web modules v13](../architecture/0001-web-modules-v13.md), is implemented and merged into
 main.
 
-[0001-W26 v1 — Format selected text while editing](0001-W26-format-selected-text.md) is a
-draft: the buttons and Cmd/Ctrl+B, I and Shift+X format the text field's selection while
-editing, the editor stays open, the buttons show the selection's state and Objects shows
-a formatted preview, with no saved-format change, following
-[interaction v16](../architecture/0001-interaction-v16.md) and
-[web modules v14](../architecture/0001-web-modules-v14.md).
+[0001-W26 v1 — Format selected text while editing](0001-W26-format-selected-text.md), the
+buttons and Cmd/Ctrl+B, I and Shift+X formatting the text field's selection while editing,
+with the editor kept open, the buttons showing the selection's state and a formatted preview
+in Objects, under [interaction v16](../architecture/0001-interaction-v16.md) and
+[web modules v14](../architecture/0001-web-modules-v14.md), is implemented and merged into
+main.
+
+[0002-W1 v1 — Organize ideas into sections](0002-W1-organize-sections.md) is a draft: named
+sections that hold ideas, created by drawing, placing, Add section or Section from selection;
+ideas join and leave by drop, placement and Objects' Section select; a section moves with its
+members; saved as document v5, following [document v5](../architecture/0001-document-v5.md),
+[interaction v17](../architecture/0001-interaction-v17.md) and
+[web modules v15](../architecture/0001-web-modules-v15.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

@@ -118,12 +118,21 @@ text and how formatting follows text edits; and [0001 web modules v13](0001-web-
 adds the two new rules modules to the inventory with v12's rules unchanged. They replace
 document v3, interaction v14 and web modules v12 for later work.
 
-Drafts for 0001-W26 brief v1: [0001 interaction v16](0001-interaction-v16.md) lets the
+[0001 interaction v16](0001-interaction-v16.md), accepted with 0001-W26, lets the
 formatting controls act on the text field's selection while editing, keeps the editor
 open, adds Cmd/Ctrl+B, I and Shift+X and a formatted preview under the Content field; and
 [0001 web modules v14](0001-web-modules-v14.md) adds the preview part and the selection to
-the inventory with v12's rules unchanged. Document v4 is unchanged. They replace
-interaction v15 and web modules v13 for later work once accepted.
+the inventory with v12's rules unchanged. They replace interaction v15 and web modules v13
+for later work.
+
+Drafts for 0002-W1 brief v1: [0001 document v5](0001-document-v5.md) adds sections to the
+saved format (a `section` type, each idea's `section` key, per-type size and text limits)
+and defines how version 1 to 4 boards are read; [0001 interaction v17](0001-interaction-v17.md)
+says how sections are drawn, created, named, joined and left, moved with their members,
+ordered, grouped, deleted and copied, and how Objects shows membership; and
+[0001 web modules v15](0001-web-modules-v15.md) adds the section type, its scene body and the
+sections rules module to the inventory. They replace document v4, interaction v16 and web
+modules v14 for later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

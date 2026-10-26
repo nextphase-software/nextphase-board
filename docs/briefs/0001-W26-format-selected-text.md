@@ -1,9 +1,10 @@
 BRIEF VERSION: 0001-W26 v1 (2026-10-26)
 # 0001-W26 — Format selected text while editing
 
-Status: Draft. Implementation starts only after the maintainer commits this brief,
-[0001 interaction v16](../architecture/0001-interaction-v16.md) and
-[0001 web modules v14](../architecture/0001-web-modules-v14.md) to main.
+Status: Implemented. Independently reviewed at `ee37821` (pass) and merged into main
+on 2026-10-26 with [0001 interaction v16](../architecture/0001-interaction-v16.md) and
+[0001 web modules v14](../architecture/0001-web-modules-v14.md). The implementation record
+below, which lists the validated revisions, was written before that review.
 
 ## Outcome
 

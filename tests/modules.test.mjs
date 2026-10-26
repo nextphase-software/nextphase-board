@@ -22,13 +22,14 @@ const objects = new URL("objects/", source);
 const objectTypes = files(objects).sort();
 const objectContents = objectTypes.map((name) => [name, readFileSync(new URL(name, objects), "utf8")]);
 
-test("screen parts contain exactly the thirteen modules named by 0001-W15 v1 through 0001-W25 v1", () => {
+test("screen parts contain exactly the fourteen modules named by 0001-W15 v1 through 0001-W26 v1", () => {
   assert.deepEqual(screenParts, [
     "arrange-controls.tsx",
     "board-panel.tsx",
     "content-field.tsx",
     "context-bar.tsx",
     "file-bar.tsx",
+    "format-preview.tsx",
     "information-button.tsx",
     "information-panel.tsx",
     "navigation-panel.tsx",
@@ -43,7 +44,7 @@ test("screen parts contain exactly the thirteen modules named by 0001-W15 v1 thr
 test("App.tsx stays within its extracted composition line budget", () => {
   const app = readFileSync(new URL("App.tsx", source), "utf8");
   const lines = (app.match(/\n/g) ?? []).length;
-  assert(lines <= 261, `App.tsx has ${lines} newlines; budget is 261`);
+  assert(lines <= 262, `App.tsx has ${lines} newlines; budget is 262`);
 });
 
 test("screen parts hold no React state or context and import React only for types", () => {

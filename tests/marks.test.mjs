@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { FLAGS, FLAG_LABELS, validMarks, normalize, toggle, formatted, remap } from "../apps/web/src/marks.ts";
+import { FLAGS, FLAG_LABELS, validMarks, normalize, toggle, formatted, formattedRange, codePointOffset, segments, remap } from "../apps/web/src/marks.ts";
 const bold = (start, end) => ({ start, end, bold: true });
 const italic = (start, end) => ({ start, end, italic: true });
 
@@ -44,6 +44,34 @@ test("formatted requires a nonempty text with complete coverage of that flag", (
   assert(!formatted([bold(0, 2)], 3, "bold"));
   assert(!formatted([bold(0, 3)], 3, "italic"));
   assert(!formatted([], 0, "bold"));
+});
+test("formattedRange requires complete coverage of a nonempty clipped range", () => {
+  const marks = [bold(2, 6)];
+  assert(formattedRange(marks, 8, 2, 6, "bold"));
+  assert(formattedRange(marks, 8, 3, 5, "bold"));
+  assert(!formattedRange(marks, 8, 1, 6, "bold"));
+  assert(!formattedRange(marks, 8, 2, 6, "italic"));
+  assert(!formattedRange(marks, 8, 3, 3, "bold"));
+  assert(formattedRange([bold(0, 8)], 8, -2, 10, "bold"));
+  assert(!formattedRange(marks, 8, 8, 10, "bold"));
+});
+test("codePointOffset converts textarea UTF-16 positions to code points", () => {
+  assert.equal(codePointOffset("abc", 2), 2);
+  assert.equal(codePointOffset("🧭 note", 2), 1);
+  assert.equal(codePointOffset("🧭 note", 3), 2);
+  assert.equal(codePointOffset("🧭 note", 7), 6);
+  assert.equal(codePointOffset("", 0), 0);
+});
+test("segments includes plain runs and combines flags without splitting code points", () => {
+  assert.deepEqual(segments("Alpha beta", [bold(6, 10)]), [{ text: "Alpha " }, { text: "beta", bold: true }]);
+  assert.deepEqual(segments("🧭ab", [{ ...italic(0, 1), strike: true }]),
+    [{ text: "🧭", italic: true, strike: true }, { text: "ab" }]);
+  assert.deepEqual(segments("", []), []);
+  assert.deepEqual(segments("plain", []), [{ text: "plain" }]);
+  const text = "a🧭bc\nd";
+  const runs = segments(text, [bold(0, 2), { ...bold(2, 3), italic: true }, italic(4, 5)]);
+  assert.equal(runs.map((run) => run.text).join(""), text);
+  assert.deepEqual(segments("ab", [bold(0, 1), bold(1, 2)]), [{ text: "ab", bold: true }]);
 });
 const edits = [
   ["before span", "abcd", "aXbcd", [bold(2, 3)], [bold(3, 4)]],

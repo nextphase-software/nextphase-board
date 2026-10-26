@@ -146,7 +146,11 @@ export function ContextBar({
         {FLAGS.map((flag) => <button key={flag} className="icon-button"
           aria-label={FLAG_LABELS[flag]} title={selectionReason || FLAG_LABELS[flag]}
           aria-pressed={selectionFormats[flag]} disabled={!!selectionReason} aria-describedby="selection-reason"
-          onClick={(e) => { e.currentTarget.focus(); toggleFormat(flag); }}>
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            if (!(document.activeElement instanceof HTMLTextAreaElement)) e.currentTarget.focus();
+            toggleFormat(flag);
+          }}>
           <Icon name={flag} /><span className="tooltip">{selectionReason || FLAG_LABELS[flag]}</span>
         </button>)}
       </span>

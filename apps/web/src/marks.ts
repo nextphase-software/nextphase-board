@@ -5,6 +5,7 @@ export const FLAG_LABELS: Record<Flag, string> = {
   bold: "Bold", italic: "Italic", strike: "Strikethrough",
 };
 export type Mark = { start: number; end: number; bold?: true; italic?: true; strike?: true };
+export type TextSelection = { id: string; start: number; end: number };
 
 function mask(mark: Pick<Mark, Flag>): number {
   return FLAGS.reduce((bits, flag, i) => bits | (mark[flag] ? 1 << i : 0), 0);
@@ -64,6 +65,25 @@ export function toggle(marks: readonly Mark[], length: number, start: number, en
 export function formatted(marks: readonly Mark[], length: number, flag: Flag): boolean {
   const bit = 1 << FLAGS.indexOf(flag);
   return length > 0 && coverage(marks, length).every((bits) => bits & bit);
+}
+export function formattedRange(marks: readonly Mark[], length: number, start: number, end: number, flag: Flag): boolean {
+  start = Math.max(0, start); end = Math.min(length, end);
+  const bit = 1 << FLAGS.indexOf(flag);
+  return end > start && coverage(marks, length).slice(start, end).every((bits) => bits & bit);
+}
+export function codePointOffset(text: string, unit: number): number {
+  return Array.from(text.slice(0, unit)).length;
+}
+export function segments(text: string, marks: readonly Mark[]): ({ text: string } & Pick<Mark, Flag>)[] {
+  const chars = Array.from(text), points = coverage(marks, chars.length);
+  const result: ({ text: string } & Pick<Mark, Flag>)[] = [];
+  for (let start = 0; start < chars.length;) {
+    let end = start + 1;
+    while (end < chars.length && points[end] === points[start]) end++;
+    result.push({ text: chars.slice(start, end).join(""), ...flags(points[start]) });
+    start = end;
+  }
+  return result;
 }
 export function remap(marks: readonly Mark[], before: string, after: string): Mark[] {
   if (!marks.length) return [];

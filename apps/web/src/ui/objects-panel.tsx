@@ -10,6 +10,7 @@ import type { ArrangeCommand } from "../arrange";
 import { clipboardReason, type ClipboardCommand, type Snapshot } from "../clipboard";
 import type { View } from "../view";
 import { ArrangeControls } from "./arrange-controls";
+import { FormatPreview } from "./format-preview";
 
 type Props = {
   board: Board;
@@ -24,6 +25,8 @@ type Props = {
   numbers: Map<string, number>;
   drafts: Record<string, string>;
   nativeEditor: ReactNode;
+  item: Item | undefined;
+  text: string;
   selectionColor: Style["color"] | "";
   selectionSize: Style["textSize"] | "";
   selectionAlign: Style["align"] | "";
@@ -47,7 +50,7 @@ type Props = {
 
 export function ObjectsPanel({
   board, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
-  numbers, drafts, nativeEditor, selectionColor, selectionSize, selectionAlign, selectionReason,
+  numbers, drafts, nativeEditor, item, text, selectionColor, selectionSize, selectionAlign, selectionReason,
   selectionFormats, toggleFormat, changeStyle, command, readOnly, move, bounds, resizeBy, arrange, arrangementReason,
   objectClipboard, clipboardState, clipboardCommand, create, view
 }: Props) {
@@ -89,6 +92,7 @@ export function ObjectsPanel({
         ))}
       </select>
       {selected.size > 1 ? <p>{selected.size} objects selected</p> : nativeEditor}
+      {selected.size === 1 && item && <FormatPreview item={item} text={text} />}
       {selected.size > 0 && <div className="object-styles">
         <label htmlFor="object-colour">Colour</label>
         <select id="object-colour" value={selectionColor} disabled={!!selectionReason}
@@ -116,7 +120,11 @@ export function ObjectsPanel({
           {FLAGS.map((flag) => <button key={flag} aria-pressed={selectionFormats[flag]}
             disabled={!!selectionReason} title={selectionReason || FLAG_LABELS[flag]}
             aria-describedby="selection-reason"
-            onClick={(e) => { e.currentTarget.focus(); toggleFormat(flag); }}>{FLAG_LABELS[flag]}</button>)}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              if (!(document.activeElement instanceof HTMLTextAreaElement)) e.currentTarget.focus();
+              toggleFormat(flag);
+            }}>{FLAG_LABELS[flag]}</button>)}
         </span>
       </div>}
       <div className="object-commands">

@@ -2,10 +2,12 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { BoardV4 as Board } from "../document";
 import type { ClipboardCommand } from "../clipboard";
+import type { Flag } from "../marks";
 
 type Input = {
   command: (name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut") => string | undefined;
   clipboardCommand: (name: ClipboardCommand) => void;
+  toggleFormat: (flag: Flag) => void;
   model: RefObject<Board>;
   cancel: () => void;
   scene: RefObject<HTMLDivElement | null>;
@@ -22,7 +24,7 @@ type Input = {
 };
 
 export function usePageKeys({
-  command, clipboardCommand, model, cancel, scene, busy, composing, select,
+  command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
   setInline, panel, setPanel, objectsButton, boardButton, infoButton, navButton,
 }: Input) {
   function pageKeyDown(e: React.KeyboardEvent<HTMLElement>) {
@@ -46,6 +48,11 @@ export function usePageKeys({
         e.preventDefault();
         command("Duplicate");
         return;
+      }
+      if (e.target === scene.current && !composing && !e.nativeEvent.isComposing) {
+        const flag = key === "b" && !e.shiftKey ? "bold"
+          : key === "i" && !e.shiftKey ? "italic" : key === "x" && e.shiftKey ? "strike" : null;
+        if (flag) { e.preventDefault(); toggleFormat(flag); return; }
       }
       if ((key === "c" || key === "x" || key === "v") && !e.shiftKey && e.target === scene.current) {
         e.preventDefault();

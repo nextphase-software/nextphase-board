@@ -45,7 +45,7 @@ export function App() {
     selectionBox, setSelectionBox, tool, setTool, busy, setBusy, spacePan, setSpacePan,
     scene, spacePanRef, drag,
   } = useGestureState();
-  const { inline, setInline, composing, setComposing } = useTextEntry();
+  const { inline, setInline, composing, setComposing, textSelection, setTextSelection } = useTextEntry();
   const { setMessage, messageSequence, latestAcknowledgement, visibleMessage } = useMessages();
   const {
     board, setBoard, title, setTitle, drafts, setDrafts, history,
@@ -55,7 +55,7 @@ export function App() {
   const {
     selected, setSelected, selectionKey, selectedId, item, text,
     selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats,
-  } = useSelection({ board, drafts });
+  } = useSelection({ board, drafts, textSelection });
   const {
     lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
     handlesVisible, handlePoints, itemHeight,
@@ -104,12 +104,6 @@ export function App() {
     selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
     handlesVisible, handlePoints, objectLayouts, displayedObjects, edit,
   });
-  const nativeEditor = <ContentField
-    editor={editor} inline={inline} text={text} readOnly={readOnly} busy={busy} item={item}
-    selectedId={selectedId} composing={composing} beginTextSession={beginTextSession}
-    changeText={changeText} setComposing={setComposing} setDrafts={setDrafts}
-    commitText={commitText} finishTextSession={finishTextSession} setInline={setInline}
-  />;
   const {
     commandReason, undoReason, redoReason, selectionReason, clipboardState,
     showNotice, editingState, arrangementMembers,
@@ -130,12 +124,19 @@ export function App() {
     model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
-    arrangementMembers, lineCount,
+    arrangementMembers, lineCount, editor,
   });
   const { pageKeyDown } = usePageKeys({
-    command, clipboardCommand, model, cancel, scene, busy, composing, select,
+    command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
     setInline, panel, setPanel, objectsButton, boardButton, infoButton, navButton,
   });
+  const nativeEditor = <ContentField
+    editor={editor} inline={inline} text={text} readOnly={readOnly} busy={busy} item={item}
+    selectedId={selectedId} composing={composing} beginTextSession={beginTextSession}
+    changeText={changeText} setComposing={setComposing} setDrafts={setDrafts}
+    commitText={commitText} finishTextSession={finishTextSession} setInline={setInline}
+    setTextSelection={setTextSelection} toggleFormat={toggleFormat}
+  />;
 
   return (
     <main
@@ -205,7 +206,7 @@ export function App() {
           board={board} busy={busy} composing={composing} setPanel={setPanel}
           objectsButton={objectsButton} selector={selector} selected={selected}
           finishTextSession={finishTextSession} select={select} numbers={numbers} drafts={drafts}
-          nativeEditor={nativeEditor} selectionColor={selectionColor} selectionSize={selectionSize}
+          nativeEditor={nativeEditor} item={item} text={text} selectionColor={selectionColor} selectionSize={selectionSize}
           selectionAlign={selectionAlign} selectionReason={selectionReason} changeStyle={changeStyle}
           command={command} readOnly={readOnly} move={move} bounds={bounds} resizeBy={resizeBy}
           arrange={arrange} arrangementReason={arrangementReason} objectClipboard={objectClipboard}

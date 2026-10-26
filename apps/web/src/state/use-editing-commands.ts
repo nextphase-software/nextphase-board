@@ -2,7 +2,7 @@
 import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import type { Board as SavedBoard, BoardV4 as Board, ItemV4 as Item } from "../document";
 import { count } from "../document";
-import { formatted, toggle, type Flag } from "../marks";
+import { codePointOffset, formatted, toggle, type Flag } from "../marks";
 import { deleteObject, duplicate, redo, undo, type History } from "../history";
 import { savedHeight } from "../geometry";
 import { textUnits, type Style } from "../styles";
@@ -25,6 +25,7 @@ type Input = {
   selected: Set<string>;
   setInline: Dispatch<SetStateAction<boolean>>;
   scene: RefObject<HTMLDivElement | null>;
+  editor: RefObject<HTMLTextAreaElement | null>;
   view: View;
   displayedObjects: (Item & { displayHeight: number })[];
   commandReason: string;
@@ -39,7 +40,7 @@ export function useEditingCommands({
   model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
   setMessage, messageSequence, alive, select, selected, setInline, scene, view,
   displayedObjects, commandReason, selectionReason, clipboardState, editingState,
-  arrangementMembers, lineCount,
+  arrangementMembers, lineCount, editor,
 }: Input) {
   const [objectClipboard, setObjectClipboard] = useState<Snapshot | null>(null);
   function writePlainText(snapshot: Snapshot, copiedMessage: string) {
@@ -172,7 +173,22 @@ export function useEditingCommands({
   function toggleFormat(flag: Flag) {
     if (selectionReason) return;
     finishTextSession();
-    setInline(false);
+    const field = editor.current;
+    const beingEdited = field === document.activeElement && selected.size === 1;
+    if (beingEdited && field) {
+      const start = codePointOffset(field.value, field.selectionStart);
+      const end = codePointOffset(field.value, field.selectionEnd);
+      if (end > start) {
+        const objects = model.current.objects.map((o) => {
+          if (!selected.has(o.id)) return o;
+          const next = { ...o, marks: toggle(o.marks, count(o.text), start, end, flag) };
+          return { ...next, height: savedHeight(next, lineCount(next), textUnits(next.textSize)) };
+        });
+        commit({ ...model.current, objects }, true);
+        return;
+      }
+    }
+    if (!beingEdited) setInline(false);
     const targets = model.current.objects.filter((o) => selected.has(o.id) && o.text.length > 0);
     const remove = targets.every((o) => formatted(o.marks, count(o.text), flag));
     const objects = model.current.objects.map((o) => {

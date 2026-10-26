@@ -232,3 +232,74 @@ native IME check unless the maintainer asks.
 None beyond the repository's own documents.
 
 ## Implementation record
+
+### 2026-10-26 — v1 implementation and non-browser validation
+
+- Branch: `codex/0001-W26-format-selected-text`, in the milestone worktree,
+  based on committed main `3983e543ab33cc6587117a14b90364ff6968546a`.
+  That revision contains this v1 brief, interaction v16 and web modules v14.
+  Only 0001-W26 v1 is implemented.
+- Validated source/test revision: `c4df393f08da00559ef52517e58e123ec0c6565d`
+  (`feat(web): format selected text while editing`). All validation below ran
+  on identical source/test contents immediately before that commit. Only this
+  implementation record changes afterward. The final branch tip is reported
+  separately in the handoff.
+- Added code-point selection tracking, range coverage and preview-run helpers.
+  Formatting reads the focused textarea's live selection, finishes the typing
+  session and records one formatting history step with height growth. A range
+  formats selected characters; a caret uses the existing whole-object path.
+  The editing path leaves the inline editor open. Pointer formatting buttons
+  preserve textarea focus, and pressed states follow the tracked selection.
+- Added the three specified shortcuts to the Content field and canvas with
+  composition and modifier guards. Plain Cut and native text undo keep their
+  existing routes. Objects renders the formatted, assistive-technology-hidden
+  preview only when marks remain after remapping the current draft text.
+- The screen-part inventory is fourteen; `App.tsx` has **262 newlines**, up
+  from 261, with the one new Content field prop placement line. Only the
+  thirteen permitted source/style/test files changed in the validated revision;
+  the handoff additionally appends this record. Dependencies added: **none**.
+  Packages, locks, saved-format code, other modules, contracts and tests are
+  unchanged. Installed packages and generated builds are ignored and uncommitted.
+
+Commands ran from the repository root with the pinned Node **24.22.1** and
+npm **11.19.1** selected in `PATH` for installation, typechecking, tests, builds
+and commits. The initial version inspection reported Node `v26.11.1` / npm
+`11.20.0`; neither was used for installation or validation. Full-suite output
+was captured in a disposable log outside the repository.
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; initial `v26.11.1`, then pinned `v24.22.1` |
+| `npm --version` | Exit 0; initial `11.20.0`, then pinned `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed, no engine warning |
+| `npm --prefix apps/web run typecheck` | Exit 0; no diagnostics |
+| `node --test tests/marks.test.mjs tests/modules.test.mjs` | Exit 0; **56 passed, 0 failed, 0 skipped** |
+| `npm --prefix apps/web test` | Exit 0; **337 passed, 0 failed, 0 skipped** |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; accepted lock, runtime inventory and complete distributed notices verified |
+| `git diff --check` | Exit 0; no whitespace errors |
+| `git diff --cached --check` | Exit 0; no staged whitespace errors |
+| `git diff --cached --stat` | Exit 0; exactly thirteen permitted source/style/test files |
+| `git commit -m 'feat(web): format selected text while editing'` | Exit 0; validated revision above created; both public-boundary hooks passed. Git also emitted a packed-refs lock permission error; HEAD and the milestone branch ref were verified afterward. No hook was bypassed |
+| `git rev-parse HEAD refs/heads/codex/0001-W26-format-selected-text main` | Exit 0; HEAD and the milestone ref equal the validated revision; main remains the base revision above |
+| `git diff --name-only main...HEAD` | Exit 0 after the source/test commit; exactly the thirteen permitted implementation/test files. The final handoff additionally includes this implementation record |
+| `git status --short` | Exit 0; clean after the source/test commit |
+
+Not run, per maintainer instruction and the environment's browser limitation:
+any browser, the browser regression harness, either fixture page's runtime
+checks, the A–J comparison against two matching `c211dee` baseline runs and the
+candidate, unchanged 0001-W6 scenario K, or scenario L. Chrome focus/selection,
+keyboard and pointer formatting, pressed state, preview, composition, history,
+canvas drawing, saved marks and reopening remain for the reviewer. Safari
+shortcuts, context-bar selection formatting, preview and reopening remain for
+the maintainer. Fixture compilation is not a browser fixture pass. Both
+numbered acceptance criteria retain their pending browser evidence; no browser
+matrix, accessibility audit, native IME, performance/load or unrelated acceptance
+sweep was run.
+
+Graph discovery and indexing were attempted first; the tools required approval
+under a never-approve policy and were unavailable. Direct file reads were used
+as the discovery fallback. No unrelated work was present or changed. No stash,
+hook bypass, push or merge was performed. Independent review of the exact
+revision remains pending; this handoff does not authorize a merge or another
+milestone.

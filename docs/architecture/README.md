@@ -105,11 +105,19 @@ later work.
 a hook may stay there; a named helper goes to a rules module) and marks the staged move
 complete. It replaces v10 for later work.
 
-Draft for 0016-W1 brief v1: [0001 web modules v12](0001-web-modules-v12.md) amends rule 7
+[0001 web modules v12](0001-web-modules-v12.md), accepted with 0016-W1, amends rule 7
 (no exceptions: everything that differs by object type lives in its record, and rules
 modules ask the registry too), records that object types use `styles.ts` and that rules
-modules may ask the registry, and updates the inventory. It replaces v11 for later work
-once accepted.
+modules may ask the registry, and updates the inventory. It replaces v11 for later work.
+
+Drafts for 0001-W6 brief v1: [0001 document v4](0001-document-v4.md) adds each object's
+inline formatting (`marks`, beside the unchanged plain text) to the saved format and
+defines how version 1 to 3 boards are read;
+[0001 interaction v15](0001-interaction-v15.md) adds Bold, Italic and Strikethrough for
+whole objects, the drawing of formatted text and how formatting follows text edits; and
+[0001 web modules v13](0001-web-modules-v13.md) adds the two new rules modules to the
+inventory with v12's rules unchanged. They replace document v3, interaction v14 and web
+modules v12 for later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

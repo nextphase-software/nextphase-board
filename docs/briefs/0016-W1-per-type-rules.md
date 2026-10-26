@@ -1,8 +1,10 @@
 BRIEF VERSION: 0016-W1 v1 (2026-10-25)
 # 0016-W1 — Object types own their per-type rules
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 web modules v12](../architecture/0001-web-modules-v12.md) to main.
+Status: Implemented. Independently reviewed at `333e9f4` (pass) and merged into main
+on 2026-10-25 with [0001 web modules v12](../architecture/0001-web-modules-v12.md). The
+implementation record below, which lists the validated revisions, was written before
+that review.
 
 ## Outcome
 

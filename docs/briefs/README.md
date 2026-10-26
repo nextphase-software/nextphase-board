@@ -107,11 +107,20 @@ field as a screen part and a check that `App.tsx` creates no React state of its 
 no change in behaviour under [web modules v11](../architecture/0001-web-modules-v11.md),
 is implemented and merged into main. With it the staged move out of `App.tsx` is complete.
 
-[0016-W1 v1 — Object types own their per-type rules](0016-W1-per-type-rules.md) is a
-draft: each object type's default size and style, the style an old board gets on upgrade
-and its text colour move into the type's record, the document rules ask the registry
-and the style rules keep only what every type shares, with no change in behaviour or saved format, following
-[web modules v12](../architecture/0001-web-modules-v12.md).
+[0016-W1 v1 — Object types own their per-type rules](0016-W1-per-type-rules.md), each
+object type's default size and style, the style an old board gets on upgrade and its text
+colour moved into the type's record, with the document rules asking the registry and the
+style rules keeping only what every type shares, with no change in behaviour or saved
+format under [web modules v12](../architecture/0001-web-modules-v12.md), is implemented
+and merged into main.
+
+[0001-W6 v1 — Bold, italic and strikethrough for whole objects](0001-W6-whole-object-formatting.md)
+is a draft: three buttons in the context bar and Objects format whole objects, saved as
+document v4 marks beside the plain text, drawn on the canvas, kept on the same characters
+while text is edited, and copied with the object, following
+[document v4](../architecture/0001-document-v4.md),
+[interaction v15](../architecture/0001-interaction-v15.md) and
+[web modules v13](../architecture/0001-web-modules-v13.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

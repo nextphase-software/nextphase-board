@@ -357,3 +357,76 @@ maintainer asks.
 None beyond the repository's own documents.
 
 ## Implementation record
+
+### 2026-10-26 — Codex implementation handoff
+
+- Implemented **0002-W1 v1 only**, with document v5, interaction v17 and web modules v15.
+- Branch: `codex/0002-W1-organize-sections`; worktree: `.worktrees/codex-0002-W1`.
+  Started clean from committed main `1c7e1597e7d2e5cc5e805e1ef09e5ef1bb9e16de`.
+- Validated source/test revision: **`5122f717f05586a146dbf70142202a563d1eec09`**.
+  The final checks below ran on the source/test tree committed at this revision;
+  `git write-tree` before committing and `git rev-parse HEAD^{tree}` afterward both
+  returned `1e8fd8479eebb9b41c10e0a215a3f3ba1b1a3772`. No source or test edits
+  followed validation. This implementation record is a later documentation-only commit;
+  its final branch tip is reported separately in the handoff.
+- Added dependencies: **none**. Packages, lock, architecture contracts and unlisted
+  modules/tests were unchanged. New source files have the Apache-2.0 SPDX header.
+- Implementation includes stored membership and v5 compatibility, banded drawing and
+  order, drawing/placing/wrapping sections, compact names, drop targets, movement with
+  members, explicit keyboard assignment, copy/cut/paste/duplicate membership, and history.
+  `App.tsx` remains exactly **262 lines**; module guards pass.
+
+Commands ran from the repository root using pinned **Node v24.22.1 / npm 11.19.1**.
+Installation ran before implementation against the unchanged manifest and lock. All other
+final checks used the source/test tree identified above.
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed |
+| `npm --prefix apps/web run typecheck` | Exit 0; no diagnostics |
+| `node --test tests/sections.test.mjs tests/document.test.mjs tests/storage.test.mjs tests/objects.test.mjs tests/clipboard.test.mjs tests/context-bar-position.test.mjs tests/modules.test.mjs` | Exit 0; **164 passed, 0 failed** across the seven named files |
+| `npm --prefix apps/web test` | Exit 0; **379 passed, 0 failed**, no skipped tests |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; accepted lock, runtime inventory and complete distributed notices verified |
+| `git diff --check` | Exit 0; no whitespace errors |
+| `git diff --name-only main...HEAD` | Exit 0 at the validated source revision; all 46 changed source/test paths are within this brief's allowlist |
+
+Development checks also ran `node --test tests/document.test.mjs tests/objects.test.mjs tests/clipboard.test.mjs tests/storage.test.mjs`
+(88 passed), and `node --test tests/sections.test.mjs` (final result 31 passed). The first
+sections run had five assertions incorrectly expecting an outsider's reading-order index
+to stay fixed when a section was inserted before ideas; those assertions now allow the
+required renumbering while checking unchanged content, geometry and membership.
+
+The first full candidate suite had **375 passed / 1 failed**: the existing
+`tests/history.test.mjs` case “fresh IDs for add, grouping, duplicate and resurrection
+avoid group IDs and all same-command IDs”. This was a new regression in Duplicate's
+allocation sequence. It was fixed in `history.ts` by retaining the earlier per-object
+logical-ID/generation sequence while preparing the membership mapping. That test file
+was not edited. A subsequent full run passed all 376 tests then present, and the final
+suite above passes all 379. Source review also corrected Delete to preserve surviving
+objects' reading order while clearing their links; the section regression verifies it.
+
+For comparison, a disposable archive of **`ee3782119d74fd963a8cbc956badb13b9dbc0fb6`**
+used the same pinned toolchain and installed dependencies. With `validation_baseline`
+pointing to that temporary directory, these commands ran:
+
+```sh
+git archive ee37821 | tar -x -C "$validation_baseline"
+ln -s "$PWD/apps/web/node_modules" "$validation_baseline/apps/web/node_modules"
+npm --prefix "$validation_baseline/apps/web" test
+```
+
+The baseline full suite exited 0: **337 passed, 0 failed**, including the UUID test above.
+No pre-existing unit failure was observed.
+
+**Exclusions and review boundary:** no browser was launched, no server was started, and
+no browser regression harness, scenario M, A–J comparison, scenario K/L, Safari check,
+accessibility audit, native IME check or performance test was run. Building fixtures is
+not evidence that browser fixtures passed. Browser interaction and visual acceptance
+remain for the independent reviewer of the exact source revision. This handoff does
+not close browser acceptance, authorize a merge or start another milestone.
+
+Both implementation commits ran the mandatory privacy hooks normally: `PUBLIC BOUNDARY:
+PASS`. No stash, hook bypass, main commit, merge or push was performed.

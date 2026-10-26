@@ -430,3 +430,44 @@ not close browser acceptance, authorize a merge or start another milestone.
 
 Both implementation commits ran the mandatory privacy hooks normally: `PUBLIC BOUNDARY:
 PASS`. No stash, hook bypass, main commit, merge or push was performed.
+
+### Fix round 1 — 2026-10-26
+
+- Branch: `codex/0002-W1-organize-sections`; worktree: `.worktrees/codex-0002-W1`.
+  Started clean at `d8ad15f7557ba01362ee0ab6c9048fa46221bbd8`.
+- Addressed only the three review findings: idea labels preserve line breaks in their
+  first 36 UTF-16 code units (including drafts), while section names retain their
+  existing shortening; the drawn name's width is `o.width - 2`; drop highlights and
+  hints use only ideas newly joining a section. The complete drop-membership calculation
+  remains the default for applying a drop, including leaving a section.
+- Added two regressions in `tests/sections.test.mjs`: idea/section line-break handling
+  and preview filtering for staying, leaving and newly joining ideas.
+- Validated source/test revision: **`de67a6daba07c6dccf047ce924d9588ce4d0dfe7`**.
+  The checks below ran on the tree committed at this revision. `git write-tree` before
+  the commit and `git rev-parse HEAD^{tree}` afterward both returned
+  `147ed2bc8162a57f0b87321e78d990c626250988`. No source/test edits followed validation.
+  The final branch tip includes this later documentation-only record and is reported
+  separately in the handoff.
+- Only `src/sections.ts`, `src/scene/section-body.tsx`, `src/scene/board-drawing.tsx`
+  (under `apps/web/`) and `tests/sections.test.mjs` changed in the fix commit.
+  Added dependencies: **none**.
+
+Commands ran from the repository root using **Node v24.22.1 / npm 11.19.1**:
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `node --test tests/sections.test.mjs` | Before the fix, exit 1 as expected: 31 passed and the two new regressions failed |
+| `npm --prefix apps/web run typecheck` | Exit 0; no diagnostics |
+| `node --test tests/sections.test.mjs tests/document.test.mjs tests/storage.test.mjs tests/objects.test.mjs tests/clipboard.test.mjs tests/context-bar-position.test.mjs tests/modules.test.mjs` | Exit 0; **166 passed, 0 failed**, including both new regressions |
+| `npm --prefix apps/web test` | Exit 0; **381 passed, 0 failed**, no skipped tests |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; accepted lock, runtime inventory and complete distributed notices verified |
+| `git diff --check` | Exit 0; no whitespace errors |
+| `git diff --cached --check` | Exit 0 before the fix commit |
+
+No browser, server or browser regression harness was launched. Visual/browser checks
+remain with the reviewer; the width correction was inspected in source. The mandatory
+privacy hooks ran normally and reported `PUBLIC BOUNDARY: PASS`. No stash, hook bypass,
+merge or push was performed. No additional milestone or unrelated fix was started.

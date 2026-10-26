@@ -93,3 +93,15 @@ test("a bar whose top plus 40 passes scene height minus 12 does not fit", () => 
     contextLeft: 440, contextTop: 770, contextFits: false,
   });
 });
+
+test("the bar above a section leaves 30 scaled units for the name", () => {
+  const item = { type: "section", x: 0, y: -100, width: 640, height: 480 };
+  assert.deepEqual(position({ item }), { contextLeft: 440, contextTop: 192, contextFits: true });
+  const { contextTop } = position({ item, view: { x: 100, y: -50, z: 1 } });
+  assert.equal(contextTop, 272);
+});
+
+test("a section's compact name field prevents a bar from covering it at high zoom", () => {
+  const item = { type: "section", x: 0, y: 0, width: 200, height: 200 };
+  assert.equal(position({ item, bounds: item, inline: true, view: { x: 100, y: -50, z: 4 } }).contextFits, false);
+});

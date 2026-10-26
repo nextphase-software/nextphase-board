@@ -2,7 +2,8 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { add, type Board as SavedBoard, type BoardV5 as Board, type ItemV5 as Item, validText } from "../document";
 import { neededHeight, savedHeight } from "../geometry";
-import { limitMove } from "../selection";
+import { moveWithMembers, placeObject } from "../sections";
+import { objectType } from "../objects/registry";
 import { resizeObject, resizeSet, type Corner, type Rectangle } from "../resize";
 import { remap } from "../marks";
 import { textUnits } from "../styles";
@@ -41,7 +42,7 @@ export function useGeometryEdits({
       ...model.current,
       objects: model.current.objects.map((o) =>
         o.id === id && o.text !== value
-          ? { ...o, text: value, marks: remap(o.marks, o.text, value), height: savedHeight(o, lineCount(o, value), textUnits(o.textSize)) }
+          ? { ...o, text: value, marks: remap(o.marks, o.text, value), height: objectType(o.type).richText ? savedHeight(o, lineCount(o, value), textUnits(o.textSize)) : o.height }
           : o
       ),
     });
@@ -51,34 +52,37 @@ export function useGeometryEdits({
     beginTextSession(item);
     setDrafts((d) => ({ ...d, [item.id]: value }));
     setStatus("Unsaved");
-    if (validText(value, 1000) && !composing) {
+    if (validText(value, objectType(item.type).textLimit) && !composing) {
       commitText(item.id, value);
     }
   }
   function create(type: Item["type"], x: number, y: number, native = false) {
     if (readOnly || busy || composing) return;
     try {
-      const next = add(model.current, type, x, y);
+      const object = add(model.current, type, x, y).objects.at(-1)!;
+      const next = placeObject(model.current, object);
       commit(next, true);
-      select(next.objects.at(-1)!.id);
+      select(object.id);
       setTool("Select");
       setPanel(native ? "Objects" : "");
       setInline(!native);
-      if (native) setTimeout(() => editor.current?.focus(), 0);
+      if (native) setTimeout(() => {
+        editor.current?.focus();
+        if (!objectType(type).richText) editor.current?.select();
+      }, 0);
     } catch (e) {
       setMessage(String(e));
     }
   }
   function movedBoard(ids: string[], dx: number, dy: number) {
-    const members = model.current.objects.filter((o) => ids.includes(o.id));
-    const delta = limitMove(members, { x: dx, y: dy });
-    return { ...model.current, objects: model.current.objects.map((o) => ids.includes(o.id)
-      ? { ...o, x: o.x + delta.x, y: o.y + delta.y } : o) };
+    return moveWithMembers(model.current, new Set(ids), dx, dy);
   }
   function move(dx: number, dy: number) {
     if (!selected.size || readOnly || composing || busy) return;
-    commit(movedBoard([...selected], dx, dy), true);
+    const next = movedBoard([...selected], dx, dy);
+    if (next !== model.current) commit(next, true);
   }
+
   function resizeStart(): ResizeStart[] {
     return model.current.objects.filter((o) => selected.has(o.id)).map((object) => ({
       object, rectangle: { x: object.x, y: object.y, width: object.width,
@@ -93,11 +97,11 @@ export function useGeometryEdits({
     });
   }
   function resizedBoard(corner: Corner, start: ResizeStart[], dx: number, dy: number, shift: boolean) {
-    const members = start.map(({ object, rectangle }) => ({ ...rectangle,
-      neededHeight: (width: number) => neededHeight(lineCount({ ...object, width }), textUnits(object.textSize)),
+    const members = start.map(({ object, rectangle }) => ({ ...rectangle, sizeRange: objectType(object.type).sizeRange,
+      neededHeight: (width: number) => objectType(object.type).richText ? neededHeight(lineCount({ ...object, width }), textUnits(object.textSize)) : 0,
     }));
     const geometry = members.length === 1
-      ? [resizeObject(corner, start[0].rectangle, { x: dx, y: dy }, shift, members[0].neededHeight)]
+      ? [resizeObject(corner, start[0].rectangle, { x: dx, y: dy }, shift, members[0].neededHeight, members[0].sizeRange)]
       : resizeSet(corner, members, { x: dx, y: dy }, shift);
     // Starting drawn heights may exceed saved heights. An unchanged resize saves nothing.
     if (geometry.every((g, i) => Object.keys(g).every((key) =>

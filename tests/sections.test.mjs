@@ -255,6 +255,7 @@ test("Delete keeps members in place and clears their links; Undo restores the se
   const { b, section, a, c } = fixture();
   const result = deleteObject(b, emptyHistory(), section);
   assert.equal(result.board.objects.length, b.objects.length - 1);
+  assert.deepEqual(result.board.objects.map((o) => o.id), b.objects.filter((o) => o.id !== section.id).map((o) => o.id));
   for (const member of [a, c]) {
     const next = result.board.objects.find((o) => o.id === member.id);
     assert.equal(next.x, member.x); assert.equal(next.y, member.y); assert.equal(next.section, null);

@@ -54,7 +54,7 @@ export function App() {
   } = useBoardDocument({ readOnly, setStatus });
   const {
     selected, setSelected, selectionKey, selectedId, item, text,
-    selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats,
+    selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats, richText,
   } = useSelection({ board, drafts, textSelection });
   const {
     lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
@@ -120,11 +120,11 @@ export function App() {
     selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
     item, itemHeight,
   });
-  const { objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
+  const { setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
     model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
-    arrangementMembers, lineCount, editor,
+    arrangementMembers, lineCount, editor, setPanel, setTool,
   });
   const { pageKeyDown } = usePageKeys({
     command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
@@ -169,11 +169,11 @@ export function App() {
         onLostPointerCapture={lostPointerCapture}
       >
         <BoardDrawing
-          size={size} view={view} board={board} objectLayouts={objectLayouts} selected={selected} inline={inline}
+          size={size} view={view} board={board} objectLayouts={objectLayouts} selected={selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
         />
         <Overlays
           selectedGroups={selectedGroups} pos={pos} view={view} handlesVisible={handlesVisible}
-          handlePoints={handlePoints} spacePan={spacePan} selectionBox={selectionBox}
+          handlePoints={handlePoints} spacePan={spacePan} selectionBox={selectionBox} tool={tool}
         />
       </div>
       <FileBar
@@ -202,7 +202,7 @@ export function App() {
       )}
       {panel === "Objects" && (
         <ObjectsPanel
-          selectionFormats={selectionFormats} toggleFormat={toggleFormat}
+          selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
           board={board} busy={busy} composing={composing} setPanel={setPanel}
           objectsButton={objectsButton} selector={selector} selected={selected}
           finishTextSession={finishTextSession} select={select} numbers={numbers} drafts={drafts}
@@ -210,12 +210,12 @@ export function App() {
           selectionAlign={selectionAlign} selectionReason={selectionReason} changeStyle={changeStyle}
           command={command} readOnly={readOnly} move={move} bounds={bounds} resizeBy={resizeBy}
           arrange={arrange} arrangementReason={arrangementReason} objectClipboard={objectClipboard}
-          clipboardState={clipboardState} clipboardCommand={clipboardCommand} create={create} view={view}
+          clipboardState={clipboardState} clipboardCommand={clipboardCommand} create={create} view={view} setSection={setSection}
         />
       )}
       {selected.size > 0 && (
         <ContextBar
-          selectionFormats={selectionFormats} toggleFormat={toggleFormat}
+          selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
           contextBar={contextBar} contextFits={contextFits} contextLeft={contextLeft}
           contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
           composing={composing} busy={busy} inline={inline} finishTextSession={finishTextSession}

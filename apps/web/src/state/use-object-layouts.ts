@@ -3,6 +3,7 @@ import { useMemo, type RefObject } from "react";
 import Konva from "konva";
 import type { BoardV5 as Board, ItemV5 as Item } from "../document";
 import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT } from "../geometry";
+import { objectType } from "../objects/registry";
 import { groupNumbers, wholeGroups } from "../group";
 import { cornerPoint, type Corner } from "../resize";
 import { boundingBox } from "../selection";
@@ -62,6 +63,8 @@ export function useObjectLayouts({
   board, selected, selectedId, item, text, inline, tool, readOnly, composing, busy, drag,
 }: Input) {
   const objectLayouts = useMemo(() => new Map(board.objects.map((o) => {
+    if (!objectType(o.type).richText) return [o.id, { height: o.height, runs: null,
+      limited: false, fadeStart: 0, fadeEnd: 0 }];
     // Uncommitted composition/invalid input may grow the editor's preview only.
     const lines = lineCount(o, inline && o.id === selectedId ? text : o.text);
     const fontSize = textUnits(o.textSize);
@@ -81,7 +84,7 @@ export function useObjectLayouts({
   const bounds = boundingBox(displayedObjects.filter((o) => selected.has(o.id)));
   const selectedGroups = wholeGroups(displayedObjects, selected);
   const numbers = groupNumbers(board.objects);
-  const handlesVisible = !!bounds && tool === "Select" && !readOnly && !inline && !composing &&
+  const handlesVisible = !!bounds && tool === "Select" && !readOnly && (!inline || !!item && !objectType(item.type).richText) && !composing &&
     (!busy || !!drag.current?.corner);
   const handlePoints = bounds ? CORNERS.map((corner) => ({
     corner, ...cornerPoint(corner, bounds),

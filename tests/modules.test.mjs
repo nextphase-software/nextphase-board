@@ -74,17 +74,18 @@ test("every screen part begins with the Apache-2.0 licence header", () => {
   }
 });
 
-test("scene parts contain exactly the four modules named by 0001-W16 v1", () => {
+test("scene parts contain exactly the five modules named through 0002-W1 v1", () => {
   assert.deepEqual(sceneParts, [
     "board-drawing.tsx",
     "inline-editor.tsx",
     "note-body.tsx",
     "overlays.tsx",
+    "section-body.tsx",
   ]);
 });
 
-test("object types contain exactly the three modules named by 0001-W16 v1", () => {
-  assert.deepEqual(objectTypes, ["registry.ts", "sticky.ts", "text.ts"]);
+test("object types contain exactly the four object-type modules named through 0002-W1 v1", () => {
+  assert.deepEqual(objectTypes, ["registry.ts", "section.ts", "sticky.ts", "text.ts"]);
 });
 
 test("object types never import React or Konva", () => {
@@ -96,7 +97,7 @@ test("object types never import React or Konva", () => {
 test("composition and screen parts ask the registry instead of comparing type names", () => {
   const app = readFileSync(new URL("App.tsx", source), "utf8");
   for (const [name, content] of [["App.tsx", app], ...contents, ...sceneContents]) {
-    assert.doesNotMatch(content, /===\s*["'](?:sticky|text)["']/, name);
+    assert.doesNotMatch(content, /===\s*["'](?:sticky|text|section)["']/, name);
     assert.doesNotMatch(content, /["']sticky["']\s*:\s*["']text["']/, name);
     assert.doesNotMatch(content, /\[\s*["']sticky["']\s*,\s*["']text["']\s*\]/, name);
   }
@@ -291,8 +292,8 @@ test("object types import only siblings or styles, which never imports object ty
 function typeNameUses(source) {
   return [
     /\bsticky\b/,
-    /[=!]==\s*["'](?:sticky|text)["']/,
-    /["'](?:sticky|text)["']\s*[=!]==/,
+    /[=!]==\s*["'](?:sticky|text|section)["']/,
+    /["'](?:sticky|text|section)["']\s*[=!]==/,
   ].filter((pattern) => pattern.test(source));
 }
 
@@ -313,6 +314,8 @@ test("rules type-name guard detects each forbidden form and allows text fields",
     'const DEFAULT = { sticky: { color: "rose" } };',
     'if (o.type !== "text") return;',
     'if ("text" === o.type) return;',
+    'if (o.type === "section") return;',
+    'if ("section" !== o.type) return;',
   ]) {
     assert(typeNameUses(source).length > 0, source);
   }

@@ -118,14 +118,15 @@ export function duplicate(board: Board, history: History, target: Item | Item[])
     groups.set(item.group, whole ? fresh(board, [...groups.values()].filter((id) => id !== null)) : null);
   }
   const reserved = [...groups.values()].filter((id) => id !== null);
-  const ids = new Map(items.map((o) => {
-    const id = fresh(board, reserved); reserved.push(id); return [o.id, id];
+  const identities = new Map(items.map((o) => {
+    const id = fresh(board, reserved); reserved.push(id);
+    const generation = fresh(board, reserved); reserved.push(generation);
+    return [o.id, { id, generation }];
   }));
+  const ids = new Map([...identities].map(([source, copy]) => [source, copy.id]));
   for (const item of items) {
-    const current = { ...board, objects };
-    const id = ids.get(item.id)!;
     objects.push({
-      ...item, id, generation: fresh(current, [...reserved, id]),
+      ...item, ...identities.get(item.id)!,
       ...("section" in item ? { section: remapSection(item.section, ids) } : {}),
       ...("group" in item ? { group: item.group ? groups.get(item.group)! : null } : {}),
       x: Math.max(-1e6, Math.min(1e6 - item.width, item.x + 24)),
@@ -141,13 +142,9 @@ export function duplicate(board: Board, history: History, target: Item | Item[])
 export function deleteObject(board: Board, history: History, target: Item | Item[]): Change {
   const items = targets(board, target);
   const removed = new Set(items.map((o) => o.id));
-  const changes: { source: Item; target: Item | null }[] = items.map((source) => ({ source, target: null }));
-  for (const source of board.objects) {
-    if (!removed.has(source.id) && "section" in source && source.section && removed.has(source.section)) {
-      changes.push({ source, target: { ...source, section: null } });
-    }
-  }
-  const next = apply(board, changes);
+  const deleted = apply(board, items.map((source) => ({ source, target: null })));
+  const next = { ...deleted, objects: deleted.objects.map((o) =>
+    "section" in o && o.section && removed.has(o.section) ? { ...o, section: null } : o) };
   const affectedIds = items.map((o) => o.id);
   return { board: next, history: record(history, board, next), affectedId: affectedIds[0], affectedIds };
 }

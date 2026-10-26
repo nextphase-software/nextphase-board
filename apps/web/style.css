@@ -525,3 +525,17 @@ small {
   border-top: 1px solid #e8e7ed;
   padding-top: 8px;
 }
+
+/* Sections use a drawing preview and a compact editor above their saved frame. */
+.selection-box.drawing {
+  border: 1.5px dashed #518de0;
+  background: rgb(81 141 224 / 6%);
+}
+.inline.name-field {
+  background: white;
+  border: 2px solid #518de0;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.inline.name-field:focus-within { outline: none; }
+.inline.name-field textarea { line-height: 1; }

@@ -19,6 +19,7 @@ type Props = {
   composing: boolean;
   busy: boolean;
   inline: boolean;
+  richText: boolean;
   finishTextSession: () => void;
   setInline: Dispatch<SetStateAction<boolean>>;
   scene: RefObject<HTMLDivElement | null>;
@@ -55,7 +56,7 @@ type Props = {
 
 export function ContextBar({
   contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
-  inline, finishTextSession, setInline, scene, edit, text, colourControl, colourButton,
+  inline, richText, finishTextSession, setInline, scene, edit, text, colourControl, colourButton,
   selectionReason, colourLabel, swatchOpen, setArrangeFor, setSwatchFor, selectionKey,
   selectionColor, swatches, contextWidth, size, closeSwatches, changeStyle, selectionSize,
   selectionAlign, selectionFormats, toggleFormat, arrangeControl, arrangeButton, arrangeOpen, arrangeMenu, arrangeHeight,
@@ -89,10 +90,10 @@ export function ContextBar({
           } else edit();
         }}
       >
-        <Icon name="pencil" />{inline ? "Done" : "Edit text"}
+        <Icon name="pencil" />{inline ? "Done" : richText ? "Edit text" : "Edit name"}
       </button>
       <span className="divider" aria-hidden="true" />
-      <small>{count(text)} / 1,000</small>
+      <small>{count(text)} / {objectType(item.type).textLimit.toLocaleString("en-US")}</small>
       </>}
       <span className="colour-control" ref={colourControl}>
         <button ref={colourButton} className="icon-button" disabled={!!selectionReason}
@@ -128,6 +129,7 @@ export function ContextBar({
           </button>)}
         </div>}
       </span>
+      {richText && <>
       <select className="context-size" aria-label="Text size" title={selectionReason || "Text size"}
         value={selectionSize} disabled={!!selectionReason} aria-describedby="selection-reason"
         onChange={(e) => changeStyle("textSize", e.target.value as Style["textSize"])}>
@@ -154,6 +156,7 @@ export function ContextBar({
           <Icon name={flag} /><span className="tooltip">{selectionReason || FLAG_LABELS[flag]}</span>
         </button>)}
       </span>
+      </>}
       <span className="arrange-control" ref={arrangeControl}>
         <button ref={arrangeButton} className="icon-button" disabled={!!selectionReason}
           aria-label="Arrange" title={selectionReason || "Arrange"}

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef } from "react";
+import { objectType } from "../objects/registry";
 import { type BoardV5 as Board, validText } from "../document";
 
 type Input = {
@@ -12,10 +13,10 @@ type Input = {
 
 export function useValidity({ board, drafts, title, composing, busy }: Input) {
   const invalidObjectFields = board.objects.flatMap((o, i) =>
-    !validText(drafts[o.id] ?? o.text, 1000)
+    !validText(drafts[o.id] ?? o.text, objectType(o.type).textLimit)
       ? [
         "Object " + (i + 1) +
-        " exceeds 1,000 code points or contains invalid Unicode. Correct it in Objects.",
+        " exceeds " + objectType(o.type).textLimit.toLocaleString("en-US") + " code points or contains invalid Unicode. Correct it in Objects.",
       ]
       : []
   );

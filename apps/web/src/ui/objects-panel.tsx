@@ -2,7 +2,8 @@
 import type { Dispatch, SetStateAction, RefObject, ReactNode } from "react";
 import type { BoardV5 as Board, ItemV5 as Item } from "../document";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "../styles";
-import { OBJECT_TYPES } from "../objects/registry";
+import { objectLabel } from "../sections";
+import { OBJECT_TYPES, isContainer } from "../objects/registry";
 import { FLAGS, FLAG_LABELS, type Flag } from "../marks";
 import { Icon } from "../icons";
 import type { Rectangle } from "../resize";
@@ -15,6 +16,8 @@ import { FormatPreview } from "./format-preview";
 type Props = {
   board: Board;
   busy: boolean;
+  richText: boolean;
+  setSection: (id: string | null) => void;
   composing: boolean;
   setPanel: Dispatch<SetStateAction<string>>;
   objectsButton: RefObject<HTMLButtonElement | null>;
@@ -39,7 +42,7 @@ type Props = {
   move: (dx: number, dy: number) => void;
   bounds: Rectangle | null;
   resizeBy: (dx: number, dy: number) => void;
-  arrange: (name: ArrangeCommand) => void;
+  arrange: (name: ArrangeCommand, native?: boolean) => void;
   arrangementReason: (name: ArrangeCommand) => string;
   objectClipboard: Snapshot | null;
   clipboardState: Parameters<typeof clipboardReason>[3];
@@ -49,11 +52,14 @@ type Props = {
 };
 
 export function ObjectsPanel({
-  board, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
+  board, richText, setSection, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
   numbers, drafts, nativeEditor, item, text, selectionColor, selectionSize, selectionAlign, selectionReason,
   selectionFormats, toggleFormat, changeStyle, command, readOnly, move, bounds, resizeBy, arrange, arrangementReason,
   objectClipboard, clipboardState, clipboardCommand, create, view
 }: Props) {
+  const ideas = board.objects.filter((o) => selected.has(o.id) && !isContainer(o));
+  const sections = board.objects.filter(isContainer);
+  const sharedSection = ideas.length && ideas.every((o) => o.section === ideas[0].section) ? ideas[0].section ?? "" : "mixed";
   return (
     <section
       className="objects floating"
@@ -84,15 +90,14 @@ export function ObjectsPanel({
           select(Array.from(e.currentTarget.selectedOptions, (o) => o.value));
         }}
       >
-        {board.objects.map((o, i) => (
+        {board.objects.map((o) => (
           <option key={o.id} value={o.id}>
-            {o.type} {i + 1}{o.group !== null ? " · Group " + numbers.get(o.group) : ""} ·{" "}
-            {(drafts[o.id] ?? o.text).slice(0, 36) || "Empty"}
+            {objectLabel(board, o, numbers, drafts)}
           </option>
         ))}
       </select>
       {selected.size > 1 ? <p>{selected.size} objects selected</p> : nativeEditor}
-      {selected.size === 1 && item && <FormatPreview item={item} text={text} />}
+      {richText && selected.size === 1 && item && <FormatPreview item={item} text={text} />}
       {selected.size > 0 && <div className="object-styles">
         <label htmlFor="object-colour">Colour</label>
         <select id="object-colour" value={selectionColor} disabled={!!selectionReason}
@@ -101,6 +106,19 @@ export function ObjectsPanel({
           {!selectionColor && <option value="" disabled>Mixed</option>}
           {COLORS.map((c) => <option key={c.name} value={c.name}>{c.label}</option>)}
         </select>
+        {ideas.length > 0 && <>
+          <label htmlFor="object-section">Section</label>
+          <select id="object-section" value={sharedSection} disabled={!!selectionReason}
+            title={selectionReason || "Section"} aria-describedby="selection-reason"
+            onChange={(e) => setSection(e.target.value || null)}>
+            {sharedSection === "mixed" && <option value="mixed" disabled>Mixed</option>}
+            <option value="">None</option>
+            {sections.map((o) => <option key={o.id} value={o.id}>
+              {objectLabel(board, o, numbers, drafts).replace(/ · \d+ items?$/, "")}
+            </option>)}
+          </select>
+        </>}
+        {richText && <>
         <label htmlFor="object-size">Text size</label>
         <select id="object-size" value={selectionSize} disabled={!!selectionReason}
           title={selectionReason || "Text size"} aria-describedby="selection-reason"
@@ -126,6 +144,7 @@ export function ObjectsPanel({
               toggleFormat(flag);
             }}>{FLAG_LABELS[flag]}</button>)}
         </span>
+        </>}
       </div>}
       <div className="object-commands">
         {(["Duplicate", "Delete"] as const).map((name) => (
@@ -166,7 +185,7 @@ export function ObjectsPanel({
       </div>
       {selected.size > 0 && <div className="objects-arrange" role="group" aria-label="Arrange">
         <h2>Arrange</h2>
-        <ArrangeControls prefix="objects-arrange" choose={arrange} arrangementReason={arrangementReason} />
+        <ArrangeControls prefix="objects-arrange" choose={(name) => arrange(name, true)} arrangementReason={arrangementReason} />
       </div>}
       <div className="object-commands" role="group" aria-label="Clipboard">
         {(["Copy", "Cut", "Paste"] as const).map((name) => {

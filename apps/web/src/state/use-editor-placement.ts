@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { ItemV5 as Item } from "../document";
+import { objectType } from "../objects/registry";
 import { textUnits } from "../styles";
 import type { View } from "../view";
 
@@ -32,13 +33,17 @@ export function useEditorPlacement({
     navButton = useRef<HTMLButtonElement>(null),
     infoButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (inline && !composing) editor.current?.focus();
+    if (inline && !composing) {
+      editor.current?.focus();
+      if (item && !objectType(item.type).richText && item.text === objectType(item.type).initialText) editor.current?.select();
+    }
   }, [inline, selected]);
   useEffect(() => {
     if (panel === "Objects") {
       if (fallbackFocus.current) {
         fallbackFocus.current = false;
         editor.current?.focus();
+        if (item && !objectType(item.type).richText && item.text === objectType(item.type).initialText) editor.current?.select();
       } else selector.current?.focus();
     }
   }, [panel]);
@@ -56,7 +61,7 @@ export function useEditorPlacement({
   }
   useEffect(() => {
     if (!inline || !item || composing) return;
-    const p = pos(item), rect = editor.current?.getBoundingClientRect();
+    const p = pos(item), rect = (objectType(item.type).richText ? editor.current : editor.current?.parentElement)?.getBoundingClientRect();
     const obscured = rect &&
       Array.from(
         document.querySelectorAll(".file,.actions,.palette,.zoom,.notice"),
@@ -65,6 +70,13 @@ export function useEditorPlacement({
         return rect.left < r.right && rect.right > r.left &&
           rect.top < r.bottom && rect.bottom > r.top;
       });
+    const richText = objectType(item.type).richText;
+    if (!richText) {
+      const left = p.left + 2 * view.z, top = p.top - 34 * view.z;
+      if (left < 0 || top < 0 || left + Math.min(item.width, 200) * view.z > size.w ||
+        top + 28 * view.z > size.h || 28 * view.z < 16 || obscured) fallbackEditor();
+      return;
+    }
     if (
       size.w < 768 || p.left < 0 || p.top < 0 ||
       p.left + item.width * view.z > size.w ||

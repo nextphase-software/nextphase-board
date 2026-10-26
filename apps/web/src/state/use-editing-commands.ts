@@ -7,7 +7,9 @@ import { deleteObject, duplicate, redo, undo, type History } from "../history";
 import { savedHeight } from "../geometry";
 import { textUnits, type Style } from "../styles";
 import type { View } from "../view";
-import { arrangeOrder, arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "../arrange";
+import { arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "../arrange";
+import { assignSection, orderInBands, withMembers, wrapReason, wrapSelection } from "../sections";
+import { objectType } from "../objects/registry";
 import { groupObjects, groupReason, ungroupObjects } from "../group";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "../clipboard";
 
@@ -26,6 +28,8 @@ type Input = {
   setInline: Dispatch<SetStateAction<boolean>>;
   scene: RefObject<HTMLDivElement | null>;
   editor: RefObject<HTMLTextAreaElement | null>;
+  setPanel: Dispatch<SetStateAction<string>>;
+  setTool: Dispatch<SetStateAction<string>>;
   view: View;
   displayedObjects: (Item & { displayHeight: number })[];
   commandReason: string;
@@ -40,7 +44,7 @@ export function useEditingCommands({
   model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
   setMessage, messageSequence, alive, select, selected, setInline, scene, view,
   displayedObjects, commandReason, selectionReason, clipboardState, editingState,
-  arrangementMembers, lineCount, editor,
+  arrangementMembers, lineCount, editor, setPanel, setTool,
 }: Input) {
   const [objectClipboard, setObjectClipboard] = useState<Snapshot | null>(null);
   function writePlainText(snapshot: Snapshot, copiedMessage: string) {
@@ -65,7 +69,8 @@ export function useEditingCommands({
           centerX: view.x, centerY: view.y, zoom: view.z,
           width: scene.current!.clientWidth, height: scene.current!.clientHeight,
         });
-        const ids = result.board.objects.slice(model.current.objects.length).map((o) => o.id);
+        const existing = new Set(model.current.objects.map((o) => o.id));
+        const ids = result.board.objects.filter((o) => !existing.has(o.id)).map((o) => o.id);
         commit(result.board, true);
         select(ids);
         setObjectClipboard({ ...objectClipboard!, pasteCount: result.pasteCount });
@@ -90,7 +95,8 @@ export function useEditingCommands({
     finishTextSession();
     try {
       const deleting = name === "Delete" || name === "Cut";
-      const targets = model.current.objects.filter((o) => selected.has(o.id));
+      const acted = name === "Cut" || name === "Duplicate" ? withMembers(model.current.objects, selected) : selected;
+      const targets = model.current.objects.filter((o) => acted.has(o.id));
       const current = targets[0];
       if ((name === "Duplicate" || deleting) && !current) {
         setMessage("Select an object to " + name.toLowerCase() + ".");
@@ -137,19 +143,28 @@ export function useEditingCommands({
     }
   }
   function arrangementReason(name: ArrangeCommand) {
+    if (name === "Section from selection") return wrapReason(model.current, selected, displayedObjects, editingState);
     return name === "Group" || name === "Ungroup"
       ? groupReason(name, model.current, selected, editingState)
       : arrangeReason(name, arrangementMembers, editingState);
   }
-  function arrange(name: ArrangeCommand) {
+  function arrange(name: ArrangeCommand, native = false) {
     if (arrangementReason(name)) return;
     finishTextSession();
     setInline(false);
     const current = model.current;
-    if (name === "Group" || name === "Ungroup") {
+    if (name === "Section from selection") {
+      const result = wrapSelection(current, selected, displayedObjects);
+      commit(result.board, true);
+      select(result.id);
+      setTool("Select");
+      setPanel(native ? "Objects" : "");
+      setInline(!native);
+      if (native) setTimeout(() => { editor.current?.focus(); editor.current?.select(); }, 0);
+    } else if (name === "Group" || name === "Ungroup") {
       commit(name === "Group" ? groupObjects(current, selected) : ungroupObjects(current, selected), true);
     } else if (isOrderCommand(name)) {
-      commit({ ...current, objects: arrangeOrder(name, current.objects, selected) }, true,
+      commit({ ...current, objects: orderInBands(name, current.objects, selected) }, true,
         current.objects.filter((o) => selected.has(o.id)).map((o) => o.id));
     } else {
       const positions = new Map(arrangePositions(name, arrangementMembers).map((p) => [p.id, p]));
@@ -157,8 +172,16 @@ export function useEditingCommands({
         ? { ...o, x: positions.get(o.id)!.x, y: positions.get(o.id)!.y } : o) }, true);
     }
   }
-  function changeStyle<K extends keyof Style>(key: K, value: Style[K]) {
+  function setSection(id: string | null) {
     if (selectionReason) return;
+    const next = assignSection(model.current, selected, id);
+    if (next === model.current) return;
+    finishTextSession();
+    setInline(false);
+    commit(next, true);
+  }
+  function changeStyle<K extends keyof Style>(key: K, value: Style[K]) {
+    if (selectionReason || key !== "color" && model.current.objects.some((o) => selected.has(o.id) && !objectType(o.type).richText)) return;
     finishTextSession();
     setInline(false);
     const objects = model.current.objects.map((current) => {
@@ -171,7 +194,7 @@ export function useEditingCommands({
     commit({ ...model.current, objects }, true);
   }
   function toggleFormat(flag: Flag) {
-    if (selectionReason) return;
+    if (selectionReason || model.current.objects.some((o) => selected.has(o.id) && !objectType(o.type).richText)) return;
     finishTextSession();
     const field = editor.current;
     const beingEdited = field === document.activeElement && selected.size === 1;
@@ -198,5 +221,5 @@ export function useEditingCommands({
     });
     commit({ ...model.current, objects }, true);
   }
-  return { objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
+  return { setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
 }

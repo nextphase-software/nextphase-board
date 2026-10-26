@@ -342,3 +342,24 @@ nodeTest("v4 adapter stores canonical marks atomically and recreates them withou
   assert.deepEqual(recreated.doc.getMap("objects").get(b.objects[0].id).get("marks"), stored);
   adapter.destroy(); recreated.destroy();
 });
+
+nodeTest("the section type is rejected in versions 1 through 4 even within their geometry limits", () => {
+  const current = addV2({ ...emptyV2(), title: "Version rule" }, "section", 0, 0);
+  for (const version of [1, 2, 3, 4]) {
+    const old = versioned(current, version), before = structuredClone(old);
+    assert.throws(() => validate(old)); assert.throws(() => canonical(old));
+    assert.deepEqual(old, before);
+  }
+});
+nodeTest("v5 canonical output includes membership after marks and keeps an interleaved reading order", () => {
+  let b = addV2(addV2({ ...emptyV2(), title: "Canonical sections" }, "text", 0, 0), "section", 0, 0);
+  b.objects[0].section = b.objects[1].id;
+  const bytes = canonical(b);
+  assert.deepEqual(Object.keys(JSON.parse(bytes).objects[0]), [
+    "id", "generation", "type", "text", "color", "textSize", "align", "group", "marks", "section", "x", "y", "width", "height", "order",
+  ]);
+  assert.deepEqual(validate(JSON.parse(bytes)), b);
+  assert.deepEqual(JSON.parse(bytes).objects.map((o) => o.id), b.objects.map((o) => o.id));
+  const reversed = { ...b, objects: b.objects.map((o) => Object.fromEntries(Object.entries(o).reverse())) };
+  assert.equal(canonical(reversed), bytes);
+});

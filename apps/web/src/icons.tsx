@@ -4,6 +4,7 @@ const paths = {
   Select: "M4 3 16 11 10 12 7 17Z",
   Pan: "M6 10V5a1.5 1.5 0 0 1 3 0v4-6a1.5 1.5 0 0 1 3 0v6-4a1.5 1.5 0 0 1 3 0v5-2a1.5 1.5 0 0 1 3 0v5c0 4-2 6-6 6h-1c-2 0-3-1-4-3l-3-4a1.5 1.5 0 0 1 2-2l2 2",
   Sticky: "M4 3h12v9l-5 5H4ZM11 17v-5h5",
+  Section: "M4 3h6M3 7h14v10H3Z",
   Text: "M4 4h12M10 4v13M7 17h6M4 4v2M16 4v2",
   minus: "M4 10h12",
   plus: "M4 10h12M10 4v12",

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { placementTool } from "../objects/registry";
 import type { Corner, Rectangle } from "../resize";
 import { boundingBox, type DisplayObject } from "../selection";
 import type { View } from "../view";
@@ -10,10 +11,11 @@ type Props = {
   handlesVisible: boolean;
   handlePoints: { corner: Corner; x: number; y: number }[];
   spacePan: boolean;
+  tool: string;
   selectionBox: Rectangle | null;
 };
 
-export function Overlays({ selectedGroups, pos, view, handlesVisible, handlePoints, spacePan, selectionBox }: Props) {
+export function Overlays({ selectedGroups, pos, view, handlesVisible, handlePoints, spacePan, selectionBox, tool }: Props) {
   return (
     <>
       {[...selectedGroups].filter(([, members]) => members.length >= 2).map(([id, members]) => {
@@ -28,7 +30,7 @@ export function Overlays({ selectedGroups, pos, view, handlesVisible, handlePoin
         className={"resize-handle " + h.corner} aria-hidden="true"
         style={{ left: pos(h).left, top: pos(h).top,
           cursor: spacePan ? "grab" : undefined }} />)}
-      {selectionBox && <div className="selection-box" aria-hidden="true" style={{
+      {selectionBox && <div className={"selection-box" + (placementTool(tool)?.draws ? " drawing" : "")} aria-hidden="true" style={{
         left: pos(selectionBox).left, top: pos(selectionBox).top,
         width: selectionBox.width * view.z, height: selectionBox.height * view.z,
       }} />}

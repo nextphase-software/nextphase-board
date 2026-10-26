@@ -5,7 +5,8 @@ import { boxSelection } from "../selection";
 import { expandSelection, pressSelection, toggleGroup } from "../group";
 import type { Corner } from "../resize";
 import type { View } from "../view";
-import { typeForTool } from "../objects/registry";
+import { bandOrder, drawRectangle, dropped, placeObject, withMembers } from "../sections";
+import { isContainer, placementTool, typeForTool } from "../objects/registry";
 import type { Drag, ResizeStart } from "../gesture";
 
 type Input = {
@@ -120,7 +121,7 @@ export function useCanvasInput({
     }
     if (e.key === "Enter" && !drag.current) {
       e.preventDefault();
-      if (tool === "Sticky" || tool === "Text") {
+      if (placementTool(tool)) {
         create(
           typeForTool(tool),
           view.x,
@@ -135,7 +136,7 @@ export function useCanvasInput({
     if (
       e.target !== e.currentTarget &&
         !(e.target instanceof HTMLCanvasElement) &&
-        !(e.target instanceof Element && e.target.closest(".resize-handle")) || composing || inline
+        !(e.target instanceof Element && e.target.closest(".resize-handle")) || composing || inline && !model.current.objects.some((o) => selected.has(o.id) && isContainer(o))
     ) return;
     if (e.button !== 0 || drag.current) return;
     if (spacePanRef.current) {
@@ -165,11 +166,14 @@ export function useCanvasInput({
       e.preventDefault();
       return;
     }
-    const hit = [...model.current.objects].reverse().find((o) =>
+    const hit = bandOrder(model.current.objects).reverse().find((o) =>
       p.x >= o.x && p.x <= o.x + o.width && p.y >= o.y &&
       p.y <= o.y + objectLayouts.get(o.id)!.height
     );
-    if (tool === "Pan") {
+    if (placementTool(tool)?.draws && !readOnly) {
+      drag.current = { id: tool, x: p.x, y: p.y, cx: e.clientX, cy: e.clientY,
+        view: { ...view }, pan: false };
+    } else if (tool === "Pan") {
       drag.current = {
         id: "",
         x: view.x,
@@ -185,7 +189,7 @@ export function useCanvasInput({
           select(toggleGroup(model.current.objects, selected, hit.id));
         } else {
           const expanded = pressSelection(model.current.objects, selected, hit.id);
-          const ids = selected.has(hit.id) ? [...selected] : [...expanded];
+          const ids = [...withMembers(model.current.objects, selected.has(hit.id) ? selected : expanded)];
           if (readOnly || !selected.has(hit.id)) select(expanded);
           if (!readOnly) drag.current = {
             id: hit.id, ids, x: hit.x, y: hit.y,
@@ -201,7 +205,7 @@ export function useCanvasInput({
           view: { ...view }, pan: false,
         };
       }
-    } else if (hit) {
+    } else if (hit && !isContainer(hit)) {
       select(pressSelection(model.current.objects, selected, hit.id));
       setTool("Select");
     } else {
@@ -221,13 +225,17 @@ export function useCanvasInput({
     trackPointer(e);
     const d = drag.current;
     if (!d) return;
-    if ((d.id === "Sticky" || d.id === "Text") &&
+    if (placementTool(d.id) && !placementTool(d.id)!.draws &&
       Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3) {
       d.cancelled = true;
     }
     const dx = (e.clientX - d.cx) / d.view.z,
       dy = (e.clientY - d.cy) / d.view.z;
-    if (d.corner && d.resizeStart) {
+    if (placementTool(d.id)?.draws) {
+      d.crossed ||= Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3;
+      setSelectionBox(d.crossed ? { x: Math.min(d.x, d.x + dx), y: Math.min(d.y, d.y + dy),
+        width: Math.abs(dx), height: Math.abs(dy) } : null);
+    } else if (d.corner && d.resizeStart) {
       if (!resizeStillValid(d.resizeStart)) { cancel(); return; }
       d.crossed ||= Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3;
       setBoard(d.crossed ? resizedBoard(d.corner, d.resizeStart, dx, dy, e.shiftKey)
@@ -248,8 +256,13 @@ export function useCanvasInput({
         select(d.additive ? d.previous ?? [] : []);
       }
     } else if (d.ids && Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3) {
-      setBoard(movedBoard(d.ids, dx, dy));
-    } else setBoard({ ...model.current });
+      const next = movedBoard(d.ids, dx, dy);
+      d.crossed = next !== model.current;
+      setBoard(next !== model.current ? next : { ...model.current });
+    } else {
+      if (d.ids) d.crossed = false;
+      setBoard({ ...model.current });
+    }
   }
   function pointerUp(e: React.PointerEvent<HTMLDivElement>) {
     const d = drag.current;
@@ -263,17 +276,18 @@ export function useCanvasInput({
           (e.clientX - d.cx) / d.view.z, (e.clientY - d.cy) / d.view.z, e.shiftKey), true);
       }
       setBoard({ ...model.current });
-    } else if (!d.pan && (d.id === "Sticky" || d.id === "Text")) {
-      if (delta < 3 && !d.cancelled) {
+    } else if (!d.pan && placementTool(d.id)) {
+      if (placementTool(d.id)!.draws || delta < 3 && !d.cancelled) {
         try {
-          const next = add(
-            model.current,
-            typeForTool(d.id),
-            d.x,
-            d.y,
-          );
+          let object = add(model.current, typeForTool(d.id), d.x, d.y).objects.at(-1)!;
+          if (placementTool(d.id)!.draws && delta >= 3) {
+            object = { ...object, ...drawRectangle(d, {
+              x: d.x + (e.clientX - d.cx) / d.view.z, y: d.y + (e.clientY - d.cy) / d.view.z,
+            }, placementTool(d.id)!.sizeRange) };
+          }
+          const next = placeObject(model.current, object);
           commit(next, true);
-          select(next.objects.at(-1)!.id);
+          select(object.id);
           setTool("Select");
           setPanel("");
           setInline(true);
@@ -287,8 +301,11 @@ export function useCanvasInput({
         select(expandSelection(model.current.objects, [...(d.additive ? d.previous ?? [] : []), ...boxSelection(d, end, displayedObjects)]));
       } else select(d.additive ? d.previous ?? [] : []);
     } else if (!d.pan) {
-      if (delta >= 3 && d.ids) commit(movedBoard(d.ids,
-        (e.clientX - d.cx) / d.view.z, (e.clientY - d.cy) / d.view.z), true);
+      if (delta >= 3 && d.ids) {
+        const next = movedBoard(d.ids, (e.clientX - d.cx) / d.view.z, (e.clientY - d.cy) / d.view.z);
+        if (next !== model.current) commit(dropped(next, new Set(d.ids)), true);
+        setBoard({ ...model.current });
+      }
       else {
         select(pressSelection(model.current.objects, selected, d.id));
         setBoard({ ...model.current });
@@ -300,7 +317,7 @@ export function useCanvasInput({
   function doubleClick(e: React.MouseEvent<HTMLDivElement>) {
     if (spacePanRef.current || composing || busy) return;
     const p = point(e);
-    const hit = [...model.current.objects].reverse().find((o) =>
+    const hit = bandOrder(model.current.objects).reverse().find((o) =>
       p.x >= o.x && p.x <= o.x + o.width && p.y >= o.y &&
       p.y <= o.y + objectLayouts.get(o.id)!.height);
     if (!hit) return;

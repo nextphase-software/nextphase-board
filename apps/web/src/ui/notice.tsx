@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction } from "react";
+import { placementTool } from "../objects/registry";
 import type { Board as SavedBoard } from "../document";
 
 type Props = {
@@ -31,9 +32,9 @@ export function Notice({
           until release or cancellation.
         </div>
       )}
-      {(tool === "Sticky" || tool === "Text") && (
+      {placementTool(tool) && (
         <div>
-          Click empty canvas or press Enter to place one {tool.toLowerCase()}
+          {placementTool(tool)?.draws ? "Drag to draw, click or press Enter to place one" : "Click empty canvas or press Enter to place one"} {tool.toLowerCase()}
           {" "}
           object. Escape cancels.
         </div>

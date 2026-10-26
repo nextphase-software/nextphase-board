@@ -17,20 +17,21 @@ type Props = {
 };
 
 export function InlineEditor({ inlineSurface, trackPointer, pos, item, view, itemHeight, nativeEditor }: Props) {
+  const richText = objectType(item.type).richText;
   return (
     <section
       ref={inlineSurface}
-      className="inline"
+      className={"inline" + (richText ? "" : " name-field")}
       onPointerEnter={trackPointer}
       onPointerDown={trackPointer}
       onPointerMove={trackPointer}
       style={{
-        left: pos(item).left + TEXT_INSET * view.z,
-        top: pos(item).top + TEXT_INSET * view.z,
-        width: (item.width - 2 * TEXT_INSET) * view.z,
-        height: (itemHeight - 2 * TEXT_INSET) * view.z,
+        left: pos(item).left + (richText ? TEXT_INSET : 2) * view.z,
+        top: pos(item).top + (richText ? TEXT_INSET : -34) * view.z,
+        width: (richText ? item.width - 2 * TEXT_INSET : Math.min(item.width, 200)) * view.z,
+        height: (richText ? itemHeight - 2 * TEXT_INSET : 28) * view.z,
         fontFamily: TEXT_LAYOUT.fontFamily,
-        fontSize: textUnits(item.textSize) * view.z,
+        fontSize: (richText ? textUnits(item.textSize) : 18) * view.z,
         textAlign: item.align,
         color: objectType(item.type).textColor(item),
       }}

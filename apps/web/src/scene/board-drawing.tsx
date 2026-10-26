@@ -2,6 +2,9 @@
 import { Layer, Stage } from "react-konva";
 import type { BoardV5 as Board } from "../document";
 import type { View } from "../view";
+import { bandOrder, dropTargets } from "../sections";
+import { objectType } from "../objects/registry";
+import { SectionBody, SectionDropHint } from "./section-body";
 import { NoteBody, type ObjectLayout } from "./note-body";
 
 type Props = {
@@ -11,9 +14,12 @@ type Props = {
   objectLayouts: Map<string, ObjectLayout>;
   selected: Set<string>;
   inline: boolean;
+  movingIds: readonly string[];
 };
 
-export function BoardDrawing({ size, view, board, objectLayouts, selected, inline }: Props) {
+export function BoardDrawing({ size, view, board, objectLayouts, selected, inline, movingIds }: Props) {
+  const targets = dropTargets(board, new Set(movingIds));
+  const sections = new Set([...targets.values()].filter((id) => id !== null));
   return (
     <Stage width={size.w} height={size.h} listening={false}>
       <Layer
@@ -22,12 +28,17 @@ export function BoardDrawing({ size, view, board, objectLayouts, selected, inlin
         scaleX={view.z}
         scaleY={view.z}
       >
-        {board.objects.map((o) => {
+        {bandOrder(board.objects).map((o) => {
           const layout = objectLayouts.get(o.id)!;
           return (
-            <NoteBody key={o.id} o={o} layout={layout} selected={selected} inline={inline} view={view} />
+            objectType(o.type).body === "note" ? <NoteBody key={o.id} o={o} layout={layout} selected={selected} inline={inline} view={view} />
+              : <SectionBody key={o.id} o={o} selected={selected} inline={inline} dropTarget={sections.has(o.id)} />
           );
         })}
+        {[...sections].map((id) => <SectionDropHint key={id}
+          section={board.objects.find((o) => o.id === id)!}
+          ideas={board.objects.filter((o) => targets.get(o.id) === id).map((o) =>
+            ({ ...o, displayHeight: objectLayouts.get(o.id)!.height }))} />)}
       </Layer>
     </Stage>
   );

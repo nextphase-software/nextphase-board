@@ -2,6 +2,7 @@
 import type { RefObject } from "react";
 import type { Board as SavedBoard, BoardV5 as Board, ItemV5 as Item } from "../document";
 import type { History } from "../history";
+import { placementTool } from "../objects/registry";
 import { editingCommandReason } from "../commands";
 
 type Input = {
@@ -34,7 +35,7 @@ export function useCommandReasons({
   const selectionReason = commandReason || (!selected.size ? "Select an object to duplicate or delete." : "");
   const clipboardState = { readOnly, composing, pointerGesture: busy, invalidObjectText };
   const showNotice = !!(visibleMessage || invalid || busy || readOnly ||
-    tool === "Sticky" || tool === "Text" || snapshots.length);
+    placementTool(tool) || snapshots.length);
   const editingState = { readOnly, composing, pointerGesture: busy, invalidObjectText };
   const arrangementMembers = displayedObjects.filter((o) => selected.has(o.id));
   return {

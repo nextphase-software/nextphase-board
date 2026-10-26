@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
-import { count, validText, type Board as SavedBoard, type BoardV4 as Board } from "../document";
+import { count, validText, type Board as SavedBoard, type BoardV5 as Board } from "../document";
 
 type Props = {
   setComposing: Dispatch<SetStateAction<boolean>>;

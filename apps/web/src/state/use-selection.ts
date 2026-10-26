@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from "react";
-import type { BoardV4 as Board } from "../document";
+import type { BoardV5 as Board } from "../document";
 import { count } from "../document";
 import { FLAGS, formatted, formattedRange, type Flag, type TextSelection } from "../marks";
 import { colorEntry, commonStyle } from "../styles";

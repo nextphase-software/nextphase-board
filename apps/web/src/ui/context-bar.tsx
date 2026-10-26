@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
-import { clamp, count, type ItemV4 as Item } from "../document";
+import { clamp, count, type ItemV5 as Item } from "../document";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, colorEntry, type Style } from "../styles";
 import { objectType } from "../objects/registry";
 import { FLAGS, FLAG_LABELS, type Flag } from "../marks";

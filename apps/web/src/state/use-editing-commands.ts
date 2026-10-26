@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { Board as SavedBoard, BoardV4 as Board, ItemV4 as Item } from "../document";
+import type { Board as SavedBoard, BoardV5 as Board, ItemV5 as Item } from "../document";
 import { count } from "../document";
 import { codePointOffset, formatted, toggle, type Flag } from "../marks";
 import { deleteObject, duplicate, redo, undo, type History } from "../history";

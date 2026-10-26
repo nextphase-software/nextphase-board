@@ -65,7 +65,7 @@ test("correctly hashed envelopes cannot adopt non-string UUID fields", async () 
 test("mixed v2 head and v1 previous decode while legacy raw bytes remain exact", async () => {
   const { upgrade } = await import("../apps/web/src/document.ts");
   const current = add(add({ ...empty(), title: "Legacy storage" }, "sticky", 0, 0), "text", 400, 0);
-  const legacy = { ...current, schemaVersion: 1, objects: current.objects.map(({ color, textSize, align, group, marks, ...o }) => o) };
+  const legacy = { ...current, schemaVersion: 1, objects: current.objects.map(({ color, textSize, align, group, marks, section, ...o }) => o) };
   legacy.objects[0].text = "Legacy\n你好 🧭";
   const previous = await wrap(1, legacy);
   const legacyPayload = JSON.parse(previous).payload;
@@ -73,7 +73,7 @@ test("mixed v2 head and v1 previous decode while legacy raw bytes remain exact",
   assert.equal(read.board.schemaVersion, 1);
   assert.equal(canonical(read.board), legacyPayload);
   const upgraded = upgrade(read.board);
-  const editable = { ...upgraded, schemaVersion: 2, objects: upgraded.objects.map(({ group, marks, ...o }) => o) };
+  const editable = { ...upgraded, schemaVersion: 2, objects: upgraded.objects.map(({ group, marks, section, ...o }) => o) };
   assert.equal(canonical(read.board), legacyPayload);
   editable.objects[1] = { ...editable.objects[1], color: "yellow", textSize: "large", align: "center" };
   const head = await wrap(2, editable);
@@ -88,7 +88,7 @@ test("mixed v2 head and v1 previous decode while legacy raw bytes remain exact",
   assert.equal(canonical((await decode(pair[1])).board), legacyPayload);
 });
 test("a correctly hashed unknown document version is rejected with raw bytes unchanged", async () => {
-  const payload = JSON.stringify({ ...b, schemaVersion: 5 });
+  const payload = JSON.stringify({ ...b, schemaVersion: 6 });
   const raw = JSON.stringify({ formatVersion: 1, storageRevision: 1, payload, sha256: await digest(payload) });
   const pair = [raw, undefined];
   await assert.rejects(decode(raw));
@@ -96,12 +96,12 @@ test("a correctly hashed unknown document version is rejected with raw bytes unc
   assert.deepEqual(pair, [raw, undefined]);
 });
 
-test("v4 grouped head and exact v2 previous decode without rewriting either record", async () => {
+test("v5 grouped head and exact v2 previous decode without rewriting either record", async () => {
   const { upgrade } = await import("../apps/web/src/document.ts");
   const { groupObjects } = await import("../apps/web/src/group.ts");
   let current = { ...empty(), title: "Saved groups" };
   for (let i = 0; i < 3; i++) current = add(current, "sticky", i * 400, 0);
-  const old = { ...current, schemaVersion: 2, objects: current.objects.map(({ group, marks, ...o }) => o) };
+  const old = { ...current, schemaVersion: 2, objects: current.objects.map(({ group, marks, section, ...o }) => o) };
   old.objects[0].text = "Old bytes\n你好 🧭";
   const previous = await wrap(1, old), bytes = JSON.parse(previous).payload;
   const opened = await readPair([previous, undefined]);
@@ -112,7 +112,7 @@ test("v4 grouped head and exact v2 previous decode without rewriting either reco
   const grouped = groupObjects(upgraded, new Set(upgraded.objects.slice(0, 2).map((o) => o.id)));
   const head = await wrap(2, grouped), pair = [head, previous], before = structuredClone(pair);
   const loaded = await readPair(pair);
-  assert.equal(loaded.board.schemaVersion, 4);
+  assert.equal(loaded.board.schemaVersion, 5);
   assert.deepEqual(loaded.board, grouped);
   assert.equal(loaded.board.objects[2].group, null);
   assert.equal((await decode(pair[1])).envelope.payload, bytes);

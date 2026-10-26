@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject, ReactNode } from "react";
-import type { BoardV4 as Board, ItemV4 as Item } from "../document";
+import type { BoardV5 as Board, ItemV5 as Item } from "../document";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "../styles";
 import { OBJECT_TYPES } from "../objects/registry";
 import { FLAGS, FLAG_LABELS, type Flag } from "../marks";

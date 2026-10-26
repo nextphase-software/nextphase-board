@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { type Adapter, type Board as SavedBoard, type BoardV4 as Board, empty } from "../document";
+import { type Adapter, type Board as SavedBoard, type BoardV5 as Board, empty } from "../document";
 import { decode, LocalStore, readPair } from "../storage";
 import type { View } from "../view";
 

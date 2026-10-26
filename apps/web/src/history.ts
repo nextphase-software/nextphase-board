@@ -1,28 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 import { freshIdentifier as fresh, type Board, type Item } from "./document.ts";
 
+import { bandOrder, orderParticipants, remapSection, withMembers } from "./sections.ts";
+
 type ObjectChange = { before: Item | null; after: Item | null };
-export type Step = { changes: ObjectChange[] };
+export type Step = { changes: ObjectChange[]; affectedIds?: string[] };
 export type History = { past: Step[]; future: Step[] };
 export type Change = { board: Board; history: History; affectedId: string; affectedIds: string[] };
 export const emptyHistory = (): History => ({ past: [], future: [] });
 
 // Only object transactions enter history. Title, view and storage are independent.
 export function record(history: History, before: Board, after: Board, orderIds?: readonly string[]): History {
-  // Order commands explicitly record every selected object, even a member that
-  // stays at its current index. Ordinary callers still ignore renumbering.
-  if (orderIds && !orderIds.some((id) => before.objects.find((o) => o.id === id)?.order !==
-    after.objects.find((o) => o.id === id)?.order)) return history;
-  const ids = new Set(orderIds ?? [...before.objects, ...after.objects].map((o) => o.id));
-  const changed = [...ids].filter((id) => {
-    const a = before.objects.find((o) => o.id === id);
-    const b = after.objects.find((o) => o.id === id);
-    // Removing an object also renumbers following objects; that is not another step.
-    return !!orderIds || JSON.stringify(a && { ...a, order: 0 }) !==
-      JSON.stringify(b && { ...b, order: 0 });
+  const all = [...new Set([...before.objects, ...after.objects].map((o) => o.id))];
+  const semantic = all.filter((id) => {
+    const a = before.objects.find((o) => o.id === id), b = after.objects.find((o) => o.id === id);
+    return JSON.stringify(a && { ...a, order: 0 }) !== JSON.stringify(b && { ...b, order: 0 });
   });
-  if (!changed.length) return history;
-  const step = { changes: changed.map((id) => ({
+  const participants = orderParticipants(before.objects, new Set(orderIds ?? []));
+  const positions = participants.filter((id) => before.objects.find((o) => o.id === id)?.order !==
+    after.objects.find((o) => o.id === id)?.order);
+  if (!semantic.length && !positions.length) return history;
+  const ids = new Set([...semantic, ...(positions.length ? participants : [])]);
+  const step: Step = { affectedIds: orderIds ? [...orderIds] : semantic, changes: [...ids].map((id) => ({
     before: before.objects.find((o) => o.id === id) ?? null,
     after: after.objects.find((o) => o.id === id) ?? null,
   })) };
@@ -66,7 +65,7 @@ function retarget(history: History, board: Board, ids: string[]): History {
   const item = (value: Item | null) => value && generations.has(value.id)
     ? { ...value, generation: generations.get(value.id)! } : value;
   const steps = (list: Step[]) => list.map((step) => ({
-    changes: step.changes.map((c) => ({ before: item(c.before), after: item(c.after) })),
+    ...step, changes: step.changes.map((c) => ({ before: item(c.before), after: item(c.after) })),
   }));
   return { past: steps(history.past), future: steps(history.future) };
 }
@@ -74,22 +73,22 @@ function retarget(history: History, board: Board, ids: string[]): History {
 export function undo(board: Board, history: History): Change {
   const step = history.past.at(-1);
   if (!step) throw Error("Nothing to undo.");
-  const affectedIds = step.changes.map((c) => (c.before ?? c.after)!.id);
+  const affectedIds = step.affectedIds ?? step.changes.map((c) => (c.before ?? c.after)!.id);
   const next = apply(board, step.changes.map((c) => ({ source: c.after, target: c.before })));
   return {
     board: next, affectedId: affectedIds[0], affectedIds,
-    history: retarget({ past: history.past.slice(0, -1), future: [...history.future, step] }, next, affectedIds),
+    history: retarget({ past: history.past.slice(0, -1), future: [...history.future, step] }, next, step.changes.map((c) => (c.before ?? c.after)!.id)),
   };
 }
 
 export function redo(board: Board, history: History): Change {
   const step = history.future.at(-1);
   if (!step) throw Error("Nothing to redo.");
-  const affectedIds = step.changes.map((c) => (c.after ?? c.before)!.id);
+  const affectedIds = step.affectedIds ?? step.changes.map((c) => (c.after ?? c.before)!.id);
   const next = apply(board, step.changes.map((c) => ({ source: c.before, target: c.after })));
   return {
     board: next, affectedId: affectedIds[0], affectedIds,
-    history: retarget({ past: [...history.past, step].slice(-100), future: history.future.slice(0, -1) }, next, affectedIds),
+    history: retarget({ past: [...history.past, step].slice(-100), future: history.future.slice(0, -1) }, next, step.changes.map((c) => (c.before ?? c.after)!.id)),
   };
 }
 
@@ -106,7 +105,9 @@ function targets(board: Board, target: Item | Item[]): Item[] {
 }
 
 export function duplicate(board: Board, history: History, target: Item | Item[]): Change {
-  const items = targets(board, target);
+  const selectedTargets = targets(board, target);
+  const copied = withMembers(board.objects, new Set(selectedTargets.map((o) => o.id)));
+  const items = board.objects.filter((o) => copied.has(o.id));
   if (board.objects.length + items.length > 250) throw Error("250 object limit reached");
   const objects = [...board.objects];
   const selected = new Set(items.map((o) => o.id));
@@ -117,25 +118,36 @@ export function duplicate(board: Board, history: History, target: Item | Item[])
     groups.set(item.group, whole ? fresh(board, [...groups.values()].filter((id) => id !== null)) : null);
   }
   const reserved = [...groups.values()].filter((id) => id !== null);
+  const ids = new Map(items.map((o) => {
+    const id = fresh(board, reserved); reserved.push(id); return [o.id, id];
+  }));
   for (const item of items) {
     const current = { ...board, objects };
-    const id = fresh(current, reserved);
+    const id = ids.get(item.id)!;
     objects.push({
       ...item, id, generation: fresh(current, [...reserved, id]),
+      ...("section" in item ? { section: remapSection(item.section, ids) } : {}),
       ...("group" in item ? { group: item.group ? groups.get(item.group)! : null } : {}),
       x: Math.max(-1e6, Math.min(1e6 - item.width, item.x + 24)),
       y: Math.max(-1e6, Math.min(1e6 - item.height, item.y + 24)),
       order: objects.length,
     });
   }
-  const next = { ...board, objects };
-  const affectedIds = objects.slice(board.objects.length).map((o) => o.id);
+  const next = { ...board, objects: bandOrder(objects).map((o, order) => ({ ...o, order })) };
+  const affectedIds = [...ids.values()];
   return { board: next, history: record(history, board, next), affectedId: affectedIds[0], affectedIds };
 }
 
 export function deleteObject(board: Board, history: History, target: Item | Item[]): Change {
   const items = targets(board, target);
-  const next = apply(board, items.map((source) => ({ source, target: null })));
+  const removed = new Set(items.map((o) => o.id));
+  const changes: { source: Item; target: Item | null }[] = items.map((source) => ({ source, target: null }));
+  for (const source of board.objects) {
+    if (!removed.has(source.id) && "section" in source && source.section && removed.has(source.section)) {
+      changes.push({ source, target: { ...source, section: null } });
+    }
+  }
+  const next = apply(board, changes);
   const affectedIds = items.map((o) => o.id);
   return { board: next, history: record(history, board, next), affectedId: affectedIds[0], affectedIds };
 }

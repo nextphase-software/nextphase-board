@@ -2,7 +2,7 @@
 export type Corner = "nw" | "ne" | "sw" | "se";
 export type Rectangle = { x: number; y: number; width: number; height: number };
 type Delta = { x: number; y: number };
-export type ResizeMember = Rectangle & { neededHeight: (width: number) => number };
+export type ResizeMember = Rectangle & { sizeRange?: Range; neededHeight: (width: number) => number };
 type Range = { min: number; max: number };
 const clamp = (value: number, range: Range) => Math.max(range.min, Math.min(range.max, value));
 const west = (corner: Corner) => corner === "nw" || corner === "sw";
@@ -28,15 +28,15 @@ function boundedScale(value: number, range: Range, valid: (scale: number) => boo
   return scale;
 }
 
-function axisValid(start: number, length: number, fixed: number, minimum: number, scale: number) {
+function axisValid(start: number, length: number, fixed: number, minimum: number, maximum: number, scale: number) {
   const position = scale === 1 ? start : fixed + (start - fixed) * scale;
   const size = length * scale;
-  return size >= minimum && size <= 2000 && position >= -1e6 && position + size <= 1e6;
+  return size >= minimum && size <= maximum && position >= -1e6 && position + size <= 1e6;
 }
 
 // Positive scales keep each edge between the board edges about a fixed origin.
-function axisRange(start: number, length: number, fixed: number, minimum: number): Range {
-  let max = 2000 / length;
+function axisRange(start: number, length: number, fixed: number, minimum: number, maximum: number): Range {
+  let max = maximum / length;
   for (const edge of [start, start + length]) {
     const distance = edge - fixed;
     if (distance > 0) max = Math.min(max, (1e6 - fixed) / distance);
@@ -58,14 +58,14 @@ function scales(corner: Corner, bounds: Rectangle, delta: Delta, shift: boolean,
 }
 
 export function resizeObject(corner: Corner, start: Rectangle, delta: Delta, shift: boolean,
-  neededHeight: (width: number) => number): Rectangle {
+  neededHeight: (width: number) => number, sizeRange: Range = { min: 40, max: 2000 }): Rectangle {
   if (delta.x === 0 && delta.y === 0) return { ...start };
   const fx = start.x + (west(corner) ? start.width : 0);
   const fy = start.y + (north(corner) ? start.height : 0);
-  const widthRange = { min: Math.min(80, start.width),
-    max: Math.min(2000, west(corner) ? fx + 1e6 : 1e6 - fx) };
-  const heightRange = { min: 40,
-    max: Math.min(2000, north(corner) ? fy + 1e6 : 1e6 - fy) };
+  const widthRange = { min: Math.min(Math.max(80, sizeRange.min), start.width),
+    max: Math.min(sizeRange.max, west(corner) ? fx + 1e6 : 1e6 - fx) };
+  const heightRange = { min: sizeRange.min,
+    max: Math.min(sizeRange.max, north(corner) ? fy + 1e6 : 1e6 - fy) };
   const rawWidth = start.width + (west(corner) ? -delta.x : delta.x);
   const rawHeight = start.height + (north(corner) ? -delta.y : delta.y);
   let width = clamp(rawWidth, widthRange), height = clamp(rawHeight, heightRange);
@@ -82,12 +82,12 @@ export function resizeObject(corner: Corner, start: Rectangle, delta: Delta, shi
     width = start.width * scale;
     height = start.height * scale;
   }
-  const text = Math.min(2000, neededHeight(width));
+  const text = Math.min(sizeRange.max, neededHeight(width));
   let y = start.y;
   if (north(corner)) {
     height = Math.max(height, text);
     y = Math.max(-1e6, fy - height);
-  } else height = Math.max(height, Math.min(text, 2000, 1e6 - y));
+  } else height = Math.max(height, Math.min(text, sizeRange.max, 1e6 - y));
   return { x: west(corner) ? fx - width : start.x, y, width, height };
 }
 
@@ -105,16 +105,16 @@ export function resizeSet(corner: Corner, members: readonly ResizeMember[], delt
     min: Math.max(...ranges.map((r) => r.min)), max: Math.min(...ranges.map((r) => r.max)),
   });
   const scale = scales(corner, bounds, delta, shift,
-    overlap(members.map((o) => axisRange(o.x, o.width, fx, Math.min(80, o.width)))),
-    overlap(members.map((o) => axisRange(o.y, o.height, fy, 40))),
-    (s) => members.every((o) => axisValid(o.x, o.width, fx, Math.min(80, o.width), s)),
-    (s) => members.every((o) => axisValid(o.y, o.height, fy, 40, s)));
+    overlap(members.map((o) => axisRange(o.x, o.width, fx, Math.min(Math.max(80, o.sizeRange?.min ?? 40), o.width), o.sizeRange?.max ?? 2000))),
+    overlap(members.map((o) => axisRange(o.y, o.height, fy, o.sizeRange?.min ?? 40, o.sizeRange?.max ?? 2000))),
+    (s) => members.every((o) => axisValid(o.x, o.width, fx, Math.min(Math.max(80, o.sizeRange?.min ?? 40), o.width), o.sizeRange?.max ?? 2000, s)),
+    (s) => members.every((o) => axisValid(o.y, o.height, fy, o.sizeRange?.min ?? 40, o.sizeRange?.max ?? 2000, s)));
   return members.map((o) => {
     const x = scale.x === 1 ? o.x : fx + (o.x - fx) * scale.x;
     const y = scale.y === 1 ? o.y : fy + (o.y - fy) * scale.y;
     const width = o.width * scale.x;
     return { x, y, width,
-      height: Math.max(o.height * scale.y, Math.min(o.neededHeight(width), 2000, 1e6 - y)) };
+      height: Math.max(o.height * scale.y, Math.min(o.neededHeight(width), o.sizeRange?.max ?? 2000, 1e6 - y)) };
   });
 }
 

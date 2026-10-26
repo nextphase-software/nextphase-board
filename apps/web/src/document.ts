@@ -17,7 +17,8 @@ export type ItemV1 = {
 export type ItemV2 = ItemV1 & Style;
 export type ItemV3 = ItemV2 & { group: string | null };
 export type ItemV4 = ItemV3 & { marks: Mark[] };
-export type Item = ItemV1 | ItemV2 | ItemV3 | ItemV4;
+export type ItemV5 = ItemV4 & { section: string | null };
+export type Item = ItemV1 | ItemV2 | ItemV3 | ItemV4 | ItemV5;
 type BoardFields = {
   boardId: string;
   title: string;
@@ -27,7 +28,8 @@ export type BoardV1 = BoardFields & { schemaVersion: 1; objects: ItemV1[] };
 export type BoardV2 = BoardFields & { schemaVersion: 2; objects: ItemV2[] };
 export type BoardV3 = BoardFields & { schemaVersion: 3; objects: ItemV3[] };
 export type BoardV4 = BoardFields & { schemaVersion: 4; objects: ItemV4[] };
-export type Board = BoardFields & { schemaVersion: 1 | 2 | 3 | 4; objects: Item[] };
+export type BoardV5 = BoardFields & { schemaVersion: 5; objects: ItemV5[] };
+export type Board = BoardFields & { schemaVersion: 1 | 2 | 3 | 4 | 5; objects: Item[] };
 const uuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export const count = (s: string) => Array.from(s).length;
@@ -48,7 +50,7 @@ export function validate(value: unknown): Board {
       "title",
       "objects",
       "retiredGenerations",
-    ]) || ![1, 2, 3, 4].includes(b.schemaVersion) || typeof b.boardId !== "string" || !uuid.test(b.boardId) ||
+    ]) || ![1, 2, 3, 4, 5].includes(b.schemaVersion) || typeof b.boardId !== "string" || !uuid.test(b.boardId) ||
     typeof b.title !== "string" || !validText(b.title, 120, true) ||
     !Array.isArray(b.objects) || b.objects.length > 250 ||
     !Array.isArray(b.retiredGenerations) || b.retiredGenerations.length > 10000
@@ -65,7 +67,8 @@ export function validate(value: unknown): Board {
         "text",
         ...(b.schemaVersion >= 2 ? ["color", "textSize", "align"] : []),
         ...(b.schemaVersion >= 3 ? ["group"] : []),
-        ...(b.schemaVersion === 4 ? ["marks"] : []),
+        ...(b.schemaVersion >= 4 ? ["marks"] : []),
+        ...(b.schemaVersion >= 5 ? ["section"] : []),
         "x",
         "y",
         "width",
@@ -74,11 +77,11 @@ export function validate(value: unknown): Board {
       ]) || typeof o.id !== "string" || typeof o.generation !== "string" ||
       !uuid.test(o.id) || !uuid.test(o.generation) || ids.has(o.id) ||
       ids.has(o.generation) || gens.has(o.id) || gens.has(o.generation) ||
-      o.id === o.generation || !OBJECT_TYPES.some((t) => t.type === o.type) ||
-      typeof o.text !== "string" || !validText(o.text, 1000) || o.order !== i ||
+      o.id === o.generation || !OBJECT_TYPES.some((t) => t.type === o.type && t.validFrom <= b.schemaVersion) ||
+      typeof o.text !== "string" || !validText(o.text, objectType(o.type).textLimit) || o.order !== i ||
       ![o.x, o.y, o.width, o.height].every(Number.isFinite) || o.x < -1e6 ||
-      o.y < -1e6 || o.width < 40 || o.width > 2000 || o.height < 40 ||
-      o.height > 2000 || o.x + o.width > 1e6 || o.y + o.height > 1e6
+      o.y < -1e6 || o.width < objectType(o.type).sizeRange.min || o.width > objectType(o.type).sizeRange.max ||
+      o.height < objectType(o.type).sizeRange.min || o.height > objectType(o.type).sizeRange.max || o.x + o.width > 1e6 || o.y + o.height > 1e6
     ) throw Error("Invalid object");
     if (b.schemaVersion >= 2) {
       const styled = o as ItemV2;
@@ -86,7 +89,7 @@ export function validate(value: unknown): Board {
         !TEXT_SIZES.some((s) => s.name === styled.textSize) ||
         !ALIGNMENTS.some((a) => a.name === styled.align)) throw Error("Invalid style");
     }
-    if (b.schemaVersion === 4 && !validMarks((o as ItemV4).marks, count(o.text))) throw Error("Invalid marks");
+    if (b.schemaVersion >= 4 && !validMarks((o as ItemV4).marks, count(o.text))) throw Error("Invalid marks");
     ids.add(o.id);
     gens.add(o.generation);
   }
@@ -101,6 +104,17 @@ export function validate(value: unknown): Board {
     for (const o of b.objects as ItemV3[]) {
       if (o.group !== null && (typeof o.group !== "string" || !uuid.test(o.group) || reserved.has(o.group))) {
         throw Error("Invalid group");
+      }
+    }
+  }
+  if (b.schemaVersion >= 5) {
+    const containers = new Set(b.objects.filter((o) => objectType(o.type).container).map((o) => o.id));
+    for (const o of b.objects as ItemV5[]) {
+      const type = objectType(o.type);
+      if (type.container && (o.group !== null || o.section !== null || o.marks.length ||
+        o.textSize !== type.defaultStyle.textSize || o.align !== type.defaultStyle.align) ||
+        o.section !== null && (typeof o.section !== "string" || !containers.has(o.section))) {
+        throw Error("Invalid section membership or style");
       }
     }
   }
@@ -119,7 +133,8 @@ export function canonical(b: Board) {
       text: o.text,
       ...(b.schemaVersion >= 2 ? styleOf(o as ItemV2) : {}),
       ...(b.schemaVersion >= 3 ? { group: (o as ItemV3).group } : {}),
-      ...(b.schemaVersion === 4 ? { marks: (o as ItemV4).marks.map(markOf) } : {}),
+      ...(b.schemaVersion >= 4 ? { marks: (o as ItemV4).marks.map(markOf) } : {}),
+      ...(b.schemaVersion >= 5 ? { section: (o as ItemV5).section } : {}),
       x: o.x,
       y: o.y,
       width: o.width,
@@ -145,19 +160,20 @@ function markOf(m: Mark): Mark {
 }
 // Adoption is deliberately separate from decoding/canonicalization: opening
 // legacy bytes never rewrites them or advances the editing revision.
-export function upgrade(b: Board): BoardV4 {
-  if (b.schemaVersion === 4) return b as BoardV4;
+export function upgrade(b: Board): BoardV5 {
+  if (b.schemaVersion === 5) return b as BoardV5;
   return {
-    ...b, schemaVersion: 4,
+    ...b, schemaVersion: 5,
     objects: b.objects.map((o) => ({ ...o,
       ...(b.schemaVersion === 1 ? objectType(o.type).legacyStyle : styleOf(o as ItemV2)),
-      group: b.schemaVersion === 3 ? (o as ItemV3).group : null, marks: [],
+      group: b.schemaVersion >= 3 ? (o as ItemV3).group : null,
+      marks: b.schemaVersion >= 4 ? (o as ItemV4).marks : [], section: null,
     })),
   };
 }
-export function empty(): BoardV4 {
+export function empty(): BoardV5 {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     boardId: crypto.randomUUID(),
     title: "",
     objects: [],
@@ -175,7 +191,7 @@ export function freshIdentifier(board: Board, extra: readonly string[] = []): st
   do id = crypto.randomUUID(); while (used.has(id));
   return id;
 }
-export function add(input: Board, type: Item["type"], x: number, y: number): BoardV4 {
+export function add(input: Board, type: Item["type"], x: number, y: number): BoardV5 {
   const b = upgrade(input);
   if (b.objects.length >= 250) throw Error("250 object limit reached");
   const { width, height } = objectType(type).defaultSize;
@@ -186,10 +202,11 @@ export function add(input: Board, type: Item["type"], x: number, y: number): Boa
       id,
       generation: freshIdentifier(b, [id]),
       type,
-      text: "",
+      text: objectType(type).initialText,
       ...objectType(type).defaultStyle,
       group: null,
       marks: [],
+      section: null,
       x: clamp(x - width / 2, -1e6, 1e6 - width),
       y: clamp(y - height / 2, -1e6, 1e6 - height),
       width,
@@ -218,7 +235,7 @@ export class Adapter {
           m = new Y.Map<unknown>();
           objects.set(o.id, m);
         }
-        for (const key of ["generation", "type", "order", "group"] as const) {
+        for (const key of ["generation", "type", "order", "group", "section"] as const) {
           if (m.get(key) !== o[key]) m.set(key, o[key]);
         }
         let text = m.get("text") as Y.Text | undefined;

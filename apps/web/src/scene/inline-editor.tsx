@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { PointerEventHandler, ReactNode, RefObject } from "react";
-import type { ItemV4 as Item } from "../document";
+import type { ItemV5 as Item } from "../document";
 import { TEXT_INSET, TEXT_LAYOUT } from "../geometry";
 import { objectType } from "../objects/registry";
 import { textUnits } from "../styles";

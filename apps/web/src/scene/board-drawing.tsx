@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Layer, Stage } from "react-konva";
-import type { BoardV4 as Board } from "../document";
+import type { BoardV5 as Board } from "../document";
 import type { View } from "../view";
 import { NoteBody, type ObjectLayout } from "./note-body";
 

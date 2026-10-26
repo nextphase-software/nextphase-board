@@ -12,11 +12,12 @@ import {
 } from "../apps/web/src/document.ts";
 import { objectType } from "../apps/web/src/objects/registry.ts";
 import { ALIGNMENTS, COLORS, TEXT_SIZES } from "../apps/web/src/styles.ts";
-const legacy = (b) => ({ ...b, schemaVersion: 1, objects: b.objects.map(({ color, textSize, align, group, marks, ...o }) => o) });
-const v2 = (b) => ({ ...b, schemaVersion: 2, objects: b.objects.map(({ group, marks, ...o }) => o) });
-const v3 = (b) => ({ ...b, schemaVersion: 3, objects: b.objects.map(({ marks, ...o }) => o) });
-const versioned = (b, version) => version === 1 ? legacy(b) : version === 2 ? v2(b) : version === 3 ? v3(b) : b;
-for (const version of [1, 2, 3, 4]) {
+const legacy = (b) => ({ ...b, schemaVersion: 1, objects: b.objects.map(({ color, textSize, align, group, marks, section, ...o }) => o) });
+const v2 = (b) => ({ ...b, schemaVersion: 2, objects: b.objects.map(({ group, marks, section, ...o }) => o) });
+const v3 = (b) => ({ ...b, schemaVersion: 3, objects: b.objects.map(({ marks, section, ...o }) => o) });
+const v4 = (b) => ({ ...b, schemaVersion: 4, objects: b.objects.map(({ section, ...o }) => o) });
+const versioned = (b, version) => version === 1 ? legacy(b) : version === 2 ? v2(b) : version === 3 ? v3(b) : version === 4 ? v4(b) : b;
+for (const version of [1, 2, 3, 4, 5]) {
   const test = (name, fn) => nodeTest(`v${version}: ${name}`, fn);
   const empty = () => versioned(emptyV2(), version);
   const add = (...args) => versioned(addV2(...args), version);
@@ -38,7 +39,7 @@ test("malformed schemas, duplicate identities and invalid geometry fail closed",
   const b = add({ ...empty(), title: "Example" }, "text", 0, 0);
   for (
     const mutate of [
-      (x) => x.schemaVersion = 5,
+      (x) => x.schemaVersion = 6,
       (x) => x.unknown = true,
       (x) => x.objects[0].id = x.boardId,
       (x) => x.objects[0].x = Infinity,
@@ -112,7 +113,7 @@ nodeTest("v1 canonical bytes stay exact and upgrading adds only defaults", () =>
   const decoded = validate(JSON.parse(bytes));
   assert.equal(canonical(decoded), bytes);
   const upgraded = upgrade(decoded);
-  assert.equal(upgraded.schemaVersion, 4);
+  assert.equal(upgraded.schemaVersion, 5);
   assert(upgraded.objects.every((o) => o.group === null));
   assert(upgraded.objects.every((o) => o.marks.length === 0));
   assert.deepEqual(legacy(upgraded), b);
@@ -127,21 +128,22 @@ nodeTest("v1 canonical bytes stay exact and upgrading adds only defaults", () =>
   adapter.destroy();
 });
 nodeTest("v2 accepts every style combination on both object types", () => {
-  assert.equal(emptyV2().schemaVersion, 4);
+  assert.equal(emptyV2().schemaVersion, 5);
   for (const type of ["sticky", "text"]) {
     const b = addV2({ ...emptyV2(), title: "Styles" }, type, 0, 0);
-    assert.equal(b.schemaVersion, 4);
+    assert.equal(b.schemaVersion, 5);
     assert.equal(b.objects[0].group, null);
     assert.deepEqual(b.objects[0].marks, []);
     for (const key of ["color", "textSize", "align"]) assert.equal(b.objects[0][key], objectType(type).defaultStyle[key]);
     for (const c of COLORS) for (const s of TEXT_SIZES) for (const a of ALIGNMENTS) {
       const styled = { ...b, objects: [{ ...b.objects[0], color: c.name, textSize: s.name, align: a.name }] };
-      for (const versioned of [v2(styled), v3(styled), styled]) {
+      for (const versioned of [v2(styled), v3(styled), v4(styled), styled]) {
         assert.deepEqual(validate(JSON.parse(canonical(versioned))), versioned);
         assert.deepEqual(Object.keys(JSON.parse(canonical(versioned)).objects[0]), [
           "id", "generation", "type", "text", "color", "textSize", "align",
           ...(versioned.schemaVersion >= 3 ? ["group"] : []),
-          ...(versioned.schemaVersion === 4 ? ["marks"] : []), "x", "y", "width", "height", "order",
+          ...(versioned.schemaVersion >= 4 ? ["marks"] : []),
+          ...(versioned.schemaVersion >= 5 ? ["section"] : []), "x", "y", "width", "height", "order",
         ]);
       }
     }
@@ -229,9 +231,10 @@ nodeTest("v3 group validation accepts shared IDs, null and singleton groups and 
   }
 });
 
-for (const version of [1, 2, 3]) nodeTest(`v${version} exact bytes survive decoding and in-memory v4 upgrade`, () => {
+for (const version of [1, 2, 3, 4]) nodeTest(`v${version} exact bytes survive decoding and in-memory v5 upgrade`, () => {
   const current = addV2(addV2({ ...emptyV2(), title: "Legacy groups 🧭" }, "sticky", 0, 0), "text", 400, 0);
-  if (version === 3) current.objects[0].group = crypto.randomUUID();
+  if (version >= 3) current.objects[0].group = crypto.randomUUID();
+  if (version === 4) { current.objects[0].text = "Bold"; current.objects[0].marks = [{ start: 0, end: 4, bold: true }]; }
   current.objects[1].color = "teal";
   current.objects[1].text = "你好\ne\u0301";
   const old = versioned(current, version), bytes = JSON.stringify(old);
@@ -239,9 +242,10 @@ for (const version of [1, 2, 3]) nodeTest(`v${version} exact bytes survive decod
   const upgraded = upgrade(decoded);
   assert.equal(canonical(decoded), bytes);
   assert.deepEqual(decoded, before);
-  assert.equal(upgraded.schemaVersion, 4);
-  assert.deepEqual(upgraded.objects.map((o) => o.group), version === 3 ? old.objects.map((o) => o.group) : [null, null]);
-  assert(upgraded.objects.every((o) => o.marks.length === 0));
+  assert.equal(upgraded.schemaVersion, 5);
+  assert.deepEqual(upgraded.objects.map((o) => o.group), version >= 3 ? old.objects.map((o) => o.group) : [null, null]);
+  assert.deepEqual(upgraded.objects.map((o) => o.marks), version === 4 ? old.objects.map((o) => o.marks) : [[], []]);
+  assert(upgraded.objects.every((o) => o.section === null));
   assert.deepEqual(versioned(upgraded, version), old);
   assert.equal(upgrade(upgraded), upgraded);
   assert.equal(upgraded.objects[1].color, version === 1 ? "neutral" : "teal");
@@ -257,7 +261,7 @@ nodeTest("v3 canonical group key order and atomic adapter membership survive rec
   const shuffled = { ...grouped, objects: grouped.objects.map((o) => Object.fromEntries(Object.entries(o).reverse())) };
   assert.equal(canonical(shuffled), canonical(grouped));
   assert.deepEqual(Object.keys(JSON.parse(canonical(grouped)).objects[0]), [
-    "id", "generation", "type", "text", "color", "textSize", "align", "group", "marks", "x", "y", "width", "height", "order",
+    "id", "generation", "type", "text", "color", "textSize", "align", "group", "marks", "section", "x", "y", "width", "height", "order",
   ]);
   const adapter = new Adapter();
   adapter.set(b);
@@ -285,7 +289,7 @@ nodeTest("v4 marks roundtrip, canonical order and strict validation", () => {
   b.objects[0].marks = [{ start: 0, end: 2, bold: true, italic: true, strike: true }, { start: 2, end: 4, italic: true }];
   const bytes = canonical(b);
   assert.deepEqual(validate(JSON.parse(bytes)), b);
-  assert.equal(JSON.parse(bytes).schemaVersion, 4);
+  assert.equal(JSON.parse(bytes).schemaVersion, 5);
   assert.deepEqual(Object.keys(JSON.parse(bytes).objects[0].marks[0]), ["start", "end", "bold", "italic", "strike"]);
   const shuffled = structuredClone(b);
   shuffled.objects = shuffled.objects.map((o) => Object.fromEntries(Object.entries({

@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OBJECT_TYPES, objectType, typeForTool } from "../apps/web/src/objects/registry.ts";
+import { OBJECT_TYPES, objectType, typeForTool, placementTool, containerType, isContainer } from "../apps/web/src/objects/registry.ts";
 import { sticky } from "../apps/web/src/objects/sticky.ts";
+import { section } from "../apps/web/src/objects/section.ts";
 import { text } from "../apps/web/src/objects/text.ts";
 import { COLORS, colorEntry, textUnits } from "../apps/web/src/styles.ts";
 
 test("object types retain sticky and text order, labels and placement tools", () => {
-  assert.deepEqual(OBJECT_TYPES.map((t) => t.type), ["sticky", "text"]);
+  assert.deepEqual(OBJECT_TYPES.map((t) => t.type), ["sticky", "text", "section"]);
   assert.equal(objectType("sticky"), sticky);
   assert.equal(objectType("text"), text);
   assert.equal(objectType("sticky").label, "Sticky");
@@ -67,4 +68,30 @@ test("new and legacy defaults reproduce the previous appearance", () => {
   assert.equal(colorEntry(sticky.defaultStyle.color).fill, "#f2dce5");
   assert.equal(colorEntry(sticky.defaultStyle.color).edge, "#e8cdd7");
   assert.equal(textUnits(sticky.defaultStyle.textSize), 18);
+});
+
+test("records own version, body, container, formatting, text and size rules", () => {
+  for (const t of [sticky, text]) {
+    assert.equal(t.validFrom, 1); assert.equal(t.body, "note");
+    assert.equal(t.container, false); assert.equal(t.richText, true);
+    assert.equal(t.textLimit, 1000); assert.equal(t.initialText, "");
+    assert.deepEqual(t.sizeRange, { min: 40, max: 2000 }); assert.equal(t.draws, false);
+  }
+  assert.equal(objectType("section"), section); assert.equal(containerType(), section);
+  assert.equal(section.validFrom, 5); assert.equal(section.body, "section");
+  assert.equal(section.container, true); assert.equal(section.richText, false);
+  assert.equal(section.textLimit, 100); assert.equal(section.initialText, "Section");
+  assert.deepEqual(section.sizeRange, { min: 200, max: 10000 }); assert.equal(section.draws, true);
+  assert.deepEqual(section.defaultSize, { width: 640, height: 480 });
+  assert.deepEqual(section.defaultStyle, { color: "neutral", textSize: "medium", align: "left" });
+  for (const t of OBJECT_TYPES) {
+    assert.equal(placementTool(t.tool), t); assert.equal(typeForTool(t.tool), t.type);
+    assert.equal(isContainer({ type: t.type }), t.container);
+  }
+  assert.equal(placementTool("Pan"), undefined);
+  for (const c of COLORS) {
+    assert.equal(section.fill({ color: c.name }), c.fill);
+    assert.equal(section.edge({ color: c.name }), c.edge);
+    assert.equal(section.textColor({ color: c.name }), "#5f5b66");
+  }
 });

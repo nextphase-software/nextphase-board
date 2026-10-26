@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { clamp, type ItemV4 as Item } from "./document.ts";
+import { clamp, type ItemV5 as Item } from "./document.ts";
 import type { Rectangle } from "./resize.ts";
 import type { View } from "./view.ts";
 

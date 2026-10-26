@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import type { ItemV4 as Item } from "../document";
+import type { ItemV5 as Item } from "../document";
 import { textUnits } from "../styles";
 import type { View } from "../view";
 

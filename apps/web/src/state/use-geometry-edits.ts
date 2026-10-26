@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { add, type Board as SavedBoard, type BoardV4 as Board, type ItemV4 as Item, validText } from "../document";
+import { add, type Board as SavedBoard, type BoardV5 as Board, type ItemV5 as Item, validText } from "../document";
 import { neededHeight, savedHeight } from "../geometry";
 import { limitMove } from "../selection";
 import { resizeObject, resizeSet, type Corner, type Rectangle } from "../resize";

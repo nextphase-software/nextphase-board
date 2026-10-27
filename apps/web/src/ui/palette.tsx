@@ -1,9 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
 import { OBJECT_TYPES, placementTool, kindForTool, SHAPE_KINDS } from "../objects/registry";
+import { TemplatesPanel } from "./templates-panel";
+import type { Activity, Preview } from "../activities";
 import { Icon } from "../icons";
 
 type Props = {
+  loadTemplates: () => Promise<void>;
+  panel: string;
+  toggle: (name: string) => void;
+  templatesButton: RefObject<HTMLButtonElement | null>;
+  firstTemplateButton: RefObject<HTMLButtonElement | null>;
+  addActivity: (entry: Activity) => void;
+  templatePreviews: Record<string, Preview>;
   tool: string;
   busy: boolean;
   composing: boolean;
@@ -14,9 +23,10 @@ type Props = {
 };
 
 export function Palette({
-  tool, busy, composing, readOnly, setTool, setInline, scene
+  loadTemplates, panel, toggle, templatesButton, firstTemplateButton, addActivity, templatePreviews, tool, busy, composing, readOnly, setTool, setInline, scene
 }: Props) {
   return (
+    <>
     <nav className="palette floating" aria-label="Board tools">
       {(["Select", "Pan", ...OBJECT_TYPES.flatMap((t) => t.tool ? [t.tool] : [])] as const).map((
         name,
@@ -38,6 +48,14 @@ export function Palette({
           <span className="tooltip">{name}{placementTool(name)?.shapePaint ? " · " + SHAPE_KINDS[0].key : ""}</span>
         </button>
       ))}
+      <button ref={templatesButton} className="icon-button" aria-label="Templates"
+        aria-expanded={panel === "Templates"} aria-pressed={panel === "Templates"}
+        disabled={readOnly || busy || composing} onClick={() => { if (panel !== "Templates") void loadTemplates(); toggle("Templates"); }}>
+        <Icon name="Templates" /><span className="tooltip">Templates</span>
+      </button>
     </nav>
+    {panel === "Templates" && <TemplatesPanel close={() => toggle("Templates")} addActivity={addActivity}
+      previews={templatePreviews} firstButton={firstTemplateButton} disabled={readOnly || busy || composing} />}
+    </>
   );
 }

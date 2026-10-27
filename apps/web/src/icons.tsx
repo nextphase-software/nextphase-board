@@ -9,6 +9,7 @@ const paths = {
   Circle: "M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0",
   Border: "M3 5h14M3 10h14M3 15h14",
   Section: "M4 3h6M3 7h14v10H3Z",
+  Templates: "M3 3h14v14H3ZM3 7h14M10 7v10",
   Text: "M4 4h12M10 4v13M7 17h6M4 4v2M16 4v2",
   minus: "M4 10h12",
   plus: "M4 10h12M10 4v12",

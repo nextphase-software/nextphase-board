@@ -8,6 +8,8 @@ import type { View } from "../view";
 
 type Input = {
   finishTextSession: () => void;
+  setTool: Dispatch<SetStateAction<string>>;
+  scene: React.RefObject<HTMLDivElement | null>;
   view: View;
   size: { w: number; h: number };
   selected: Set<string>;
@@ -23,7 +25,7 @@ type Input = {
 };
 
 export function useEditorPlacement({
-  finishTextSession, view, size, selected, item, itemHeight, inline, setInline,
+  finishTextSession, setTool, scene, view, size, selected, item, itemHeight, inline, setInline,
   composing, busy, readOnly, pos, text,
 }: Input) {
   const [panel, setPanel] = useState("");
@@ -31,6 +33,8 @@ export function useEditorPlacement({
   const editor = useRef<HTMLTextAreaElement>(null),
     selector = useRef<HTMLSelectElement>(null),
     objectsButton = useRef<HTMLButtonElement>(null),
+    templatesButton = useRef<HTMLButtonElement>(null),
+    firstTemplateButton = useRef<HTMLButtonElement>(null),
     boardButton = useRef<HTMLButtonElement>(null),
     navButton = useRef<HTMLButtonElement>(null),
     infoButton = useRef<HTMLButtonElement>(null);
@@ -41,6 +45,7 @@ export function useEditorPlacement({
     }
   }, [inline, selected]);
   useEffect(() => {
+    if (panel === "Templates") firstTemplateButton.current?.focus();
     if (panel === "Objects") {
       if (fallbackFocus.current) {
         fallbackFocus.current = false;
@@ -98,8 +103,13 @@ export function useEditorPlacement({
     if (composing || busy) return;
     finishTextSession();
     setInline(false);
+    if (name === "Templates" && panel !== name) setTool("Select");
     setPanel((p) => p === name ? "" : name);
     if (panel === name) {
+      if (name === "Templates") {
+        (templatesButton.current && !templatesButton.current.disabled ? templatesButton.current : scene.current)?.focus();
+        return;
+      }
       (name === "Objects"
         ? objectsButton
         : name === "Board"
@@ -109,5 +119,5 @@ export function useEditorPlacement({
         : navButton).current?.focus();
     }
   }
-  return { panel, setPanel, edit, toggle, editor, selector, objectsButton, boardButton, navButton, infoButton };
+  return { templatesButton, firstTemplateButton, panel, setPanel, edit, toggle, editor, selector, objectsButton, boardButton, navButton, infoButton };
 }

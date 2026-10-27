@@ -17,6 +17,7 @@ type Input = {
   setInline: Dispatch<SetStateAction<boolean>>;
   panel: string;
   setPanel: Dispatch<SetStateAction<string>>;
+  templatesButton: RefObject<HTMLButtonElement | null>;
   objectsButton: RefObject<HTMLButtonElement | null>;
   boardButton: RefObject<HTMLButtonElement | null>;
   infoButton: RefObject<HTMLButtonElement | null>;
@@ -25,7 +26,7 @@ type Input = {
 
 export function usePageKeys({
   command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
-  setInline, panel, setPanel, objectsButton, boardButton, infoButton, navButton,
+  setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
 }: Input) {
   function pageKeyDown(e: React.KeyboardEvent<HTMLElement>) {
     const nativeText = e.target instanceof Element &&
@@ -76,6 +77,10 @@ export function usePageKeys({
     setInline(false);
     if (panel) {
       setPanel("");
+      if (panel === "Templates") {
+        (templatesButton.current && !templatesButton.current.disabled ? templatesButton.current : scene.current)?.focus();
+        return;
+      }
       (panel === "Objects"
         ? objectsButton
         : panel === "Board"

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import type { Board as SavedBoard, BoardV7 as Board, ItemV7 as Item, ResolvedItem } from "../document";
 import { count } from "../document";
+import { catalog } from "../activities/catalog";
+import { activityPreview, insertActivity, readActivity, type Activity, type Preview } from "../activities";
 import { codePointOffset, formatted, toggle, type Flag } from "../marks";
 import { deleteObject, duplicate, redo, undo, type History } from "../history";
 import { savedHeight } from "../geometry";
@@ -37,6 +39,7 @@ type Input = {
   setPanel: Dispatch<SetStateAction<string>>;
   setTool: Dispatch<SetStateAction<string>>;
   view: View;
+  setView: Dispatch<SetStateAction<View>>;
   displayedObjects: ResolvedItem[];
   commandReason: string;
   selectionReason: string;
@@ -48,11 +51,44 @@ type Input = {
 
 export function useEditingCommands({
   shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
-  setMessage, messageSequence, alive, select, selected, setInline, scene, view,
+  setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
   displayedObjects, commandReason, selectionReason, clipboardState, editingState,
   arrangementMembers, lineCount, editor, selector, setPanel, setTool,
 }: Input) {
   const [objectClipboard, setObjectClipboard] = useState<Snapshot | null>(null);
+  const [templatePreviews, setTemplatePreviews] = useState<Record<string, Preview>>({});
+  const activityState = useRef({ commandReason, view });
+  activityState.current = { commandReason, view };
+  async function loadTemplates() {
+    if (Object.keys(templatePreviews).length === catalog.length) return;
+    const entries = await Promise.all(catalog.map(async (entry) => {
+      try { return [entry.id, activityPreview((await readActivity(entry)).objects)] as const; }
+      catch { return [entry.id, undefined] as const; }
+    }));
+    if (alive.current) setTemplatePreviews(Object.fromEntries(entries.filter((entry) => entry[1])) as Record<string, Preview>);
+  }
+  async function addActivity(entry: Activity) {
+    if (activityState.current.commandReason) { setMessage(activityState.current.commandReason); return; }
+    let activity;
+    try { activity = await readActivity(entry); }
+    catch (error) {
+      if (alive.current) setMessage(`Could not add “${entry.name}”: ${error instanceof Error ? error.message : String(error)}.`);
+      return;
+    }
+    if (!alive.current || activityState.current.commandReason) return;
+    try {
+      const result = insertActivity(model.current, activity, activityState.current.view, {
+        w: scene.current!.clientWidth, h: scene.current!.clientHeight,
+      });
+      finishTextSession();
+      commit(result.board, true);
+      select(result.ids);
+      setPanel("");
+      setView(result.view);
+      scene.current?.focus();
+      setMessage(`Added “${entry.name}”: ${result.ids.length} objects.`);
+    } catch (error) { setMessage(String(error)); }
+  }
   function writePlainText(snapshot: Snapshot, copiedMessage: string) {
     const sequence = messageSequence.current;
     const failed = () => {
@@ -263,5 +299,5 @@ export function useEditingCommands({
     shapeCommand((o) => ({ ...o, height: growHeight }));
   }
   const shapeCommands = { changeShape, changeFill: changeShapeFill, changeBorder: changeShapeBorder, grow };
-  return { shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
+  return { loadTemplates, addActivity, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
 }

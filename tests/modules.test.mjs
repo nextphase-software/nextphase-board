@@ -22,7 +22,7 @@ const objects = new URL("objects/", source);
 const objectTypes = files(objects).sort();
 const objectContents = objectTypes.map((name) => [name, readFileSync(new URL(name, objects), "utf8")]);
 
-test("screen parts contain exactly the twenty screen modules named through 0006-W2 v1", () => {
+test("screen parts contain exactly the twenty-one screen modules named through 0008-W1 v1", () => {
   assert.deepEqual(screenParts, [
     "arrange-controls.tsx",
     "board-panel.tsx",
@@ -43,6 +43,7 @@ test("screen parts contain exactly the twenty screen modules named through 0006-
     "save-area.tsx",
     "shape-controls.tsx",
     "shapes-panel.tsx",
+    "templates-panel.tsx",
     "zoom-controls.tsx",
   ]);
 });

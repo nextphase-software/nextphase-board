@@ -92,6 +92,12 @@ export function buildPaste(board: BoardV7, snapshot: Snapshot, view: PasteView):
     bottom <= view.centerY + view.height / (2 * view.zoom);
   const dx = inView ? 24 * pasteCount : view.centerX - (left + right) / 2;
   const dy = inView ? 24 * pasteCount : view.centerY - (top + bottom) / 2;
+  return { board: copyObjects(board, snapshot, dx, dy), pasteCount };
+}
+
+export function copyObjects(board: BoardV7, snapshot: Pick<Snapshot, "objects" | "sourceIdentifiers">,
+  dx: number, dy: number): BoardV7 {
+  if (board.objects.length + snapshot.objects.length > 250) throw Error("250 object limit reached");
   const reserved = [...snapshot.sourceIdentifiers];
   const fresh = () => {
     const id = freshIdentifier(board, reserved);
@@ -109,5 +115,5 @@ export function buildPaste(board: BoardV7, snapshot: Snapshot, view: PasteView):
       order: board.objects.length + index,
     };
   });
-  return { board: { ...board, objects: bandOrder([...board.objects, ...copies]).map((o, order) => ({ ...o, order })) }, pasteCount };
+  return { ...board, objects: bandOrder([...board.objects, ...copies]).map((o, order) => ({ ...o, order })) };
 }

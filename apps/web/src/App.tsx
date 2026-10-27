@@ -80,9 +80,9 @@ export function App() {
   const size = useSceneSize(scene);
   const pos = (o: { x: number; y: number }) => screenPoint(o, view, size);
   const {
-    panel, setPanel, edit, toggle, editor, selector, objectsButton, boardButton, navButton, infoButton,
+    panel, setPanel, edit, toggle, editor, selector, templatesButton, firstTemplateButton, objectsButton, boardButton, navButton, infoButton,
   } = useEditorPlacement({
-    finishTextSession, view, size, selected, item: resolvedItem, text, itemHeight, inline, setInline,
+    finishTextSession, setTool, scene, view, size, selected, item: resolvedItem, text, itemHeight, inline, setInline,
     composing, busy, readOnly, pos,
   });
   const {
@@ -118,15 +118,15 @@ export function App() {
     selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
     item: resolvedItem, itemHeight, dotsVisible, editorBox,
   });
-  const { shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
+  const { loadTemplates, addActivity, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
     shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
-    setMessage, messageSequence, alive, select, selected, setInline, scene, view,
+    setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
     arrangementMembers, lineCount, editor, selector, setPanel, setTool,
   });
   const { pageKeyDown } = usePageKeys({
     command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
-    setInline, panel, setPanel, objectsButton, boardButton, infoButton, navButton,
+    setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
   });
   const nativeEditor = <ContentField
     editor={editor} inline={inline} text={text} readOnly={readOnly} busy={busy} item={item}
@@ -238,7 +238,7 @@ export function App() {
       <ShapesPanel tool={tool} setTool={setTool} scene={scene} disabled={busy || composing || readOnly} />
       <Palette
         tool={tool} busy={busy} composing={composing} readOnly={readOnly} setTool={setTool}
-        setInline={setInline} scene={scene}
+        setInline={setInline} scene={scene} loadTemplates={loadTemplates} panel={panel} toggle={toggle} templatesButton={templatesButton} firstTemplateButton={firstTemplateButton} addActivity={addActivity} templatePreviews={templatePreviews}
       />
       <ZoomControls
         busy={busy} composing={composing} setView={setView} view={view} panel={panel}

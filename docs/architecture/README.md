@@ -134,14 +134,23 @@ ordered, grouped, deleted and copied, and how Objects shows membership; and
 sections rules module to the inventory. They replace document v4, interaction v16 and web
 modules v14 for later work.
 
-Drafts for 0002-W4 brief v1: [0001 document v6](0001-document-v6.md) adds shapes to the saved
+[0001 document v6](0001-document-v6.md), accepted with 0002-W4, adds shapes to the saved
 format (a `shape` type with its own `shape`, `fill` and `border` keys, so each type now has its
 own key set) and defines how version 1 to 5 boards are read;
 [0001 interaction v18](0001-interaction-v18.md) says how shapes are drawn, placed and coloured,
 how their kind, fill and border change, what happens to long text, and how Objects shows them;
 and [0001 web modules v16](0001-web-modules-v16.md) adds the shape type, its scene body and two
 screen parts to the inventory. They replace document v5, interaction v17 and web modules v15
-for later work once accepted.
+for later work.
+
+Drafts for 0002-W2 brief v1: [0001 document v7](0001-document-v7.md) adds connectors to the
+saved format (a `connector` type with `from` and `to` ends in place of a rectangle, the
+eligibility and dangling rules) and defines how version 1 to 6 boards are read;
+[0001 interaction v19](0001-interaction-v19.md) says how connectors are created from
+connection dots or Connect, routed, drawn, labelled, selected, ordered, deleted and copied, and
+how Objects shows them; and [0001 web modules v17](0001-web-modules-v17.md) adds the connector
+type, two rules modules, two canvas parts and one screen part to the inventory. They replace
+document v6, interaction v18 and web modules v16 for later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

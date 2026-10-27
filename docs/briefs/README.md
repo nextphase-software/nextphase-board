@@ -138,13 +138,22 @@ its members, saved as document v5 under [document v5](../architecture/0001-docum
 [web modules v15](../architecture/0001-web-modules-v15.md), is implemented and merged into
 main.
 
-[0002-W4 v1 — Draw basic shapes](0002-W4-draw-basic-shapes.md) is a draft: one Shapes tool
-draws squares and circles that hold text; a Shape menu changes the kind; separate Fill and
-Border controls with 21 named colours and a custom colour; long text ends with an ellipsis and
-a button grows the shape to fit; saved as document v6, following
+[0002-W4 v1 — Draw basic shapes](0002-W4-draw-basic-shapes.md), one Shapes tool drawing
+squares and circles that hold text, with a Shape menu, separate Fill and Border controls with 21
+named colours and a custom colour, and long text that ends with an ellipsis and a button that
+grows the shape to fit, saved as document v6 under
 [document v6](../architecture/0001-document-v6.md),
 [interaction v18](../architecture/0001-interaction-v18.md) and
-[web modules v16](../architecture/0001-web-modules-v16.md).
+[web modules v16](../architecture/0001-web-modules-v16.md), is implemented and merged into
+main.
+
+[0002-W2 v1 — Connect ideas](0002-W2-connect-ideas.md) is a draft: connectors join two ideas
+(stickies, text or shapes), created by dragging a connection dot of a selected idea onto
+another or by Connect in Objects; an elbowed grey line with an arrow at its `to` end and an
+optional label on the line; routes follow every move; deleting an idea deletes its
+connectors; saved as document v7, following [document v7](../architecture/0001-document-v7.md),
+[interaction v19](../architecture/0001-interaction-v19.md) and
+[web modules v17](../architecture/0001-web-modules-v17.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

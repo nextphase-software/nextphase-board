@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { PointerEventHandler, ReactNode, RefObject } from "react";
-import type { ItemV6 as Item } from "../document";
+import type { ResolvedItem as Item } from "../document";
 import { TEXT_INSET, TEXT_LAYOUT } from "../geometry";
-import { objectType, textBox } from "../objects/registry";
+import { objectType, textBox, hasEnds } from "../objects/registry";
+import { labelEditorBox } from "../connectors";
 import { textUnits } from "../styles";
 import type { View } from "../view";
 
@@ -13,24 +14,26 @@ type Props = {
   item: Item;
   view: View;
   itemHeight: number;
+  text: string;
   nativeEditor: ReactNode;
 };
 
-export function InlineEditor({ inlineSurface, trackPointer, pos, item, view, itemHeight, nativeEditor }: Props) {
+export function InlineEditor({ inlineSurface, trackPointer, pos, item, view, itemHeight, text, nativeEditor }: Props) {
   const richText = objectType(item.type).richText;
-  const box = textBox({ ...item, height: itemHeight });
+  const ends = hasEnds(item);
+  const box = ends ? labelEditorBox(item.connectorLayout!.labelPoint, text) : textBox({ ...item, height: itemHeight });
   return (
     <section
       ref={inlineSurface}
-      className={"inline" + (richText ? objectType(item.type).shapePaint ? " shape-editor" : "" : " name-field")}
+      className={"inline" + (ends ? " connector-editor" : richText ? objectType(item.type).shapePaint ? " shape-editor" : "" : " name-field")}
       onPointerEnter={trackPointer}
       onPointerDown={trackPointer}
       onPointerMove={trackPointer}
       style={{
-        left: pos(richText ? box : item).left + (richText ? 0 : 2) * view.z,
-        top: pos(richText ? box : item).top + (richText ? 0 : -34) * view.z,
-        width: (richText ? box.width : Math.min(item.width, 200)) * view.z,
-        height: (richText ? box.height : 28) * view.z,
+        left: pos(ends || richText ? box : item).left + (ends || richText ? 0 : 2) * view.z,
+        top: pos(ends || richText ? box : item).top + (ends || richText ? 0 : -34) * view.z,
+        width: (ends || richText ? box.width : Math.min(item.width, 200)) * view.z,
+        height: (ends || richText ? box.height : 28) * view.z,
         fontFamily: TEXT_LAYOUT.fontFamily,
         fontSize: (richText ? textUnits(item.textSize) : 18) * view.z,
         textAlign: item.align,

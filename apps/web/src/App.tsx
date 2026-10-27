@@ -21,6 +21,7 @@ import { useObjectLayouts } from "./state/use-object-layouts";
 import { useEditorPlacement } from "./state/use-editor-placement";
 import { BoardDrawing } from "./scene/board-drawing";
 import { Overlays } from "./scene/overlays";
+import { ConnectionDots } from "./scene/connection-dots";
 import { InlineEditor } from "./scene/inline-editor";
 import { ShapesPanel } from "./ui/shapes-panel";
 import { GrowButton } from "./ui/shape-controls";
@@ -51,14 +52,14 @@ export function App() {
     updateHistory, clearHistory, beginTextSession, finishTextSession, commit, load,
   } = useBoardDocument({ readOnly, setStatus });
   const {
-    shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,
+    connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,
     selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats, richText,
   } = useSelection({ board, drafts, textSelection });
   const { invalidObjectText, invalidFields, invalid, pending } = useValidity({
     board, drafts, title, composing, busy,
   });
   const {
-    growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
+    editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
     handlesVisible, handlePoints, itemHeight,
   } = useObjectLayouts({
     board, selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,
@@ -81,7 +82,7 @@ export function App() {
   const {
     panel, setPanel, edit, toggle, editor, selector, objectsButton, boardButton, navButton, infoButton,
   } = useEditorPlacement({
-    finishTextSession, view, size, selected, item, itemHeight, inline, setInline,
+    finishTextSession, view, size, selected, item: resolvedItem, text, itemHeight, inline, setInline,
     composing, busy, readOnly, pos,
   });
   const {
@@ -93,36 +94,35 @@ export function App() {
     setStatus, setTool, setPanel, setInline, editor, lineCount,
   });
   const {
-    cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,
+    dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,
     pointerCancel, lostPointerCapture,
   } = useCanvasInput({
     shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
     setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
     scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
     selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
-    handlesVisible, handlePoints, objectLayouts, displayedObjects, edit,
+    handlesVisible, handlePoints, objectLayouts, displayedObjects, edit, textEditing: !!textSession.current, invalidObjectText,
   });
   const {
-    commandReason, undoReason, redoReason, selectionReason, clipboardState,
+    commandReason, undoReason, redoReason, selectionReason, duplicateReason, clipboardState,
     showNotice, editingState, arrangementMembers,
   } = useCommandReasons({
     readOnly, composing, busy, tool, invalidObjectText, invalid, textSession, model,
     history, selected, visibleMessage, snapshots, displayedObjects,
   });
-  // The context surface follows transformed bounds without changing board geometry.
   const {
     shapePopup, contextWidth, contextLeft, contextTop, contextFits, swatchOpen, arrangeOpen,
     arrangeHeight, setSwatchFor, setArrangeFor, closeSwatches, closeArrange,
     contextBar, colourControl, colourButton, swatches, arrangeControl, arrangeButton, arrangeMenu,
   } = useContextBar({
     selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
-    item, itemHeight,
+    item: resolvedItem, itemHeight, dotsVisible, editorBox,
   });
   const { shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
     shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
-    arrangementMembers, lineCount, editor, setPanel, setTool,
+    arrangementMembers, lineCount, editor, selector, setPanel, setTool,
   });
   const { pageKeyDown } = usePageKeys({
     command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
@@ -135,7 +135,6 @@ export function App() {
     commitText={commitText} finishTextSession={finishTextSession} setInline={setInline}
     setTextSelection={setTextSelection} toggleFormat={toggleFormat}
   />;
-
   return (
     <main
       style={{
@@ -173,7 +172,8 @@ export function App() {
           selectedGroups={selectedGroups} pos={pos} view={view} handlesVisible={handlesVisible}
           handlePoints={handlePoints} spacePan={spacePan} selectionBox={selectionBox} tool={tool}
         />
-        <GrowButton available={growAvailable} grow={shapeCommands.grow} style={item ? { left: pos(item).left + item.width * view.z / 2, top: pos(item).top + item.height * view.z } : undefined} />
+        <GrowButton available={growAvailable} grow={shapeCommands.grow} style={resolvedItem ? { left: pos(resolvedItem).left + resolvedItem.width * view.z / 2, top: pos(resolvedItem).top + resolvedItem.height * view.z } : undefined} />
+        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} />
       </div>
       <FileBar
         boardButton={boardButton} composing={composing} busy={busy} toggle={toggle} panel={panel}
@@ -186,7 +186,7 @@ export function App() {
       />
       <span id="undo-reason" className="sr-only">{undoReason}</span>
       <span id="redo-reason" className="sr-only">{redoReason}</span>
-      <span id="selection-reason" className="sr-only">{selectionReason}</span>
+      <span id="selection-reason" className="sr-only">{selectionReason}</span>{duplicateReason !== selectionReason && <span id="duplicate-reason" className="sr-only">{duplicateReason}</span>}
       <Notice
         showNotice={showNotice} visibleMessage={visibleMessage} invalidFields={invalidFields}
         busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen}
@@ -202,7 +202,7 @@ export function App() {
       {panel === "Objects" && (
         <ObjectsPanel
           shapeSelection={shapeSelection} shapeCommands={shapeCommands} growAvailable={growAvailable} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
-          board={board} busy={busy} composing={composing} setPanel={setPanel}
+          duplicateReason={duplicateReason} board={board} busy={busy} composing={composing} setPanel={setPanel}
           objectsButton={objectsButton} selector={selector} selected={selected}
           finishTextSession={finishTextSession} select={select} numbers={numbers} drafts={drafts}
           nativeEditor={nativeEditor} item={item} text={text} selectionColor={selectionColor} selectionSize={selectionSize}
@@ -215,7 +215,7 @@ export function App() {
       {selected.size > 0 && (
         <ContextBar
           shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
-          contextBar={contextBar} contextFits={contextFits} contextLeft={contextLeft}
+          connectorOnly={connectorOnly} connectorCount={connectors.length} duplicateReason={duplicateReason} contextBar={contextBar} contextFits={contextFits} contextLeft={contextLeft}
           contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
           composing={composing} busy={busy} inline={inline} finishTextSession={finishTextSession}
           setInline={setInline} scene={scene} edit={edit} text={text} colourControl={colourControl}
@@ -229,10 +229,10 @@ export function App() {
           arrangementReason={arrangementReason} command={command}
         />
       )}
-      {inline && item && (
+      {inline && resolvedItem && (
         <InlineEditor
-          inlineSurface={inlineSurface} trackPointer={trackPointer} pos={pos} item={item}
-          view={view} itemHeight={itemHeight} nativeEditor={nativeEditor}
+          inlineSurface={inlineSurface} trackPointer={trackPointer} pos={pos} item={resolvedItem}
+          view={view} itemHeight={itemHeight} text={text} nativeEditor={nativeEditor}
         />
       )}
       <ShapesPanel tool={tool} setTool={setTool} scene={scene} disabled={busy || composing || readOnly} />

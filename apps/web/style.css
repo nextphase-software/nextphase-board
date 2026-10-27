@@ -576,3 +576,17 @@ small {
   color: inherit; text-align: inherit; overflow-y: auto; }
 .shape-placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: #929292; pointer-events: none; }
 @media (max-width:767px) { .shapes-panel { top: var(--panel-top); max-width: calc(100% - 24px); } }
+
+/* Connection dots are pointer controls; routes and labels remain document-free. */
+.scene > .connection-dot {
+  position: absolute; width: 16px; height: 16px; transform: translate(-50%, -50%);
+  pointer-events: auto; cursor: crosshair;
+}
+.connection-dot::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: #8fbdf5; }
+.connection-preview { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.connection-preview line, .connection-preview circle { stroke: #518de0; fill: none; }
+.connection-target { position: absolute; border: 3px solid #518de0; pointer-events: none; }
+.inline.connector-editor { background: #fafafa; border: 1.5px solid #518de0; color: #2c2c2c; }
+.inline.connector-editor:focus-within { outline: none; }
+.inline.connector-editor textarea { text-align: center; }
+.inline.connector-editor textarea::placeholder { color: #929292; opacity: 1; }

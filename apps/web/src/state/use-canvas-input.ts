@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { add, clamp, type Board as SavedBoard, type BoardV6 as Board, type ItemV6 as Item } from "../document";
-import { boxSelection } from "../selection";
+import { add, clamp, type Board as SavedBoard, type BoardV7 as Board, type ResolvedItem as Item } from "../document";
 import { expandSelection, pressSelection, toggleGroup } from "../group";
 import type { Corner } from "../resize";
 import type { View } from "../view";
-import { bandOrder, drawRectangle, dropped, placeObject, withMembers } from "../sections";
-import { isContainer, placementTool, typeForTool, toolForKey, creationValues, type ShapePaint } from "../objects/registry";
+import { drawRectangle, dropped, placeObject, withMembers } from "../sections";
+import { isContainer, hasEnds, placementTool, typeForTool, toolForKey, creationValues, type ShapePaint } from "../objects/registry";
 import type { Drag, ResizeStart } from "../gesture";
+
+import { connectionDots, pressedDot, connectionTarget } from "../connection-drag";
+import { hitObject, selectInBox, createConnector } from "../connectors";
+import { editingCommandReason } from "../commands";
 
 type Input = {
   shapeSession: { paint: RefObject<ShapePaint> };
@@ -39,6 +42,8 @@ type Input = {
   setTool: Dispatch<SetStateAction<string>>;
   readOnly: boolean;
   composing: boolean;
+  textEditing: boolean;
+  invalidObjectText: boolean;
   inline: boolean;
   setInline: Dispatch<SetStateAction<boolean>>;
   setPanel: Dispatch<SetStateAction<string>>;
@@ -54,8 +59,12 @@ export function useCanvasInput({
   setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
   scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
   selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
-  handlesVisible, handlePoints, objectLayouts, displayedObjects, edit,
+  handlesVisible, handlePoints, objectLayouts, displayedObjects, edit, textEditing, invalidObjectText,
 }: Input) {
+  const canShowDots = tool === "Select" && !readOnly && !inline && !composing && !textEditing && !busy && !spacePanRef.current && !drag.current;
+  const dots = canShowDots ? connectionDots(displayedObjects, selected, view.z) : [];
+  const dotsVisible = dots.length > 0;
+  const connection = drag.current?.connection;
   function point(e: { clientX: number; clientY: number }) {
     const r = scene.current!.getBoundingClientRect();
     return {
@@ -142,7 +151,7 @@ export function useCanvasInput({
     if (
       e.target !== e.currentTarget &&
         !(e.target instanceof HTMLCanvasElement) &&
-        !(e.target instanceof Element && e.target.closest(".resize-handle")) || composing || inline && !model.current.objects.some((o) => selected.has(o.id) && isContainer(o))
+        !(e.target instanceof Element && e.target.closest(".resize-handle,.connection-dot")) || composing || inline && !model.current.objects.some((o) => selected.has(o.id) && isContainer(o))
     ) return;
     if (e.button !== 0 || drag.current) return;
     if (spacePanRef.current) {
@@ -158,6 +167,12 @@ export function useCanvasInput({
     }
     finishTextSession();
     const p = point(e);
+    const dot = pressedDot(dots, p, view.z);
+    if (dot && !editingCommandReason({ readOnly, composing, pointerGesture: false, invalidObjectText })) {
+      drag.current = { id: dot.id, x: p.x, y: p.y, cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false,
+        pointerId: e.pointerId, connection: { source: dot.id, start: dot.start, pointer: p, target: null } };
+      setBusy(true); scene.current?.focus(); e.currentTarget.setPointerCapture(e.pointerId); e.preventDefault(); return;
+    }
     const handle = handlesVisible ? handlePoints.find((h) =>
       Math.abs((p.x - h.x) * view.z) <= 8 && Math.abs((p.y - h.y) * view.z) <= 8) : undefined;
     if (handle) {
@@ -172,10 +187,7 @@ export function useCanvasInput({
       e.preventDefault();
       return;
     }
-    const hit = bandOrder(model.current.objects).reverse().find((o) =>
-      p.x >= o.x && p.x <= o.x + o.width && p.y >= o.y &&
-      p.y <= o.y + objectLayouts.get(o.id)!.height
-    );
+    const hit = hitObject(displayedObjects, p, view.z);
     if (placementTool(tool)?.draws && !readOnly) {
       drag.current = { id: tool, x: p.x, y: p.y, cx: e.clientX, cy: e.clientY,
         view: { ...view }, pan: false };
@@ -198,7 +210,7 @@ export function useCanvasInput({
           const ids = [...withMembers(model.current.objects, selected.has(hit.id) ? selected : expanded)];
           if (readOnly || !selected.has(hit.id)) select(expanded);
           if (!readOnly) drag.current = {
-            id: hit.id, ids, x: hit.x, y: hit.y,
+            id: hit.id, ids: hasEnds(hit) ? undefined : ids, x: hit.x, y: hit.y,
             cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false,
           };
         }
@@ -231,6 +243,11 @@ export function useCanvasInput({
     trackPointer(e);
     const d = drag.current;
     if (!d) return;
+    if (d.connection) {
+      const p = point(e);
+      d.connection = { ...d.connection, pointer: p, target: connectionTarget(displayedObjects, d.connection.source, p) };
+      setBoard({ ...model.current }); return;
+    }
     if (placementTool(d.id) && !placementTool(d.id)!.draws &&
       Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3) {
       d.cancelled = true;
@@ -256,7 +273,7 @@ export function useCanvasInput({
       if (Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3) {
         const end = { x: d.x + dx, y: d.y + dy };
         setSelectionBox({ x: Math.min(d.x, end.x), y: Math.min(d.y, end.y), width: Math.abs(dx), height: Math.abs(dy) });
-        select(expandSelection(model.current.objects, [...(d.additive ? d.previous ?? [] : []), ...boxSelection(d, end, displayedObjects)]));
+        select(expandSelection(model.current.objects, [...(d.additive ? d.previous ?? [] : []), ...selectInBox(d, end, displayedObjects)]));
       } else {
         setSelectionBox(null);
         select(d.additive ? d.previous ?? [] : []);
@@ -276,6 +293,18 @@ export function useCanvasInput({
     setBusy(false);
     if (!d) return;
     const delta = Math.hypot(e.clientX - d.cx, e.clientY - d.cy);
+    if (d.connection) {
+      const p = point(e), rect = scene.current!.getBoundingClientRect();
+      const target = e.clientX >= rect.left && e.clientY >= rect.top && e.clientX <= rect.right &&
+        e.clientY <= rect.bottom ? connectionTarget(displayedObjects, d.connection.source, p) : null;
+      if (target && !editingCommandReason({ readOnly, composing, pointerGesture: false, invalidObjectText })) {
+        try {
+          const result = createConnector(model.current, d.connection.source, target);
+          commit(result.board, true); select(result.id); setInline(false); setPanel(""); scene.current?.focus();
+        } catch (error) { setMessage(String(error)); }
+      }
+      setBoard({ ...model.current }); releaseCapture(d.pointerId); return;
+    }
     if (d.corner && d.resizeStart) {
       if ((d.crossed || delta >= 3) && resizeStillValid(d.resizeStart)) {
         commit(resizedBoard(d.corner, d.resizeStart,
@@ -304,7 +333,7 @@ export function useCanvasInput({
     } else if (d.box) {
       if (delta >= 3) {
         const end = { x: d.x + (e.clientX - d.cx) / d.view.z, y: d.y + (e.clientY - d.cy) / d.view.z };
-        select(expandSelection(model.current.objects, [...(d.additive ? d.previous ?? [] : []), ...boxSelection(d, end, displayedObjects)]));
+        select(expandSelection(model.current.objects, [...(d.additive ? d.previous ?? [] : []), ...selectInBox(d, end, displayedObjects)]));
       } else select(d.additive ? d.previous ?? [] : []);
     } else if (!d.pan) {
       if (delta >= 3 && d.ids) {
@@ -323,9 +352,7 @@ export function useCanvasInput({
   function doubleClick(e: React.MouseEvent<HTMLDivElement>) {
     if (spacePanRef.current || composing || busy) return;
     const p = point(e);
-    const hit = bandOrder(model.current.objects).reverse().find((o) =>
-      p.x >= o.x && p.x <= o.x + o.width && p.y >= o.y &&
-      p.y <= o.y + objectLayouts.get(o.id)!.height);
+    const hit = hitObject(displayedObjects, p, view.z);
     if (!hit) return;
     select(hit.id);
     if (!readOnly) {
@@ -345,5 +372,5 @@ export function useCanvasInput({
       cancel();
     }
   }
-  return { cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick, pointerCancel, lostPointerCapture };
+  return { dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick, pointerCancel, lostPointerCapture };
 }

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
 import { validMarks, type Mark } from "./marks.ts";
-import { OBJECT_TYPES, objectType, extraValues, objectKeys, type ObjectType, type ShapeKeys } from "./objects/registry.ts";
+import { OBJECT_TYPES, objectType, extraValues, objectKeys, hasEnds, hasRectangle, eligibleIdea, rectangleType, type RectangleType, type EndsType, type EndsKeys, type Rectangle, type ShapeKeys } from "./objects/registry.ts";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "./styles.ts";
 export type ItemV1 = {
   id: string;
   generation: string;
-  type: ObjectType["type"];
+  type: RectangleType;
   text: string;
   x: number;
   y: number;
@@ -19,7 +19,11 @@ export type ItemV3 = ItemV2 & { group: string | null };
 export type ItemV4 = ItemV3 & { marks: Mark[] };
 export type ItemV5 = ItemV4 & { section: string | null };
 export type ItemV6 = ItemV5 & Partial<ShapeKeys>;
-export type Item = ItemV1 | ItemV2 | ItemV3 | ItemV4 | ItemV5 | ItemV6;
+export type RectangleItem = ItemV6;
+export type ConnectorItem = Omit<ItemV6, keyof Rectangle | "type"> & EndsKeys & { type: EndsType };
+export type ItemV7 = RectangleItem | ConnectorItem;
+export type ResolvedItem = ItemV7 & Rectangle & { displayHeight: number; connectorLayout?: import("./connectors.ts").ConnectorLayout };
+export type Item = ItemV1 | ItemV2 | ItemV3 | ItemV4 | ItemV5 | ItemV6 | ItemV7;
 type BoardFields = {
   boardId: string;
   title: string;
@@ -31,7 +35,8 @@ export type BoardV3 = BoardFields & { schemaVersion: 3; objects: ItemV3[] };
 export type BoardV4 = BoardFields & { schemaVersion: 4; objects: ItemV4[] };
 export type BoardV5 = BoardFields & { schemaVersion: 5; objects: ItemV5[] };
 export type BoardV6 = BoardFields & { schemaVersion: 6; objects: ItemV6[] };
-export type Board = BoardFields & { schemaVersion: 1 | 2 | 3 | 4 | 5 | 6; objects: Item[] };
+export type BoardV7 = BoardFields & { schemaVersion: 7; objects: ItemV7[] };
+export type Board = BoardFields & { schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7; objects: Item[] };
 const uuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export const count = (s: string) => Array.from(s).length;
@@ -52,7 +57,7 @@ export function validate(value: unknown): Board {
       "title",
       "objects",
       "retiredGenerations",
-    ]) || ![1, 2, 3, 4, 5, 6].includes(b.schemaVersion) || typeof b.boardId !== "string" || !uuid.test(b.boardId) ||
+    ]) || ![1, 2, 3, 4, 5, 6, 7].includes(b.schemaVersion) || typeof b.boardId !== "string" || !uuid.test(b.boardId) ||
     typeof b.title !== "string" || !validText(b.title, 120, true) ||
     !Array.isArray(b.objects) || b.objects.length > 250 ||
     !Array.isArray(b.retiredGenerations) || b.retiredGenerations.length > 10000
@@ -67,9 +72,9 @@ export function validate(value: unknown): Board {
       ids.has(o.generation) || gens.has(o.id) || gens.has(o.generation) ||
       o.id === o.generation || !OBJECT_TYPES.some((t) => t.type === o.type && t.validFrom <= b.schemaVersion) ||
       typeof o.text !== "string" || !validText(o.text, objectType(o.type).textLimit) || o.order !== i ||
-      ![o.x, o.y, o.width, o.height].every(Number.isFinite) || o.x < -1e6 ||
-      o.y < -1e6 || o.width < objectType(o.type).sizeRange.min || o.width > objectType(o.type).sizeRange.max ||
-      o.height < objectType(o.type).sizeRange.min || o.height > objectType(o.type).sizeRange.max || o.x + o.width > 1e6 || o.y + o.height > 1e6
+      hasRectangle(o) && (![o.x, o.y, o.width, o.height].every(Number.isFinite) || o.x < -1e6 ||
+      o.y < -1e6 || o.width < rectangleType(o.type as RectangleType).sizeRange.min || o.width > rectangleType(o.type as RectangleType).sizeRange.max ||
+      o.height < rectangleType(o.type as RectangleType).sizeRange.min || o.height > rectangleType(o.type as RectangleType).sizeRange.max || o.x + o.width > 1e6 || o.y + o.height > 1e6)
     ) throw Error("Invalid object");
     if (!objectType(o.type).validExtras(o)) throw Error("Invalid object paint");
     if (b.schemaVersion >= 2) {
@@ -107,6 +112,10 @@ export function validate(value: unknown): Board {
       }
     }
   }
+  for (const o of b.objects) {
+    if (hasEnds(o) && (o.from.object === o.to.object || [o.from, o.to].some((end) =>
+      !b.objects.some((idea) => idea.id === end.object && eligibleIdea(idea))))) throw Error("Invalid connector ends");
+  }
   return b;
 }
 export function canonical(b: Board) {
@@ -125,10 +134,7 @@ export function canonical(b: Board) {
       ...(b.schemaVersion >= 4 ? { marks: (o as ItemV4).marks.map(markOf) } : {}),
       ...(b.schemaVersion >= 5 ? { section: (o as ItemV5).section } : {}),
       ...extraValues(o),
-      x: o.x,
-      y: o.y,
-      width: o.width,
-      height: o.height,
+      ...(hasRectangle(o) ? { x: o.x, y: o.y, width: o.width, height: o.height } : {}),
       order: o.order,
     })),
     retiredGenerations: [...b.retiredGenerations],
@@ -138,7 +144,7 @@ export function canonical(b: Board) {
   }
   return s;
 }
-function styleOf(o: ItemV2): Style {
+function styleOf(o: Style): Style {
   return { color: o.color, textSize: o.textSize, align: o.align };
 }
 function markOf(m: Mark): Mark {
@@ -150,10 +156,10 @@ function markOf(m: Mark): Mark {
 }
 // Adoption is deliberately separate from decoding/canonicalization: opening
 // legacy bytes never rewrites them or advances the editing revision.
-export function upgrade(b: Board): BoardV6 {
-  if (b.schemaVersion === 6) return b as BoardV6;
+export function upgrade(b: Board): BoardV7 {
+  if (b.schemaVersion === 7) return b as BoardV7;
   return {
-    ...b, schemaVersion: 6,
+    ...b, schemaVersion: 7,
     objects: b.objects.map((o) => ({ ...o,
       ...(b.schemaVersion === 1 ? objectType(o.type).legacyStyle : styleOf(o as ItemV2)),
       group: b.schemaVersion >= 3 ? (o as ItemV3).group : null,
@@ -161,9 +167,9 @@ export function upgrade(b: Board): BoardV6 {
     })),
   };
 }
-export function empty(): BoardV6 {
+export function empty(): BoardV7 {
   return {
-    schemaVersion: 6,
+    schemaVersion: 7,
     boardId: crypto.randomUUID(),
     title: "",
     objects: [],
@@ -181,10 +187,10 @@ export function freshIdentifier(board: Board, extra: readonly string[] = []): st
   do id = crypto.randomUUID(); while (used.has(id));
   return id;
 }
-export function add(input: Board, type: Item["type"], x: number, y: number): BoardV6 {
+export function add(input: Board, type: RectangleType, x: number, y: number): BoardV7 {
   const b = upgrade(input);
   if (b.objects.length >= 250) throw Error("250 object limit reached");
-  const { width, height } = objectType(type).defaultSize;
+  const { width, height } = rectangleType(type).defaultSize;
   const id = freshIdentifier(b);
   return {
     ...b,
@@ -229,7 +235,7 @@ export class Adapter {
         for (const key of ["generation", "type", "order", "group", "section"] as const) {
           if (m.get(key) !== o[key]) m.set(key, o[key]);
         }
-        for (const [key, value] of Object.entries(extraValues(o))) {
+        for (const [key, value] of Object.entries(hasEnds(o) ? { ends: extraValues(o) } : extraValues(o))) {
           if (JSON.stringify(m.get(key)) !== JSON.stringify(value)) m.set(key, value);
         }
         let text = m.get("text") as Y.Text | undefined;
@@ -249,9 +255,9 @@ export class Adapter {
         if (JSON.stringify(m.get("marks")) !== JSON.stringify(marks)) {
           m.set("marks", marks);
         }
-        const geometry = { x: o.x, y: o.y, width: o.width, height: o.height };
-        if (JSON.stringify(m.get("geometry")) !== JSON.stringify(geometry)) {
-          m.set("geometry", geometry);
+        if (hasRectangle(o)) {
+          const geometry = { x: o.x, y: o.y, width: o.width, height: o.height };
+          if (JSON.stringify(m.get("geometry")) !== JSON.stringify(geometry)) m.set("geometry", geometry);
         }
       }
       const retired = this.doc.getMap("retired");

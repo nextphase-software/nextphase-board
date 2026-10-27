@@ -8,7 +8,7 @@ import { text } from "../apps/web/src/objects/text.ts";
 import { COLORS, colorEntry, textUnits } from "../apps/web/src/styles.ts";
 
 test("object types retain sticky and text order, labels and placement tools", () => {
-  assert.deepEqual(OBJECT_TYPES.map((t) => t.type), ["sticky", "shape", "text", "section"]);
+  assert.deepEqual(OBJECT_TYPES.map((t) => t.type), ["sticky", "shape", "text", "section", "connector"]);
   assert.equal(objectType("sticky"), sticky);
   assert.equal(objectType("text"), text);
   assert.equal(objectType("sticky").label, "Sticky");
@@ -24,6 +24,30 @@ test("lookups reject values that no record has", () => {
   for (const tool of ["", "unknown", "sticky", "text", "Select"]) {
     assert.throws(() => typeForTool(tool), Error);
   }
+});
+
+test("v7 registry owns ends, rectangles, eligibility, bands and key sets", async () => {
+  const { hasEnds, hasRectangle, eligibleIdea, orderBand, typeWithEnds, ADD_OPTIONS, objectKeys } = await import("../apps/web/src/objects/registry.ts");
+  const record = typeWithEnds();
+  assert.equal(record, OBJECT_TYPES.at(-1)); assert.equal(record.type, "connector");
+  assert.equal(record.tool, null); assert.equal(record.validFrom, 7);
+  assert.equal(record.richText, false); assert.equal(record.container, false);
+  assert.equal(record.textLimit, 100); assert.equal(record.initialText, "");
+  assert.deepEqual(record.kinds, []); assert.equal(record.draws, false);
+  assert.deepEqual(record.defaultStyle, { color: "neutral", textSize: "medium", align: "center" });
+  assert.deepEqual(record.extraKeys, ["from", "to"]);
+  assert.equal(record.fontSize({}), 18); assert.equal(record.edge({}), "#6b6b6b");
+  assert.equal(record.textColor({}), "#2c2c2c");
+  for (const t of OBJECT_TYPES) {
+    const o = { type: t.type };
+    assert.equal(hasEnds(o), t.ends); assert.equal(hasRectangle(o), !t.ends);
+    assert.equal(eligibleIdea(o), !t.ends && !t.container);
+    assert.equal(orderBand(o), t.container ? 0 : t.ends ? 1 : 2);
+    assert.equal(objectKeys(t.type, 7).includes("x"), !t.ends);
+  }
+  assert(!ADD_OPTIONS.some((o) => o.type === record.type));
+  assert.equal(placementTool("Connector"), undefined);
+  assert.throws(() => typeForTool("Connector"));
 });
 
 for (const { name: color } of COLORS) {
@@ -85,7 +109,8 @@ test("records own version, body, container, formatting, text and size rules", ()
   assert.deepEqual(section.defaultSize, { width: 640, height: 480 });
   assert.deepEqual(section.defaultStyle, { color: "neutral", textSize: "medium", align: "left" });
   for (const t of OBJECT_TYPES) {
-    assert.equal(placementTool(t.tool), t); assert.equal(typeForTool(t.tool), t.type);
+    if (t.tool) { assert.equal(placementTool(t.tool), t); assert.equal(typeForTool(t.tool), t.type); }
+    assert.equal(t.ends, t.type === "connector");
     assert.equal(isContainer({ type: t.type }), t.container);
   }
   assert.equal(placementTool("Pan"), undefined);

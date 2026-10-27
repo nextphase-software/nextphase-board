@@ -1,20 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject, ReactNode } from "react";
-import type { BoardV6 as Board, ItemV6 as Item } from "../document";
+import type { BoardV7 as Board, ItemV7 as Item } from "../document";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "../styles";
 import { objectLabel } from "../sections";
-import { ADD_OPTIONS, isContainer } from "../objects/registry";
+import { ADD_OPTIONS, isContainer, eligibleIdea, hasRectangle } from "../objects/registry";
 import { FLAGS, FLAG_LABELS, type Flag } from "../marks";
 import { Icon } from "../icons";
 import type { Rectangle } from "../resize";
 import type { ArrangeCommand } from "../arrange";
 import { clipboardReason, type ClipboardCommand, type Snapshot } from "../clipboard";
 import type { View } from "../view";
+import { FOLLOW_REASON } from "../connectors";
 import { ArrangeControls } from "./arrange-controls";
 import { ShapeFields, GrowButton, type ShapeControlProps } from "./shape-controls";
 import { FormatPreview } from "./format-preview";
 
 type Props = {
+  duplicateReason: string;
   shapeSelection: ShapeControlProps["selection"];
   shapeCommands: ShapeControlProps["commands"];
   growAvailable: boolean;
@@ -56,12 +58,13 @@ type Props = {
 };
 
 export function ObjectsPanel({
-  shapeSelection, shapeCommands, growAvailable, board, richText, setSection, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
+  duplicateReason, shapeSelection, shapeCommands, growAvailable, board, richText, setSection, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
   numbers, drafts, nativeEditor, item, text, selectionColor, selectionSize, selectionAlign, selectionReason,
   selectionFormats, toggleFormat, changeStyle, command, readOnly, move, bounds, resizeBy, arrange, arrangementReason,
   objectClipboard, clipboardState, clipboardCommand, create, view
 }: Props) {
-  const ideas = board.objects.filter((o) => selected.has(o.id) && !isContainer(o));
+  const ideas = board.objects.filter((o) => selected.has(o.id) && eligibleIdea(o));
+  const geometryReason = !selected.size || readOnly || composing || busy ? selectionReason : board.objects.some((o) => selected.has(o.id) && hasRectangle(o)) ? "" : FOLLOW_REASON;
   const sections = board.objects.filter(isContainer);
   const sharedSection = ideas.length && ideas.every((o) => o.section === ideas[0].section) ? ideas[0].section ?? "" : "mixed";
   return (
@@ -154,12 +157,13 @@ export function ObjectsPanel({
       </div>}
       <div className="object-commands">
         {(["Duplicate", "Delete"] as const).map((name) => (
-          <button key={name} disabled={!!selectionReason} title={selectionReason || name}
-            aria-describedby="selection-reason" onClick={() => command(name)}>
+          <button key={name} disabled={!!(name === "Duplicate" ? duplicateReason : selectionReason)} title={(name === "Duplicate" ? duplicateReason : selectionReason) || name}
+            aria-describedby={name === "Duplicate" && duplicateReason !== selectionReason ? "duplicate-reason" : "selection-reason"} onClick={() => command(name)}>
             <Icon name={name} />{name}
           </button>
         ))}
       </div>
+      {geometryReason === FOLLOW_REASON && <span className="sr-only" id="geometry-reason">{geometryReason}</span>}
       <div className="moves">
         {[
           ["left", -10, 0, "←"],
@@ -170,7 +174,7 @@ export function ObjectsPanel({
           <button
             key={name}
             aria-label={(selected.size > 1 ? "Move objects " : "Move object ") + name}
-            disabled={!selected.size || readOnly || composing || busy}
+            disabled={!!geometryReason} title={geometryReason === FOLLOW_REASON ? geometryReason : undefined} aria-describedby={geometryReason === FOLLOW_REASON ? "geometry-reason" : undefined}
             onClick={() => move(Number(x), Number(y))}
           >
             {s}
@@ -186,7 +190,7 @@ export function ObjectsPanel({
           ["Wider", 10, 0], ["Narrower", -10, 0], ["Taller", 0, 10], ["Shorter", 0, -10],
         ].map(([name, x, y]) => <button key={name}
           aria-label={(selected.size > 1 ? "Make objects " : "Make object ") + String(name).toLowerCase()}
-          disabled={!selected.size || readOnly || composing || busy}
+          disabled={!!geometryReason} title={geometryReason === FOLLOW_REASON ? geometryReason : undefined} aria-describedby={geometryReason === FOLLOW_REASON ? "geometry-reason" : undefined}
           onClick={() => resizeBy(Number(x), Number(y))}>{name}</button>)}
       </div>
       <GrowButton available={growAvailable} grow={shapeCommands.grow} />
@@ -196,7 +200,7 @@ export function ObjectsPanel({
       </div>}
       <div className="object-commands" role="group" aria-label="Clipboard">
         {(["Copy", "Cut", "Paste"] as const).map((name) => {
-          const reason = clipboardReason(name, selected, objectClipboard, clipboardState);
+          const reason = clipboardReason(name, selected, objectClipboard, clipboardState, board.objects);
           const description = "clipboard-" + name.toLowerCase() + "-reason";
           return <span key={name}>
             <button disabled={!!reason} title={reason || name}

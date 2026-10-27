@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { add, type Board as SavedBoard, type BoardV6 as Board, type ItemV6 as Item, validText } from "../document";
+import { add, type Board as SavedBoard, type BoardV7 as Board, type ItemV7 as Item, validText } from "../document";
 import { neededHeight, savedHeight } from "../geometry";
 import { moveWithMembers, placeObject } from "../sections";
-import { objectType, creationValues, typeForTool, type ShapePaint } from "../objects/registry";
+import { objectType, rectangleType, hasRectangle, creationValues, typeForTool, type ShapePaint } from "../objects/registry";
 import { resizeObject, resizeSet, type Corner, type Rectangle } from "../resize";
 import { remap } from "../marks";
 import { textUnits } from "../styles";
@@ -43,7 +43,7 @@ export function useGeometryEdits({
       ...model.current,
       objects: model.current.objects.map((o) =>
         o.id === id && o.text !== value
-          ? { ...o, text: value, marks: remap(o.marks, o.text, value), height: objectType(o.type).growsWithText ? savedHeight(o, lineCount(o, value), textUnits(o.textSize)) : o.height }
+          ? { ...o, ...(hasRectangle(o) ? { height: objectType(o.type).growsWithText ? savedHeight(o, lineCount(o, value), textUnits(o.textSize)) : o.height } : {}), text: value, marks: remap(o.marks, o.text, value) }
           : o
       ),
     });
@@ -86,7 +86,7 @@ export function useGeometryEdits({
   }
 
   function resizeStart(): ResizeStart[] {
-    return model.current.objects.filter((o) => selected.has(o.id)).map((object) => ({
+    return model.current.objects.filter(hasRectangle).filter((o) => selected.has(o.id)).map((object) => ({
       object, rectangle: { x: object.x, y: object.y, width: object.width,
         height: objectLayouts.get(object.id)!.height },
     }));
@@ -94,12 +94,12 @@ export function useGeometryEdits({
   function resizeStillValid(start: ResizeStart[]) {
     return start.every(({ object }) => {
       const live = model.current.objects.find((o) => o.id === object.id);
-      return live && live.generation === object.generation && live.x === object.x &&
+      return live && hasRectangle(live) && live.generation === object.generation && live.x === object.x &&
         live.y === object.y && live.width === object.width && live.height === object.height;
     });
   }
   function resizedBoard(corner: Corner, start: ResizeStart[], dx: number, dy: number, shift: boolean) {
-    const members = start.map(({ object, rectangle }) => ({ ...rectangle, sizeRange: objectType(object.type).sizeRange,
+    const members = start.map(({ object, rectangle }) => ({ ...rectangle, sizeRange: rectangleType(object.type).sizeRange,
       neededHeight: (width: number) => objectType(object.type).growsWithText ? neededHeight(lineCount({ ...object, width }), textUnits(object.textSize)) : 0,
     }));
     const geometry = members.length === 1
@@ -115,7 +115,8 @@ export function useGeometryEdits({
   function resizeBy(dx: number, dy: number) {
     if (!selected.size || readOnly || composing || busy) return;
     finishTextSession();
-    commit(resizedBoard("se", resizeStart(), dx, dy, false), true);
+    const start = resizeStart();
+    if (start.length) commit(resizedBoard("se", start, dx, dy, false), true);
   }
   return {
     commitText, changeText, create, movedBoard, move, resizeStart,

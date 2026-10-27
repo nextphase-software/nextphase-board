@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Layer, Stage } from "react-konva";
-import type { BoardV6 as Board } from "../document";
+import type { BoardV7 as Board } from "../document";
 import type { View } from "../view";
 import { bandOrder, dropTargets } from "../sections";
-import { objectType } from "../objects/registry";
+import { objectType, hasRectangle, hasEnds, orderBand } from "../objects/registry";
+import { ConnectorBody } from "./connector-body";
 import { ShapeBody } from "./shape-body";
 import { SectionBody, SectionDropHint } from "./section-body";
 import { NoteBody, type ObjectLayout } from "./note-body";
@@ -29,16 +30,19 @@ export function BoardDrawing({ size, view, board, objectLayouts, selected, inlin
         scaleX={view.z}
         scaleY={view.z}
       >
-        {bandOrder(board.objects).map((o) => {
+        {[0, 1, 1, 2].flatMap((band, pass) => bandOrder(board.objects).filter((o) => orderBand(o) === band).map((o) => {
           const layout = objectLayouts.get(o.id)!;
+          if (hasEnds(o)) return <ConnectorBody key={o.id + pass} object={o} layout={layout.connector!}
+            selected={selected.has(o.id)} inline={inline} zoom={view.z} pass={pass === 1 ? "line" : "label"} />;
+          if (!hasRectangle(o)) return null;
           return (
             objectType(o.type).shapePaint ? <ShapeBody key={o.id} o={o} layout={layout} selected={selected} inline={inline} view={view} /> : objectType(o.type).body === "note" ? <NoteBody key={o.id} o={o} layout={layout} selected={selected} inline={inline} view={view} />
               : <SectionBody key={o.id} o={o} selected={selected} inline={inline} dropTarget={sections.has(o.id)} />
           );
-        })}
+        }))}
         {[...sections].map((id) => <SectionDropHint key={id}
-          section={board.objects.find((o) => o.id === id)!}
-          ideas={board.objects.filter((o) => targets.get(o.id) === id).map((o) =>
+          section={board.objects.filter(hasRectangle).find((o) => o.id === id)!}
+          ideas={board.objects.filter(hasRectangle).filter((o) => targets.get(o.id) === id).map((o) =>
             ({ ...o, displayHeight: objectLayouts.get(o.id)!.height }))} />)}
       </Layer>
     </Stage>

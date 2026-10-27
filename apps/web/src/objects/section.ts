@@ -7,7 +7,7 @@ export const section = {
   tool: "Section",
   validFrom: 5,
   body: "section",
-  container: true,
+  ends: false, container: true,
   richText: false,
   textLimit: 100,
   initialText: "Section",

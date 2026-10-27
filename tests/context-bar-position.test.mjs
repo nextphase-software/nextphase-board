@@ -41,6 +41,23 @@ test("the bar sits below transformed bounds when there is no room above", () => 
   });
 });
 
+test("connection dots add 18 CSS pixels to both placement distances at any zoom", () => {
+  for (const z of [0.5, 1, 2]) {
+    const above = { view: { x: 0, y: 0, z }, bounds: { x: 0, y: 0, width: 100, height: 60 } };
+    assert.equal(position({ ...above, dotsVisible: true }).contextTop, 400 - 66);
+    assert.equal(position(above).contextTop, 400 - 48);
+    const below = { ...above, layout: { notice: 40, panel: 80 }, bounds: { x: 0, y: -350 / z, width: 100, height: 60 } };
+    assert.equal(position({ ...below, dotsVisible: true }).contextTop, 50 + 60 * z + 26);
+    assert.equal(position(below).contextTop, 50 + 60 * z + 8);
+  }
+});
+
+test("a selection taller than the scene keeps the same clamped position with dots", () => {
+  const input = { bounds: { x: 0, y: -400, width: 100, height: 1600 } };
+  assert.equal(position(input).contextTop, 748);
+  assert.equal(position({ ...input, dotsVisible: true }).contextTop, 748);
+});
+
 test("the left edge clamps at 12", () => {
   assert.deepEqual(position({ bounds: { x: -400, y: -100, width: 100, height: 60 } }), {
     contextLeft: 12, contextTop: 252, contextFits: true,

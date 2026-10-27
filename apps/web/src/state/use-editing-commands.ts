@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { Board as SavedBoard, BoardV6 as Board, ItemV6 as Item } from "../document";
+import type { Board as SavedBoard, BoardV7 as Board, ItemV7 as Item, ResolvedItem } from "../document";
 import { count } from "../document";
 import { codePointOffset, formatted, toggle, type Flag } from "../marks";
 import { deleteObject, duplicate, redo, undo, type History } from "../history";
@@ -8,10 +8,12 @@ import { savedHeight } from "../geometry";
 import { textUnits, type Style } from "../styles";
 import type { View } from "../view";
 import { arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "../arrange";
-import { assignSection, orderInBands, withMembers, wrapReason, wrapSelection } from "../sections";
-import { objectType, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, type ShapeKeys, type ShapePaint } from "../objects/registry";
+import { assignSection, orderInBands, wrapReason, wrapSelection } from "../sections";
+import { objectType, hasRectangle, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, type ShapeKeys, type ShapePaint } from "../objects/registry";
 import { groupObjects, groupReason, ungroupObjects } from "../group";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "../clipboard";
+
+import { copiedSet, copiedSetReason, cascadeCount, connectReason, createConnector } from "../connectors";
 
 type Input = {
   shapeSession: { update: (paint: ShapePaint) => void };
@@ -31,15 +33,16 @@ type Input = {
   setInline: Dispatch<SetStateAction<boolean>>;
   scene: RefObject<HTMLDivElement | null>;
   editor: RefObject<HTMLTextAreaElement | null>;
+  selector?: RefObject<HTMLSelectElement | null>;
   setPanel: Dispatch<SetStateAction<string>>;
   setTool: Dispatch<SetStateAction<string>>;
   view: View;
-  displayedObjects: (Item & { displayHeight: number })[];
+  displayedObjects: ResolvedItem[];
   commandReason: string;
   selectionReason: string;
   clipboardState: Parameters<typeof clipboardReason>[3];
   editingState: Parameters<typeof arrangeReason>[2];
-  arrangementMembers: (Item & { displayHeight: number })[];
+  arrangementMembers: ResolvedItem[];
   lineCount: (object: Item, text?: string) => number;
 };
 
@@ -47,7 +50,7 @@ export function useEditingCommands({
   shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
   setMessage, messageSequence, alive, select, selected, setInline, scene, view,
   displayedObjects, commandReason, selectionReason, clipboardState, editingState,
-  arrangementMembers, lineCount, editor, setPanel, setTool,
+  arrangementMembers, lineCount, editor, selector, setPanel, setTool,
 }: Input) {
   const [objectClipboard, setObjectClipboard] = useState<Snapshot | null>(null);
   function writePlainText(snapshot: Snapshot, copiedMessage: string) {
@@ -64,7 +67,7 @@ export function useEditingCommands({
     } catch { failed(); }
   }
   function clipboardCommand(name: ClipboardCommand) {
-    const reason = clipboardReason(name, selected, objectClipboard, clipboardState);
+    const reason = clipboardReason(name, selected, objectClipboard, clipboardState, model.current.objects);
     if (reason) { setMessage(reason); return; }
     try {
       if (name === "Paste") {
@@ -95,12 +98,16 @@ export function useEditingCommands({
       setMessage(commandReason);
       return;
     }
+    if ((name === "Duplicate" || name === "Cut") && copiedSetReason(model.current.objects, selected)) {
+      setMessage(copiedSetReason(model.current.objects, selected)); return;
+    }
     finishTextSession();
     try {
       const deleting = name === "Delete" || name === "Cut";
-      const acted = name === "Cut" || name === "Duplicate" ? withMembers(model.current.objects, selected) : selected;
+      const acted = name === "Cut" || name === "Duplicate" ? copiedSet(model.current.objects, selected) : selected;
       const targets = model.current.objects.filter((o) => acted.has(o.id));
       const current = targets[0];
+      const removedConnectors = deleting && targets.some(hasRectangle) ? cascadeCount(model.current.objects, acted) : 0;
       if ((name === "Duplicate" || deleting) && !current) {
         setMessage("Select an object to " + name.toLowerCase() + ".");
         return;
@@ -142,13 +149,15 @@ export function useEditingCommands({
           : affected.length ? "Affected object selected."
           : removedSelection ? remaining.length ? "Removed objects deselected." : "Selection cleared."
           : "Selection unchanged.");
-      setMessage(resultMessage);
-      return resultMessage;
+      const notice = resultMessage + (removedConnectors ? " " + removedConnectors + (removedConnectors === 1 ? " connector removed with the ideas." : " connectors removed with the ideas.") : "");
+      setMessage(notice);
+      return notice;
     } catch (error) {
       setMessage(String(error));
     }
   }
   function arrangementReason(name: ArrangeCommand) {
+    if (name === "Connect") return connectReason(model.current, selected, editingState);
     if (name === "Section from selection") return wrapReason(model.current, selected, displayedObjects, editingState);
     return name === "Group" || name === "Ungroup"
       ? groupReason(name, model.current, selected, editingState)
@@ -159,7 +168,12 @@ export function useEditingCommands({
     finishTextSession();
     setInline(false);
     const current = model.current;
-    if (name === "Section from selection") {
+    if (name === "Connect") {
+      const ideas = current.objects.filter((o) => selected.has(o.id)).sort((a, b) => a.order - b.order);
+      const result = createConnector(current, ideas[0].id, ideas[1].id);
+      commit(result.board, true); select(result.id); setTool("Select");
+      if (native) selector?.current?.focus(); else scene.current?.focus();
+    } else if (name === "Section from selection") {
       const result = wrapSelection(current, selected, displayedObjects);
       commit(result.board, true);
       select(result.id);
@@ -187,11 +201,11 @@ export function useEditingCommands({
     commit(next, true);
   }
   function changeStyle<K extends keyof Style>(key: K, value: Style[K]) {
-    if (selectionReason || key !== "color" && model.current.objects.some((o) => selected.has(o.id) && !objectType(o.type).richText)) return;
+    if (selectionReason || key !== "color" && model.current.objects.some((o) => selected.has(o.id) && hasRectangle(o) && !objectType(o.type).richText)) return;
     finishTextSession();
     setInline(false);
     const objects = model.current.objects.map((current) => {
-      if (!selected.has(current.id) || key === "color" && usesShapePaint(current) || current[key] === value) return current;
+      if (!hasRectangle(current) || !selected.has(current.id) || key === "color" && usesShapePaint(current) || current[key] === value) return current;
       const styled = { ...current, [key]: value };
       return key === "textSize" && objectType(styled.type).growsWithText
         ? { ...styled, height: savedHeight(styled, lineCount(styled), textUnits(styled.textSize)) }
@@ -200,7 +214,7 @@ export function useEditingCommands({
     commit({ ...model.current, objects }, true);
   }
   function toggleFormat(flag: Flag) {
-    if (selectionReason || model.current.objects.some((o) => selected.has(o.id) && !objectType(o.type).richText)) return;
+    if (selectionReason || model.current.objects.some((o) => selected.has(o.id) && hasRectangle(o) && !objectType(o.type).richText)) return;
     finishTextSession();
     const field = editor.current;
     const beingEdited = field === document.activeElement && selected.size === 1;
@@ -209,7 +223,7 @@ export function useEditingCommands({
       const end = codePointOffset(field.value, field.selectionEnd);
       if (end > start) {
         const objects = model.current.objects.map((o) => {
-          if (!selected.has(o.id)) return o;
+          if (!hasRectangle(o) || !selected.has(o.id)) return o;
           const next = { ...o, marks: toggle(o.marks, count(o.text), start, end, flag) };
           return { ...next, height: objectType(next.type).growsWithText ? savedHeight(next, lineCount(next), textUnits(next.textSize)) : next.height };
         });
@@ -218,21 +232,21 @@ export function useEditingCommands({
       }
     }
     if (!beingEdited) setInline(false);
-    const targets = model.current.objects.filter((o) => selected.has(o.id) && o.text.length > 0);
+    const targets = model.current.objects.filter((o) => hasRectangle(o) && selected.has(o.id) && o.text.length > 0);
     const remove = targets.every((o) => formatted(o.marks, count(o.text), flag));
     const objects = model.current.objects.map((o) => {
-      if (!selected.has(o.id) || !o.text.length || formatted(o.marks, count(o.text), flag) !== remove) return o;
+      if (!hasRectangle(o) || !selected.has(o.id) || !o.text.length || formatted(o.marks, count(o.text), flag) !== remove) return o;
       const next = { ...o, marks: toggle(o.marks, count(o.text), 0, count(o.text), flag) };
       return { ...next, height: objectType(next.type).growsWithText ? savedHeight(next, lineCount(next), textUnits(next.textSize)) : next.height };
     });
     commit({ ...model.current, objects }, true);
   }
-  function shapeCommand(change: (o: Item) => Item, paint = false) {
+  function shapeCommand(change: (o: Item & { x: number; y: number; width: number; height: number }) => Item, paint = false) {
     if (selectionReason) return;
     finishTextSession(); setInline(false);
     const changed: Item[] = [];
     const objects = model.current.objects.map((o) => {
-      if (!selected.has(o.id) || !usesShapePaint(o)) return o;
+      if (!hasRectangle(o) || !selected.has(o.id) || !usesShapePaint(o)) return o;
       const next = change(o);
       if (next !== o) changed.push(next);
       return next;

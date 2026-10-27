@@ -18,7 +18,7 @@ export function Palette({
 }: Props) {
   return (
     <nav className="palette floating" aria-label="Board tools">
-      {(["Select", "Pan", ...OBJECT_TYPES.map((t) => t.tool)] as const).map((
+      {(["Select", "Pan", ...OBJECT_TYPES.flatMap((t) => t.tool ? [t.tool] : [])] as const).map((
         name,
       ) => (
         <button

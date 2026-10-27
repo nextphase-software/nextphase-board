@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { RefObject } from "react";
-import type { Board as SavedBoard, BoardV6 as Board, ItemV6 as Item } from "../document";
+import type { Board as SavedBoard, BoardV7 as Board, ResolvedItem as Item } from "../document";
 import type { History } from "../history";
 import { placementTool } from "../objects/registry";
 import { editingCommandReason } from "../commands";
+
+import { copiedSetReason } from "../connectors";
 
 type Input = {
   readOnly: boolean;
@@ -33,13 +35,14 @@ export function useCommandReasons({
   const undoReason = commandReason || (!history.past.length && !sessionChanged ? "Nothing to undo." : "");
   const redoReason = commandReason || (sessionChanged || !history.future.length ? "Nothing to redo." : "");
   const selectionReason = commandReason || (!selected.size ? "Select an object to duplicate or delete." : "");
+  const duplicateReason = selectionReason || copiedSetReason(model.current.objects, selected);
   const clipboardState = { readOnly, composing, pointerGesture: busy, invalidObjectText };
   const showNotice = !!(visibleMessage || invalid || busy || readOnly ||
     placementTool(tool) || snapshots.length);
   const editingState = { readOnly, composing, pointerGesture: busy, invalidObjectText };
   const arrangementMembers = displayedObjects.filter((o) => selected.has(o.id));
   return {
-    commandReason, undoReason, redoReason, selectionReason, clipboardState,
+    commandReason, undoReason, redoReason, selectionReason, duplicateReason, clipboardState,
     showNotice, editingState, arrangementMembers,
   };
 }

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { freshIdentifier as fresh, type Board, type Item } from "./document.ts";
 
-import { bandOrder, orderParticipants, remapSection, withMembers } from "./sections.ts";
+import { bandOrder, orderParticipants, remapSection } from "./sections.ts";
+
+import { cascade, copiedSet, remapEnds, COPY_REASON } from "./connectors.ts";
+import { hasRectangle } from "./objects/registry.ts";
 
 type ObjectChange = { before: Item | null; after: Item | null };
 export type Step = { changes: ObjectChange[]; affectedIds?: string[] };
@@ -106,8 +109,9 @@ function targets(board: Board, target: Item | Item[]): Item[] {
 
 export function duplicate(board: Board, history: History, target: Item | Item[]): Change {
   const selectedTargets = targets(board, target);
-  const copied = withMembers(board.objects, new Set(selectedTargets.map((o) => o.id)));
+  const copied = copiedSet(board.objects, new Set(selectedTargets.map((o) => o.id)));
   const items = board.objects.filter((o) => copied.has(o.id));
+  if (!items.length) throw Error(COPY_REASON);
   if (board.objects.length + items.length > 250) throw Error("250 object limit reached");
   const objects = [...board.objects];
   const selected = new Set(items.map((o) => o.id));
@@ -126,11 +130,11 @@ export function duplicate(board: Board, history: History, target: Item | Item[])
   const ids = new Map([...identities].map(([source, copy]) => [source, copy.id]));
   for (const item of items) {
     objects.push({
-      ...item, ...identities.get(item.id)!,
+      ...remapEnds(item, ids), ...identities.get(item.id)!,
       ...("section" in item ? { section: remapSection(item.section, ids) } : {}),
       ...("group" in item ? { group: item.group ? groups.get(item.group)! : null } : {}),
-      x: Math.max(-1e6, Math.min(1e6 - item.width, item.x + 24)),
-      y: Math.max(-1e6, Math.min(1e6 - item.height, item.y + 24)),
+      ...(hasRectangle(item) ? { x: Math.max(-1e6, Math.min(1e6 - item.width, item.x + 24)),
+        y: Math.max(-1e6, Math.min(1e6 - item.height, item.y + 24)) } : {}),
       order: objects.length,
     });
   }
@@ -140,7 +144,8 @@ export function duplicate(board: Board, history: History, target: Item | Item[])
 }
 
 export function deleteObject(board: Board, history: History, target: Item | Item[]): Change {
-  const items = targets(board, target);
+  const deleting = cascade(board.objects, new Set(targets(board, target).map((o) => o.id)));
+  const items = board.objects.filter((o) => deleting.has(o.id));
   const removed = new Set(items.map((o) => o.id));
   const deleted = apply(board, items.map((source) => ({ source, target: null })));
   const next = { ...deleted, objects: deleted.objects.map((o) =>

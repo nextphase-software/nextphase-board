@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction, SyntheticEvent } from "react";
-import { count, type ItemV6 as Item, validText } from "../document";
+import { count, type ItemV7 as Item, validText } from "../document";
 import { objectType } from "../objects/registry";
 import { codePointOffset, type Flag, type TextSelection } from "../marks";
 
@@ -47,11 +47,15 @@ export function ContentField({
         ref={editor}
         aria-label={inline ? label === "Name" ? "Edit selected name on canvas" : "Edit selected object on canvas" : label}
         value={text}
+        placeholder={inline && type?.ends ? "Add text" : undefined}
         readOnly={readOnly || busy}
         disabled={!item}
         onFocus={(e) => { beginTextSession(item); track(e); }}
         onSelect={track}
         onKeyDown={(e) => {
+          if (type?.ends && inline && e.key === "Escape" && !composing && !e.nativeEvent.isComposing) {
+            e.preventDefault(); e.stopPropagation(); finishTextSession(); setTextSelection(null); setInline(false); return;
+          }
           if (!type?.richText || composing || e.nativeEvent.isComposing || !(e.ctrlKey || e.metaKey) || e.altKey) return;
           const key = e.key.toLowerCase();
           const flag = key === "b" && !e.shiftKey ? "bold"

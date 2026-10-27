@@ -2,6 +2,9 @@
 import { editingCommandReason } from "./commands.ts";
 import type { DisplayObject } from "./selection.ts";
 
+import { hasRectangle } from "./objects/registry.ts";
+import { FOLLOW_REASON } from "./connectors.ts";
+
 export const ARRANGE_GROUPS = [
   { label: "Align", commands: [
     "Align objects left", "Align objects centre", "Align objects right",
@@ -11,6 +14,7 @@ export const ARRANGE_GROUPS = [
   { label: "Order", commands: ["Bring to front", "Bring forward", "Send backward", "Send to back"] },
   { label: "Group", commands: ["Group", "Ungroup"] },
   { label: "Section", commands: ["Section from selection"] },
+  { label: "Connector", commands: ["Connect"] },
 ] as const;
 export type ArrangeCommand = typeof ARRANGE_GROUPS[number]["commands"][number];
 export type OrderCommand = typeof ARRANGE_GROUPS[2]["commands"][number];
@@ -28,10 +32,13 @@ function axis(objects: readonly DisplayObject[], horizontal: boolean) {
   return { sorted, start, end, length, free: end - start - total };
 }
 
-export function arrangeReason(command: ArrangeCommand, objects: readonly DisplayObject[], state: EditingState): string {
+export function arrangeReason(command: ArrangeCommand, objects: readonly (DisplayObject & { type?: string })[], state: EditingState): string {
   const editing = editingCommandReason(state);
   if (editing) return editing;
   if (isOrderCommand(command)) return objects.length ? "" : "Select an object to duplicate or delete.";
+  const rectangles = objects.filter((o) => !o.type || hasRectangle({ type: o.type }));
+  if (objects.length && !rectangles.length) return FOLLOW_REASON;
+  objects = rectangles;
   if (command.startsWith("Align")) return objects.length >= 2 ? "" : "Select two or more objects to align.";
   if (objects.length < 3) return "Select three or more objects to distribute.";
   const horizontal = command === "Distribute horizontally";
@@ -68,7 +75,8 @@ function inside(position: number, length: number, start: number, end: number): n
 }
 
 // Return positions only: measured display heights never become saved heights.
-export function arrangePositions(command: Exclude<ArrangeCommand, OrderCommand>, objects: readonly DisplayObject[]) {
+export function arrangePositions(command: Exclude<ArrangeCommand, OrderCommand>, objects: readonly (DisplayObject & { type?: string })[]) {
+  objects = objects.filter((o) => !o.type || hasRectangle({ type: o.type }));
   const horizontal = command.endsWith("left") || command.endsWith("centre") ||
     command.endsWith("right") || command === "Distribute horizontally";
   const { sorted, start, end, length, free } = axis(objects, horizontal);

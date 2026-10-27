@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useMemo, type RefObject } from "react";
 import Konva from "konva";
-import type { BoardV6 as Board, ItemV6 as Item } from "../document";
+import type { BoardV7 as Board, ItemV7 as Item, ResolvedItem } from "../document";
 import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT } from "../geometry";
-import { objectType, textBox, usesShapePaint, shapeTextLayout, fitHeight, canGrow } from "../objects/registry";
+import { objectType, textBox, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds } from "../objects/registry";
 import { groupNumbers, wholeGroups } from "../group";
 import { cornerPoint, type Corner } from "../resize";
 import { boundingBox } from "../selection";
@@ -11,6 +11,8 @@ import { textUnits } from "../styles";
 import { remap } from "../marks";
 import { layoutRuns, type RunStyle, type RunLine } from "../text-runs";
 import type { Drag } from "../gesture";
+
+import { connectorLayout, labelEditorBox, type ConnectorLayout } from "../connectors";
 
 const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
 
@@ -42,11 +44,13 @@ function measure(text: string, style: RunStyle, fontSize: number): number {
   return measurement.measureSize(text).width;
 }
 function runLines(object: Item, text = object.text) {
+  if (!hasRectangle(object)) return null;
   const marks = text === object.text ? object.marks : remap(object.marks, object.text, text);
   return marks.length || usesShapePaint(object) ? layoutRuns(text, marks, textBox(object).width,
     (value, style) => measure(value, style, textUnits(object.textSize))) : null;
 }
 function lineCount(object: Item, text = object.text): number {
+  if (!hasRectangle(object)) return text.split(/\r\n|[\r\n]/).length;
   const runs = runLines(object, text);
   if (runs) return Math.max(1, runs.length);
   // Auto height is essential here: a fixed height would count only visible lines.
@@ -64,7 +68,8 @@ function lineCount(object: Item, text = object.text): number {
 export function useObjectLayouts({
   board, selected, selectedId, item, text, inline, textEditing, invalidObjectText, tool, readOnly, composing, busy, drag,
 }: Input) {
-  const objectLayouts = useMemo(() => new Map(board.objects.map((o): [string, { height: number; runs: RunLine[] | null; limited: boolean; fadeStart: number; fadeEnd: number; fits?: boolean; fitHeight?: number }] => {
+  const objectLayouts = useMemo(() => {
+    const layouts = new Map(board.objects.filter(hasRectangle).map((o): [string, { height: number; runs: RunLine[] | null; limited: boolean; fadeStart: number; fadeEnd: number; fits?: boolean; fitHeight?: number; connector?: ConnectorLayout }] => {
     if (!objectType(o.type).richText) return [o.id, { height: o.height, runs: null,
       limited: false, fadeStart: 0, fadeEnd: 0 }];
     // Uncommitted composition/invalid input may grow the editor's preview only.
@@ -88,12 +93,25 @@ export function useObjectLayouts({
       fadeStart: Math.max(0, visibleLines - 1) * lineHeight,
       fadeEnd: Math.max(1, Math.min(innerHeight, Math.max(1, visibleLines) * lineHeight)),
     }];
-  })), [board.objects, inline, selectedId, text]);
-  const displayedObjects = board.objects.map((o) => ({ ...o, displayHeight: objectLayouts.get(o.id)!.height }));
-  const bounds = boundingBox(displayedObjects.filter((o) => selected.has(o.id)));
+    }));
+    const rectangles = new Map(board.objects.filter(hasRectangle).map((o) => [o.id, { ...o, displayHeight: layouts.get(o.id)!.height }]));
+    for (const o of board.objects.filter(hasEnds)) {
+      const connector = connectorLayout(o, rectangles, (value) => measure(value, {}, 18));
+      layouts.set(o.id, { height: connector.bounds.height, connector, runs: null, limited: false, fadeStart: 0, fadeEnd: 0 });
+    }
+    return layouts;
+  }, [board.objects, inline, selectedId, text]);
+  const displayedObjects: ResolvedItem[] = board.objects.map((o) => {
+    const layout = objectLayouts.get(o.id)!;
+    return { ...o, ...(layout.connector?.bounds ?? {}), connectorLayout: layout.connector, displayHeight: layout.height } as ResolvedItem;
+  });
+  const resolvedItem = displayedObjects.find((o) => o.id === selectedId);
+  const editorBox = resolvedItem && hasEnds(resolvedItem) ? labelEditorBox(resolvedItem.connectorLayout!.labelPoint, text) : undefined;
+  const rectanglesSelected = displayedObjects.filter((o) => selected.has(o.id) && hasRectangle(o));
+  const bounds = boundingBox(rectanglesSelected.length ? rectanglesSelected : displayedObjects.filter((o) => selected.has(o.id)));
   const selectedGroups = wholeGroups(displayedObjects, selected);
   const numbers = groupNumbers(board.objects);
-  const handlesVisible = !!bounds && tool === "Select" && !readOnly && (!inline || !!item && !objectType(item.type).richText) && !composing &&
+  const handlesVisible = rectanglesSelected.length > 0 && !!bounds && tool === "Select" && !readOnly && (!inline || !!item && !objectType(item.type).richText) && !composing &&
     (!busy || !!drag.current?.corner);
   const handlePoints = bounds ? CORNERS.map((corner) => ({
     corner, ...cornerPoint(corner, bounds),
@@ -101,11 +119,11 @@ export function useObjectLayouts({
   const itemLayout = item ? objectLayouts.get(item.id) : undefined;
   const growHeight = itemLayout?.fitHeight ?? 0;
   const growAvailable = !!item && canGrow(selected.size === 1, usesShapePaint(item),
-    itemLayout?.fits ?? true, item.height, growHeight,
+    itemLayout?.fits ?? true, hasRectangle(item) ? item.height : 0, growHeight,
     readOnly || composing || busy || inline || textEditing || invalidObjectText ? "Unavailable while editing" : "");
   const itemHeight = item ? objectLayouts.get(item.id)!.height : 0;
   return {
-    growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
+    editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
     handlesVisible, handlePoints, itemHeight,
   };
 }

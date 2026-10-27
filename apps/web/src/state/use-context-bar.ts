@@ -10,7 +10,7 @@ type Input = Omit<ContextBarPositionInput, "contextWidth"> & {
 
 export function useContextBar({
   selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
-  item, itemHeight,
+  item, itemHeight, dotsVisible, editorBox,
 }: Input) {
   const contextBar = useRef<HTMLElement>(null),
     colourControl = useRef<HTMLSpanElement>(null),
@@ -43,7 +43,7 @@ export function useContextBar({
     return () => observer.disconnect();
   }, [selectionKey]);
   const { contextLeft, contextTop, contextFits } = contextBarPosition({
-    bounds, pos, view, size, contextWidth, layout, inline, item, itemHeight,
+    bounds, pos, view, size, contextWidth, layout, inline, item, itemHeight, dotsVisible, editorBox,
   });
   const shapeOpen = shapeFor.key === selectionKey && contextFits && !selectionReason ? shapeFor.name : "";
   const shapePopup = { open: shapeOpen, controls, buttons, menu,

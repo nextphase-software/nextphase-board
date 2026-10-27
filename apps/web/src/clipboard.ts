@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
-import { freshIdentifier, type BoardV6, type ItemV6 } from "./document.ts";
-import { extraValues } from "./objects/registry.ts";
+import { freshIdentifier, type BoardV7, type ItemV7 } from "./document.ts";
+import { extraValues, hasRectangle } from "./objects/registry.ts";
 import { editingCommandReason } from "./commands.ts";
 import { wholeGroups } from "./group.ts";
-import { bandOrder, remapSection, withMembers } from "./sections.ts";
+import { bandOrder, remapSection } from "./sections.ts";
 import type { DisplayObject } from "./selection.ts";
 
+import { copiedSet, copiedSetReason, remapEnds } from "./connectors.ts";
+
+type CopiedItem<T> = T extends ItemV7 ? Omit<T, "generation" | "order"> : never;
 export type ClipboardCommand = "Copy" | "Cut" | "Paste";
 export type Snapshot = {
-  objects: Omit<ItemV6, "generation" | "order">[];
+  objects: CopiedItem<ItemV7>[];
   sourceBox: { left: number; top: number; right: number; bottom: number };
   sourceIdentifiers: string[];
   pasteCount: number;
@@ -17,27 +20,28 @@ type EditingState = Parameters<typeof editingCommandReason>[0];
 type PasteView = { centerX: number; centerY: number; zoom: number; width: number; height: number };
 
 export function clipboardReason(command: ClipboardCommand, selected: ReadonlySet<string>,
-  snapshot: Snapshot | null, state: EditingState): string {
+  snapshot: Snapshot | null, state: EditingState, objects?: readonly ItemV7[]): string {
   const reason = editingCommandReason(command === "Copy" ? { ...state, readOnly: false } : state);
   if (reason) return reason;
+  if (command !== "Paste" && objects && copiedSetReason(objects, selected)) return copiedSetReason(objects, selected);
   return command === "Paste" ? snapshot ? "" : "Nothing to paste."
     : selected.size ? "" : "Select an object to " + command.toLowerCase() + ".";
 }
 
-export function buildSnapshot(board: BoardV6, selected: ReadonlySet<string>,
+export function buildSnapshot(board: BoardV7, selected: ReadonlySet<string>,
   drawn: readonly DisplayObject[]): Snapshot | null {
-  const copied = withMembers(board.objects, selected);
+  const copied = copiedSet(board.objects, selected);
   const objects = board.objects.filter((o) => copied.has(o.id)).sort((a, b) => a.order - b.order);
   if (!objects.length) return null;
   const groups = wholeGroups(board.objects, copied);
   const rectangles = new Map(drawn.map((o) => [o.id, o]));
   return {
     objects: objects.map((o) => {
-      const { id, type, text, color, textSize, align, group, marks, section, x, y, width, height } = o;
+      const { generation: _generation, order: _order, ...saved } = o;
       return {
-        id, section: section && copied.has(section) ? section : null, type, text, color, textSize, align, group: group !== null && groups.has(group) ? group : null,
-        marks: marks.map((m) => ({ ...m })),
-        ...extraValues(o), x, y, width, height,
+        ...saved, section: o.section && copied.has(o.section) ? o.section : null,
+        group: o.group !== null && groups.has(o.group) ? o.group : null,
+        marks: o.marks.map((m) => ({ ...m })), ...extraValues(o),
       };
     }),
     sourceBox: {
@@ -76,8 +80,8 @@ function bounded(position: number, length: number): number {
   return result;
 }
 
-export function buildPaste(board: BoardV6, snapshot: Snapshot, view: PasteView): {
-  board: BoardV6; pasteCount: number;
+export function buildPaste(board: BoardV7, snapshot: Snapshot, view: PasteView): {
+  board: BoardV7; pasteCount: number;
 } {
   if (board.objects.length + snapshot.objects.length > 250) throw Error("250 object limit reached");
   const pasteCount = snapshot.pasteCount + 1;
@@ -99,9 +103,9 @@ export function buildPaste(board: BoardV6, snapshot: Snapshot, view: PasteView):
   const copies = snapshot.objects.map((o, index) => {
     if (o.group !== null && !groups.has(o.group)) groups.set(o.group, fresh());
     return {
-      ...o, id: ids.get(o.id)!, generation: fresh(), section: remapSection(o.section, ids),
+      ...remapEnds(o, ids), id: ids.get(o.id)!, generation: fresh(), section: remapSection(o.section, ids),
       group: o.group === null ? null : groups.get(o.group)!,
-      x: bounded(o.x + dx, o.width), y: bounded(o.y + dy, o.height),
+      ...(hasRectangle(o) ? { x: bounded(o.x + dx, o.width), y: bounded(o.y + dy, o.height) } : {}),
       order: board.objects.length + index,
     };
   });

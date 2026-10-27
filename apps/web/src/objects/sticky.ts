@@ -9,7 +9,7 @@ export const sticky = {
   tool: "Sticky",
   validFrom: 1,
   body: "note",
-  container: false,
+  ends: false, container: false,
   richText: true,
   textLimit: 1000,
   initialText: "",

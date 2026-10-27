@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Group, Rect, Text } from "react-konva";
-import type { ItemV6 as Item } from "../document";
+import type { RectangleItem as Item } from "../document";
 import { TEXT_INSET, TEXT_LAYOUT } from "../geometry";
 import { objectType } from "../objects/registry";
 import { textUnits } from "../styles";
@@ -8,6 +8,7 @@ import { lineOffset, type RunLine } from "../text-runs";
 import type { View } from "../view";
 
 export type ObjectLayout = {
+  connector?: import("../connectors").ConnectorLayout;
   height: number;
   runs: RunLine[] | null;
   limited: boolean;

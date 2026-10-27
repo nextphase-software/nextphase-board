@@ -22,10 +22,11 @@ const objects = new URL("objects/", source);
 const objectTypes = files(objects).sort();
 const objectContents = objectTypes.map((name) => [name, readFileSync(new URL(name, objects), "utf8")]);
 
-test("screen parts contain exactly the sixteen screen modules named through 0002-W4 v1", () => {
+test("screen parts contain exactly the seventeen screen modules named through 0002-W2 v1", () => {
   assert.deepEqual(screenParts, [
     "arrange-controls.tsx",
     "board-panel.tsx",
+    "connector-controls.tsx",
     "content-field.tsx",
     "context-bar.tsx",
     "file-bar.tsx",
@@ -76,9 +77,11 @@ test("every screen part begins with the Apache-2.0 licence header", () => {
   }
 });
 
-test("scene parts contain exactly the six modules named through 0002-W4 v1", () => {
+test("scene parts contain exactly the eight modules named through 0002-W2 v1", () => {
   assert.deepEqual(sceneParts, [
     "board-drawing.tsx",
+    "connection-dots.tsx",
+    "connector-body.tsx",
     "inline-editor.tsx",
     "note-body.tsx",
     "overlays.tsx",
@@ -87,8 +90,8 @@ test("scene parts contain exactly the six modules named through 0002-W4 v1", () 
   ]);
 });
 
-test("object types contain exactly the five object-type modules named through 0002-W4 v1", () => {
-  assert.deepEqual(objectTypes, ["registry.ts", "section.ts", "shape.ts", "sticky.ts", "text.ts"]);
+test("object types contain exactly the six object-type modules named through 0002-W2 v1", () => {
+  assert.deepEqual(objectTypes, ["connector.ts", "registry.ts", "section.ts", "shape.ts", "sticky.ts", "text.ts"]);
 });
 
 test("object types never import React or Konva", () => {
@@ -100,7 +103,7 @@ test("object types never import React or Konva", () => {
 test("composition and screen parts ask the registry instead of comparing type names", () => {
   const app = readFileSync(new URL("App.tsx", source), "utf8");
   for (const [name, content] of [["App.tsx", app], ...contents, ...sceneContents]) {
-    assert.doesNotMatch(content, /===\s*["'](?:sticky|text|section|shape|square|circle)["']/, name);
+    assert.doesNotMatch(content, /===\s*["'](?:sticky|text|section|shape|square|circle|connector)["']/, name);
     assert.doesNotMatch(content, /["']sticky["']\s*:\s*["']text["']/, name);
     assert.doesNotMatch(content, /\[\s*["']sticky["']\s*,\s*["']text["']\s*\]/, name);
   }
@@ -295,8 +298,8 @@ test("object types import only siblings or styles, which never imports object ty
 function typeNameUses(source) {
   return [
     /\bsticky\b/,
-    /[=!]==\s*["'](?:sticky|text|section|shape|square|circle)["']/,
-    /["'](?:sticky|text|section|shape|square|circle)["']\s*[=!]==/,
+    /[=!]==\s*["'](?:sticky|text|section|shape|square|circle|connector)["']/,
+    /["'](?:sticky|text|section|shape|square|circle|connector)["']\s*[=!]==/,
   ].filter((pattern) => pattern.test(source));
 }
 
@@ -320,6 +323,8 @@ test("rules type-name guard detects each forbidden form and allows text fields",
     'if (o.type === "section") return;',
     'if ("section" !== o.type) return;',
     'if (o.type === "shape") return;',
+    'if (o.type === "connector") return;',
+    'if ("connector" !== o.type) return;',
     'if (o.shape !== "square") return;',
     'if ("circle" === o.shape) return;',
   ]) {

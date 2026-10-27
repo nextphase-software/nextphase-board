@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import type { ItemV6 as Item } from "../document";
-import { objectType, textBox } from "../objects/registry";
+import type { ResolvedItem as Item } from "../document";
+import { objectType, rectangleType, textBox, hasEnds } from "../objects/registry";
+import { labelEditorBox } from "../connectors";
 import { textUnits } from "../styles";
 import type { View } from "../view";
 
@@ -12,6 +13,7 @@ type Input = {
   selected: Set<string>;
   item: Item | undefined;
   itemHeight: number;
+  text: string;
   inline: boolean;
   setInline: Dispatch<SetStateAction<boolean>>;
   composing: boolean;
@@ -22,7 +24,7 @@ type Input = {
 
 export function useEditorPlacement({
   finishTextSession, view, size, selected, item, itemHeight, inline, setInline,
-  composing, busy, readOnly, pos,
+  composing, busy, readOnly, pos, text,
 }: Input) {
   const [panel, setPanel] = useState("");
   const fallbackFocus = useRef(false);
@@ -71,6 +73,12 @@ export function useEditorPlacement({
           rect.top < r.bottom && rect.bottom > r.top;
       });
     const richText = objectType(item.type).richText;
+    if (hasEnds(item)) {
+      const box = labelEditorBox(item.connectorLayout!.labelPoint, text), p = pos(box);
+      if (size.w < 768 || p.left < 0 || p.top < 0 || p.left + box.width * view.z > size.w ||
+        p.top + box.height * view.z > size.h || 18 * view.z < 12 || obscured) fallbackEditor();
+      return;
+    }
     if (!richText) {
       const left = p.left + 2 * view.z, top = p.top - 34 * view.z;
       if (left < 0 || top < 0 || left + Math.min(item.width, 200) * view.z > size.w ||
@@ -81,11 +89,11 @@ export function useEditorPlacement({
       size.w < 768 || p.left < 0 || p.top < 0 ||
       p.left + item.width * view.z > size.w ||
       p.top + itemHeight * view.z > size.h ||
-      textBox({ ...item, height: itemHeight }).width * view.z < objectType(item.type).editorMinimum.width ||
-      textBox({ ...item, height: itemHeight }).height * view.z < objectType(item.type).editorMinimum.height ||
+      textBox({ ...item, height: itemHeight }).width * view.z < rectangleType(item.type as Parameters<typeof rectangleType>[0]).editorMinimum.width ||
+      textBox({ ...item, height: itemHeight }).height * view.z < rectangleType(item.type as Parameters<typeof rectangleType>[0]).editorMinimum.height ||
       textUnits(item.textSize) * view.z < 12 || obscured
     ) fallbackEditor();
-  }, [inline, selected, view, size, composing, itemHeight, item?.width, item?.textSize]);
+  }, [inline, selected, view, size, composing, itemHeight, item?.width, item?.textSize, item?.connectorLayout?.labelPoint.x, item?.connectorLayout?.labelPoint.y, item?.connectorLayout ? text : undefined]);
   function toggle(name: string) {
     if (composing || busy) return;
     finishTextSession();

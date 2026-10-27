@@ -82,8 +82,10 @@ export function useStorageSession({
     try {
       const state = await navigator.locks?.query();
       const ownLock = ownership.current ? boardKeys(currentKey.current).lock : null;
-      if (alive.current) setHeldLocks((state?.held ?? []).map((lock) => lock.name ?? "").filter((name) => name !== ownLock));
-    } catch { if (alive.current) setHeldLocks([]); }
+      const names = [...new Set((state?.held ?? []).map((lock) => lock.name ?? "").filter((name) => name !== ownLock))].sort();
+      if (alive.current) setHeldLocks((previous) =>
+        previous.length === names.length && previous.every((name, index) => name === names[index]) ? previous : names);
+    } catch { if (alive.current) setHeldLocks((previous) => previous.length ? [] : previous); }
   }
   async function refresh() {
     const s = store.current;

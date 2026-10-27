@@ -384,3 +384,41 @@ policy; direct source reads were used. No browser was launched, and no browser
 regression harness was run. Native Save/download/focus journeys, scenario P,
 the reviewer's A–J comparison and Safari remain **unverified by this fix round**.
 There was no broader test campaign, merge, push or subsequent milestone.
+
+### Fix round 2 — F4
+
+- Branch: `codex/0006-W2-board-files`; started clean at
+  `5d72548a9c6747371fc3d1ce8d01b71d671616a7` in the same milestone worktree.
+- Validated source/test revision: `6d0bcfb25961d9bfa64e939916f203c32afc85ca`
+  (`fix(web): preserve unchanged held-lock state`). Checks below ran on the
+  identical source/test tree before that commit. The final branch tip is reported
+  separately; the following commit appends only this record.
+- **F4 (P3):** `lockStatus()` normalizes the queried lock names to a sorted set
+  after excluding this tab's own lock. Its state updater returns the previous
+  array when the names are unchanged, including reordered query results. The
+  query-failure path also keeps an already-empty array. The once-a-second query
+  and all other behavior remain unchanged.
+- Scope: `apps/web/src/state/use-storage-session.ts` only, plus this record.
+  Brief requirements, contracts, tests, fixtures, manifests and dependency lock
+  are unchanged. Dependencies added: **none**.
+
+Commands ran from the repository root with Node **24.22.1** and npm **11.19.1**
+selected on `PATH`:
+
+| Exact command | Result |
+| --- | --- |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed; manifests and lock unchanged. |
+| `npm --prefix apps/web run typecheck` | Exit 0. |
+| `node --test tests/board-catalog.test.mjs tests/board-file.test.mjs tests/storage.test.mjs tests/modules.test.mjs` | Exit 0; 65 passed, 0 failed, cancelled or skipped. |
+| `npm --prefix apps/web test` | Exit 0; 485 passed, 0 failed, cancelled or skipped. No failures required a baseline unit comparison; no baseline suite was run. |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified. |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built with the same dependency/notice verification; fixtures were not executed. |
+| `git diff --check` | Exit 0. |
+| `git diff --name-only 5d72548...HEAD` | Exit 0; only the storage-session hook at the validated revision. The handoff adds this record only. |
+| `git commit -m "fix(web): preserve unchanged held-lock state"` | Exit 0; mandatory public-boundary checks passed. Git reported a sandbox-denied `packed-refs.lock` operation; the commit and branch ref were verified. |
+
+Graph discovery/indexing was attempted first and denied by the sandbox's approval
+policy; direct source reads were used. No browser or browser regression harness
+was launched. Browser render counts, native lock-status updates, scenario P,
+the A–J comparison and Safari remain **unverified by this fix round**. No broader
+test campaign, merge, push or subsequent milestone was performed.

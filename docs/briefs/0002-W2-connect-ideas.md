@@ -386,3 +386,60 @@ maintainer asks.
 None beyond the repository's own documents.
 
 ## Implementation record
+
+### 2026-10-27 — W2 v1 implementation
+
+- Branch: `codex/0002-W2-connect-ideas`; worktree: `.worktrees/codex-0002-W2`.
+- Committed-main prerequisite revision: `d863738afb2b659d94a6e930f2fcc828881f8fa1`.
+  Implemented this brief v1 with document v7, interaction v19 and web modules v17.
+- Validated source/test revision: `143f8b73753fa2dc3a4b466c76683a4c90b12638`
+  (`feat(web): connect ideas with labelled connectors`). The checks below ran on
+  the source/test tree committed unchanged at that revision. The later handoff
+  commit adds only this record; its final branch tip is reported separately.
+- Implemented document validation and canonical v7 output, legacy adoption,
+  atomic adapter ends, derived routes and label bounds, connection dots and drag,
+  Connect in the shared Arrange controls, label editing and Objects controls,
+  hit/box selection, three drawing/order bands, copy/remapping, delete/cut
+  cascades, and whole-connector history. No route or display geometry is saved.
+- Dependencies added: none. The manifest, lock, architecture contracts and all
+  modules outside the deliverables are unchanged. `App.tsx` remains 262 lines;
+  the module guards retain nineteen hooks and check eight scene parts, six
+  object-type modules and seventeen UI parts.
+
+Commands ran from the repository root with Node `24.22.1` and npm `11.19.1`
+selected on `PATH`. The official runtime archive's SHA-256 matched its release
+`SHASUMS256.txt`. The final results, after implementation corrections, were:
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | `v24.22.1` |
+| `npm --version` | `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed |
+| `npm --prefix apps/web run typecheck` | Exit 0; no type errors |
+| `node --test tests/connectors.test.mjs tests/document.test.mjs tests/storage.test.mjs tests/objects.test.mjs tests/modules.test.mjs tests/shapes.test.mjs tests/context-bar-position.test.mjs` | Exit 0; 186 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web test` | Exit 0; 458 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and distributed notices verified |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; accepted lock, runtime inventory and distributed notices verified |
+| `git diff --check` | Exit 0 |
+| `git diff --cached --check` | Exit 0 before the implementation commit |
+| `git diff --name-only main...HEAD` | Exit 0; at the validated revision, all 50 changed paths are in this brief's deliverables; the handoff adds this brief's record only |
+| `git commit -m "feat(web): connect ideas with labelled connectors"` | Exit 0; both mandatory public-boundary hooks reported PASS |
+
+The implementation commit also emitted a non-fatal sandbox denial for automatic
+`packed-refs.lock` creation. The commit succeeded, its branch reference resolved
+to the validated revision, and the worktree was clean afterward. No hook was
+bypassed. Graph discovery and indexing were attempted first, but the MCP service
+required approval unavailable in this session; repository reads were the fallback.
+
+Earlier focused development runs exposed and corrected test expectations for
+panel clamping and section-induced array ordering, and a server-rendered hook
+test's missing `document.activeElement` stub. The final focused and full-suite
+runs have no failures; no failure comparison at `a1526f3` was needed.
+
+Not run: browsers, servers, scenario O or its negative control, previous-behaviour
+comparisons A–N, the browser regression harness, Safari spot checks, accessibility
+audits, native IME, phone layouts or performance/load tests. Browser startup is
+unavailable in the implementer's sandbox; browser acceptance and independent
+review of the exact source revision remain with the reviewer. React server-rendered
+unit checks exercise state commands and static controls without launching a browser.
+No push, merge, publication or later milestone was performed.

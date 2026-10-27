@@ -608,8 +608,8 @@ small {
 
 /* Templates share toolbar pressed states and stay within the viewport. */
 .templates-panel {
-  position: fixed; left: calc(50% + 40px); bottom: 78px; width: 448px;
-  max-height: calc(100dvh - 170px); overflow: auto; padding: 16px;
+  left: calc(50% + 40px); bottom: 78px; width: 448px;
+  max-height: calc(100% - 170px); overflow: auto; padding: 16px;
 }
 .templates-panel h3 { margin: 16px 0 12px; font-size: 13px; }
 .template-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
@@ -622,12 +622,15 @@ small {
 .template-card h4 { font-size: 14px; margin: 10px 0 6px; }
 .template-card p { font-size: 12px; margin: 0 0 8px; }
 @media (max-width:1000px) {
-  .templates-panel { left: 12px; width: calc(100% - 24px); bottom: 138px; }
+  .templates-panel { bottom: 138px; }
+}
+@media (max-width:999.98px) {
+  .templates-panel { left: 12px; width: calc(100% - 24px); }
 }
 @media (max-width:767px) {
   .templates-panel { bottom: 142px; }
 }
 @media (max-width:599px) {
-  .templates-panel { max-height: calc(100dvh - 300px); }
+  .templates-panel { max-height: calc(100% - 300px); }
   .template-cards { grid-template-columns: minmax(0, 1fr); }
 }

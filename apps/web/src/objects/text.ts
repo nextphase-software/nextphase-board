@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { colorEntry, type Style } from "../styles.ts";
+import { colorEntry, textUnits, type Style } from "../styles.ts";
 
 export const text = {
   type: "text",
@@ -12,6 +12,19 @@ export const text = {
   textLimit: 1000,
   initialText: "",
   sizeRange: { min: 40, max: 2000 },
+  extraKeys: [] as readonly string[],
+  defaults: () => ({}),
+  validExtras: (_o: object) => true,
+  kinds: [] as readonly { kind: string; tool: string; key: string; round: boolean }[],
+  shapePaint: false,
+  growsWithText: true,
+  previewRadius: 0,
+  editorMinimum: { width: 120, height: 60 },
+  textBox: (o: { x: number; y: number; width: number; height: number }) => ({
+    x: o.x + 20, y: o.y + 20, width: o.width - 40, height: o.height - 40,
+  }),
+  fontSize: (o: Pick<Style, "textSize">) => textUnits(o.textSize),
+  labelPrefix: (_o: object) => "text",
   draws: false,
   defaultSize: { width: 320, height: 120 },
   defaultStyle: { color: "neutral", textSize: "medium", align: "left" },

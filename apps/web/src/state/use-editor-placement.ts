@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import type { ItemV5 as Item } from "../document";
-import { objectType } from "../objects/registry";
+import type { ItemV6 as Item } from "../document";
+import { objectType, textBox } from "../objects/registry";
 import { textUnits } from "../styles";
 import type { View } from "../view";
 
@@ -81,7 +81,8 @@ export function useEditorPlacement({
       size.w < 768 || p.left < 0 || p.top < 0 ||
       p.left + item.width * view.z > size.w ||
       p.top + itemHeight * view.z > size.h ||
-      (item.width - 40) * view.z < 120 || (itemHeight - 40) * view.z < 60 ||
+      textBox({ ...item, height: itemHeight }).width * view.z < objectType(item.type).editorMinimum.width ||
+      textBox({ ...item, height: itemHeight }).height * view.z < objectType(item.type).editorMinimum.height ||
       textUnits(item.textSize) * view.z < 12 || obscured
     ) fallbackEditor();
   }, [inline, selected, view, size, composing, itemHeight, item?.width, item?.textSize]);

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from "react";
-import type { BoardV5 as Board } from "../document";
+import type { BoardV6 as Board } from "../document";
 import { count } from "../document";
 import { FLAGS, formatted, formattedRange, type Flag, type TextSelection } from "../marks";
-import { objectType } from "../objects/registry";
+import { objectType, usesShapePaint, commonShapeValue } from "../objects/registry";
 import { colorEntry, commonStyle } from "../styles";
 
 type Input = {
@@ -20,7 +20,12 @@ export function useSelection({ board, drafts, textSelection }: Input) {
   const selectedId = selectedObjects.length === 1 ? selectedObjects[0].id : "";
   const item = board.objects.find((o) => o.id === selectedId),
     text = item ? (drafts[item.id] ?? item.text) : "";
-  const selectionColor = commonStyle(selectedObjects, "color"), selectionSize = commonStyle(selectedObjects, "textSize"), selectionAlign = commonStyle(selectedObjects, "align");
+  const shapes = selectedObjects.filter(usesShapePaint), otherObjects = selectedObjects.filter((o) => !usesShapePaint(o));
+  const shapeSelection = { objects: shapes, hasOther: otherObjects.length > 0,
+    kind: commonShapeValue(shapes, (o) => o.shape!),
+    fillMode: commonShapeValue(shapes, (o) => o.fill!.mode), fillColor: commonShapeValue(shapes, (o) => o.fill!.color),
+    borderStyle: commonShapeValue(shapes, (o) => o.border!.style), borderColor: commonShapeValue(shapes, (o) => o.border!.color) };
+  const selectionColor = commonStyle(otherObjects, "color"), selectionSize = commonStyle(selectedObjects, "textSize"), selectionAlign = commonStyle(selectedObjects, "align");
   const targets = selectedObjects.filter((o) => o.text.length > 0);
   const selectionFormats = Object.fromEntries(FLAGS.map((flag) => [flag,
     item && textSelection?.id === item.id && textSelection.end > textSelection.start
@@ -29,7 +34,7 @@ export function useSelection({ board, drafts, textSelection }: Input) {
   ])) as Record<Flag, boolean>;
   const colourLabel = selectionColor ? colorEntry(selectionColor).label : "Mixed";
   return {
-    richText, selected, setSelected, selectionKey, selectedId, item, text,
+    shapeSelection, richText, selected, setSelected, selectionKey, selectedId, item, text,
     selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats,
   };
 }

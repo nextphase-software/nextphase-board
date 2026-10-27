@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { add, clamp, type Board as SavedBoard, type BoardV5 as Board, type ItemV5 as Item } from "../document";
+import { add, clamp, type Board as SavedBoard, type BoardV6 as Board, type ItemV6 as Item } from "../document";
 import { boxSelection } from "../selection";
 import { expandSelection, pressSelection, toggleGroup } from "../group";
 import type { Corner } from "../resize";
 import type { View } from "../view";
 import { bandOrder, drawRectangle, dropped, placeObject, withMembers } from "../sections";
-import { isContainer, placementTool, typeForTool } from "../objects/registry";
+import { isContainer, placementTool, typeForTool, toolForKey, creationValues, type ShapePaint } from "../objects/registry";
 import type { Drag, ResizeStart } from "../gesture";
 
 type Input = {
+  shapeSession: { paint: RefObject<ShapePaint> };
   model: RefObject<Board>;
   commit: (input: SavedBoard, recordObject?: boolean, orderIds?: readonly string[]) => void;
   setBoard: Dispatch<SetStateAction<Board>>;
@@ -18,7 +19,7 @@ type Input = {
   setView: Dispatch<SetStateAction<View>>;
   trackPointer: (e: React.PointerEvent) => void;
   setMessage: (value: string) => void;
-  create: (type: Item["type"], x: number, y: number, native?: boolean) => void;
+  create: (tool: string, x: number, y: number, native?: boolean) => void;
   resizeStart: () => ResizeStart[];
   resizeStillValid: (start: ResizeStart[]) => boolean;
   resizedBoard: (corner: Corner, start: ResizeStart[], dx: number, dy: number, shift: boolean) => Board;
@@ -49,7 +50,7 @@ type Input = {
 };
 
 export function useCanvasInput({
-  model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+  shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
   setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
   scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
   selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
@@ -111,6 +112,11 @@ export function useCanvasInput({
   }, [readOnly]);
   function sceneKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget || composing) return;
+    const kindTool = toolForKey(e.key);
+    if (kindTool && !readOnly && !inline && !busy && !drag.current && !e.nativeEvent.isComposing &&
+      !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      e.preventDefault(); setTool(kindTool); setInline(false); return;
+    }
     if (e.code === "Space") {
       e.preventDefault();
       if (!e.repeat && !drag.current) {
@@ -123,7 +129,7 @@ export function useCanvasInput({
       e.preventDefault();
       if (placementTool(tool)) {
         create(
-          typeForTool(tool),
+          tool,
           view.x,
           view.y,
         );
@@ -279,7 +285,7 @@ export function useCanvasInput({
     } else if (!d.pan && placementTool(d.id)) {
       if (placementTool(d.id)!.draws || delta < 3 && !d.cancelled) {
         try {
-          let object = add(model.current, typeForTool(d.id), d.x, d.y).objects.at(-1)!;
+          let object = creationValues(add(model.current, typeForTool(d.id), d.x, d.y).objects.at(-1)!, d.id, shapeSession.paint.current);
           if (placementTool(d.id)!.draws && delta >= 3) {
             object = { ...object, ...drawRectangle(d, {
               x: d.x + (e.clientX - d.cx) / d.view.z, y: d.y + (e.clientY - d.cy) / d.view.z,

@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
-import { clamp, count, type ItemV5 as Item } from "../document";
+import { clamp, count, type ItemV6 as Item } from "../document";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, colorEntry, type Style } from "../styles";
 import { objectType } from "../objects/registry";
 import { FLAGS, FLAG_LABELS, type Flag } from "../marks";
 import { Icon } from "../icons";
 import type { ArrangeCommand } from "../arrange";
+import { ShapeControls, type ShapeControlProps, type ShapePopup } from "./shape-controls";
 import { ArrangeControls } from "./arrange-controls";
 
 type Props = {
+  shapeSelection: ShapeControlProps["selection"];
+  shapeCommands: ShapeControlProps["commands"];
+  shapePopup: ShapePopup;
   contextBar: RefObject<HTMLElement | null>;
   contextFits: boolean;
   contextLeft: number;
@@ -55,7 +59,7 @@ type Props = {
 };
 
 export function ContextBar({
-  contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
+  shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
   inline, richText, finishTextSession, setInline, scene, edit, text, colourControl, colourButton,
   selectionReason, colourLabel, swatchOpen, setArrangeFor, setSwatchFor, selectionKey,
   selectionColor, swatches, contextWidth, size, closeSwatches, changeStyle, selectionSize,
@@ -74,7 +78,8 @@ export function ContextBar({
         visibility: contextFits ? "visible" : "hidden",
       }}
     >
-      <span>{item ? objectType(item.type).label : selected.size + " objects"}</span>
+      <ShapeControls part="kind" selection={shapeSelection} commands={shapeCommands} reason={selectionReason} popup={shapePopup} />
+      {!shapeSelection.objects.length && <span>{item ? objectType(item.type).label : selected.size + " objects"}</span>}
       <span className="divider" aria-hidden="true" />
       {item && <>
       <button
@@ -95,7 +100,8 @@ export function ContextBar({
       <span className="divider" aria-hidden="true" />
       <small>{count(text)} / {objectType(item.type).textLimit.toLocaleString("en-US")}</small>
       </>}
-      <span className="colour-control" ref={colourControl}>
+      <ShapeControls part="paint" selection={shapeSelection} commands={shapeCommands} reason={selectionReason} popup={shapePopup} />
+      {shapeSelection.hasOther && <span className="colour-control" ref={colourControl}>
         <button ref={colourButton} className="icon-button" disabled={!!selectionReason}
           aria-label={"Colour: " + colourLabel}
           title={"Colour: " + colourLabel}
@@ -128,7 +134,7 @@ export function ContextBar({
             <span className="tooltip">{c.label}</span>
           </button>)}
         </div>}
-      </span>
+      </span>}
       {richText && <>
       <select className="context-size" aria-label="Text size" title={selectionReason || "Text size"}
         value={selectionSize} disabled={!!selectionReason} aria-describedby="selection-reason"

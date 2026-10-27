@@ -8,7 +8,7 @@ import { text } from "../apps/web/src/objects/text.ts";
 import { COLORS, colorEntry, textUnits } from "../apps/web/src/styles.ts";
 
 test("object types retain sticky and text order, labels and placement tools", () => {
-  assert.deepEqual(OBJECT_TYPES.map((t) => t.type), ["sticky", "text", "section"]);
+  assert.deepEqual(OBJECT_TYPES.map((t) => t.type), ["sticky", "shape", "text", "section"]);
   assert.equal(objectType("sticky"), sticky);
   assert.equal(objectType("text"), text);
   assert.equal(objectType("sticky").label, "Sticky");
@@ -94,4 +94,36 @@ test("records own version, body, container, formatting, text and size rules", ()
     assert.equal(section.edge({ color: c.name }), c.edge);
     assert.equal(section.textColor({ color: c.name }), "#5f5b66");
   }
+});
+
+test("v6 records own extras, kinds, text boxes, font size, paint, growth and editor minima", async () => {
+  const { shape, SHAPE_KINDS, ADD_OPTIONS, objectKeys, extraValues, kindForTool, toolForKey, labelPrefix, textBox, fontSize } = await import("../apps/web/src/objects/registry.ts");
+  assert.equal(OBJECT_TYPES[1], shape); assert.equal(shape.tool, "Shapes");
+  assert.equal(shape.validFrom, 6); assert.equal(shape.body, "shape-body");
+  assert.equal(shape.container, false); assert.equal(shape.richText, true); assert.equal(shape.draws, true);
+  assert.equal(shape.textLimit, 1000); assert.equal(shape.initialText, "");
+  assert.deepEqual(shape.extraKeys, ["shape", "fill", "border"]);
+  assert.deepEqual(shape.defaultSize, { width: 180, height: 180 });
+  assert.deepEqual(shape.defaultStyle, { color: "neutral", textSize: "small", align: "center" });
+  assert.equal(shape.previewRadius, 6); assert.deepEqual(shape.editorMinimum, { width: 40, height: 24 });
+  for (const record of [sticky, text, section]) {
+    assert.deepEqual(record.extraKeys, []); assert.deepEqual(record.defaults(), {});
+    assert.equal(record.shapePaint, false); assert.equal(record.previewRadius, 0);
+    assert.equal(record.growsWithText, record.richText);
+    assert.deepEqual(record.editorMinimum, { width: 120, height: 60 });
+    const item = { type: record.type, x: 10, y: 20, width: 180, height: 100, ...record.defaultStyle };
+    assert.deepEqual(textBox(item), { x: 30, y: 40, width: 140, height: 60 });
+    assert.equal(fontSize(item), 18); assert.equal(labelPrefix(item), record.type);
+    assert.deepEqual(extraValues(item), {});
+  }
+  assert.equal(shape.growsWithText, false); assert.equal(shape.shapePaint, true);
+  for (const k of SHAPE_KINDS) {
+    assert.equal(placementTool(k.tool), shape); assert.equal(typeForTool(k.tool), shape.type);
+    assert.equal(kindForTool(k.tool), k.kind); assert.equal(toolForKey(k.key.toLowerCase()), k.tool);
+    assert.equal(labelPrefix({ type: shape.type, shape: k.kind }), k.kind);
+  }
+  assert.equal(toolForKey("s"), undefined); assert.equal(kindForTool("Sticky"), undefined);
+  assert.equal(objectKeys(shape.type, 6).includes("fill"), true);
+  for (let version = 1; version <= 5; version++) assert(!objectKeys(shape.type, version).includes("fill"));
+  assert.deepEqual(ADD_OPTIONS.map((o) => o.label), ["sticky", "text", "square", "circle", "section"]);
 });

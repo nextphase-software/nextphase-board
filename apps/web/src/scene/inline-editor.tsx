@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { PointerEventHandler, ReactNode, RefObject } from "react";
-import type { ItemV5 as Item } from "../document";
+import type { ItemV6 as Item } from "../document";
 import { TEXT_INSET, TEXT_LAYOUT } from "../geometry";
-import { objectType } from "../objects/registry";
+import { objectType, textBox } from "../objects/registry";
 import { textUnits } from "../styles";
 import type { View } from "../view";
 
@@ -18,24 +18,26 @@ type Props = {
 
 export function InlineEditor({ inlineSurface, trackPointer, pos, item, view, itemHeight, nativeEditor }: Props) {
   const richText = objectType(item.type).richText;
+  const box = textBox({ ...item, height: itemHeight });
   return (
     <section
       ref={inlineSurface}
-      className={"inline" + (richText ? "" : " name-field")}
+      className={"inline" + (richText ? objectType(item.type).shapePaint ? " shape-editor" : "" : " name-field")}
       onPointerEnter={trackPointer}
       onPointerDown={trackPointer}
       onPointerMove={trackPointer}
       style={{
-        left: pos(item).left + (richText ? TEXT_INSET : 2) * view.z,
-        top: pos(item).top + (richText ? TEXT_INSET : -34) * view.z,
-        width: (richText ? item.width - 2 * TEXT_INSET : Math.min(item.width, 200)) * view.z,
-        height: (richText ? itemHeight - 2 * TEXT_INSET : 28) * view.z,
+        left: pos(richText ? box : item).left + (richText ? 0 : 2) * view.z,
+        top: pos(richText ? box : item).top + (richText ? 0 : -34) * view.z,
+        width: (richText ? box.width : Math.min(item.width, 200)) * view.z,
+        height: (richText ? box.height : 28) * view.z,
         fontFamily: TEXT_LAYOUT.fontFamily,
         fontSize: (richText ? textUnits(item.textSize) : 18) * view.z,
         textAlign: item.align,
         color: objectType(item.type).textColor(item),
       }}
     >
+      {objectType(item.type).shapePaint && !item.text && <span className="shape-placeholder" aria-hidden="true">Add text</span>}
       {nativeEditor}
     </section>
   );

@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useMemo, type RefObject } from "react";
 import Konva from "konva";
-import type { BoardV5 as Board, ItemV5 as Item } from "../document";
+import type { BoardV6 as Board, ItemV6 as Item } from "../document";
 import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT } from "../geometry";
-import { objectType } from "../objects/registry";
+import { objectType, textBox, usesShapePaint, shapeTextLayout, fitHeight, canGrow } from "../objects/registry";
 import { groupNumbers, wholeGroups } from "../group";
 import { cornerPoint, type Corner } from "../resize";
 import { boundingBox } from "../selection";
 import { textUnits } from "../styles";
 import { remap } from "../marks";
-import { layoutRuns, type RunStyle } from "../text-runs";
+import { layoutRuns, type RunStyle, type RunLine } from "../text-runs";
 import type { Drag } from "../gesture";
 
 const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
@@ -21,6 +21,8 @@ type Input = {
   item: Item | undefined;
   text: string;
   inline: boolean;
+  textEditing: boolean;
+  invalidObjectText: boolean;
   tool: string;
   readOnly: boolean;
   composing: boolean;
@@ -41,7 +43,7 @@ function measure(text: string, style: RunStyle, fontSize: number): number {
 }
 function runLines(object: Item, text = object.text) {
   const marks = text === object.text ? object.marks : remap(object.marks, object.text, text);
-  return marks.length ? layoutRuns(text, marks, object.width - 2 * TEXT_INSET,
+  return marks.length || usesShapePaint(object) ? layoutRuns(text, marks, textBox(object).width,
     (value, style) => measure(value, style, textUnits(object.textSize))) : null;
 }
 function lineCount(object: Item, text = object.text): number {
@@ -51,7 +53,7 @@ function lineCount(object: Item, text = object.text): number {
   const measurement = new Konva.Text({
     ...TEXT_LAYOUT,
     fontSize: textUnits(object.textSize),
-    width: object.width - 2 * TEXT_INSET,
+    width: textBox(object).width,
     text,
   });
   const lines = Math.max(1, measurement.textArr.length);
@@ -60,12 +62,19 @@ function lineCount(object: Item, text = object.text): number {
 }
 
 export function useObjectLayouts({
-  board, selected, selectedId, item, text, inline, tool, readOnly, composing, busy, drag,
+  board, selected, selectedId, item, text, inline, textEditing, invalidObjectText, tool, readOnly, composing, busy, drag,
 }: Input) {
-  const objectLayouts = useMemo(() => new Map(board.objects.map((o) => {
+  const objectLayouts = useMemo(() => new Map(board.objects.map((o): [string, { height: number; runs: RunLine[] | null; limited: boolean; fadeStart: number; fadeEnd: number; fits?: boolean; fitHeight?: number }] => {
     if (!objectType(o.type).richText) return [o.id, { height: o.height, runs: null,
       limited: false, fadeStart: 0, fadeEnd: 0 }];
     // Uncommitted composition/invalid input may grow the editor's preview only.
+    if (usesShapePaint(o)) {
+      const layout = (width: number) => layoutRuns(o.text, o.marks, width, (value, style) => measure(value, style, textUnits(o.textSize)));
+      const measured = shapeTextLayout(o, layout, (value, style) => measure(value, style, textUnits(o.textSize)));
+      return [o.id, { height: o.height, runs: measured.lines, fits: measured.fits,
+        fitHeight: measured.fits ? o.height : fitHeight(o, layout, (value, style) => measure(value, style, textUnits(o.textSize))),
+        limited: !measured.fits, fadeStart: 0, fadeEnd: 0 }];
+    }
     const lines = lineCount(o, inline && o.id === selectedId ? text : o.text);
     const fontSize = textUnits(o.textSize);
     const height = displayHeight(o, lines, fontSize);
@@ -89,9 +98,14 @@ export function useObjectLayouts({
   const handlePoints = bounds ? CORNERS.map((corner) => ({
     corner, ...cornerPoint(corner, bounds),
   })) : [];
+  const itemLayout = item ? objectLayouts.get(item.id) : undefined;
+  const growHeight = itemLayout?.fitHeight ?? 0;
+  const growAvailable = !!item && canGrow(selected.size === 1, usesShapePaint(item),
+    itemLayout?.fits ?? true, item.height, growHeight,
+    readOnly || composing || busy || inline || textEditing || invalidObjectText ? "Unavailable while editing" : "");
   const itemHeight = item ? objectLayouts.get(item.id)!.height : 0;
   return {
-    lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
+    growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
     handlesVisible, handlePoints, itemHeight,
   };
 }

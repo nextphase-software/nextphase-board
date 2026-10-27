@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject, ReactNode } from "react";
-import type { BoardV5 as Board, ItemV5 as Item } from "../document";
+import type { BoardV6 as Board, ItemV6 as Item } from "../document";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "../styles";
 import { objectLabel } from "../sections";
-import { OBJECT_TYPES, isContainer } from "../objects/registry";
+import { ADD_OPTIONS, isContainer } from "../objects/registry";
 import { FLAGS, FLAG_LABELS, type Flag } from "../marks";
 import { Icon } from "../icons";
 import type { Rectangle } from "../resize";
@@ -11,9 +11,13 @@ import type { ArrangeCommand } from "../arrange";
 import { clipboardReason, type ClipboardCommand, type Snapshot } from "../clipboard";
 import type { View } from "../view";
 import { ArrangeControls } from "./arrange-controls";
+import { ShapeFields, GrowButton, type ShapeControlProps } from "./shape-controls";
 import { FormatPreview } from "./format-preview";
 
 type Props = {
+  shapeSelection: ShapeControlProps["selection"];
+  shapeCommands: ShapeControlProps["commands"];
+  growAvailable: boolean;
   board: Board;
   busy: boolean;
   richText: boolean;
@@ -47,12 +51,12 @@ type Props = {
   objectClipboard: Snapshot | null;
   clipboardState: Parameters<typeof clipboardReason>[3];
   clipboardCommand: (name: ClipboardCommand) => void;
-  create: (type: Item["type"], x: number, y: number, native?: boolean) => void;
+  create: (tool: string, x: number, y: number, native?: boolean) => void;
   view: View;
 };
 
 export function ObjectsPanel({
-  board, richText, setSection, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
+  shapeSelection, shapeCommands, growAvailable, board, richText, setSection, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
   numbers, drafts, nativeEditor, item, text, selectionColor, selectionSize, selectionAlign, selectionReason,
   selectionFormats, toggleFormat, changeStyle, command, readOnly, move, bounds, resizeBy, arrange, arrangementReason,
   objectClipboard, clipboardState, clipboardCommand, create, view
@@ -97,15 +101,17 @@ export function ObjectsPanel({
         ))}
       </select>
       {selected.size > 1 ? <p>{selected.size} objects selected</p> : nativeEditor}
+      <ShapeFields selection={shapeSelection} commands={shapeCommands} reason={selectionReason} />
       {richText && selected.size === 1 && item && <FormatPreview item={item} text={text} />}
       {selected.size > 0 && <div className="object-styles">
-        <label htmlFor="object-colour">Colour</label>
+        {shapeSelection.hasOther && <><label htmlFor="object-colour">Colour</label>
         <select id="object-colour" value={selectionColor} disabled={!!selectionReason}
           title={selectionReason || "Colour"} aria-describedby="selection-reason"
           onChange={(e) => changeStyle("color", e.target.value as Style["color"])}>
           {!selectionColor && <option value="" disabled>Mixed</option>}
           {COLORS.map((c) => <option key={c.name} value={c.name}>{c.label}</option>)}
         </select>
+        </>}
         {ideas.length > 0 && <>
           <label htmlFor="object-section">Section</label>
           <select id="object-section" value={sharedSection} disabled={!!selectionReason}
@@ -183,6 +189,7 @@ export function ObjectsPanel({
           disabled={!selected.size || readOnly || composing || busy}
           onClick={() => resizeBy(Number(x), Number(y))}>{name}</button>)}
       </div>
+      <GrowButton available={growAvailable} grow={shapeCommands.grow} />
       {selected.size > 0 && <div className="objects-arrange" role="group" aria-label="Arrange">
         <h2>Arrange</h2>
         <ArrangeControls prefix="objects-arrange" choose={(name) => arrange(name, true)} arrangementReason={arrangementReason} />
@@ -200,16 +207,16 @@ export function ObjectsPanel({
         })}
       </div>
       <div>
-        {OBJECT_TYPES.map((t) => t.type).map((type) => (
+        {ADD_OPTIONS.map(({ tool, label }) => (
           <button
-            key={type}
+            key={tool}
             disabled={readOnly || composing || busy}
             onClick={() => {
               const offset = 24 * (board.objects.length % 10);
-              create(type, view.x + offset, view.y + offset, true);
+              create(tool, view.x + offset, view.y + offset, true);
             }}
           >
-            Add {type}
+            Add {label}
           </button>
         ))}
       </div>

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { Adapter, type Board as SavedBoard, type BoardV5 as Board, empty, type ItemV5 as Item, upgrade } from "../document";
+import { Adapter, type Board as SavedBoard, type BoardV6 as Board, empty, type ItemV6 as Item, upgrade } from "../document";
+import { defaultPaint, type ShapePaint } from "../objects/registry";
 import { emptyHistory, record, type History } from "../history";
 
 type Input = {
@@ -13,6 +14,8 @@ export function useBoardDocument({ readOnly, setStatus }: Input) {
     [title, setTitle] = useState(""),
     [drafts, setDrafts] = useState<Record<string, string>>({}),
     [history, setHistory] = useState<History>(emptyHistory);
+  const shapePaint = useRef(defaultPaint());
+  const shapeSession = { paint: shapePaint, update: (paint: ShapePaint) => { shapePaint.current = paint; } };
   const model = useRef(board),
     historyRef = useRef<History>(history),
     textSession = useRef<{ before: Board; id: string } | null>(null),
@@ -64,7 +67,7 @@ export function useBoardDocument({ readOnly, setStatus }: Input) {
     revision.current = 0;
   }
   return {
-    board, setBoard, title, setTitle, drafts, setDrafts, history,
+    shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,
     model, historyRef, textSession, revision, adapter,
     updateHistory, clearHistory, beginTextSession, finishTextSession, commit, load,
   };

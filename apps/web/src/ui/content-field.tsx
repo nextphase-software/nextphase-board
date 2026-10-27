@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction, SyntheticEvent } from "react";
-import { count, type ItemV5 as Item, validText } from "../document";
+import { count, type ItemV6 as Item, validText } from "../document";
 import { objectType } from "../objects/registry";
 import { codePointOffset, type Flag, type TextSelection } from "../marks";
 

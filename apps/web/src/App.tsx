@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { screenPoint } from "./view";
-
 import { useSessionStatus } from "./state/use-session-status";
 import { useGestureState } from "./state/use-gesture-state";
 import { useTextEntry } from "./state/use-text-entry";
 import { useValidity } from "./state/use-validity";
 import { useCommandReasons } from "./state/use-command-reasons";
-
 import { useMessages } from "./state/use-messages";
 import { useBoardDocument } from "./state/use-board-document";
 import { useStorageSession } from "./state/use-storage-session";
@@ -21,11 +19,11 @@ import { useSceneSize } from "./state/use-scene-size";
 import { useSelection } from "./state/use-selection";
 import { useObjectLayouts } from "./state/use-object-layouts";
 import { useEditorPlacement } from "./state/use-editor-placement";
-
 import { BoardDrawing } from "./scene/board-drawing";
 import { Overlays } from "./scene/overlays";
 import { InlineEditor } from "./scene/inline-editor";
-
+import { ShapesPanel } from "./ui/shapes-panel";
+import { GrowButton } from "./ui/shape-controls";
 import { FileBar } from "./ui/file-bar";
 import { SaveArea } from "./ui/save-area";
 import { Notice } from "./ui/notice";
@@ -48,24 +46,24 @@ export function App() {
   const { inline, setInline, composing, setComposing, textSelection, setTextSelection } = useTextEntry();
   const { setMessage, messageSequence, latestAcknowledgement, visibleMessage } = useMessages();
   const {
-    board, setBoard, title, setTitle, drafts, setDrafts, history,
+    shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,
     model, historyRef, textSession, revision, adapter,
     updateHistory, clearHistory, beginTextSession, finishTextSession, commit, load,
   } = useBoardDocument({ readOnly, setStatus });
   const {
-    selected, setSelected, selectionKey, selectedId, item, text,
+    shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,
     selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats, richText,
   } = useSelection({ board, drafts, textSelection });
-  const {
-    lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
-    handlesVisible, handlePoints, itemHeight,
-  } = useObjectLayouts({
-    board, selected, selectedId, item, text, inline, tool, readOnly, composing, busy, drag,
-  });
-  const layout = usePanelLayout(scene);
   const { invalidObjectText, invalidFields, invalid, pending } = useValidity({
     board, drafts, title, composing, busy,
   });
+  const {
+    growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
+    handlesVisible, handlePoints, itemHeight,
+  } = useObjectLayouts({
+    board, selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,
+  });
+  const layout = usePanelLayout(scene);
   const { view, setView, trackPointer, inlineSurface } = useViewport({ scene, inline, drag, pending });
   function select(value: string | Iterable<string>) {
     finishTextSession();
@@ -90,7 +88,7 @@ export function App() {
     commitText, changeText, create, movedBoard, move, resizeStart,
     resizeStillValid, resizedBoard, resizeBy,
   } = useGeometryEdits({
-    model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,
+    shapeSession, model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,
     item, selected, select, objectLayouts, readOnly, busy, composing,
     setStatus, setTool, setPanel, setInline, editor, lineCount,
   });
@@ -98,7 +96,7 @@ export function App() {
     cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,
     pointerCancel, lostPointerCapture,
   } = useCanvasInput({
-    model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+    shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
     setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
     scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
     selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
@@ -113,15 +111,15 @@ export function App() {
   });
   // The context surface follows transformed bounds without changing board geometry.
   const {
-    contextWidth, contextLeft, contextTop, contextFits, swatchOpen, arrangeOpen,
+    shapePopup, contextWidth, contextLeft, contextTop, contextFits, swatchOpen, arrangeOpen,
     arrangeHeight, setSwatchFor, setArrangeFor, closeSwatches, closeArrange,
     contextBar, colourControl, colourButton, swatches, arrangeControl, arrangeButton, arrangeMenu,
   } = useContextBar({
     selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
     item, itemHeight,
   });
-  const { setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
-    model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
+  const { shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
+    shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
     arrangementMembers, lineCount, editor, setPanel, setTool,
@@ -175,6 +173,7 @@ export function App() {
           selectedGroups={selectedGroups} pos={pos} view={view} handlesVisible={handlesVisible}
           handlePoints={handlePoints} spacePan={spacePan} selectionBox={selectionBox} tool={tool}
         />
+        <GrowButton available={growAvailable} grow={shapeCommands.grow} style={item ? { left: pos(item).left + item.width * view.z / 2, top: pos(item).top + item.height * view.z } : undefined} />
       </div>
       <FileBar
         boardButton={boardButton} composing={composing} busy={busy} toggle={toggle} panel={panel}
@@ -202,7 +201,7 @@ export function App() {
       )}
       {panel === "Objects" && (
         <ObjectsPanel
-          selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
+          shapeSelection={shapeSelection} shapeCommands={shapeCommands} growAvailable={growAvailable} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
           board={board} busy={busy} composing={composing} setPanel={setPanel}
           objectsButton={objectsButton} selector={selector} selected={selected}
           finishTextSession={finishTextSession} select={select} numbers={numbers} drafts={drafts}
@@ -215,7 +214,7 @@ export function App() {
       )}
       {selected.size > 0 && (
         <ContextBar
-          selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
+          shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
           contextBar={contextBar} contextFits={contextFits} contextLeft={contextLeft}
           contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
           composing={composing} busy={busy} inline={inline} finishTextSession={finishTextSession}
@@ -236,6 +235,7 @@ export function App() {
           view={view} itemHeight={itemHeight} nativeEditor={nativeEditor}
         />
       )}
+      <ShapesPanel tool={tool} setTool={setTool} scene={scene} disabled={busy || composing || readOnly} />
       <Palette
         tool={tool} busy={busy} composing={composing} readOnly={readOnly} setTool={setTool}
         setInline={setInline} scene={scene}

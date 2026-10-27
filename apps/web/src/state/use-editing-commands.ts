@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { Board as SavedBoard, BoardV5 as Board, ItemV5 as Item } from "../document";
+import type { Board as SavedBoard, BoardV6 as Board, ItemV6 as Item } from "../document";
 import { count } from "../document";
 import { codePointOffset, formatted, toggle, type Flag } from "../marks";
 import { deleteObject, duplicate, redo, undo, type History } from "../history";
@@ -9,11 +9,14 @@ import { textUnits, type Style } from "../styles";
 import type { View } from "../view";
 import { arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "../arrange";
 import { assignSection, orderInBands, withMembers, wrapReason, wrapSelection } from "../sections";
-import { objectType } from "../objects/registry";
+import { objectType, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, type ShapeKeys, type ShapePaint } from "../objects/registry";
 import { groupObjects, groupReason, ungroupObjects } from "../group";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "../clipboard";
 
 type Input = {
+  shapeSession: { update: (paint: ShapePaint) => void };
+  growHeight: number;
+  growAvailable: boolean;
   model: RefObject<Board>;
   commit: (input: SavedBoard, recordObject?: boolean, orderIds?: readonly string[]) => void;
   historyRef: RefObject<History>;
@@ -41,7 +44,7 @@ type Input = {
 };
 
 export function useEditingCommands({
-  model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
+  shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
   setMessage, messageSequence, alive, select, selected, setInline, scene, view,
   displayedObjects, commandReason, selectionReason, clipboardState, editingState,
   arrangementMembers, lineCount, editor, setPanel, setTool,
@@ -102,6 +105,8 @@ export function useEditingCommands({
         setMessage("Select an object to " + name.toLowerCase() + ".");
         return;
       }
+      const paint = name === "Undo" || name === "Redo" ? paintAfterStep(
+        (name === "Undo" ? historyRef.current.past : historyRef.current.future).at(-1), name === "Undo") : undefined;
       const result = name === "Undo" ? undo(model.current, historyRef.current)
         : name === "Redo" ? redo(model.current, historyRef.current)
         : name === "Duplicate" ? duplicate(model.current, historyRef.current, targets)
@@ -109,6 +114,7 @@ export function useEditingCommands({
       const affected = result.board.objects.filter((o) => result.affectedIds.includes(o.id));
       commit(result.board);
       updateHistory(result.history);
+      if (paint) shapeSession.update(paint);
       setDrafts((d) => {
         const next = { ...d };
         for (const id of result.affectedIds) delete next[id];
@@ -185,9 +191,9 @@ export function useEditingCommands({
     finishTextSession();
     setInline(false);
     const objects = model.current.objects.map((current) => {
-      if (!selected.has(current.id) || current[key] === value) return current;
+      if (!selected.has(current.id) || key === "color" && usesShapePaint(current) || current[key] === value) return current;
       const styled = { ...current, [key]: value };
-      return key === "textSize"
+      return key === "textSize" && objectType(styled.type).growsWithText
         ? { ...styled, height: savedHeight(styled, lineCount(styled), textUnits(styled.textSize)) }
         : styled;
     });
@@ -205,7 +211,7 @@ export function useEditingCommands({
         const objects = model.current.objects.map((o) => {
           if (!selected.has(o.id)) return o;
           const next = { ...o, marks: toggle(o.marks, count(o.text), start, end, flag) };
-          return { ...next, height: savedHeight(next, lineCount(next), textUnits(next.textSize)) };
+          return { ...next, height: objectType(next.type).growsWithText ? savedHeight(next, lineCount(next), textUnits(next.textSize)) : next.height };
         });
         commit({ ...model.current, objects }, true);
         return;
@@ -217,9 +223,31 @@ export function useEditingCommands({
     const objects = model.current.objects.map((o) => {
       if (!selected.has(o.id) || !o.text.length || formatted(o.marks, count(o.text), flag) !== remove) return o;
       const next = { ...o, marks: toggle(o.marks, count(o.text), 0, count(o.text), flag) };
-      return { ...next, height: savedHeight(next, lineCount(next), textUnits(next.textSize)) };
+      return { ...next, height: objectType(next.type).growsWithText ? savedHeight(next, lineCount(next), textUnits(next.textSize)) : next.height };
     });
     commit({ ...model.current, objects }, true);
   }
-  return { setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
+  function shapeCommand(change: (o: Item) => Item, paint = false) {
+    if (selectionReason) return;
+    finishTextSession(); setInline(false);
+    const changed: Item[] = [];
+    const objects = model.current.objects.map((o) => {
+      if (!selected.has(o.id) || !usesShapePaint(o)) return o;
+      const next = change(o);
+      if (next !== o) changed.push(next);
+      return next;
+    });
+    if (!changed.length) return;
+    commit({ ...model.current, objects }, true);
+    if (paint) shapeSession.update(paintOf(changed.at(-1)!));
+  }
+  const changeShape = (kind: ShapeKeys["shape"]) => shapeCommand((o) => changeKind(o, kind));
+  const changeShapeFill = (value: Partial<ShapeKeys["fill"]>) => shapeCommand((o) => changeFill(o, value), true);
+  const changeShapeBorder = (value: Partial<ShapeKeys["border"]>) => shapeCommand((o) => changeBorder(o, value), true);
+  function grow() {
+    if (!growAvailable) return;
+    shapeCommand((o) => ({ ...o, height: growHeight }));
+  }
+  const shapeCommands = { changeShape, changeFill: changeShapeFill, changeBorder: changeShapeBorder, grow };
+  return { shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
 }

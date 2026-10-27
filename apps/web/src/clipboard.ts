@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import { freshIdentifier, type BoardV5, type ItemV5 } from "./document.ts";
+import { freshIdentifier, type BoardV6, type ItemV6 } from "./document.ts";
+import { extraValues } from "./objects/registry.ts";
 import { editingCommandReason } from "./commands.ts";
 import { wholeGroups } from "./group.ts";
 import { bandOrder, remapSection, withMembers } from "./sections.ts";
@@ -7,7 +8,7 @@ import type { DisplayObject } from "./selection.ts";
 
 export type ClipboardCommand = "Copy" | "Cut" | "Paste";
 export type Snapshot = {
-  objects: Omit<ItemV5, "generation" | "order">[];
+  objects: Omit<ItemV6, "generation" | "order">[];
   sourceBox: { left: number; top: number; right: number; bottom: number };
   sourceIdentifiers: string[];
   pasteCount: number;
@@ -23,7 +24,7 @@ export function clipboardReason(command: ClipboardCommand, selected: ReadonlySet
     : selected.size ? "" : "Select an object to " + command.toLowerCase() + ".";
 }
 
-export function buildSnapshot(board: BoardV5, selected: ReadonlySet<string>,
+export function buildSnapshot(board: BoardV6, selected: ReadonlySet<string>,
   drawn: readonly DisplayObject[]): Snapshot | null {
   const copied = withMembers(board.objects, selected);
   const objects = board.objects.filter((o) => copied.has(o.id)).sort((a, b) => a.order - b.order);
@@ -31,11 +32,14 @@ export function buildSnapshot(board: BoardV5, selected: ReadonlySet<string>,
   const groups = wholeGroups(board.objects, copied);
   const rectangles = new Map(drawn.map((o) => [o.id, o]));
   return {
-    objects: objects.map(({ id, type, text, color, textSize, align, group, marks, section, x, y, width, height }) => ({
-      id, section: section && copied.has(section) ? section : null, type, text, color, textSize, align, group: group !== null && groups.has(group) ? group : null,
-      marks: marks.map((m) => ({ ...m })),
-      x, y, width, height,
-    })),
+    objects: objects.map((o) => {
+      const { id, type, text, color, textSize, align, group, marks, section, x, y, width, height } = o;
+      return {
+        id, section: section && copied.has(section) ? section : null, type, text, color, textSize, align, group: group !== null && groups.has(group) ? group : null,
+        marks: marks.map((m) => ({ ...m })),
+        ...extraValues(o), x, y, width, height,
+      };
+    }),
     sourceBox: {
       left: Math.min(...objects.map((o) => rectangles.get(o.id)!.x)),
       top: Math.min(...objects.map((o) => rectangles.get(o.id)!.y)),
@@ -72,8 +76,8 @@ function bounded(position: number, length: number): number {
   return result;
 }
 
-export function buildPaste(board: BoardV5, snapshot: Snapshot, view: PasteView): {
-  board: BoardV5; pasteCount: number;
+export function buildPaste(board: BoardV6, snapshot: Snapshot, view: PasteView): {
+  board: BoardV6; pasteCount: number;
 } {
   if (board.objects.length + snapshot.objects.length > 250) throw Error("250 object limit reached");
   const pasteCount = snapshot.pasteCount + 1;

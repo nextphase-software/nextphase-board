@@ -19,10 +19,20 @@ export function useContextBar({
     arrangeControl = useRef<HTMLSpanElement>(null),
     arrangeButton = useRef<HTMLButtonElement>(null),
     arrangeMenu = useRef<HTMLDivElement>(null);
-  const [swatchFor, setSwatchFor] = useState(""),
-    [arrangeFor, setArrangeFor] = useState(""),
+  const controls = { kind: useRef<HTMLSpanElement>(null), fill: useRef<HTMLSpanElement>(null), border: useRef<HTMLSpanElement>(null) };
+  const buttons = { kind: useRef<HTMLButtonElement>(null), fill: useRef<HTMLButtonElement>(null), border: useRef<HTMLButtonElement>(null) };
+  const menu = useRef<HTMLDivElement>(null);
+  const [shapeFor, setShapeFor] = useState({ key: "", name: "" });
+  const [swatchFor, setColour] = useState(""),
+    [arrangeFor, setArrange] = useState(""),
     [arrangeHeight, setArrangeHeight] = useState(0),
     [contextWidth, setContextWidth] = useState(0);
+  function setSwatchFor(value: React.SetStateAction<string>) {
+    setColour(value); setShapeFor({ key: "", name: "" }); if (value) setArrange("");
+  }
+  function setArrangeFor(value: React.SetStateAction<string>) {
+    setArrange(value); setShapeFor({ key: "", name: "" }); if (value) setColour("");
+  }
   useLayoutEffect(() => {
     const bar = contextBar.current;
     if (!bar) return;
@@ -35,9 +45,32 @@ export function useContextBar({
   const { contextLeft, contextTop, contextFits } = contextBarPosition({
     bounds, pos, view, size, contextWidth, layout, inline, item, itemHeight,
   });
+  const shapeOpen = shapeFor.key === selectionKey && contextFits && !selectionReason ? shapeFor.name : "";
+  const shapePopup = { open: shapeOpen, controls, buttons, menu,
+    toggle: (name: keyof typeof controls) => {
+      setColour(""); setArrange("");
+      setShapeFor({ key: selectionKey, name: shapeOpen === name ? "" : name });
+    },
+    close: () => {
+      setShapeFor({ key: "", name: "" });
+      if (shapeOpen) buttons[shapeOpen as keyof typeof buttons].current?.focus();
+    },
+  };
+  useEffect(() => {
+    if (!shapeOpen) { setShapeFor({ key: "", name: "" }); return; }
+    menu.current?.querySelector<HTMLElement>('[aria-checked="true"], [aria-pressed="true"], button')?.focus();
+    const outside = (event: Event) => {
+      if (event.target instanceof Node && !controls[shapeOpen as keyof typeof controls].current?.contains(event.target)) {
+        setShapeFor({ key: "", name: "" });
+      }
+    };
+    document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("focusin", outside);
+    return () => { document.removeEventListener("pointerdown", outside, true); document.removeEventListener("focusin", outside); };
+  }, [shapeOpen, selectionKey]);
   const swatchOpen = swatchFor === selectionKey && selected.size > 0 && contextFits && !selectionReason;
   useEffect(() => {
-    if (!swatchOpen) setSwatchFor("");
+    if (!swatchOpen) setColour("");
   }, [swatchOpen, selectionKey]);
   useEffect(() => {
     if (!swatchOpen) return;
@@ -45,7 +78,7 @@ export function useContextBar({
       swatches.current?.querySelector<HTMLButtonElement>("button"))?.focus();
     const outside = (event: Event) => {
       if (event.target instanceof Node && !colourControl.current?.contains(event.target)) {
-        setSwatchFor("");
+        setColour("");
       }
     };
     document.addEventListener("pointerdown", outside, true);
@@ -57,7 +90,7 @@ export function useContextBar({
   }, [swatchOpen]);
   const arrangeOpen = arrangeFor === selectionKey && selected.size > 0 && contextFits && !selectionReason;
   useEffect(() => {
-    if (!arrangeOpen) setArrangeFor("");
+    if (!arrangeOpen) setArrange("");
   }, [arrangeOpen, selectionKey]);
   useLayoutEffect(() => {
     if (!arrangeOpen || !arrangeMenu.current) return;
@@ -73,7 +106,7 @@ export function useContextBar({
     arrangeMenu.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
     const outside = (event: Event) => {
       if (event.target instanceof Node && !arrangeControl.current?.contains(event.target)) {
-        setArrangeFor("");
+        setArrange("");
       }
     };
     document.addEventListener("pointerdown", outside, true);
@@ -92,7 +125,7 @@ export function useContextBar({
     colourButton.current?.focus();
   }
   return {
-    contextWidth, contextLeft, contextTop, contextFits, swatchOpen, arrangeOpen,
+    shapePopup, contextWidth, contextLeft, contextTop, contextFits, swatchOpen, arrangeOpen,
     arrangeHeight, setSwatchFor, setArrangeFor, closeSwatches, closeArrange,
     contextBar, colourControl, colourButton, swatches, arrangeControl, arrangeButton, arrangeMenu,
   };

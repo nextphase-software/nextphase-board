@@ -539,3 +539,40 @@ small {
 }
 .inline.name-field:focus-within { outline: none; }
 .inline.name-field textarea { line-height: 1; }
+
+/* Basic shapes share the idea controls while keeping their own paint. */
+.shapes-panel { left: 12px; top: 70px; width: 264px; padding: 12px; }
+.shapes-panel h3 { font-size: 13px; margin: 12px 0; }
+.shapes-panel p { color: #79737f; font-size: 12px; }
+.shape-tiles { display: flex; gap: 8px; }
+.shape-tiles button { display: grid; justify-items: center; gap: 8px; flex: 1; }
+.shape-control { display: inline-flex; }
+.shape-menu, .shape-paint-panel {
+  position: absolute; left: 0; top: 48px; background: #1f1f22; color: white;
+  border-radius: 12px; padding: 12px; box-shadow: 0 2px 8px #29202e20;
+}
+.shape-menu { display: grid; gap: 4px; min-width: 160px; }
+.shape-menu button[aria-checked=true] { background: #7051cf; }
+.shape-paint-panel { width: 508px; }
+.paint-modes { display: flex; gap: 8px; margin-bottom: 12px; }
+.paint-modes button { flex: 1; }
+.context .paint-modes button[aria-pressed=true] { background: #7051cf; }
+.shape-swatches { display: grid; grid-template-columns: repeat(11, 40px); gap: 4px; }
+.shape-swatches .colour-dot { width: 26px; height: 26px; }
+.shape-swatches button[aria-pressed=true] .colour-dot, .custom-colour[data-pressed=true] {
+  outline: 2px solid white; outline-offset: 2px;
+}
+.custom-colour { position: relative; width: 28px; height: 28px; margin: 6px; border-radius: 50%;
+  background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red); }
+.custom-colour-input { width: 1px; height: 1px; padding: 0; border: 0; position: absolute;
+  opacity: 0; pointer-events: none; }
+.custom-colour .custom-colour-input { width: 100%; height: 100%; inset: 0; pointer-events: auto; cursor: pointer; }
+.custom-colour:focus-within { outline: 3px solid #a88cf4; outline-offset: 3px; }
+.colour-dot.no-fill { background: transparent !important; border-color: white; }
+.grow-shape { position: absolute; z-index: 1; transform: translate(-50%, -50%); width: 24px; height: 24px;
+  min-width: 24px; min-height: 24px; border: 0; border-radius: 6px; padding: 2px; background: #518de0; color: white; }
+.inline.shape-editor { display: flex; align-items: center; }
+.inline.shape-editor textarea { height: auto; max-height: 100%; min-height: 1.45em; field-sizing: content;
+  color: inherit; text-align: inherit; overflow-y: auto; }
+.shape-placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: #929292; pointer-events: none; }
+@media (max-width:767px) { .shapes-panel { top: var(--panel-top); max-width: calc(100% - 24px); } }

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { add, type Board as SavedBoard, type BoardV5 as Board, type ItemV5 as Item, validText } from "../document";
+import { add, type Board as SavedBoard, type BoardV6 as Board, type ItemV6 as Item, validText } from "../document";
 import { neededHeight, savedHeight } from "../geometry";
 import { moveWithMembers, placeObject } from "../sections";
-import { objectType } from "../objects/registry";
+import { objectType, creationValues, typeForTool, type ShapePaint } from "../objects/registry";
 import { resizeObject, resizeSet, type Corner, type Rectangle } from "../resize";
 import { remap } from "../marks";
 import { textUnits } from "../styles";
@@ -11,6 +11,7 @@ import { textUnits } from "../styles";
 import type { ResizeStart } from "../gesture";
 
 type Input = {
+  shapeSession: { paint: RefObject<ShapePaint> };
   model: RefObject<Board>;
   commit: (input: SavedBoard, recordObject?: boolean, orderIds?: readonly string[]) => void;
   beginTextSession: (item: Item | undefined) => void;
@@ -33,7 +34,7 @@ type Input = {
 };
 
 export function useGeometryEdits({
-  model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,
+  shapeSession, model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,
   item, selected, select, objectLayouts, readOnly, busy, composing,
   setStatus, setTool, setPanel, setInline, editor, lineCount,
 }: Input) {
@@ -42,7 +43,7 @@ export function useGeometryEdits({
       ...model.current,
       objects: model.current.objects.map((o) =>
         o.id === id && o.text !== value
-          ? { ...o, text: value, marks: remap(o.marks, o.text, value), height: objectType(o.type).richText ? savedHeight(o, lineCount(o, value), textUnits(o.textSize)) : o.height }
+          ? { ...o, text: value, marks: remap(o.marks, o.text, value), height: objectType(o.type).growsWithText ? savedHeight(o, lineCount(o, value), textUnits(o.textSize)) : o.height }
           : o
       ),
     });
@@ -56,10 +57,11 @@ export function useGeometryEdits({
       commitText(item.id, value);
     }
   }
-  function create(type: Item["type"], x: number, y: number, native = false) {
+  function create(tool: string, x: number, y: number, native = false) {
     if (readOnly || busy || composing) return;
     try {
-      const object = add(model.current, type, x, y).objects.at(-1)!;
+      const type = typeForTool(tool);
+      const object = creationValues(add(model.current, type, x, y).objects.at(-1)!, tool, shapeSession.paint.current);
       const next = placeObject(model.current, object);
       commit(next, true);
       select(object.id);
@@ -98,7 +100,7 @@ export function useGeometryEdits({
   }
   function resizedBoard(corner: Corner, start: ResizeStart[], dx: number, dy: number, shift: boolean) {
     const members = start.map(({ object, rectangle }) => ({ ...rectangle, sizeRange: objectType(object.type).sizeRange,
-      neededHeight: (width: number) => objectType(object.type).richText ? neededHeight(lineCount({ ...object, width }), textUnits(object.textSize)) : 0,
+      neededHeight: (width: number) => objectType(object.type).growsWithText ? neededHeight(lineCount({ ...object, width }), textUnits(object.textSize)) : 0,
     }));
     const geometry = members.length === 1
       ? [resizeObject(corner, start[0].rectangle, { x: dx, y: dy }, shift, members[0].neededHeight, members[0].sizeRange)]

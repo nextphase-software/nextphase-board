@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import Konva from "konva";
 import { Group, Rect, Text } from "react-konva";
-import type { ItemV5 as Item } from "../document";
+import type { ItemV6 as Item } from "../document";
 import { TEXT_LAYOUT } from "../geometry";
 import { objectType } from "../objects/registry";
 

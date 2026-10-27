@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-import { add, clamp, type BoardV5 as Board, type ItemV5 as Item } from "./document.ts";
+import { add, clamp, type BoardV6 as Board, type ItemV6 as Item } from "./document.ts";
 import { arrangeOrder, type OrderCommand } from "./arrange.ts";
 import { editingCommandReason } from "./commands.ts";
 import { boundingBox, limitMove, type DisplayObject, type Point } from "./selection.ts";
-import { containerType, isContainer } from "./objects/registry.ts";
+import { containerType, isContainer, labelPrefix } from "./objects/registry.ts";
 
 type Ordered = { id: string; type: string; order: number };
 type Member = Ordered & { section?: string | null };
@@ -116,7 +116,7 @@ const shortName = (text: string) => text.slice(0, 36).replace(/\r\n|[\r\n]/g, " 
 export function objectLabel(board: Board, object: Item, numbers: ReadonlyMap<string, number>, drafts: Record<string, string> = {}): string {
   const container = isContainer(object);
   const peers = board.objects.filter((o) => isContainer(o) === container);
-  const prefix = object.type + " " + (peers.findIndex((o) => o.id === object.id) + 1);
+  const prefix = labelPrefix(object) + " " + (peers.findIndex((o) => o.id === object.id) + 1);
   const text = drafts[object.id] ?? object.text;
   const name = container ? shortName(text) : text.slice(0, 36) || "Empty";
   if (container) {

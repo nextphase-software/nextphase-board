@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { ItemV5 as Item } from "../document";
+import type { ItemV6 as Item } from "../document";
 import { remap, segments } from "../marks";
 
 export function FormatPreview({ item, text }: { item: Item; text: string }) {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Group, Rect, Text } from "react-konva";
-import type { ItemV5 as Item } from "../document";
+import type { ItemV6 as Item } from "../document";
 import { TEXT_INSET, TEXT_LAYOUT } from "../geometry";
 import { objectType } from "../objects/registry";
 import { textUnits } from "../styles";

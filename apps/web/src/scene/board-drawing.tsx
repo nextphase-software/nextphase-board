@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Layer, Stage } from "react-konva";
-import type { BoardV5 as Board } from "../document";
+import type { BoardV6 as Board } from "../document";
 import type { View } from "../view";
 import { bandOrder, dropTargets } from "../sections";
 import { objectType } from "../objects/registry";
+import { ShapeBody } from "./shape-body";
 import { SectionBody, SectionDropHint } from "./section-body";
 import { NoteBody, type ObjectLayout } from "./note-body";
 
@@ -31,7 +32,7 @@ export function BoardDrawing({ size, view, board, objectLayouts, selected, inlin
         {bandOrder(board.objects).map((o) => {
           const layout = objectLayouts.get(o.id)!;
           return (
-            objectType(o.type).body === "note" ? <NoteBody key={o.id} o={o} layout={layout} selected={selected} inline={inline} view={view} />
+            objectType(o.type).shapePaint ? <ShapeBody key={o.id} o={o} layout={layout} selected={selected} inline={inline} view={view} /> : objectType(o.type).body === "note" ? <NoteBody key={o.id} o={o} layout={layout} selected={selected} inline={inline} view={view} />
               : <SectionBody key={o.id} o={o} selected={selected} inline={inline} dropTarget={sections.has(o.id)} />
           );
         })}

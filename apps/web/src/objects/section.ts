@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { colorEntry, type Style } from "../styles.ts";
+import { colorEntry, textUnits, type Style } from "../styles.ts";
 
 export const section = {
   type: "section",
@@ -12,6 +12,19 @@ export const section = {
   textLimit: 100,
   initialText: "Section",
   sizeRange: { min: 200, max: 10000 },
+  extraKeys: [] as readonly string[],
+  defaults: () => ({}),
+  validExtras: (_o: object) => true,
+  kinds: [] as readonly { kind: string; tool: string; key: string; round: boolean }[],
+  shapePaint: false,
+  growsWithText: false,
+  previewRadius: 0,
+  editorMinimum: { width: 120, height: 60 },
+  textBox: (o: { x: number; y: number; width: number; height: number }) => ({
+    x: o.x + 20, y: o.y + 20, width: o.width - 40, height: o.height - 40,
+  }),
+  fontSize: (o: Pick<Style, "textSize">) => textUnits(o.textSize),
+  labelPrefix: (_o: object) => "section",
   draws: true,
   defaultSize: { width: 640, height: 480 },
   defaultStyle: { color: "neutral", textSize: "medium", align: "left" },

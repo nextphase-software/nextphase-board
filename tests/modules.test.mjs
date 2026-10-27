@@ -22,7 +22,7 @@ const objects = new URL("objects/", source);
 const objectTypes = files(objects).sort();
 const objectContents = objectTypes.map((name) => [name, readFileSync(new URL(name, objects), "utf8")]);
 
-test("screen parts contain exactly the fourteen modules named by 0001-W15 v1 through 0001-W26 v1", () => {
+test("screen parts contain exactly the sixteen screen modules named through 0002-W4 v1", () => {
   assert.deepEqual(screenParts, [
     "arrange-controls.tsx",
     "board-panel.tsx",
@@ -37,6 +37,8 @@ test("screen parts contain exactly the fourteen modules named by 0001-W15 v1 thr
     "objects-panel.tsx",
     "palette.tsx",
     "save-area.tsx",
+    "shape-controls.tsx",
+    "shapes-panel.tsx",
     "zoom-controls.tsx",
   ]);
 });
@@ -74,18 +76,19 @@ test("every screen part begins with the Apache-2.0 licence header", () => {
   }
 });
 
-test("scene parts contain exactly the five modules named through 0002-W1 v1", () => {
+test("scene parts contain exactly the six modules named through 0002-W4 v1", () => {
   assert.deepEqual(sceneParts, [
     "board-drawing.tsx",
     "inline-editor.tsx",
     "note-body.tsx",
     "overlays.tsx",
     "section-body.tsx",
+    "shape-body.tsx",
   ]);
 });
 
-test("object types contain exactly the four object-type modules named through 0002-W1 v1", () => {
-  assert.deepEqual(objectTypes, ["registry.ts", "section.ts", "sticky.ts", "text.ts"]);
+test("object types contain exactly the five object-type modules named through 0002-W4 v1", () => {
+  assert.deepEqual(objectTypes, ["registry.ts", "section.ts", "shape.ts", "sticky.ts", "text.ts"]);
 });
 
 test("object types never import React or Konva", () => {
@@ -97,7 +100,7 @@ test("object types never import React or Konva", () => {
 test("composition and screen parts ask the registry instead of comparing type names", () => {
   const app = readFileSync(new URL("App.tsx", source), "utf8");
   for (const [name, content] of [["App.tsx", app], ...contents, ...sceneContents]) {
-    assert.doesNotMatch(content, /===\s*["'](?:sticky|text|section)["']/, name);
+    assert.doesNotMatch(content, /===\s*["'](?:sticky|text|section|shape|square|circle)["']/, name);
     assert.doesNotMatch(content, /["']sticky["']\s*:\s*["']text["']/, name);
     assert.doesNotMatch(content, /\[\s*["']sticky["']\s*,\s*["']text["']\s*\]/, name);
   }
@@ -292,8 +295,8 @@ test("object types import only siblings or styles, which never imports object ty
 function typeNameUses(source) {
   return [
     /\bsticky\b/,
-    /[=!]==\s*["'](?:sticky|text|section)["']/,
-    /["'](?:sticky|text|section)["']\s*[=!]==/,
+    /[=!]==\s*["'](?:sticky|text|section|shape|square|circle)["']/,
+    /["'](?:sticky|text|section|shape|square|circle)["']\s*[=!]==/,
   ].filter((pattern) => pattern.test(source));
 }
 
@@ -301,7 +304,7 @@ test("rules modules ask the registry instead of naming types", () => {
   const rules = readdirSync(source).filter((name) => name.endsWith(".ts"));
   assert(rules.includes("document.ts"));
   assert(rules.includes("styles.ts"));
-  for (const name of rules) {
+  for (const name of [...rules, ...files(new URL("state/", source)).map((n) => "state/" + n)]) {
     assert.deepEqual(typeNameUses(readFileSync(new URL(name, source), "utf8")), [], name);
   }
 });
@@ -316,6 +319,9 @@ test("rules type-name guard detects each forbidden form and allows text fields",
     'if ("text" === o.type) return;',
     'if (o.type === "section") return;',
     'if ("section" !== o.type) return;',
+    'if (o.type === "shape") return;',
+    'if (o.shape !== "square") return;',
+    'if ("circle" === o.shape) return;',
   ]) {
     assert(typeNameUses(source).length > 0, source);
   }

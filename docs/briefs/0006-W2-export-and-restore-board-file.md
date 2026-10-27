@@ -333,3 +333,54 @@ fixture PASS lines, real download/file-chooser/focus/lock journeys, and Safari
 checks remain for the reviewer/maintainer. No additional browser matrix, native
 IME, accessibility audit, performance, quota or power-loss campaign was run.
 No merge, push or subsequent milestone is part of this handoff.
+
+### Fix round 1 — F1–F3
+
+- Branch: `codex/0006-W2-board-files`; started clean at reviewed tip
+  `1facce9f78001f096de37e25c2b6a83636f05baf` in the same milestone worktree.
+- Validated source/test revision: `bc948c9065504c57bd0828ece6a145eb94fcd7e1`
+  (`fix(web): correct board saves, focus and lock status`). The checks below ran
+  on the identical source/test tree before that commit. The final branch tip is
+  reported separately; the following commit appends only this record.
+- **F1 (P2):** explicit Save always captures `structuredClone(model.current)`, so
+  an unedited legacy board's next Save writes the live version 7 document.
+  Acknowledgement still sets `opened.current = snapshot`; a subsequent unedited
+  file copy therefore uses the acknowledged payload. The from-file rule is unchanged.
+  No hook unit test was added: the brief's named Node tests exercise rules/storage
+  or structural guards, without a React hook/DOM runner. Adding such a runner or
+  changing other tests would exceed this fix's scope. Existing version 1–7 file
+  round-trip tests pass; they do not prove the hook's Save journey.
+- **F2 (P2):** removed `inert` from `main`. Board/file open returns now queue a focus
+  target, consumed only by a passive effect keyed on `opening` after React commits
+  the enabled controls. This covers the activated row/file command and refused
+  files. Startup, Reopen and Retry editing do not request focus restoration;
+  dialog cancellation/save-failure focus handling is unchanged. The module guard
+  now expects the lifecycle effect plus the explicitly requested opening-focus effect.
+- **F3 (P3):** `boardStatus` takes `readOnly` and owns the
+  `(!current || readOnly)` wording condition. `BoardsList` passes the lock and
+  read-only values without applying that rule. Catalog tests cover all read-only
+  combinations plus explicit editable-current, read-only-current and other-row cases.
+- Scope: six source/test files plus this append-only record. Brief requirements,
+  architecture contracts, storage rules, other hooks, fixtures and dependency
+  manifests/lock are unchanged. Dependencies added: **none**.
+
+Commands ran from the repository root with Node **24.22.1** and npm **11.19.1**
+selected on `PATH`:
+
+| Exact command | Result |
+| --- | --- |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed; manifests and lock unchanged. |
+| `npm --prefix apps/web run typecheck` | Exit 0. |
+| `node --test tests/board-catalog.test.mjs tests/board-file.test.mjs tests/storage.test.mjs tests/modules.test.mjs` | Exit 0; 65 passed, 0 failed, cancelled or skipped. |
+| `npm --prefix apps/web test` | Exit 0; 485 passed, 0 failed, cancelled or skipped. No failures required a baseline unit comparison; no baseline suite was run. |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified. |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built with the same dependency/notice verification; fixtures were not executed. |
+| `git diff --check` | Exit 0. |
+| `git diff --name-only 1facce9...HEAD` | Exit 0; only the six intended source/test paths at the validated revision. The handoff adds this record only. |
+| `git commit -m "fix(web): correct board saves, focus and lock status"` | Exit 0; mandatory public-boundary checks passed. Git reported a sandbox-denied `packed-refs.lock` operation; the commit and branch ref were verified. |
+
+Graph discovery/indexing was attempted first and denied by the sandbox's approval
+policy; direct source reads were used. No browser was launched, and no browser
+regression harness was run. Native Save/download/focus journeys, scenario P,
+the reviewer's A–J comparison and Safari remain **unverified by this fix round**.
+There was no broader test campaign, merge, push or subsequent milestone.

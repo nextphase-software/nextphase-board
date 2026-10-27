@@ -24,9 +24,12 @@ export type ShapePopup = {
 };
 export type ShapeControlProps = { selection: ShapeSelection; commands: ShapeCommands; reason: string };
 
-function CustomColour({ value, disabled, choose }: { value: string; disabled: boolean; choose: (color: string) => void }) {
+function CustomColour({ value, pressed, hidden = false, disabled, choose }: {
+  value: string; pressed?: boolean; hidden?: boolean; disabled: boolean; choose: (color: string) => void;
+}) {
   return <input className="custom-colour-input" type="color" aria-label="Custom colour" disabled={disabled}
-    defaultValue={shapeColor(value)} key={value} aria-pressed={value.startsWith("#")}
+    defaultValue={shapeColor(value)} key={value} aria-pressed={hidden ? undefined : pressed}
+    tabIndex={hidden ? -1 : undefined} aria-hidden={hidden ? true : undefined}
     ref={(field) => {
       if (!field) return;
       field.onchange = () => choose(field.value.toLowerCase());
@@ -54,7 +57,7 @@ export function ShapeControls({ selection: s, commands: c, reason, popup, part }
         aria-expanded={opened} aria-controls={opened ? "shape-" + name + "-popup" : undefined}
         onClick={() => popup.toggle(name)}>
         {name === "kind" ? <><Icon name={kind?.tool ?? kindInfo(first).tool} />{kind?.tool ?? "Mixed"}</>
-          : name === "fill" ? <span className={"colour-dot" + (s.fillMode === "none" ? " no-fill" : "")} style={{ background: shapeColor(s.fillColor || first.fill!.color) }} />
+          : name === "fill" ? <span className={"colour-dot" + ((s.fillMode || first.fill!.mode) === "none" ? " no-fill" : "")} style={{ background: shapeColor(s.fillColor || first.fill!.color) }} />
           : <Icon name="Border" />}<Icon name="chevron" />
       </button>
       {opened && <div ref={popup.menu} id={"shape-" + name + "-popup"} className={name === "kind" ? "shape-menu" : "shape-paint-panel"}
@@ -70,7 +73,7 @@ export function ShapeControls({ selection: s, commands: c, reason, popup, part }
             title={colour.label} aria-label={colour.label} aria-pressed={value === colour.name} onClick={() => chooseColour(colour.name)}>
             <span className="colour-dot" style={{ background: colour.value }} /></button>)}
             <span className="custom-colour" title="Custom colour" data-pressed={!!value && value.startsWith("#")}>
-              <CustomColour value={value || initial} disabled={!!reason} choose={chooseColour} />
+              <CustomColour value={value || initial} pressed={!!value && value.startsWith("#")} disabled={!!reason} choose={chooseColour} />
             </span>
           </div>
         </>}
@@ -113,7 +116,7 @@ export function ShapeFields({ selection: s, commands: c, reason }: ShapeControlP
           {color.startsWith("#") && <option value={color}>{fromFill ? "Darker " + shapeColorLabel(s.fillColor) + " (from fill)" : color}</option>}
           <option value="custom">Custom…</option>
         </select>
-        <CustomColour value={color || first} disabled={!!reason} choose={choose} />
+        <CustomColour value={color || first} hidden disabled={!!reason} choose={choose} />
       </div>;
     })}
   </div>;

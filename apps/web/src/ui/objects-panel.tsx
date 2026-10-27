@@ -101,8 +101,8 @@ export function ObjectsPanel({
         ))}
       </select>
       {selected.size > 1 ? <p>{selected.size} objects selected</p> : nativeEditor}
-      <ShapeFields selection={shapeSelection} commands={shapeCommands} reason={selectionReason} />
       {richText && selected.size === 1 && item && <FormatPreview item={item} text={text} />}
+      <ShapeFields selection={shapeSelection} commands={shapeCommands} reason={selectionReason} />
       {selected.size > 0 && <div className="object-styles">
         {shapeSelection.hasOther && <><label htmlFor="object-colour">Colour</label>
         <select id="object-colour" value={selectionColor} disabled={!!selectionReason}

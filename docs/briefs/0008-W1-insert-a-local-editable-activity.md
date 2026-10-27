@@ -305,3 +305,42 @@ was unavailable under this sandbox policy; repository reads were used instead. M
 pre-commit and commit-message privacy hooks both reported `PUBLIC BOUNDARY: PASS` for the
 implementation commit, without bypasses. Git emitted a nonfatal sandbox warning while trying
 to lock packed refs; the commit completed successfully and its branch tip was verified.
+
+### 2026-10-27 — Fix round 1
+
+- Branch: `codex/0008-W1-templates`; worktree: `.worktrees/codex-0008-W1`.
+- Reviewed starting revision: `cfe4974a313bc3feed45876a058b523791f887d9`.
+- Validated source/test revision: `dfb15cc7a3598f56cce552a8d8e226442b4999d1`
+  (`fix(web): align template panel breakpoints and positioning`). All checks below ran on
+  its exact contents before the fix commit. The final branch tip includes this subsequent
+  documentation-only record and is reported separately.
+- F1 (P3): kept `bottom: 138px` under `(max-width:1000px)` and moved the full-width
+  `left: 12px; width: calc(100% - 24px)` declarations to `(max-width:999.98px)`.
+- F2 (P3): removed the Templates panel's `position: fixed`, allowing `.floating`'s
+  absolute positioning relative to `main`, like the toolbar. Changed only its two
+  max-height expressions from `100dvh` to `100%`; all other dimensions remain unchanged.
+- Scope: only `apps/web/style.css` plus this appended implementation record. Brief requirements,
+  contracts, application modules, tests, packages and locks are unchanged. Added dependencies: none.
+
+Commands from the repository root, with Node `24.22.1` and npm `11.19.1` selected through
+`PATH`:
+
+| Command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed |
+| `npm --prefix apps/web run typecheck` | Exit 0 |
+| `node --test tests/activities.test.mjs tests/clipboard.test.mjs tests/modules.test.mjs` | Exit 0; 70 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web test` | Exit 0; 501 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; application built; lock, runtime inventory and distributed notices verified |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; fixtures and regression bundle built; notices verified; no browser execution |
+| `git diff --check` | Exit 0 |
+| `git diff --name-only` | Exit 0 before the fix commit; only `apps/web/style.css` |
+| `git diff --cached --check` | Exit 0 before the fix commit |
+
+The CSS diff was inspected against F1 and F2. No browser, server, browser comparison or
+regression harness was launched; layout rendering remains for the reviewer. No additional
+checks, merge or push were run. Both mandatory privacy hooks passed on the fix commit without
+bypasses. Git again emitted a nonfatal sandbox warning while trying to lock packed refs; the
+commit succeeded and its branch revision was verified.

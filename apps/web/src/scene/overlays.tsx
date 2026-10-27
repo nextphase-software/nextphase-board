@@ -16,6 +16,7 @@ type Props = {
 };
 
 export function Overlays({ selectedGroups, pos, view, handlesVisible, handlePoints, spacePan, selectionBox, tool }: Props) {
+  const previewRadius = placementTool(tool)?.previewRadius ?? 0;
   return (
     <>
       {[...selectedGroups].filter(([, members]) => members.length >= 2).map(([id, members]) => {
@@ -32,7 +33,7 @@ export function Overlays({ selectedGroups, pos, view, handlesVisible, handlePoin
           cursor: spacePan ? "grab" : undefined }} />)}
       {selectionBox && <div className={"selection-box" + (placementTool(tool)?.draws ? " drawing" : "")} aria-hidden="true" style={{
         left: pos(selectionBox).left, top: pos(selectionBox).top,
-        borderRadius: (placementTool(tool)?.previewRadius ?? 0) * view.z,
+        ...(previewRadius ? { borderRadius: previewRadius * view.z } : {}),
         width: selectionBox.width * view.z, height: selectionBox.height * view.z,
       }} />}
     </>

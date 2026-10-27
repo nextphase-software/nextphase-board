@@ -590,3 +590,18 @@ small {
 .inline.connector-editor:focus-within { outline: none; }
 .inline.connector-editor textarea { text-align: center; }
 .inline.connector-editor textarea::placeholder { color: #929292; opacity: 1; }
+.board-file-commands { display: flex; flex-direction: column; gap: 12px; }
+.boards-heading { margin: 0; font-size: 14px; }
+.boards-list { display: flex; flex-direction: column; gap: 8px; }
+.boards-list button { text-align: left; overflow-wrap: anywhere; }
+.boards-list button > span, .boards-list small { display: block; }
+.boards-list small { margin-top: 4px; }
+.boards-list [aria-current=true] { border-color: #7051cf; background: #f5f0ff; }
+.board-question { width: min(520px, calc(100% - 24px)); padding: 24px; border: 1px solid #e9e7ed; border-radius: 12px; color: #29272e; }
+.board-question::backdrop { background: #29272e66; }
+.board-question h2 { margin-top: 0; font-size: 20px; }
+.board-question p { overflow-wrap: anywhere; }
+.board-question-actions { display: flex; justify-content: flex-end; gap: 8px; }
+@media (max-width:399px) {
+  .board-question-actions { flex-wrap: wrap; }
+}

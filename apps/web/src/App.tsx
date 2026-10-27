@@ -34,8 +34,8 @@ import { ContentField } from "./ui/content-field";
 import { ContextBar } from "./ui/context-bar";
 import { Palette } from "./ui/palette";
 import { ZoomControls } from "./ui/zoom-controls";
-import { InformationButton } from "./ui/information-button";
-import { InformationPanel } from "./ui/information-panel";
+import { InformationControls } from "./ui/information-controls";
+import { BoardQuestion } from "./ui/board-question";
 import { NavigationPanel } from "./ui/navigation-panel";
 
 export function App() {
@@ -73,9 +73,9 @@ export function App() {
     setArrangeFor("");
     setSelected(new Set(typeof value === "string" ? value ? [value] : [] : value));
   }
-  const { snapshots, alive, adopt, save, reopen } = useStorageSession({
+  const { snapshots, alive, adopt, save, reopen, boardFiles, boardQuestion } = useStorageSession({
     readOnly, setReadOnly, setStatus, setMessage, load, clearHistory, model,
-    revision, adapter, select, setInline, setView, invalid, busy, composing, pending,
+    revision, adapter, select, setInline, setView, invalid, busy, composing, pending, title,
   });
   const size = useSceneSize(scene);
   const pos = (o: { x: number; y: number }) => screenPoint(o, view, size);
@@ -137,6 +137,7 @@ export function App() {
   />;
   return (
     <main
+      inert={boardFiles.opening}
       style={{
         "--notice-top": layout.notice + "px",
         "--panel-top": layout.panel + "px",
@@ -196,7 +197,7 @@ export function App() {
         <BoardPanel
           setComposing={setComposing} commit={commit} model={model} title={title} readOnly={readOnly}
           busy={busy} setTitle={setTitle} setStatus={setStatus} composing={composing} reopen={reopen}
-          setPanel={setPanel} boardButton={boardButton}
+          setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles}
         />
       )}
       {panel === "Objects" && (
@@ -244,14 +245,10 @@ export function App() {
         busy={busy} composing={composing} setView={setView} view={view} panel={panel}
         navButton={navButton} toggle={toggle}
       />
-      <InformationButton
+      <BoardQuestion {...boardQuestion} />
+      <InformationControls
         infoButton={infoButton} panel={panel} busy={busy} composing={composing} toggle={toggle}
       />
-      {panel === "Information" && (
-        <InformationPanel
-          busy={busy} composing={composing} toggle={toggle}
-        />
-      )}
       {panel === "Navigation" && (
         <NavigationPanel
           busy={busy} composing={composing} setView={setView} setPanel={setPanel} navButton={navButton}

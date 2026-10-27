@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
 import { count, validText, type Board as SavedBoard, type BoardV7 as Board } from "../document";
+import type { BoardEntry } from "../board-catalog";
+import { BoardsList } from "./boards-list";
 
 type Props = {
   setComposing: Dispatch<SetStateAction<boolean>>;
@@ -15,14 +17,21 @@ type Props = {
   reopen: () => void;
   setPanel: Dispatch<SetStateAction<string>>;
   boardButton: RefObject<HTMLButtonElement | null>;
+  boardFiles: {
+    entries: BoardEntry[]; heldLocks: string[]; boardKey: string; readOnly: boolean; opening: boolean; invalid: boolean;
+    panelRef: (node: HTMLElement | null) => void;
+    fileInput: RefObject<HTMLInputElement | null>; fileButton: RefObject<HTMLButtonElement | null>;
+    openBoard: (entry: BoardEntry, element: HTMLElement) => void;
+    openFile: (file: File) => void; saveCopy: () => void;
+  };
 };
 
 export function BoardPanel({
   setComposing, commit, model, title, readOnly, busy, setTitle, setStatus, composing, reopen,
-  setPanel, boardButton
+  setPanel, boardButton, boardFiles
 }: Props) {
   return (
-    <section className="details floating">
+    <section className="details floating" ref={boardFiles.panelRef}>
       <label htmlFor="title">Board name</label>
       <input
         id="title"
@@ -34,7 +43,7 @@ export function BoardPanel({
           }
         }}
         value={title}
-        readOnly={readOnly || busy}
+        readOnly={readOnly || busy || boardFiles.opening}
         onChange={(e) => {
           const value = e.target.value;
           setTitle(value);
@@ -45,10 +54,19 @@ export function BoardPanel({
         }}
       />
       <small>{count(title)} / 120 · nonblank name required</small>
-      <button onClick={reopen} disabled={busy || composing}>Reopen</button>
+      <div className="board-file-commands">
+        <button onClick={boardFiles.saveCopy} disabled={boardFiles.invalid || busy || composing || boardFiles.opening}>Save a copy to file</button>
+        <button ref={boardFiles.fileButton} onClick={() => boardFiles.fileInput.current?.click()}
+          disabled={busy || composing || boardFiles.opening}>Open board file…</button>
+      </div>
+      <input hidden ref={boardFiles.fileInput} type="file" accept=".nextboard,.json" onChange={(e) => {
+        const file = e.currentTarget.files?.[0]; e.currentTarget.value = "";
+        if (file) boardFiles.openFile(file);
+      }} />
+      <button onClick={reopen} disabled={busy || composing || boardFiles.opening}>Reopen</button>
+      <BoardsList {...boardFiles} busy={busy} composing={composing} />
       <p>
-        One board in this browser origin/profile. Browser storage is not a
-        backup.
+        Boards are kept only in this browser profile, and browser storage is not a backup. Save a copy to file to keep one.
       </p>
       <button
         disabled={composing || busy}

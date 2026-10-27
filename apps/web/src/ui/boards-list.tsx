@@ -12,12 +12,12 @@ export function BoardsList({ entries, boardKey, heldLocks, readOnly, opening, bu
     <div className="boards-list">
       {entries.map((entry) => {
         const current = entry.key === boardKey;
-        const another = (!current || readOnly) && heldLocks.includes(boardKeys(entry.key).lock);
+        const another = heldLocks.includes(boardKeys(entry.key).lock);
         return <button key={entry.key} aria-current={current ? "true" : undefined}
           aria-disabled={!current && entry.state !== "valid" ? "true" : undefined}
           disabled={opening || busy || composing} onClick={(e) => openBoard(entry, e.currentTarget)}>
           <span>{entry.title || "Unnamed board"}</span>
-          <small>{boardStatus(entry, current, another)}</small>
+          <small>{boardStatus(entry, current, another, readOnly)}</small>
         </button>;
       })}
     </div>

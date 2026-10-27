@@ -42,16 +42,26 @@ test("catalog sorts newest first, unknown last and key ties in code-unit order",
   assert.deepEqual(orderedBoards(entries).map((e) => e.key), [entries[3].key, id, other, "original"]);
 });
 
-test("status lines cover every current, lock, state, saved-time and file combination", () => {
+test("status lines cover every current, read-only, lock, state, saved-time and file combination", () => {
   const now = new Date(2026, 9, 27, 12), time = new Date(2026, 9, 27, 9, 5).getTime();
-  for (const current of [true, false]) for (const another of [true, false]) for (const state of ["valid", "damaged", "newer"]) for (const savedAt of [null, time]) for (const fromFile of [true, false]) {
+  for (const current of [true, false]) for (const readOnly of [true, false]) for (const another of [true, false]) for (const state of ["valid", "damaged", "newer"]) for (const savedAt of [null, time]) for (const fromFile of [true, false]) {
     const parts = [];
-    if (current) parts.push("open here"); if (another) parts.push("open in another tab");
+    if (current) parts.push("open here"); if (another && (!current || readOnly)) parts.push("open in another tab");
     parts.push(state === "valid" ? savedAt === null ? "saved time unavailable" : "saved today 09:05"
       : (current ? "" : "can't be opened: ") + (state === "damaged" ? "damaged" : "made by a newer version of Board"));
     if (fromFile && state === "valid") parts.push("from file");
     const expected = parts.join(" · ");
-    assert.equal(boardStatus(entry(id, { state, savedAt, fromFile }), current, another, now), expected[0].toUpperCase() + expected.slice(1));
+    assert.equal(boardStatus(entry(id, { state, savedAt, fromFile }), current, another, readOnly, now), expected[0].toUpperCase() + expected.slice(1));
+  }
+});
+
+test("another-tab wording distinguishes editable and read-only current rows", () => {
+  const e = entry(id);
+  assert.equal(boardStatus(e, true, true, false), "Open here · saved time unavailable");
+  assert.equal(boardStatus(e, true, true, true), "Open here · open in another tab · saved time unavailable");
+  assert.equal(boardStatus(e, true, false, true), "Open here · saved time unavailable");
+  for (const readOnly of [false, true]) {
+    assert.equal(boardStatus(e, false, true, readOnly), "Open in another tab · saved time unavailable");
   }
 });
 
@@ -67,7 +77,7 @@ test("saved times use local calendar dates, English months, two digits and futur
   ];
   for (const [date, result] of cases) assert.equal(savedTime(date.getTime(), now), result);
   assert.equal(savedTime(null, now), null); assert.equal(savedTime(Number.MAX_SAFE_INTEGER, now), null);
-  assert.equal(boardStatus(entry(id, { savedAt: Number.MAX_SAFE_INTEGER }), false, false, now), "Saved time unavailable");
+  assert.equal(boardStatus(entry(id, { savedAt: Number.MAX_SAFE_INTEGER }), false, false, false, now), "Saved time unavailable");
   assert.equal(savedTime(new Date(2025, 11, 31, 23, 59).getTime(), new Date(2026, 0, 1, 0, 1)), "yesterday 23:59");
 });
 

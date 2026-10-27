@@ -137,7 +137,6 @@ export function App() {
   />;
   return (
     <main
-      inert={boardFiles.opening}
       style={{
         "--notice-top": layout.notice + "px",
         "--panel-top": layout.panel + "px",

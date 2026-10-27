@@ -70,9 +70,9 @@ export function savedTime(time: number | null, now = new Date()): string | null 
   const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][date.getMonth()];
   return `${date.getDate()} ${month}${date > now || date.getFullYear() !== now.getFullYear() ? ` ${date.getFullYear()}` : ""} ${clock}`;
 }
-export function boardStatus(entry: BoardEntry, current: boolean, anotherTab: boolean, now = new Date()) {
+export function boardStatus(entry: BoardEntry, current: boolean, anotherTab: boolean, readOnly: boolean, now = new Date()) {
   const time = savedTime(entry.savedAt, now);
-  const parts = [current ? "open here" : "", anotherTab ? "open in another tab" : "",
+  const parts = [current ? "open here" : "", anotherTab && (!current || readOnly) ? "open in another tab" : "",
     entry.state === "valid" ? time ? `saved ${time}` : "saved time unavailable"
       : `${current ? "" : "can't be opened: "}${entry.state === "damaged" ? "damaged" : "made by a newer version of Board"}`,
     entry.state === "valid" && entry.fromFile ? "from file" : ""].filter(Boolean).join(" · ");

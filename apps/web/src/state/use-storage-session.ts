@@ -42,6 +42,7 @@ export function useStorageSession({
   const operation = useRef(false), epoch = useRef(0), questionTarget = useRef<Target | null>(null);
   const incoming = useRef<{ store: LocalStore | null; own: Ownership } | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null), fileInput = useRef<HTMLInputElement | null>(null);
+  const pendingOpenFocus = useRef<HTMLElement | null>(null);
   const fileButton = useRef<HTMLButtonElement | null>(null);
   const dialog = useRef((node: HTMLDialogElement | null) => {
     if (node && !node.open) {
@@ -179,10 +180,16 @@ export function useStorageSession({
       window.removeEventListener("pagehide", hide); window.removeEventListener("pageshow", show); window.removeEventListener("focus", focus);
     };
   }, []);
+  useEffect(() => {
+    if (opening) return;
+    const element = pendingOpenFocus.current;
+    pendingOpenFocus.current = null;
+    element?.focus();
+  }, [opening]);
   async function save() {
     if (operation.current || latest.current.invalid || latest.current.readOnly || latest.current.busy || latest.current.composing || !store.current) return false;
     const captured = revision.current, s = store.current;
-    const snapshot = structuredClone(captured === ack.current && opened.current ? opened.current : model.current);
+    const snapshot = structuredClone(model.current);
     setStatus("Saving");
     try {
       const receipt = await s.save(snapshot, captured);
@@ -202,6 +209,7 @@ export function useStorageSession({
   async function reopen() {
     if (latest.current.composing || latest.current.busy || operation.current) return;
     if ((revision.current !== ack.current || latest.current.invalid) && !confirm("Discard unsaved drafts and reload the saved board?")) return;
+    pendingOpenFocus.current = null;
     operation.current = true; setOpening(true); setReadOnly(true);
     await stop(); await start(currentKey.current);
     operation.current = false; setOpening(false);
@@ -209,6 +217,7 @@ export function useStorageSession({
   function focusBack() { requestAnimationFrame(() => returnFocus.current?.focus()); }
   async function openTarget(target: Target) {
     const token = epoch.current;
+    pendingOpenFocus.current = null;
     operation.current = true; setOpening(true);
     if ("key" in target) {
       setReadOnly(true); await stop(); await start(target.key);
@@ -252,7 +261,8 @@ export function useStorageSession({
         }
       }
     }
-    operation.current = false; setOpening(false); setAnswerPending(false); focusBack();
+    operation.current = false; pendingOpenFocus.current = returnFocus.current;
+    setOpening(false); setAnswerPending(false);
   }
   function ask(target: Target, element: HTMLElement | null) {
     returnFocus.current = element;
@@ -267,13 +277,14 @@ export function useStorageSession({
   async function openFile(file: File) {
     if (operation.current || busy || composing) return;
     const focus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    pendingOpenFocus.current = null;
     operation.current = true; setOpening(true);
     let board: SavedBoard;
     try { board = await readBoardFile(file); }
     catch (error) {
       setMessage(`“${file.name}” was not opened: ${error instanceof Error ? error.message : "it is not a Board file"}. Nothing changed.`);
-      operation.current = false; setOpening(false);
-      requestAnimationFrame(() => focus?.focus()); return;
+      operation.current = false; pendingOpenFocus.current = focus;
+      setOpening(false); return;
     }
     operation.current = false; setOpening(false);
     ask({ board, name: file.name }, fileButton.current);

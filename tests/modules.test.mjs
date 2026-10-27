@@ -177,9 +177,9 @@ test("notice message is a rules module without React imports", () => {
   assert.doesNotMatch(content, /\bimport\s+(?:[^;]*?\s+from\s*)?["']react["']/);
 });
 
-test("the storage session hook holds exactly one passive effect", () => {
+test("the storage session hook holds lifecycle and opening-focus passive effects", () => {
   const content = readFileSync(new URL("state/use-storage-session.ts", source), "utf8");
-  assert.equal((content.match(/\buseEffect\s*\(/g) ?? []).length, 1);
+  assert.equal((content.match(/\buseEffect\s*\(/g) ?? []).length, 2);
   assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });
 

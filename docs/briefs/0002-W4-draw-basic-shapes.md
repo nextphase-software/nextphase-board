@@ -443,3 +443,39 @@ Review and exclusions:
 - Both public-boundary checks passed during the source/test commit. Git also emitted a
   sandbox permission diagnostic for `packed-refs.lock`; the commit succeeded (exit 0), its
   full ID was verified, and the working tree was clean before this record was appended.
+
+### Fix round 1
+
+- Review finding: P3, the selection box/drawing preview added inline `border-radius: 0px`
+  to non-shape markup compared with `eb79dca`.
+- Branch: `codex/0002-W4-draw-basic-shapes`; worktree: `.worktrees/codex-0002-W4`.
+- Fix scope: **only** `apps/web/src/scene/overlays.tsx`. The style object now includes
+  `borderRadius` only when the armed type's preview radius is non-zero. Shape drawing
+  previews retain their zoom-scaled rounded corners; other previews omit the property.
+- Validated revision: `56b0256951e8fe6cada16a10aaa96df9fb1aeb41`
+  (`fix(web): omit zero preview radius from inline styles`). Checks ran on its identical
+  source/test tree before the fix commit. This record is committed separately; the final
+  branch tip is reported separately in the handoff.
+- Added dependencies: **none**. Tests, packages, locks and all other source files are unchanged.
+
+Exact commands from the repository root, with the pinned toolchain selected in `PATH`:
+
+| Command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1`. |
+| `npm --version` | Exit 0; `11.19.1`. |
+| `npm --prefix apps/web run typecheck` | Exit 0. |
+| `node --test tests/shapes.test.mjs tests/document.test.mjs tests/storage.test.mjs tests/objects.test.mjs tests/modules.test.mjs` | Exit 0; **127 passed, 0 failed**. |
+| `npm --prefix apps/web test` | Exit 0; **412 passed, 0 failed**. |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, inventory and notices verified. |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; accepted lock, inventory and notices verified. |
+| `git diff --check` | Exit 0; no whitespace errors. |
+| `git diff --name-only` | Exit 0 before the fix commit; only `apps/web/src/scene/overlays.tsx`. |
+
+No check failed in this round. Browsers, the browser regression harness and the A–J
+comparison were **not run** in this sandbox; browser verification remains with the reviewer.
+No merge or push was performed. Public-boundary hooks passed on the fix commit. Git emitted
+the same sandbox permission diagnostic for `packed-refs.lock`; the fix commit succeeded
+(exit 0), its full ID was verified, and the worktree was clean before this record append.
+The graph search was attempted first but again required unavailable approval; the specified
+source file was read directly afterward.

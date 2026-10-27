@@ -281,3 +281,55 @@ the maintainer asks.
 None beyond the repository's own documents and those cited in storage v2.
 
 ## Implementation record
+
+### 2026-10-27 — v1 implementation handoff
+
+- Branch: `codex/0006-W2-board-files`, in the prescribed milestone worktree, starting
+  clean from committed main `92e22b3dab2ede29fd8c904e8ddd8c1f98f2ae50`.
+- Validated source/test revision: `d4f06664abc26a88dbf7786544d5a5ef455d41bb`
+  (`feat(web): add local board file export and restore`). Checks below ran on the
+  identical source/test tree before that commit. The final branch tip is reported
+  separately because the subsequent commit adds only this implementation record.
+- Scope: the thirteen permitted implementation files only, plus this record.
+  Board-file v1 verification, per-board storage/locks, advisory catalog repair,
+  board selection, file controls and the unsaved-edits question are implemented.
+  The original board retains its existing record keys and lock. The existing
+  Section from selection connector reason already satisfies interaction v20.
+- Dependencies added: **none**. Manifests, dependency lock, contracts, document
+  format, other hooks, fixtures and `tests/storage.test.mjs` are unchanged.
+  `App.tsx` has 259 lines against its unchanged 262-line budget; there are twenty
+  UI modules and nineteen state hooks.
+
+Commands ran from the repository root with Node **24.22.1** and npm **11.19.1**
+selected on `PATH`:
+
+| Exact command | Result |
+| --- | --- |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed; no manifest or lock changes. |
+| `npm --prefix apps/web run typecheck` | Exit 0. |
+| `node --test tests/board-catalog.test.mjs tests/board-file.test.mjs tests/storage.test.mjs tests/modules.test.mjs` | Exit 0; 64 passed, 0 failed, cancelled or skipped. |
+| `npm --prefix apps/web test` | Exit 0; 484 passed, 0 failed, cancelled or skipped. No failures required comparison with `7e332e2`; that baseline unit run was not performed. |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified. |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; accepted lock, runtime inventory and complete distributed notices verified. This builds fixtures without executing them. |
+| `git diff --check` | Exit 0. |
+| `git diff --name-only main...HEAD` | Exit 0; the validated implementation changes only the thirteen permitted implementation paths. The handoff adds this brief's record only. |
+| `git commit -m "feat(web): add local board file export and restore"` | Exit 0; mandatory public-boundary checks passed. Git reported a sandbox-denied `packed-refs.lock` operation; the commit completed and its branch ref was verified. |
+
+The catalog tests use a transactional in-memory IndexedDB double, including
+simulated aborts and changes between refresh read/write transactions. They cover
+atomic saves/list updates, competing stores, byte preservation, occupied-key
+creation refusal, complete-pair comparison, catalog reconstruction and states,
+unrecognised-key isolation, metadata/defaults, and refresh races. File tests cover
+versions 1–7, exact own-version payloads, the ordered refusals, byte-limit boundaries
+and file names. These are unit results, not native IndexedDB/browser evidence.
+
+Graph discovery and indexing were attempted first; the graph service was denied
+by the sandbox's approval policy, so code discovery used direct source reads.
+
+**Reviewer checks remain unverified.** Per the maintainer's instruction, no browser
+was launched and no browser regression harness was run. Scenario P (including its
+`7e332e2` negative control and older-app same-origin checks), scenarios A–J,
+fixture PASS lines, real download/file-chooser/focus/lock journeys, and Safari
+checks remain for the reviewer/maintainer. No additional browser matrix, native
+IME, accessibility audit, performance, quota or power-loss campaign was run.
+No merge, push or subsequent milestone is part of this handoff.

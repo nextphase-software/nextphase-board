@@ -479,3 +479,43 @@ the same sandbox permission diagnostic for `packed-refs.lock`; the fix commit su
 (exit 0), its full ID was verified, and the worktree was clean before this record append.
 The graph search was attempted first but again required unavailable approval; the specified
 source file was read directly afterward.
+
+### Fix round 2
+
+- Review findings: interaction v18, "When the selected shapes differ" and "Objects".
+- Branch: `codex/0002-W4-draw-basic-shapes`; worktree: `.worktrees/codex-0002-W4`.
+- Fix scope: **only** `apps/web/src/ui/shape-controls.tsx` and
+  `apps/web/src/ui/objects-panel.tsx`; `style.css` is unchanged.
+- `CustomColour` receives a separate pressed value derived only from the common colour.
+  Mixed colours leave Custom unpressed, while the picker still defaults to the first
+  selected shape's colour. Objects' select-opened picker inputs now have `tabIndex={-1}`,
+  `aria-hidden="true"` and no rendered `aria-pressed` attribute. A mixed Fill button uses
+  the first selected shape's mode for its no-fill outline. Objects keeps `FormatPreview`
+  immediately after Content, followed by `ShapeFields`.
+- Validated revision: `0f3f5d9c55430eef42264bb599690fe49dbbd6fe`
+  (`fix(web): correct mixed shape paint and Objects focus`). Checks ran on its identical
+  source/test tree before the fix commit. This record is committed separately; the final
+  branch tip is reported separately in the handoff.
+- Added dependencies: **none**. Tests, packages, locks and all other source files are unchanged.
+
+Exact commands from the repository root, with the pinned toolchain selected in `PATH`:
+
+| Command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1`. |
+| `npm --version` | Exit 0; `11.19.1`. |
+| `npm --prefix apps/web run typecheck` | Exit 0. |
+| `node --test tests/shapes.test.mjs tests/document.test.mjs tests/storage.test.mjs tests/objects.test.mjs tests/modules.test.mjs` | Exit 0; **127 passed, 0 failed**. |
+| `npm --prefix apps/web test` | Exit 0; **412 passed, 0 failed**. |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, inventory and notices verified. |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; accepted lock, inventory and notices verified. |
+| `git diff --check` | Exit 0; no whitespace errors. |
+| `git diff --name-only` | Exit 0 before the fix commit; only the two source files listed above. |
+
+No check failed in this round. Browsers, the browser regression harness and browser
+acceptance comparisons were **not run**; verification of native picker and keyboard
+behaviour remains with the reviewer. No merge or push was performed. Public-boundary hooks
+passed on the fix commit. Git emitted the same sandbox permission diagnostic for
+`packed-refs.lock`; the fix commit succeeded (exit 0), its full ID was verified, and the
+worktree was clean before this record append. The graph search was attempted first but
+required unavailable approval; the specified source files were read directly afterward.

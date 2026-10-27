@@ -372,3 +372,74 @@ maintainer asks.
 None beyond the repository's own documents.
 
 ## Implementation record
+
+### 2026-10-26 — Codex implementation handoff
+
+- Brief: **0002-W4 v1 only**, with document v6, interaction v18 and web modules v16.
+- Branch: `codex/0002-W4-draw-basic-shapes`; worktree: `.worktrees/codex-0002-W4`.
+- Committed main/base: `eb79dca0a1c63d4f87d1922c730fe6da8d81c952`.
+- Validated source/test revision: `8731f441a8e34001eb7bc3a1e9f8245366ec4b57`
+  (`feat(web): add basic shapes with text and paint`). The final checks below ran on
+  its identical source/test tree before that commit. This record is a subsequent
+  documentation-only commit; the final branch tip is reported separately in the handoff.
+- Added dependencies: **none**. Packages, lock, contracts, browser fixtures and browser
+  regression harness are unchanged. Builds verified the accepted lock and distributed notices.
+- Scope: five new files and forty changed files, all on this brief's allowlist, before
+  appending this record. `App.tsx` remains exactly 262 lines; module guards retain nineteen
+  state hooks and enforce the six scene, five object-type and sixteen screen-part modules.
+
+Commands were run from the repository root with Node **24.22.1** and npm **11.19.1**
+selected in `PATH`. These are the final results for the validated source/test tree:
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1`. |
+| `npm --version` | Exit 0; `11.19.1`. |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed, manifest and lock unchanged. |
+| `npm --prefix apps/web run typecheck` | Exit 0. |
+| `node --test tests/shapes.test.mjs tests/document.test.mjs tests/storage.test.mjs tests/objects.test.mjs tests/modules.test.mjs` | Exit 0; **127 passed, 0 failed**. |
+| `npm --prefix apps/web test` | Exit 0; **412 passed, 0 failed**. No full-suite failure required comparison at `74df93d`. |
+| `npm --prefix apps/web run build` | Exit 0; application built; lock, inventory and notices verified. |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; lock, inventory and notices verified. |
+| `git diff --check` | Exit 0; no whitespace errors. |
+| `git diff --name-only main...HEAD` | Exit 0 at the validated revision; all 45 listed source/test files are allowed by this brief. Rechecked after the record commit for the final handoff. |
+
+`tests/shapes.test.mjs` includes pure document/paint/layout/history checks and direct unit
+calls to the actual editing, geometry and canvas input hooks using React's server renderer.
+Those tests use synthetic events and no DOM or browser. They cover pointer and Enter
+creation, R/O restrictions, session paint through history, mixed selections, fixed geometry
+during text/style edits, Grow to fit text, and the rendered native controls.
+
+Development checks before the final results above:
+
+- The first `npm --prefix apps/web run typecheck` failed on layout-map inference,
+  context-position declaration order and history endpoint typing. Those errors were fixed;
+  subsequent invocations passed.
+- The first five-file command above passed 117/120 tests. Its three new-test failures were
+  incorrect expected channel rounding, a non-additive ellipsis measurement stub and a
+  creation-undo assertion that incorrectly expected retired generations to disappear. The
+  assertions were corrected to the contracts. Later runs passed 120, then 123, then 127 tests
+  as focused coverage was added.
+- `node --test tests/shapes.test.mjs` initially passed 18 tests with a duplicate-Yjs warning
+  from its hook compilation. Sharing the installed Yjs module removed the warning. A later
+  run failed while loading bundled JSX because React's JSX runtime was not externalized;
+  sharing that installed runtime fixed the test loader. The final isolated run passed all
+  **22** tests without those diagnostics.
+- An earlier `npm --prefix apps/web test` passed all 408 tests, and both earlier build
+  commands passed. The final 412-test run and both builds followed the last UI corrections
+  and additional direct-handler coverage.
+
+Review and exclusions:
+
+- **Not run:** browsers, browser regression harness, Scenario N (including its `74df93d`
+  negative control), the existing comparison scenarios M/K/L, Safari checks, native IME
+  checks, or any other browser acceptance sweep. These remain for the independent reviewer;
+  unit tests and fixture compilation do not establish browser acceptance.
+- No baseline full-suite run was needed because the candidate full suite passed. No merge,
+  push, publication or subsequent milestone was performed. The worktree began clean.
+- Codebase-memory `list_projects` and `index_repository` were attempted first, but both
+  tool calls were rejected because they required approval unavailable in this sandbox.
+  Repository reads were used for discovery after that rejection.
+- Both public-boundary checks passed during the source/test commit. Git also emitted a
+  sandbox permission diagnostic for `packed-refs.lock`; the commit succeeded (exit 0), its
+  full ID was verified, and the working tree was clean before this record was appended.

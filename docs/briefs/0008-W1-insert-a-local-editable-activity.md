@@ -242,3 +242,66 @@ check or performance test unless the maintainer asks.
 None beyond the repository's own documents.
 
 ## Implementation record
+
+
+### 2026-10-27 — Implementation handoff
+
+- Branch: `codex/0008-W1-templates`; worktree: `.worktrees/codex-0008-W1`.
+- Committed-main prerequisite/base: `7adbf1e7aba48d260c9cfdbbe0c07459fdfaed03`.
+- Validated source/test revision: `49e011b17d616f5dd50e6ebf247f389b505afb48`
+  (`feat(web): add editable local activity templates`). The checks below ran on its
+  exact source/test contents before that commit. This record is a subsequent documentation-only
+  commit; the final branch tip is reported separately in the handoff.
+- Implemented v1 only: the three byte-identical activity modules and catalogue, the Templates
+  button/panel and SVG previews, shared Paste copy step, saved-rectangle placement, identity and
+  reference remapping, one-step history, selection, view/zoom, notices and focus routes.
+- Toolchain: Node `24.22.1`, npm `11.19.1`, selected through `PATH` for every npm/Node
+  validation command. The default shell runtime was not used for validation.
+
+Commands from the repository root and final results:
+
+| Command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1` |
+| `npm --version` | Exit 0; `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed; no manifest/lock changes |
+| `npm --prefix apps/web run typecheck` | Exit 0 |
+| `node --test tests/activities.test.mjs tests/clipboard.test.mjs tests/modules.test.mjs` | Exit 0; 70 passed, 0 failed, 0 skipped (16 activity tests); clipboard tests unchanged |
+| `npm --prefix apps/web test` | Exit 0; 501 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and distributed notices verified |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; fixtures and regression bundle built; notices verified; no browser execution |
+| `git diff --check` | Exit 0; no whitespace errors |
+| `git diff --cached --check` | Exit 0 before the implementation commit |
+| `git diff --name-only main...HEAD` | Exit 0 at the validated revision; exactly the 16 implementation files allowed by this brief; this record adds only the brief itself |
+| `git diff main -- docs/briefs/0008-W1-activities/` | Exit 0; no changes to the activity source files |
+
+Additional source/artifact inspection confirmed `App.tsx` has 258 lines (budget 262), all
+16 implementation paths match the brief's allowlist, and all three activity payload digests
+appear in the built application bundle. These are static checks, not served-page evidence.
+The module guards retain nineteen hooks and their existing effect counts, and now require
+exactly twenty-one screen parts. No architecture contract, format, other module, dependency,
+package manifest, lock or build script changed.
+
+Development checks initially exposed a forbidden effect in the editing hook and invalid test
+fixtures (unnamed boards and an incorrect assumption about centred creation coordinates).
+The effect was replaced by the Templates action's preview-loading command and the fixtures
+were corrected. The focused suite then passed 69 tests; after adding explicit repeated
+Retrospective insertion coverage it passed 70. The full suite passed 500 tests before that
+last test and 501 afterward. There are no remaining candidate unit failures, so a unit-failure
+comparison against `6fe6a7f` was not needed or run. An auxiliary inspection initially asserted
+an exact 262-line count; the corrected budget check (`<= 262`) passed at 258.
+
+Added dependencies: none. The activity data and all new source/test files use the repository's
+Apache-2.0 licence; no external template content or artwork was introduced.
+
+Exclusions: no browser process, server, Scenario Q, A–J comparison, negative-control browser
+run, browser regression harness, Safari check, browser matrix, accessibility audit, native IME,
+performance/load check or unrelated edge-case campaign was run. Browser acceptance remains
+for the reviewer on the exact candidate revision; the fixture build is not a harness pass.
+No merge, push, publication or next milestone was attempted.
+
+The graph inventory and indexing tools were attempted first but rejected because tool approval
+was unavailable under this sandbox policy; repository reads were used instead. Mandatory
+pre-commit and commit-message privacy hooks both reported `PUBLIC BOUNDARY: PASS` for the
+implementation commit, without bypasses. Git emitted a nonfatal sandbox warning while trying
+to lock packed refs; the commit completed successfully and its branch tip was verified.

@@ -130,12 +130,21 @@ in Objects, under [interaction v16](../architecture/0001-interaction-v16.md) and
 [web modules v14](../architecture/0001-web-modules-v14.md), is implemented and merged into
 main.
 
-[0002-W1 v1 — Organize ideas into sections](0002-W1-organize-sections.md) is a draft: named
-sections that hold ideas, created by drawing, placing, Add section or Section from selection;
-ideas join and leave by drop, placement and Objects' Section select; a section moves with its
-members; saved as document v5, following [document v5](../architecture/0001-document-v5.md),
+[0002-W1 v1 — Organize ideas into sections](0002-W1-organize-sections.md), named sections
+that hold ideas, created by drawing, placing, Add section or Section from selection, with ideas
+joining and leaving by drop, placement and Objects' Section select and a section moving with
+its members, saved as document v5 under [document v5](../architecture/0001-document-v5.md),
 [interaction v17](../architecture/0001-interaction-v17.md) and
-[web modules v15](../architecture/0001-web-modules-v15.md).
+[web modules v15](../architecture/0001-web-modules-v15.md), is implemented and merged into
+main.
+
+[0002-W4 v1 — Draw basic shapes](0002-W4-draw-basic-shapes.md) is a draft: one Shapes tool
+draws squares and circles that hold text; a Shape menu changes the kind; separate Fill and
+Border controls with 21 named colours and a custom colour; long text ends with an ellipsis and
+a button grows the shape to fit; saved as document v6, following
+[document v6](../architecture/0001-document-v6.md),
+[interaction v18](../architecture/0001-interaction-v18.md) and
+[web modules v16](../architecture/0001-web-modules-v16.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

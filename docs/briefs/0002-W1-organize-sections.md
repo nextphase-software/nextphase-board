@@ -1,10 +1,11 @@
 BRIEF VERSION: 0002-W1 v1 (2026-10-26)
 # 0002-W1 — Organize ideas into sections
 
-Status: Draft. Implementation starts only after the maintainer commits this brief,
-[0001 document v5](../architecture/0001-document-v5.md),
+Status: Implemented. Independently reviewed at `71abb55` (pass) and merged into main
+on 2026-10-26 with [0001 document v5](../architecture/0001-document-v5.md),
 [0001 interaction v17](../architecture/0001-interaction-v17.md) and
-[0001 web modules v15](../architecture/0001-web-modules-v15.md) to main.
+[0001 web modules v15](../architecture/0001-web-modules-v15.md). The implementation record
+below, which lists the validated revisions, was written before that review.
 
 ## Outcome
 

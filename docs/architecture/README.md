@@ -125,14 +125,23 @@ open, adds Cmd/Ctrl+B, I and Shift+X and a formatted preview under the Content f
 the inventory with v12's rules unchanged. They replace interaction v15 and web modules v13
 for later work.
 
-Drafts for 0002-W1 brief v1: [0001 document v5](0001-document-v5.md) adds sections to the
-saved format (a `section` type, each idea's `section` key, per-type size and text limits)
-and defines how version 1 to 4 boards are read; [0001 interaction v17](0001-interaction-v17.md)
+[0001 document v5](0001-document-v5.md), accepted with 0002-W1, adds sections to the
+saved format (a `section` type, each idea's `section` key, per-type size and text limits) and
+defines how version 1 to 4 boards are read; [0001 interaction v17](0001-interaction-v17.md)
 says how sections are drawn, created, named, joined and left, moved with their members,
 ordered, grouped, deleted and copied, and how Objects shows membership; and
 [0001 web modules v15](0001-web-modules-v15.md) adds the section type, its scene body and the
 sections rules module to the inventory. They replace document v4, interaction v16 and web
-modules v14 for later work once accepted.
+modules v14 for later work.
+
+Drafts for 0002-W4 brief v1: [0001 document v6](0001-document-v6.md) adds shapes to the saved
+format (a `shape` type with its own `shape`, `fill` and `border` keys, so each type now has its
+own key set) and defines how version 1 to 5 boards are read;
+[0001 interaction v18](0001-interaction-v18.md) says how shapes are drawn, placed and coloured,
+how their kind, fill and border change, what happens to long text, and how Objects shows them;
+and [0001 web modules v16](0001-web-modules-v16.md) adds the shape type, its scene body and two
+screen parts to the inventory. They replace document v5, interaction v17 and web modules v15
+for later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

@@ -1,10 +1,11 @@
 BRIEF VERSION: 0002-W2 v1 (2026-10-27)
 # 0002-W2 — Connect ideas
 
-Status: Draft. Implementation starts only after the maintainer commits this brief,
-[0001 document v7](../architecture/0001-document-v7.md),
+Status: Implemented. Independently reviewed at `7e332e2` (pass) and merged into main
+on 2026-10-27 with [0001 document v7](../architecture/0001-document-v7.md),
 [0001 interaction v19](../architecture/0001-interaction-v19.md) and
-[0001 web modules v17](../architecture/0001-web-modules-v17.md) to main.
+[0001 web modules v17](../architecture/0001-web-modules-v17.md). The implementation record
+below, which lists the validated revisions, was written before that review.
 
 ## Outcome
 

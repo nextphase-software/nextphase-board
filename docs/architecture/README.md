@@ -143,14 +143,24 @@ and [0001 web modules v16](0001-web-modules-v16.md) adds the shape type, its sce
 screen parts to the inventory. They replace document v5, interaction v17 and web modules v15
 for later work.
 
-Drafts for 0002-W2 brief v1: [0001 document v7](0001-document-v7.md) adds connectors to the
+[0001 document v7](0001-document-v7.md), accepted with 0002-W2, adds connectors to the
 saved format (a `connector` type with `from` and `to` ends in place of a rectangle, the
 eligibility and dangling rules) and defines how version 1 to 6 boards are read;
 [0001 interaction v19](0001-interaction-v19.md) says how connectors are created from
 connection dots or Connect, routed, drawn, labelled, selected, ordered, deleted and copied, and
 how Objects shows them; and [0001 web modules v17](0001-web-modules-v17.md) adds the connector
 type, two rules modules, two canvas parts and one screen part to the inventory. They replace
-document v6, interaction v18 and web modules v16 for later work once accepted.
+document v6, interaction v18 and web modules v16 for later work.
+
+Drafts for 0006-W2 brief v1: [0001 storage v2](0001-storage-v2.md) keeps several boards in one
+browser profile (the board saved by earlier versions stays on its own records and lock, other
+boards get their own, and a board list is kept with each save and repaired when stale);
+[0006 board file v1](0006-board-file-v1.md) defines Board's own file format and how a file is
+written, checked and refused; [0001 interaction v20](0001-interaction-v20.md) says how the Board
+panel saves a copy to file, opens a board file, lists and switches boards, and asks about unsaved
+edits; and [0001 web modules v18](0001-web-modules-v18.md) adds two rules modules and three
+screen parts to the inventory. They replace storage v1, interaction v19 and web modules v17 for
+later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

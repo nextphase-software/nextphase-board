@@ -147,13 +147,24 @@ grows the shape to fit, saved as document v6 under
 [web modules v16](../architecture/0001-web-modules-v16.md), is implemented and merged into
 main.
 
-[0002-W2 v1 — Connect ideas](0002-W2-connect-ideas.md) is a draft: connectors join two ideas
+[0002-W2 v1 — Connect ideas](0002-W2-connect-ideas.md), connectors joining two ideas
 (stickies, text or shapes), created by dragging a connection dot of a selected idea onto
-another or by Connect in Objects; an elbowed grey line with an arrow at its `to` end and an
-optional label on the line; routes follow every move; deleting an idea deletes its
-connectors; saved as document v7, following [document v7](../architecture/0001-document-v7.md),
+another or by Connect in Objects, an elbowed grey line with an arrow at its `to` end and an
+optional label on the line, routes that follow every move, and deleting an idea deleting its
+connectors, saved as document v7 under [document v7](../architecture/0001-document-v7.md),
 [interaction v19](../architecture/0001-interaction-v19.md) and
-[web modules v17](../architecture/0001-web-modules-v17.md).
+[web modules v17](../architecture/0001-web-modules-v17.md), is implemented and merged into
+main.
+
+[0006-W2 v1 — Export and restore a local Board file](0006-W2-export-and-restore-board-file.md)
+is a draft: Save a copy to file downloads the open board as a `.nextboard` file; Open board
+file… checks a file completely and opens it as a new board in this browser, refusing damaged,
+invalid or newer files with nothing changed; the Board panel lists the boards in this browser
+and switches between them, asking first about unsaved edits; the board saved by earlier
+versions stays where it is, following [storage v2](../architecture/0001-storage-v2.md),
+[board file v1](../architecture/0006-board-file-v1.md),
+[interaction v20](../architecture/0001-interaction-v20.md) and
+[web modules v18](../architecture/0001-web-modules-v18.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

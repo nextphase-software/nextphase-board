@@ -156,15 +156,24 @@ connectors, saved as document v7 under [document v7](../architecture/0001-docume
 [web modules v17](../architecture/0001-web-modules-v17.md), is implemented and merged into
 main.
 
-[0006-W2 v1 — Export and restore a local Board file](0006-W2-export-and-restore-board-file.md)
-is a draft: Save a copy to file downloads the open board as a `.nextboard` file; Open board
+[0006-W2 v1 — Export and restore a local Board file](0006-W2-export-and-restore-board-file.md),
+in which Save a copy to file downloads the open board as a `.nextboard` file; Open board
 file… checks a file completely and opens it as a new board in this browser, refusing damaged,
 invalid or newer files with nothing changed; the Board panel lists the boards in this browser
 and switches between them, asking first about unsaved edits; the board saved by earlier
 versions stays where it is, following [storage v2](../architecture/0001-storage-v2.md),
 [board file v1](../architecture/0006-board-file-v1.md),
 [interaction v20](../architecture/0001-interaction-v20.md) and
-[web modules v18](../architecture/0001-web-modules-v18.md).
+[web modules v18](../architecture/0001-web-modules-v18.md), is implemented and merged into main.
+
+[0008-W1 v1 — Insert a local editable activity](0008-W1-insert-a-local-editable-activity.md) is a
+draft: a Templates button opens a panel of three ready-made activities (Retrospective,
+Brainstorm, Kanban, in [0008-W1-activities](0008-W1-activities/)); Add template copies an
+activity's objects beside the existing content as ordinary, editable objects, selects them and
+moves the view to them, in one history step, following
+[activity catalogue v1](../architecture/0008-activity-catalogue-v1.md),
+[interaction v21](../architecture/0001-interaction-v21.md) and
+[web modules v19](../architecture/0001-web-modules-v19.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

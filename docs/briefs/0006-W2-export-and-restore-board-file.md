@@ -1,11 +1,12 @@
 BRIEF VERSION: 0006-W2 v1 (2026-10-27)
 # 0006-W2 — Export and restore a local Board file
 
-Status: Draft. Implementation starts only after the maintainer commits this brief,
-[0001 storage v2](../architecture/0001-storage-v2.md),
+Status: Implemented. Independently reviewed at `6fe6a7f` (pass) and merged into main
+on 2026-10-27 with [0001 storage v2](../architecture/0001-storage-v2.md),
 [0006 board file v1](../architecture/0006-board-file-v1.md),
 [0001 interaction v20](../architecture/0001-interaction-v20.md) and
-[0001 web modules v18](../architecture/0001-web-modules-v18.md) to main.
+[0001 web modules v18](../architecture/0001-web-modules-v18.md). The implementation record
+below, which lists the validated revisions, was written before that review.
 
 ## Outcome
 

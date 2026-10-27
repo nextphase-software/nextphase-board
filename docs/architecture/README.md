@@ -152,7 +152,7 @@ how Objects shows them; and [0001 web modules v17](0001-web-modules-v17.md) adds
 type, two rules modules, two canvas parts and one screen part to the inventory. They replace
 document v6, interaction v18 and web modules v16 for later work.
 
-Drafts for 0006-W2 brief v1: [0001 storage v2](0001-storage-v2.md) keeps several boards in one
+[0001 storage v2](0001-storage-v2.md), accepted with 0006-W2, keeps several boards in one
 browser profile (the board saved by earlier versions stays on its own records and lock, other
 boards get their own, and a board list is kept with each save and repaired when stale);
 [0006 board file v1](0006-board-file-v1.md) defines Board's own file format and how a file is
@@ -160,7 +160,15 @@ written, checked and refused; [0001 interaction v20](0001-interaction-v20.md) sa
 panel saves a copy to file, opens a board file, lists and switches boards, and asks about unsaved
 edits; and [0001 web modules v18](0001-web-modules-v18.md) adds two rules modules and three
 screen parts to the inventory. They replace storage v1, interaction v19 and web modules v17 for
-later work once accepted.
+later work.
+
+Drafts for 0008-W1 brief v1: [0008 activity catalogue v1](0008-activity-catalogue-v1.md) says
+where the ready-made activities live, what each catalogue entry and activity file must be, and
+how provenance is shown; [0001 interaction v21](0001-interaction-v21.md) says how the Templates
+button and panel work and how adding an activity places, copies, selects and shows its objects in
+one history step; and [0001 web modules v19](0001-web-modules-v19.md) adds a rules module, a data
+folder and one screen part, and shares the clipboard's copy step. They replace interaction v20 and
+web modules v18 for later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

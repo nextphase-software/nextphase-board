@@ -6,7 +6,7 @@ import { INK_KINDS, INK_WEIGHTS, inkWidth, inkColors, objectKeys, hasPoints, has
 import { drawingPoints, strokeGeometry, makeStroke, strokeHit, erasedStrokes, strokeInBox, absolutePoints, changeStrokeWeight, changeStrokeColor, changeOrdinaryColor, resizeWithStrokes, strokeFloor } from "../apps/web/src/strokes.ts";
 import { hitObject, selectInBox, createConnector, connectReason } from "../apps/web/src/connectors.ts";
 import { emptyHistory, record, undo, redo, duplicate, deleteObject } from "../apps/web/src/history.ts";
-import { placeObject, moveWithMembers, objectLabel, wrapSelection } from "../apps/web/src/sections.ts";
+import { placeObject, moveWithMembers, objectLabel, commandObjectLabel, wrapSelection } from "../apps/web/src/sections.ts";
 import { buildSnapshot, buildPaste, plainText } from "../apps/web/src/clipboard.ts";
 import { expandSelection, groupNumbers, groupObjects } from "../apps/web/src/group.ts";
 import { nearestHandle, cornerPoint } from "../apps/web/src/resize.ts";
@@ -48,6 +48,17 @@ for (const kind of INK_KINDS) for (const weight of INK_WEIGHTS) test(`${kind.kin
     assert.throws(() => validate(invalid)); assert.deepEqual(invalid, before);
   }
   for (const key of Object.keys(o)) { const copy = { ...o }; delete copy[key]; assert.throws(() => validate({ ...b, objects: [copy] }), key); }
+});
+
+test("a fractional middle point is rejected when endpoints and padding remain valid", () => {
+  for (const kind of INK_KINDS) for (const weight of INK_WEIGHTS) {
+    const b = withLine(board(), points([20, 30], [80, 90]), style(kind.kind, weight));
+    const o = b.objects[0], pad = inkWidth(o) / 2;
+    o.points = [[pad, pad], [pad + 30, pad + 30], [pad + 60, pad + 60]];
+    assert.doesNotThrow(() => validate(b));
+    o.points[1][0] += .5;
+    assert.throws(() => validate(b));
+  }
 });
 
 test("points limits accept 2 and 1000, reject 1 and 1001; other types reject stroke keys and legacy versions reject strokes", () => {
@@ -192,6 +203,18 @@ for (const corner of ["nw", "ne", "sw", "se"]) test(`resize ${corner}: scales po
   assert.doesNotThrow(() => canonical({ ...board(), objects: [next] }));
 });
 
+test("three-point resizing at factor 11/6 rounds every point and recomputes the exact rectangle", () => {
+  const b = withLine(board(), points([10, 20], [18, 28]));
+  const o = { ...b.objects[0], points: [[2, 2], [5, 7], [10, 10]] };
+  assert.doesNotThrow(() => validate({ ...b, objects: [o] }));
+  // Wider adds 10 to the 12-unit selection width: 22/12 = 1.8333… .
+  const next = resize([o], { x: 10, y: 0 })[0];
+  assert.deepEqual(next.points, [[2, 2], [8, 11], [17, 17]]);
+  assert.deepEqual({ x: next.x, y: next.y, width: next.width, height: next.height },
+    { x: 8, y: 18, width: 19, height: 19 });
+  assert.doesNotThrow(() => validate({ ...b, objects: [next] }));
+});
+
 test("stroke floor, fixed padding, dot floor and mixed selection stop at the first object's floor", () => {
   const o = line(board(), points([0, 0], [100, 0]));
   const small = resize([o], { x: -1000, y: -1000 })[0];
@@ -267,6 +290,25 @@ test("copies and duplicates keep ink and points with fresh IDs, remap groups and
   assert.notEqual(copied.points, stroke.points); assert.doesNotThrow(() => canonical(pasted));
   const doubled = duplicate(b, emptyHistory(), b.objects.filter((o) => o.id === container.id)).board;
   assert.equal(doubled.objects.filter(hasPoints).length, 2); assert.doesNotThrow(() => canonical(doubled));
+});
+
+test("command labels use stroke prefixes and Objects idea numbering while preserving text-object labels", () => {
+  let b = add(add(add(board(), "section", 0, 0), "sticky", 0, 0), "text", 400, 0);
+  const ideas = b.objects.filter(eligibleIdea);
+  b = createConnector(b, ideas[0].id, ideas[1].id).board;
+  b = withLine(b);
+  b = withLine(b, points([0, 50], [100, 50]), style("highlighter"));
+  const strokes = b.objects.filter(hasPoints);
+  assert.equal(commandObjectLabel(b, strokes[0]), "marker stroke 3");
+  assert.equal(commandObjectLabel(b, strokes[1]), "highlight 4");
+  for (const o of strokes) {
+    assert.equal(commandObjectLabel(b, o), objectLabel(b, o, groupNumbers(b.objects)).split(" · ")[0]);
+  }
+  assert.equal(commandObjectLabel(b, b.objects[0]), "section 1 · Section");
+  assert.equal(commandObjectLabel(b, b.objects[1]), "connector 2 · Empty");
+  assert.equal(commandObjectLabel(b, b.objects[2]), "sticky 3 · Empty");
+  assert.equal(commandObjectLabel(b, { ...b.objects[3], text: "A\nB" }), "text 4 · A\nB");
+  assert.equal(commandObjectLabel(b, { ...b.objects[3], text: "x".repeat(40) }), "text 4 · " + "x".repeat(36));
 });
 
 test("strokes move without changing points, label without text, wrap in sections and contribute to template placement", () => {

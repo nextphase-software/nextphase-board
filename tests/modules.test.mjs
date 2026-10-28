@@ -110,9 +110,23 @@ test("object types never import React or Konva", () => {
 test("composition and screen parts ask the registry instead of comparing type names", () => {
   const app = readFileSync(new URL("App.tsx", source), "utf8");
   for (const [name, content] of [["App.tsx", app], ...contents, ...sceneContents]) {
-    assert.doesNotMatch(content, /===\s*["'](?:sticky|text|section|shape|square|circle|connector|stroke|marker|highlighter)["']/, name);
+    assert.deepEqual(typeNameComparisons(content), [], name);
     assert.doesNotMatch(content, /["']sticky["']\s*:\s*["']text["']/, name);
     assert.doesNotMatch(content, /\[\s*["']sticky["']\s*,\s*["']text["']\s*\]/, name);
+  }
+});
+
+test("screen and scene guard detects equality and inequality in both operand orders", () => {
+  for (const name of ["sticky", "text", "section", "shape", "square", "circle", "connector", "stroke", "marker", "highlighter"]) {
+    for (const operator of ["===", "!=="]) for (const quote of ['"', "'"]) {
+      const literal = quote + name + quote;
+      for (const comparison of [`o.type ${operator} ${literal}`, `${literal} ${operator} o.type`]) {
+        assert(typeNameComparisons(`if (${comparison}) return;`).length > 0, comparison);
+      }
+    }
+  }
+  for (const source of ['const keys = ["type", "text"];', 'if (o.text === draft) return;', 'labelPrefix(o)']) {
+    assert.deepEqual(typeNameComparisons(source), [], source);
   }
 });
 
@@ -302,12 +316,15 @@ test("object types import only siblings or styles, which never imports object ty
   }
 });
 
-function typeNameUses(source) {
+function typeNameComparisons(source) {
   return [
-    /\bsticky\b/,
     /[=!]==\s*["'](?:sticky|text|section|shape|square|circle|connector|stroke|marker|highlighter)["']/,
     /["'](?:sticky|text|section|shape|square|circle|connector|stroke|marker|highlighter)["']\s*[=!]==/,
   ].filter((pattern) => pattern.test(source));
+}
+
+function typeNameUses(source) {
+  return [/\bsticky\b/].filter((pattern) => pattern.test(source)).concat(typeNameComparisons(source));
 }
 
 test("rules modules ask the registry instead of naming types", () => {

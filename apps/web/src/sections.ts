@@ -114,10 +114,20 @@ export function wrapSelection(board: Board, selected: ReadonlySet<string>, drawn
 }
 
 const shortName = (text: string) => text.slice(0, 36).replace(/\r\n|[\r\n]/g, " ") || "Empty";
+function numberedObjectLabel(board: Board, object: Item): string {
+  const peers = board.objects.filter((o) => orderBand(o) === orderBand(object));
+  return labelPrefix(object) + " " + (peers.findIndex((o) => o.id === object.id) + 1);
+}
+
+export function commandObjectLabel(board: Board, object: Item): string {
+  return hasText(object)
+    ? object.type + " " + (object.order + 1) + " · " + (object.text.slice(0, 36) || "Empty")
+    : numberedObjectLabel(board, object);
+}
+
 export function objectLabel(board: Board, object: Item, numbers: ReadonlyMap<string, number>, drafts: Record<string, string> = {}): string {
   const container = isContainer(object);
-  const peers = board.objects.filter((o) => orderBand(o) === orderBand(object));
-  const prefix = labelPrefix(object) + " " + (peers.findIndex((o) => o.id === object.id) + 1);
+  const prefix = numberedObjectLabel(board, object);
   const text = hasText(object) ? drafts[object.id] ?? object.text : "";
   const name = container ? shortName(text) : text.slice(0, 36) || "Empty";
   if (hasEnds(object)) {

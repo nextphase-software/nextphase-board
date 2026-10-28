@@ -10,7 +10,7 @@ import { savedHeight } from "../geometry";
 import { textUnits, type Style } from "../styles";
 import type { View } from "../view";
 import { arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "../arrange";
-import { assignSection, orderInBands, wrapReason, wrapSelection } from "../sections";
+import { assignSection, commandObjectLabel, orderInBands, wrapReason, wrapSelection } from "../sections";
 import { objectType, hasRectangle, hasText, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, type ShapeKeys, type ShapePaint } from "../objects/registry";
 import { groupObjects, groupReason, ungroupObjects } from "../group";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "../clipboard";
@@ -145,6 +145,7 @@ export function useEditingCommands({
       const acted = name === "Cut" || name === "Duplicate" ? copiedSet(model.current.objects, selected) : selected;
       const targets = model.current.objects.filter((o) => acted.has(o.id));
       const current = targets[0];
+      const label = current ? commandObjectLabel(model.current, current) : "object";
       const removedConnectors = deleting && targets.some(hasRectangle) ? cascadeCount(model.current.objects, acted) : 0;
       if ((name === "Duplicate" || deleting) && !current) {
         setMessage("Select an object to " + name.toLowerCase() + ".");
@@ -175,9 +176,6 @@ export function useEditingCommands({
         select(deleting ? [] : remaining);
         if (deleting || !remaining.length) scene.current?.focus();
       }
-      const label = current
-        ? current.type + " " + (current.order + 1) + " · " + ((current.text ?? "").slice(0, 36) || "Empty")
-        : "object";
       const resultMessage = deleting ? (targets.length > 1
         ? (name === "Cut" ? "Cut " : "Deleted ") + targets.length + " objects. Undo restores them."
         : (name === "Cut" ? "Cut " : "Deleted ") + label + ". Undo restores it.")

@@ -298,3 +298,65 @@ phone layout check beyond R58, or performance test unless the maintainer asks.
 None beyond the repository's own documents.
 
 ## Implementation record
+
+### Implementer handoff — 2026-10-27
+
+Implemented **0009-W1 v1 only**, using document v8, interaction v22 and web modules v20.
+The Draw button and session drawing bar provide Marker, Highlighter and whole-stroke Eraser;
+strokes participate in selection, geometry edits, groups, sections, clipboard, history and
+version 8 persistence. The registry distinguishes section ideas, connector-eligible ideas,
+text and points. No editor or connection dots are offered for strokes.
+
+- Branch: `codex/0009-W1-drawing`, in the milestone worktree, from committed main
+  `1b9d3027ad827a2f3cf30fb2ce04469ef9e1f037`.
+- **Validated source/test revision:** `2c1d68a33c4116970ee62e2706ad0bb9ae97b5c6`.
+  This includes implementation commit `b8a435bd2acc72a17de3dd97905b64c7659a0c6f` and
+  the drawing-limit/history-feedback correction. The final branch tip includes this
+  documentation record and is reported separately in the implementation handoff.
+- Scope: 54 implementation files, all in the brief's allowlist; this record is the only
+  additional changed file. `App.tsx` is 258 lines (budget 262). No unrelated edits were present.
+- Dependencies added: **none**. Manifests, locks and dependency versions/licenses are unchanged.
+- Runtime for the final checks: Node **24.22.1**, npm **11.19.1**, selected on `PATH`.
+
+All commands below ran from the repository root against the validated source/test revision.
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1`. |
+| `npm --version` | Exit 0; `11.19.1`. |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed. |
+| `npm --prefix apps/web run typecheck` | Exit 0; no TypeScript errors. |
+| `node --test tests/strokes.test.mjs tests/document.test.mjs tests/modules.test.mjs` | Exit 0; 117 passed, 0 failed, 0 skipped. |
+| `npm --prefix apps/web test` | Exit 0; 537 passed, 0 failed, 0 skipped. |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and complete distributed notices verified. |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; the same lock/inventory/notices verification passed. |
+| `git diff --name-only main...HEAD` | Exit 0; 54 implementation files, checked against the brief's allowlist. |
+| `git diff --check` | Exit 0; no whitespace errors. |
+
+The new stroke tests cover saved keys and padding, kinds/colours/weights, point limits,
+legacy bytes and in-memory upgrade, atomic adapter points, history, click/drawing rules,
+smoothing and thinning, edges, ink/centreline hits, flat ends, swept erasing, whole-object
+box selection and group expansion, proportional resize/floors, handle ties, weight changes,
+mixed colours, copy identities and membership, plain-text omission, labels, template placement
+and board-file round trips. Existing tests changed only for the new version, type and module
+guards. The final full unit suite has no failure to compare with `c8bf3f7`; that baseline
+was not run.
+
+During integration, typecheck exposed callers that assumed every rectangle had text. Those
+callers now use registry capabilities. Two initial new-test assertions were corrected: a
+legacy upgrade is adopted without recording a transaction, and section membership follows the
+stroke's centre. An initial install used the shell's newer runtime and emitted an engine
+warning; installation and all final checks were rerun with the pinned runtime above.
+
+**Not run:** browsers, scenario R, A–J comparisons/normalization, earlier browser scenarios,
+the browser regression harness, Safari checks, native IME checks, performance/load checks or
+other broader acceptance sweeps. Browser execution is unavailable in the implementer sandbox
+and is explicitly reserved for the reviewer. The fixture build is not a browser test result.
+Independent review and milestone acceptance remain pending; this handoff authorizes no merge,
+publication or later milestone.
+
+Graph project discovery and indexing were attempted first but the tools required approval
+that the sandbox disallows; read-only file searches were used as the fallback. Commits used
+normal Git hooks: the public-boundary checks passed. Git also emitted a nonfatal sandbox
+lock diagnostic for `.git/packed-refs.lock`; both source/test commits succeeded. Nothing was
+stashed, no hook was bypassed, and nothing was pushed.

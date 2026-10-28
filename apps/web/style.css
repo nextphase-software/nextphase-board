@@ -655,3 +655,13 @@ small {
 .context .ink-menu button[aria-pressed=true] { background: #e9e2fb; }
 @media (max-width:1000px) { .drawing-bar { bottom: 138px; } }
 @media (max-width:767px) { .drawing-bar { bottom: 142px; } }
+
+.connector-control { display: inline-flex; }
+.connector-popup { left: 0; top: 48px; }
+.connector-popup.shape-menu { min-width: 180px; }
+.connector-ends { border: 1px solid #dedede; border-radius: 6px; margin: 10px 0; padding: 8px; }
+.connector-end { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px; margin: 6px 0; align-items: center; }
+.connector-end select { min-width: 0; width: 100%; }
+.reconnect-outline { position: absolute; border: 1px solid #518de0; pointer-events: none; }
+.scene > .connection-dot.drop-side { width: 24px; height: 24px; border: 3px solid #518de0; }
+.context:has(.connector-popup) { z-index: 6; }

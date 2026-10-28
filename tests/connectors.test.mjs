@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { add, empty, validate, canonical, Adapter } from "../apps/web/src/document.ts";
-import { hasEnds, hasRectangle, eligibleIdea, typeWithEnds, objectKeys } from "../apps/web/src/objects/registry.ts";
+import { hasEnds, hasRectangle, eligibleIdea, typeWithEnds, objectKeys, CONNECTOR_STYLE_KEYS } from "../apps/web/src/objects/registry.ts";
 import { connectorRoute, roundedPath, halfway, sideMidpoints, labelBox, labelEditorBox, arrowPoints,
   connectorLayout, lineHit, hitObject, connectorInBox, selectInBox, createConnector, bands, cascade, cascadeCount,
   copiedSet, copiedSetReason, connectReason, FOLLOW_REASON, COPY_REASON } from "../apps/web/src/connectors.ts";
@@ -32,10 +32,11 @@ const coordinates = (points) => points.map(({ x, y }) => [x, y]);
 
 test("v7 connector canonical keys, fixed values, no geometry and end key order", () => {
   const b = join(), line = connector(b), parsed = JSON.parse(canonical(b)).objects.find(hasEnds);
-  assert.equal(b.schemaVersion, 8);
-  assert.deepEqual(Object.keys(parsed), ["id", "generation", "type", "text", "color", "textSize", "align", "group", "marks", "section", "from", "to", "order"]);
+  assert.equal(b.schemaVersion, 9);
+  assert.deepEqual(Object.keys(parsed), ["id", "generation", "type", "text", "color", "textSize", "align", "group", "marks", "section", "from", "to", ...CONNECTOR_STYLE_KEYS, "order"]);
   assert.deepEqual(Object.keys(parsed.from), ["object", "anchor"]); assert.deepEqual(Object.keys(parsed.to), ["object", "anchor"]);
-  assert.deepEqual(objectKeys(line.type, 7), Object.keys(parsed));
+  assert.deepEqual(objectKeys(line.type, 9), Object.keys(parsed));
+  for (const version of [7, 8]) assert.deepEqual(objectKeys(line.type, version), Object.keys(parsed).filter((key) => !CONNECTOR_STYLE_KEYS.includes(key)));
   assert.deepEqual(validate(JSON.parse(canonical(b))), b);
   assert.deepEqual([line.text, line.color, line.textSize, line.align, line.group, line.marks, line.section], ["", "neutral", "medium", "center", null, [], null]);
   const shuffled = { ...b, objects: b.objects.map((o) => Object.fromEntries(Object.entries(hasEnds(o) ? {
@@ -54,7 +55,7 @@ test("v7 validates both ends and fixed shared values without repairing bad recor
   const invalid = [
     (o) => delete o.from, (o) => delete o.to, (o) => o.from = null, (o) => o.to = [],
     (o) => o.from.extra = true, (o) => delete o.to.anchor,
-    (o) => o.from.anchor = "left", (o) => o.to.anchor = 0, (o) => o.from.object = [o.from.object],
+    (o) => o.to.anchor = 0, (o) => o.from.object = [o.from.object],
     (o) => o.from.object = crypto.randomUUID(), (o) => o.to.object = section.id,
     (o) => o.to.object = line.id, (o) => o.to.object = o.from.object,
     (o) => o.color = "blue", (o) => o.textSize = "small", (o) => o.align = "left",
@@ -64,6 +65,12 @@ test("v7 validates both ends and fixed shared values without repairing bad recor
   for (const mutate of invalid) {
     const board = structuredClone(full); mutate(connector(board)); const before = structuredClone(board);
     assert.throws(() => validate(board)); assert.throws(() => canonical(board)); assert.deepEqual(board, before);
+  }
+  for (const version of [7, 8]) {
+    const old = structuredClone(full); old.schemaVersion = version;
+    for (const o of old.objects.filter(hasEnds)) for (const key of CONNECTOR_STYLE_KEYS) delete o[key];
+    assert.doesNotThrow(() => validate(old)); connector(old).from.anchor = "left";
+    assert.throws(() => validate(old));
   }
   for (const o of full.objects.filter(hasRectangle)) for (const key of ["from", "to"]) {
     const board = structuredClone(full); board.objects.find((item) => item.id === o.id)[key] = line[key];
@@ -83,7 +90,7 @@ test("all five types retain v7 canonical order in an interleaved array", () => {
   b.objects = [b.objects[2], b.objects[0], b.objects[1], ...b.objects.slice(3)].map((o, order) => ({ ...o, order }));
   const parsed = JSON.parse(canonical(b));
   assert.deepEqual(parsed.objects.map((o) => o.id), b.objects.map((o) => o.id));
-  for (const o of parsed.objects) assert.deepEqual(Object.keys(o), objectKeys(o.type, 7));
+  for (const o of parsed.objects) assert.deepEqual(Object.keys(o), objectKeys(o.type, 9));
 });
 
 test("adapter ends are atomic, recreate exactly and never change when an idea moves", () => {
@@ -496,10 +503,12 @@ test("actual dragging a connector selects it without moving it or starting a mar
 });
 
 test("connector context controls and Name field expose the fixed keyboard routes", () => {
-  const props = { count: 1, empty: true, reason: "", edit() {}, remove() {} };
+  const props = { objects: [connector(join())], commands: { style() {} }, popup: { open: "", controls: {}, buttons: {} }, count: 1, empty: true, reason: "", edit() {}, remove() {} };
   const emptyBar = renderToStaticMarkup(createElement(hooks.ConnectorControls, props));
   assert.match(emptyBar, />Connector</); assert.match(emptyBar, />Add text</); assert.match(emptyBar, /aria-label="Delete"/);
-  assert.doesNotMatch(emptyBar, /Arrange|Duplicate|Colour|Formatting/);
+  assert.doesNotMatch(emptyBar, /Arrange|Duplicate|Formatting/);
+  assert.match(emptyBar, /Colour: Dark gray/); assert.match(emptyBar, /Line style: Thin, Solid/);
+  assert.match(emptyBar, /Start point: None/); assert.match(emptyBar, /Line shape: Elbowed/); assert.match(emptyBar, /End point: Line arrow/);
   const labelled = renderToStaticMarkup(createElement(hooks.ConnectorControls, { ...props, empty: false }));
   assert.doesNotMatch(labelled, />Add text</);
   const multi = renderToStaticMarkup(createElement(hooks.ConnectorControls, { ...props, count: 2 }));

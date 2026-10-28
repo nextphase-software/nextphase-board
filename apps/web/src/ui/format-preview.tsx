@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { ItemV8 as Item } from "../document";
+import type { ItemV9 as Item } from "../document";
 import { hasText } from "../objects/registry";
 import { remap, segments } from "../marks";
 

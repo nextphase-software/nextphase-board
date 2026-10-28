@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { readBoardFile } from "./board-file.ts";
-import type { BoardV7, ItemV7, BoardV8, ItemV8 } from "./document.ts";
+import { upgrade, type BoardV7, type ItemV7, type BoardV9, type ItemV8 } from "./document.ts";
 import { copyObjects } from "./clipboard.ts";
 import { hasEnds, hasRectangle, isContainer, rectangleType } from "./objects/registry.ts";
 import type { View } from "./view.ts";
@@ -44,12 +44,12 @@ export function activityView(box: Box, current: View, size: Size): View {
   return { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2, z };
 }
 
-export function insertActivity(board: BoardV8, activity: BoardV7, view: View, size: Size) {
+export function insertActivity(board: BoardV9, activity: BoardV7, view: View, size: Size) {
   const box = activityBox(activity.objects)!, existing = activityBox(board.objects);
   const dx = existing ? existing.right + 120 - box.left : view.x - (box.left + box.right) / 2;
   const dy = existing ? existing.top - box.top : view.y - (box.top + box.bottom) / 2;
   const next = copyObjects(board, {
-    objects: activity.objects.map(({ generation: _generation, order: _order, ...o }) => ({
+    objects: upgrade(activity).objects.map(({ generation: _generation, order: _order, ...o }) => ({
       ...structuredClone(o),
     })),
     sourceIdentifiers: [activity.boardId, ...activity.retiredGenerations,

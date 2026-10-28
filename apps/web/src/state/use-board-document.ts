@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { Adapter, type Board as SavedBoard, type BoardV8 as Board, empty, type ItemV8 as Item, upgrade } from "../document";
-import { defaultPaint, hasText, type ShapePaint } from "../objects/registry";
+import { Adapter, type Board as SavedBoard, type BoardV9 as Board, empty, type ItemV9 as Item, upgrade } from "../document";
+import { defaultConnectorStyle, type ConnectorStyle, defaultPaint, hasText, type ShapePaint } from "../objects/registry";
 import { emptyHistory, record, type History } from "../history";
 
 type Input = {
@@ -14,6 +14,7 @@ export function useBoardDocument({ readOnly, setStatus }: Input) {
     [title, setTitle] = useState(""),
     [drafts, setDrafts] = useState<Record<string, string>>({}),
     [history, setHistory] = useState<History>(emptyHistory);
+  const connectorStyle = useRef<ConnectorStyle>(defaultConnectorStyle());
   const shapePaint = useRef(defaultPaint());
   const shapeSession = { paint: shapePaint, update: (paint: ShapePaint) => { shapePaint.current = paint; } };
   const model = useRef(board),
@@ -56,6 +57,7 @@ export function useBoardDocument({ readOnly, setStatus }: Input) {
   }
   function load(input: SavedBoard) {
     const b = upgrade(input);
+    connectorStyle.current = defaultConnectorStyle();
     clearHistory();
     model.current = b;
     setBoard(b);
@@ -67,7 +69,7 @@ export function useBoardDocument({ readOnly, setStatus }: Input) {
     revision.current = 0;
   }
   return {
-    shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,
+    connectorStyle, shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,
     model, historyRef, textSession, revision, adapter,
     updateHistory, clearHistory, beginTextSession, finishTextSession, commit, load,
   };

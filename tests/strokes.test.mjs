@@ -27,7 +27,7 @@ const resize = (objects, delta, corner = "se") => resizeWithStrokes(corner, memb
 for (const kind of INK_KINDS) for (const weight of INK_WEIGHTS) test(`${kind.kind} ${weight}: exact keys, padding, colours and canonical order`, () => {
   const b = withLine(board(), points([20, 30], [80, 90]), style(kind.kind, weight));
   const o = b.objects[0], pad = inkWidth(o) / 2, bytes = canonical(b);
-  assert.equal(b.schemaVersion, 8);
+  assert.equal(b.schemaVersion, 9);
   assert.deepEqual(Object.keys(JSON.parse(bytes).objects[0]), ["id", "generation", "type", "kind", "color", "weight", "group", "section", "x", "y", "width", "height", "points", "order"]);
   assert.deepEqual(objectKeys("stroke", 8), Object.keys(JSON.parse(bytes).objects[0]));
   assert.deepEqual(o.points, [[pad, pad], [60 + pad, 60 + pad]]);
@@ -91,7 +91,7 @@ test("all seven legacy versions keep their own bytes and in-memory upgrade recor
       if (version < 3) delete o.group; if (version < 4) delete o.marks; if (version < 5) delete o.section;
     }
     const bytes = canonical(old), decoded = validate(JSON.parse(bytes)), before = structuredClone(decoded), upgraded = upgrade(decoded);
-    assert.equal(canonical(decoded), bytes); assert.deepEqual(decoded, before); assert.equal(upgraded.schemaVersion, 8);
+    assert.equal(canonical(decoded), bytes); assert.deepEqual(decoded, before); assert.equal(upgraded.schemaVersion, 9);
     assert.deepEqual(upgraded.objects, current.objects); assert.equal(upgrade(upgraded), upgraded);
     assert.deepEqual(record(emptyHistory(), upgraded, upgrade(decoded)), emptyHistory());
   }

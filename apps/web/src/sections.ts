@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { add, clamp, type BoardV8 as Board, type ItemV8 as Item } from "./document.ts";
+import { add, clamp, type BoardV9 as Board, type ItemV9 as Item } from "./document.ts";
 import { arrangeOrder, type OrderCommand } from "./arrange.ts";
 import { editingCommandReason } from "./commands.ts";
 import { boundingBox, limitMove, type DisplayObject, type Point } from "./selection.ts";

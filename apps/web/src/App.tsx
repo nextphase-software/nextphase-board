@@ -47,7 +47,7 @@ export function App() {
   const { inline, setInline, composing, setComposing, textSelection, setTextSelection } = useTextEntry();
   const { setMessage, messageSequence, latestAcknowledgement, visibleMessage } = useMessages();
   const {
-    shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,
+    connectorStyle, shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,
     model, historyRef, textSession, revision, adapter,
     updateHistory, clearHistory, beginTextSession, finishTextSession, commit, load,
   } = useBoardDocument({ readOnly, setStatus });
@@ -97,7 +97,7 @@ export function App() {
     preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,
     pointerCancel, lostPointerCapture,
   } = useCanvasInput({
-    drawing, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+    drawing, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
     setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
     scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
     selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
@@ -111,15 +111,15 @@ export function App() {
     history, selected, visibleMessage, snapshots, displayedObjects,
   });
   const {
-    shapePopup, contextWidth, contextLeft, contextTop, contextFits, swatchOpen, arrangeOpen,
+    connectorPopup, shapePopup, contextWidth, contextLeft, contextTop, contextFits, swatchOpen, arrangeOpen,
     arrangeHeight, setSwatchFor, setArrangeFor, closeSwatches, closeArrange,
     contextBar, colourControl, colourButton, swatches, arrangeControl, arrangeButton, arrangeMenu,
   } = useContextBar({
     selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
     item: resolvedItem, itemHeight, dotsVisible, editorBox,
   });
-  const { strokeCommands, loadTemplates, addActivity, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
-    tool, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
+  const { connectorCommands, strokeCommands, loadTemplates, addActivity, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
+    tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
     arrangementMembers, lineCount, editor, selector, setPanel, setTool,
@@ -166,7 +166,7 @@ export function App() {
         onLostPointerCapture={lostPointerCapture}
       >
         <BoardDrawing
-          preview={preview} size={size} view={view} board={board} objectLayouts={objectLayouts} selected={selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
+          connection={connection} preview={preview} size={size} view={view} board={board} objectLayouts={objectLayouts} selected={selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
         />
         <Overlays
           selectedGroups={selectedGroups} pos={pos} view={view} handlesVisible={handlesVisible}
@@ -201,7 +201,7 @@ export function App() {
       )}
       {panel === "Objects" && (
         <ObjectsPanel
-          strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} growAvailable={growAvailable} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
+          connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} growAvailable={growAvailable} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
           duplicateReason={duplicateReason} board={board} busy={busy} composing={composing} setPanel={setPanel}
           objectsButton={objectsButton} selector={selector} selected={selected}
           finishTextSession={finishTextSession} select={select} numbers={numbers} drafts={drafts}
@@ -214,8 +214,8 @@ export function App() {
       )}
       {selected.size > 0 && (
         <ContextBar
-          strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
-          connectorOnly={connectorOnly} connectorCount={connectors.length} duplicateReason={duplicateReason} contextBar={contextBar} contextFits={contextFits} contextLeft={contextLeft}
+          connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
+          connectorObjects={connectors} connectorPopup={connectorPopup} connectorOnly={connectorOnly} connectorCount={connectors.length} duplicateReason={duplicateReason} contextBar={contextBar} contextFits={contextFits} contextLeft={contextLeft}
           contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
           composing={composing} busy={busy} inline={inline} finishTextSession={finishTextSession}
           setInline={setInline} scene={scene} edit={edit} text={text} colourControl={colourControl}

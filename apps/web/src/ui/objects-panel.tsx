@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject, ReactNode } from "react";
-import type { BoardV8 as Board, ItemV8 as Item } from "../document";
+import type { BoardV9 as Board, ItemV9 as Item } from "../document";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "../styles";
 import { objectLabel } from "../sections";
-import { ADD_OPTIONS, isContainer, sectionIdea, hasRectangle } from "../objects/registry";
+import { ADD_OPTIONS, isContainer, sectionIdea, hasRectangle, hasEnds } from "../objects/registry";
 import { FLAGS, FLAG_LABELS, type Flag } from "../marks";
 import { Icon } from "../icons";
 import type { Rectangle } from "../resize";
@@ -14,10 +14,13 @@ import { FOLLOW_REASON } from "../connectors";
 import { ArrangeControls } from "./arrange-controls";
 import { ShapeFields, GrowButton, type ShapeControlProps } from "./shape-controls";
 import { StrokeFields, type StrokeControlProps } from "./stroke-controls";
+import { ConnectorFields } from "./connector-fields";
+import type { ConnectorCommands } from "./connector-menu";
 import { FormatPreview } from "./format-preview";
 
 type Props = {
   strokeSelection: StrokeControlProps["selection"]; strokeCommands: StrokeControlProps["commands"];
+  connectorCommands: ConnectorCommands;
   duplicateReason: string;
   shapeSelection: ShapeControlProps["selection"];
   shapeCommands: ShapeControlProps["commands"];
@@ -60,7 +63,7 @@ type Props = {
 };
 
 export function ObjectsPanel({
-  strokeSelection, strokeCommands, duplicateReason, shapeSelection, shapeCommands, growAvailable, board, richText, setSection, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
+  strokeSelection, strokeCommands, connectorCommands, duplicateReason, shapeSelection, shapeCommands, growAvailable, board, richText, setSection, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
   numbers, drafts, nativeEditor, item, text, selectionColor, selectionSize, selectionAlign, selectionReason,
   selectionFormats, toggleFormat, changeStyle, command, readOnly, move, bounds, resizeBy, arrange, arrangementReason,
   objectClipboard, clipboardState, clipboardCommand, create, view
@@ -106,6 +109,7 @@ export function ObjectsPanel({
         ))}
       </select>
       {selected.size > 1 ? <p>{selected.size} objects selected</p> : nativeEditor}
+      {selected.size === 1 && item && hasEnds(item) && <ConnectorFields board={board} object={item} numbers={numbers} drafts={drafts} commands={connectorCommands} reason={selectionReason} />}
       {richText && selected.size === 1 && item && <FormatPreview item={item} text={text} />}
       <StrokeFields selection={strokeSelection} commands={strokeCommands} reason={selectionReason} />
       <ShapeFields selection={shapeSelection} commands={shapeCommands} reason={selectionReason} />

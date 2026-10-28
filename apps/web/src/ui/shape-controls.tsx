@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { CSSProperties, RefObject } from "react";
-import type { ItemV8 as Item } from "../document";
+import type { ItemV9 as Item } from "../document";
 import { SHAPE_KINDS, SHAPE_COLORS, FILL_MODES, BORDER_STYLES, shapeColor, shapeColorLabel, darkened, kindInfo, type ShapeKeys } from "../objects/registry";
 import { Icon } from "../icons";
 
@@ -24,7 +24,7 @@ export type ShapePopup = {
 };
 export type ShapeControlProps = { selection: ShapeSelection; commands: ShapeCommands; reason: string };
 
-function CustomColour({ value, pressed, hidden = false, disabled, choose }: {
+export function CustomColour({ value, pressed, hidden = false, disabled, choose }: {
   value: string; pressed?: boolean; hidden?: boolean; disabled: boolean; choose: (color: string) => void;
 }) {
   return <input className="custom-colour-input" type="color" aria-label="Custom colour" disabled={disabled}

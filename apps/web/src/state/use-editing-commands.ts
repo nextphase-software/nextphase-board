@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { Board as SavedBoard, BoardV8 as Board, ItemV8 as Item, ResolvedItem } from "../document";
+import type { Board as SavedBoard, BoardV9 as Board, ItemV9 as Item, ResolvedItem } from "../document";
 import { count } from "../document";
 import { catalog } from "../activities/catalog";
 import { activityPreview, insertActivity, readActivity, type Activity, type Preview } from "../activities";
@@ -11,15 +11,16 @@ import { textUnits, type Style } from "../styles";
 import type { View } from "../view";
 import { arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "../arrange";
 import { assignSection, commandObjectLabel, orderInBands, wrapReason, wrapSelection } from "../sections";
-import { objectType, hasRectangle, hasText, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, type ShapeKeys, type ShapePaint } from "../objects/registry";
+import { type ConnectorStyle, type End, objectType, hasRectangle, hasText, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, type ShapeKeys, type ShapePaint } from "../objects/registry";
 import { groupObjects, groupReason, ungroupObjects } from "../group";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "../clipboard";
 
 import { changeStrokeWeight, changeStrokeColor, changeOrdinaryColor } from "../strokes";
-import { copiedSet, copiedSetReason, cascadeCount, connectReason, createConnector } from "../connectors";
+import { copiedSet, copiedSetReason, cascadeCount, connectReason, createConnector, changeConnectorStyle, reconnect } from "../connectors";
 
 type Input = {
   tool: string;
+  connectorStyle: RefObject<ConnectorStyle>;
   shapeSession: { update: (paint: ShapePaint) => void };
   growHeight: number;
   growAvailable: boolean;
@@ -52,7 +53,7 @@ type Input = {
 };
 
 export function useEditingCommands({
-  tool, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
+  tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
   setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
   displayedObjects, commandReason, selectionReason, clipboardState, editingState,
   arrangementMembers, lineCount, editor, selector, setPanel, setTool,
@@ -208,7 +209,7 @@ export function useEditingCommands({
     const current = model.current;
     if (name === "Connect") {
       const ideas = current.objects.filter((o) => selected.has(o.id)).sort((a, b) => a.order - b.order);
-      const result = createConnector(current, ideas[0].id, ideas[1].id);
+      const result = createConnector(current, ideas[0].id, ideas[1].id, connectorStyle.current);
       commit(result.board, true); select(result.id); setTool("Select");
       if (native) selector?.current?.focus(); else scene.current?.focus();
     } else if (name === "Section from selection") {
@@ -313,7 +314,20 @@ export function useEditingCommands({
     const objects = changeStrokeColor(model.current.objects, selected, color);
     finishTextSession(); setInline(false); commit({ ...model.current, objects }, true);
   }
+  const connectorCommands = {
+    style: <K extends keyof ConnectorStyle>(key: K, value: ConnectorStyle[K]) => {
+      if (selectionReason) return;
+      const next = changeConnectorStyle(model.current, selected, key, value);
+      if (!selected.size || model.current.objects.filter((o) => selected.has(o.id)).some((o) => !hasEnds(o))) return;
+      connectorStyle.current = { ...connectorStyle.current, [key]: value };
+      finishTextSession(); setInline(false); commit(next, true);
+    },
+    reconnect: (id: string, end: "from" | "to", target: End) => {
+      if (selectionReason) return;
+      finishTextSession(); setInline(false); commit(reconnect(model.current, id, end, target), true);
+    },
+  };
   const strokeCommands = { color: strokeColor, weight: strokeWeight };
   const shapeCommands = { changeShape, changeFill: changeShapeFill, changeBorder: changeShapeBorder, grow };
-  return { strokeCommands, loadTemplates, addActivity, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
+  return { connectorCommands, strokeCommands, loadTemplates, addActivity, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
 }

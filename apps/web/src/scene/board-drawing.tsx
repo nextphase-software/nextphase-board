@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
+import type { ConnectionDrag } from "../connection-drag";
+import { reconnectPreview } from "../connectors";
 import { Layer, Stage } from "react-konva";
-import type { BoardV8 as Board } from "../document";
+import type { BoardV9 as Board } from "../document";
 import type { View } from "../view";
 import { bandOrder, dropTargets } from "../sections";
 import { objectType, hasRectangle, hasText, hasPoints, type StrokeKeys, type Rectangle, hasEnds, orderBand } from "../objects/registry";
@@ -11,6 +13,7 @@ import { SectionBody, SectionDropHint } from "./section-body";
 import { NoteBody, type ObjectLayout } from "./note-body";
 
 type Props = {
+  connection?: ConnectionDrag;
   preview: (Rectangle & StrokeKeys) | null;
   size: { w: number; h: number };
   view: View;
@@ -21,7 +24,8 @@ type Props = {
   movingIds: readonly string[];
 };
 
-export function BoardDrawing({ preview, size, view, board, objectLayouts, selected, inline, movingIds }: Props) {
+export function BoardDrawing({ connection, preview, size, view, board, objectLayouts, selected, inline, movingIds }: Props) {
+  const rectangles = new Map(board.objects.filter(hasRectangle).map((o) => [o.id, { ...o, displayHeight: objectLayouts.get(o.id)!.height }]));
   const targets = dropTargets(board, new Set(movingIds), true);
   const sections = new Set([...targets.values()].filter((id) => id !== null));
   return (
@@ -34,7 +38,7 @@ export function BoardDrawing({ preview, size, view, board, objectLayouts, select
       >
         {[0, 1, 1, 2].flatMap((band, pass) => bandOrder(board.objects).filter((o) => orderBand(o) === band).map((o) => {
           const layout = objectLayouts.get(o.id)!;
-          if (hasEnds(o)) return <ConnectorBody key={o.id + pass} object={o} layout={layout.connector!}
+          if (hasEnds(o)) return <ConnectorBody key={o.id + pass} object={o} layout={connection?.reconnect?.id === o.id ? reconnectPreview(o, connection.reconnect.end, connection.pointer, connection.side ?? "auto", rectangles, () => layout.connector!.labelBox.width - 24) : layout.connector!}
             selected={selected.has(o.id)} inline={inline} zoom={view.z} pass={pass === 1 ? "line" : "label"} />;
           if (hasPoints(o)) return <StrokeBody key={o.id} object={o} selected={selected.has(o.id)} zoom={view.z} />;
           if (!hasRectangle(o)) return null;

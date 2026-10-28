@@ -21,6 +21,10 @@ export function useContextBar({
     arrangeMenu = useRef<HTMLDivElement>(null);
   const controls = { kind: useRef<HTMLSpanElement>(null), fill: useRef<HTMLSpanElement>(null), border: useRef<HTMLSpanElement>(null) };
   const buttons = { kind: useRef<HTMLButtonElement>(null), fill: useRef<HTMLButtonElement>(null), border: useRef<HTMLButtonElement>(null) };
+  const connectorControls = { colour: useRef<HTMLSpanElement>(null), line: useRef<HTMLSpanElement>(null), start: useRef<HTMLSpanElement>(null), route: useRef<HTMLSpanElement>(null), end: useRef<HTMLSpanElement>(null) };
+  const connectorButtons = { colour: useRef<HTMLButtonElement>(null), line: useRef<HTMLButtonElement>(null), start: useRef<HTMLButtonElement>(null), route: useRef<HTMLButtonElement>(null), end: useRef<HTMLButtonElement>(null) };
+  const connectorMenu = useRef<HTMLDivElement>(null);
+  const [connectorFor, setConnectorFor] = useState({ key: "", name: "" });
   const menu = useRef<HTMLDivElement>(null);
   const [shapeFor, setShapeFor] = useState({ key: "", name: "" });
   const [swatchFor, setColour] = useState(""),
@@ -28,10 +32,10 @@ export function useContextBar({
     [arrangeHeight, setArrangeHeight] = useState(0),
     [contextWidth, setContextWidth] = useState(0);
   function setSwatchFor(value: React.SetStateAction<string>) {
-    setColour(value); setShapeFor({ key: "", name: "" }); if (value) setArrange("");
+    setConnectorFor({ key: "", name: "" }); setColour(value); setShapeFor({ key: "", name: "" }); if (value) setArrange("");
   }
   function setArrangeFor(value: React.SetStateAction<string>) {
-    setArrange(value); setShapeFor({ key: "", name: "" }); if (value) setColour("");
+    setConnectorFor({ key: "", name: "" }); setArrange(value); setShapeFor({ key: "", name: "" }); if (value) setColour("");
   }
   useLayoutEffect(() => {
     const bar = contextBar.current;
@@ -48,7 +52,7 @@ export function useContextBar({
   const shapeOpen = shapeFor.key === selectionKey && contextFits && !selectionReason ? shapeFor.name : "";
   const shapePopup = { open: shapeOpen, controls, buttons, menu,
     toggle: (name: keyof typeof controls) => {
-      setColour(""); setArrange("");
+      setConnectorFor({ key: "", name: "" }); setColour(""); setArrange("");
       setShapeFor({ key: selectionKey, name: shapeOpen === name ? "" : name });
     },
     close: () => {
@@ -68,6 +72,28 @@ export function useContextBar({
     document.addEventListener("focusin", outside);
     return () => { document.removeEventListener("pointerdown", outside, true); document.removeEventListener("focusin", outside); };
   }, [shapeOpen, selectionKey]);
+  const connectorOpen = connectorFor.key === selectionKey && selected.size > 0 && contextFits && !selectionReason ? connectorFor.name : "";
+  const connectorPopup = { open: connectorOpen, controls: connectorControls, buttons: connectorButtons, menu: connectorMenu,
+    toggle: (name: keyof typeof connectorControls) => {
+      setColour(""); setArrange(""); setShapeFor({ key: "", name: "" });
+      setConnectorFor({ key: selectionKey, name: connectorOpen === name ? "" : name });
+    },
+    close: () => {
+      setConnectorFor({ key: "", name: "" });
+      if (connectorOpen) connectorButtons[connectorOpen as keyof typeof connectorButtons].current?.focus();
+    },
+  };
+  useEffect(() => {
+    if (!connectorOpen) { setConnectorFor({ key: "", name: "" }); return; }
+    connectorMenu.current?.querySelector<HTMLElement>('[aria-checked="true"], [aria-pressed="true"], button')?.focus();
+    const outside = (event: Event) => {
+      if (event.target instanceof Node && !connectorControls[connectorOpen as keyof typeof connectorControls].current?.contains(event.target)) {
+        setConnectorFor({ key: "", name: "" });
+      }
+    };
+    document.addEventListener("pointerdown", outside, true); document.addEventListener("focusin", outside);
+    return () => { document.removeEventListener("pointerdown", outside, true); document.removeEventListener("focusin", outside); };
+  }, [connectorOpen, selectionKey]);
   const swatchOpen = swatchFor === selectionKey && selected.size > 0 && contextFits && !selectionReason;
   useEffect(() => {
     if (!swatchOpen) setColour("");
@@ -125,7 +151,7 @@ export function useContextBar({
     colourButton.current?.focus();
   }
   return {
-    shapePopup, contextWidth, contextLeft, contextTop, contextFits, swatchOpen, arrangeOpen,
+    connectorPopup, shapePopup, contextWidth, contextLeft, contextTop, contextFits, swatchOpen, arrangeOpen,
     arrangeHeight, setSwatchFor, setArrangeFor, closeSwatches, closeArrange,
     contextBar, colourControl, colourButton, swatches, arrangeControl, arrangeButton, arrangeMenu,
   };

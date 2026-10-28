@@ -1,21 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { add, clamp, type Board as SavedBoard, type BoardV8 as Board, type ResolvedItem as Item } from "../document";
+import { add, clamp, type Board as SavedBoard, type BoardV9 as Board, type ResolvedItem as Item } from "../document";
 import { expandSelection, pressSelection, toggleGroup } from "../group";
 import { nearestHandle, type Corner } from "../resize";
 import type { View } from "../view";
 import { drawRectangle, dropped, placeObject, withMembers } from "../sections";
-import { isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, type ShapePaint } from "../objects/registry";
+import { isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, type ShapePaint, type ConnectorStyle } from "../objects/registry";
 import type { Drag, ResizeStart } from "../gesture";
 
-import { connectionDots, pressedDot, connectionTarget } from "../connection-drag";
-import { hitObject, selectInBox, createConnector } from "../connectors";
+import { connectionDots, pressedDot, connectionTarget, pressedEnd, reconnectTarget } from "../connection-drag";
+import { hitObject, selectInBox, createConnector, reconnect } from "../connectors";
 import { deleteObject } from "../history";
 import { drawingPoints, strokeGeometry, makeStroke, erasedStrokes } from "../strokes";
 import { editingCommandReason } from "../commands";
 
 type Input = {
   drawing: { style: DrawingStyle };
+  connectorStyle: RefObject<ConnectorStyle>;
   shapeSession: { paint: RefObject<ShapePaint> };
   model: RefObject<Board>;
   commit: (input: SavedBoard, recordObject?: boolean, orderIds?: readonly string[]) => void;
@@ -58,7 +59,7 @@ type Input = {
 };
 
 export function useCanvasInput({
-  drawing, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+  drawing, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
   setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
   scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
   selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
@@ -187,6 +188,14 @@ export function useCanvasInput({
         pointerId: e.pointerId, drawing: { positions: [p], tool } };
       setBusy(true); scene.current?.focus(); e.currentTarget.setPointerCapture(e.pointerId); e.preventDefault(); return;
     }
+    const selectedConnector = canShowDots && selected.size === 1 ? displayedObjects.find((o) => selected.has(o.id) && hasEnds(o)) : undefined;
+    const end = selectedConnector?.connectorLayout && e.isPrimary ? pressedEnd(selectedConnector.connectorLayout, p, view.z) : undefined;
+    if (end && selectedConnector && hasEnds(selectedConnector) && !invalidObjectText) {
+      drag.current = { id: selectedConnector.id, x: p.x, y: p.y, cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false,
+        pointerId: e.pointerId, connection: { source: selectedConnector[end === "from" ? "to" : "from"].object,
+          start: p, pointer: p, target: null, reconnect: { id: selectedConnector.id, end } } };
+      setBusy(true); scene.current?.focus(); e.currentTarget.setPointerCapture(e.pointerId); e.preventDefault(); return;
+    }
     const dot = pressedDot(dots, p, view.z);
     if (dot && !editingCommandReason({ readOnly, composing, pointerGesture: false, invalidObjectText })) {
       drag.current = { id: dot.id, x: p.x, y: p.y, cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false,
@@ -261,7 +270,7 @@ export function useCanvasInput({
   function pointerMove(e: React.PointerEvent<HTMLDivElement>) {
     trackPointer(e);
     const d = drag.current;
-    if (!d) return;
+    if (!d || d.connection?.reconnect && e.pointerId !== d.pointerId) return;
     if (d.drawing) {
       d.drawing.positions.push(point(e));
       d.crossed ||= Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3;
@@ -269,7 +278,8 @@ export function useCanvasInput({
     }
     if (d.connection) {
       const p = point(e);
-      d.connection = { ...d.connection, pointer: p, target: connectionTarget(displayedObjects, d.connection.source, p) };
+      const target = d.connection.reconnect ? reconnectTarget(displayedObjects, d.connection.source, p, view.z) : null;
+      d.connection = { ...d.connection, pointer: p, target: d.connection.reconnect ? target?.target ?? null : connectionTarget(displayedObjects, d.connection.source, p), side: target?.side };
       setBoard({ ...model.current }); return;
     }
     if (placementTool(d.id) && !placementTool(d.id)!.draws &&
@@ -313,6 +323,7 @@ export function useCanvasInput({
   }
   function pointerUp(e: React.PointerEvent<HTMLDivElement>) {
     const d = drag.current;
+    if (d?.connection?.reconnect && e.pointerId !== d.pointerId) return;
     drag.current = null;
     setBusy(false);
     if (!d) return;
@@ -332,11 +343,19 @@ export function useCanvasInput({
     }
     if (d.connection) {
       const p = point(e), rect = scene.current!.getBoundingClientRect();
+      if (d.connection.reconnect) {
+        const target = e.clientX >= rect.left && e.clientY >= rect.top && e.clientX <= rect.right && e.clientY <= rect.bottom
+          ? reconnectTarget(displayedObjects, d.connection.source, p, view.z) : null;
+        if (target && !editingCommandReason({ readOnly, composing, pointerGesture: false, invalidObjectText })) {
+          commit(reconnect(model.current, d.connection.reconnect.id, d.connection.reconnect.end, { object: target.target, anchor: target.side }), true);
+        }
+        setBoard({ ...model.current }); releaseCapture(d.pointerId); return;
+      }
       const target = e.clientX >= rect.left && e.clientY >= rect.top && e.clientX <= rect.right &&
         e.clientY <= rect.bottom ? connectionTarget(displayedObjects, d.connection.source, p) : null;
       if (target && !editingCommandReason({ readOnly, composing, pointerGesture: false, invalidObjectText })) {
         try {
-          const result = createConnector(model.current, d.connection.source, target);
+          const result = createConnector(model.current, d.connection.source, target, connectorStyle.current);
           commit(result.board, true); select(result.id); setInline(false); setPanel(""); scene.current?.focus();
         } catch (error) { setMessage(String(error)); }
       }

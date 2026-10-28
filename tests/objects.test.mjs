@@ -35,7 +35,7 @@ test("v7 registry owns ends, rectangles, eligibility, bands and key sets", async
   assert.equal(record.textLimit, 100); assert.equal(record.initialText, "");
   assert.deepEqual(record.kinds, []); assert.equal(record.draws, false);
   assert.deepEqual(record.defaultStyle, { color: "neutral", textSize: "medium", align: "center" });
-  assert.deepEqual(record.extraKeys, ["from", "to"]);
+  assert.deepEqual(record.extraKeys, ["from", "to", "lineColor", "lineWeight", "lineDash", "startHead", "endHead", "lineShape"]);
   assert.equal(record.fontSize({}), 18); assert.equal(record.edge({}), "#6b6b6b");
   assert.equal(record.textColor({}), "#2c2c2c");
   for (const t of OBJECT_TYPES) {

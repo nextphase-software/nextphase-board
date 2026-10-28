@@ -365,3 +365,48 @@ Code-discovery graph listing/indexing calls were denied by the sandbox approval 
 local source inspection was used. The source commit's mandatory public-boundary hooks both
 reported PASS, with no bypass. Git also emitted a sandbox denial for `packed-refs.lock` during
 commit maintenance; the commit exited successfully and its branch reference was verified.
+
+### 2026-10-28 — Fix round 1
+
+- Review input: `2d59db94bc48702096aee7d069250d6328548afb`, NEEDS WORK; findings
+  **F1, F2, F3 and F6**, using interaction v23 and document v9.
+- Branch: `codex/0002-W3-connector-styles`; worktree: `.worktrees/codex-0002-W3`.
+- **Validated source/test revision:** `4104fd41a3ac9e1dda4ef25f1070a03064935920`
+  (`fix(web): correct reconnect no-ops and connector head rendering`). The checks below ran
+  with a clean worktree at this revision. This record is a subsequent documentation-only
+  commit; the final branch tip is reported separately in the handoff.
+
+| Finding | Fix and evidence |
+| --- | --- |
+| F1 | The 24 CSS pixel drop-side dot has a 50% border radius and a 3-pixel blue ring. Its round light-blue pseudo-element now fills the ring's interior. CSS diff inspected; real-browser appearance remains for the reviewer. |
+| F2 | Pointer drops on the end's own idea compare the drop side with the stored pinned side, or the layout side for an auto end. A matching side bypasses the commit. Tests for both auto ends cover press/release without movement, moving away and returning, no revision/history/status change, and pinning a different side. The existing pinned-side repeat test also checks revision and status. Explicit Objects side choices retain their existing semantics. |
+| F3 | Circle and Diamond have zero stroke width, and the scene supplies no stroke for them. Solid arrow and Triangle retain their 2-unit outline. The thin/thick head-table tests now assert these separate widths. |
+| F6 | A new test loads a validated version 8 board with connectors through the document hook's load function and asserts a version 9 model with default style, auto anchors, zero revision, empty history and no status update; original bytes stay unchanged. |
+
+Exact commands ran from the repository root with Node **24.22.1** and npm **11.19.1**:
+
+| Exact command | Result |
+| --- | --- |
+| `node --test --test-name-pattern 'head table|actual auto|loading a version 8' tests/connector-styles.test.mjs` | Before the source fixes, the added/updated regressions produced 4 expected failures on the reviewed implementation: both head weights and both auto ends; the load test passed. Exit 1. |
+| `node --test --test-name-pattern 'head table|actual auto|loading a version 8|actual own-idea' tests/connector-styles.test.mjs` | After the source fixes: 6 passed, 0 failed. Exit 0. |
+| `node --version` | `v24.22.1`; exit 0 |
+| `npm --version` | `11.19.1`; exit 0 |
+| `npm --prefix apps/web run typecheck` | Passed without diagnostics; exit 0 |
+| `node --test tests/connector-styles.test.mjs tests/connectors.test.mjs tests/document.test.mjs tests/modules.test.mjs` | 180 passed, 0 failed, 0 skipped; exit 0 |
+| `npm --prefix apps/web test` | 598 passed, 0 failed, 0 skipped; exit 0 |
+| `npm --prefix apps/web run build` | Built application; accepted lock, runtime inventory and distributed notices verified; exit 0 |
+| `npm --prefix apps/web run build:fixtures` | Built disposable fixtures with the same dependency/notice verification; exit 0 |
+| `git diff --check 2d59db9..HEAD` | Passed at the validated revision; exit 0 |
+| `git diff --name-only 2d59db9..HEAD` | Exactly five authorized source/test/CSS files at the validated revision; exit 0. This record adds only the brief itself. |
+
+Added dependencies: **none**. Packages, lockfiles and contracts are unchanged. No browser,
+comparison harness or browser regression harness was launched; fixture-page checks, Scenario S
+and all other browser evidence remain with the reviewer. No install was rerun for these fixes;
+the existing pinned installation was used. No unrelated checks, merge, push or publication were
+performed. The full unit suite has no remaining failure, so no failing full-suite case required
+comparison with `47e1b62`; that baseline was not run.
+
+The graph listing/indexing service was again blocked by the sandbox approval policy; local
+source reads were used. Mandatory public-boundary hooks passed without bypass. Git emitted a
+sandbox denial for `packed-refs.lock` during source-commit maintenance, but the commit exited
+successfully and its branch reference was verified.

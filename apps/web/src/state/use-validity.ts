@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef } from "react";
-import { objectType } from "../objects/registry";
-import { type BoardV7 as Board, validText } from "../document";
+import { objectType, hasText } from "../objects/registry";
+import { type BoardV8 as Board, validText } from "../document";
 
 type Input = {
   board: Board;
@@ -13,7 +13,7 @@ type Input = {
 
 export function useValidity({ board, drafts, title, composing, busy }: Input) {
   const invalidObjectFields = board.objects.flatMap((o, i) =>
-    !validText(drafts[o.id] ?? o.text, objectType(o.type).textLimit)
+    hasText(o) && !validText(drafts[o.id] ?? o.text, objectType(o.type).textLimit)
       ? [
         "Object " + (i + 1) +
         " exceeds " + objectType(o.type).textLimit.toLocaleString("en-US") + " code points or contains invalid Unicode. Correct it in Objects.",

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import { freshIdentifier, type BoardV7, type ItemV7 } from "./document.ts";
-import { extraValues, hasRectangle } from "./objects/registry.ts";
+import { freshIdentifier, type BoardV8, type ItemV8 } from "./document.ts";
+import { hasRectangle, hasText } from "./objects/registry.ts";
 import { editingCommandReason } from "./commands.ts";
 import { wholeGroups } from "./group.ts";
 import { bandOrder, remapSection } from "./sections.ts";
@@ -8,10 +8,10 @@ import type { DisplayObject } from "./selection.ts";
 
 import { copiedSet, copiedSetReason, remapEnds } from "./connectors.ts";
 
-type CopiedItem<T> = T extends ItemV7 ? Omit<T, "generation" | "order"> : never;
+type CopiedItem<T> = T extends ItemV8 ? Omit<T, "generation" | "order"> : never;
 export type ClipboardCommand = "Copy" | "Cut" | "Paste";
 export type Snapshot = {
-  objects: CopiedItem<ItemV7>[];
+  objects: CopiedItem<ItemV8>[];
   sourceBox: { left: number; top: number; right: number; bottom: number };
   sourceIdentifiers: string[];
   pasteCount: number;
@@ -20,7 +20,7 @@ type EditingState = Parameters<typeof editingCommandReason>[0];
 type PasteView = { centerX: number; centerY: number; zoom: number; width: number; height: number };
 
 export function clipboardReason(command: ClipboardCommand, selected: ReadonlySet<string>,
-  snapshot: Snapshot | null, state: EditingState, objects?: readonly ItemV7[]): string {
+  snapshot: Snapshot | null, state: EditingState, objects?: readonly ItemV8[]): string {
   const reason = editingCommandReason(command === "Copy" ? { ...state, readOnly: false } : state);
   if (reason) return reason;
   if (command !== "Paste" && objects && copiedSetReason(objects, selected)) return copiedSetReason(objects, selected);
@@ -28,7 +28,7 @@ export function clipboardReason(command: ClipboardCommand, selected: ReadonlySet
     : selected.size ? "" : "Select an object to " + command.toLowerCase() + ".";
 }
 
-export function buildSnapshot(board: BoardV7, selected: ReadonlySet<string>,
+export function buildSnapshot(board: BoardV8, selected: ReadonlySet<string>,
   drawn: readonly DisplayObject[]): Snapshot | null {
   const copied = copiedSet(board.objects, selected);
   const objects = board.objects.filter((o) => copied.has(o.id)).sort((a, b) => a.order - b.order);
@@ -39,9 +39,8 @@ export function buildSnapshot(board: BoardV7, selected: ReadonlySet<string>,
     objects: objects.map((o) => {
       const { generation: _generation, order: _order, ...saved } = o;
       return {
-        ...saved, section: o.section && copied.has(o.section) ? o.section : null,
+        ...structuredClone(saved), section: o.section && copied.has(o.section) ? o.section : null,
         group: o.group !== null && groups.has(o.group) ? o.group : null,
-        marks: o.marks.map((m) => ({ ...m })), ...extraValues(o),
       };
     }),
     sourceBox: {
@@ -62,7 +61,7 @@ export function buildSnapshot(board: BoardV7, selected: ReadonlySet<string>,
 }
 
 export function plainText(snapshot: Snapshot): string {
-  return snapshot.objects.map((o) => o.text).filter((text) => text !== "").join("\n\n");
+  return snapshot.objects.filter(hasText).map((o) => o.text).filter((text) => text !== "").join("\n\n");
 }
 
 function bounded(position: number, length: number): number {
@@ -80,8 +79,8 @@ function bounded(position: number, length: number): number {
   return result;
 }
 
-export function buildPaste(board: BoardV7, snapshot: Snapshot, view: PasteView): {
-  board: BoardV7; pasteCount: number;
+export function buildPaste(board: BoardV8, snapshot: Snapshot, view: PasteView): {
+  board: BoardV8; pasteCount: number;
 } {
   if (board.objects.length + snapshot.objects.length > 250) throw Error("250 object limit reached");
   const pasteCount = snapshot.pasteCount + 1;
@@ -95,8 +94,8 @@ export function buildPaste(board: BoardV7, snapshot: Snapshot, view: PasteView):
   return { board: copyObjects(board, snapshot, dx, dy), pasteCount };
 }
 
-export function copyObjects(board: BoardV7, snapshot: Pick<Snapshot, "objects" | "sourceIdentifiers">,
-  dx: number, dy: number): BoardV7 {
+export function copyObjects(board: BoardV8, snapshot: Pick<Snapshot, "objects" | "sourceIdentifiers">,
+  dx: number, dy: number): BoardV8 {
   if (board.objects.length + snapshot.objects.length > 250) throw Error("250 object limit reached");
   const reserved = [...snapshot.sourceIdentifiers];
   const fresh = () => {

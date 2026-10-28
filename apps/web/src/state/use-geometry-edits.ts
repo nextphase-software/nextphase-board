@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { add, type Board as SavedBoard, type BoardV7 as Board, type ItemV7 as Item, validText } from "../document";
+import { add, type Board as SavedBoard, type BoardV8 as Board, type ItemV8 as Item, validText } from "../document";
 import { neededHeight, savedHeight } from "../geometry";
 import { moveWithMembers, placeObject } from "../sections";
-import { objectType, rectangleType, hasRectangle, creationValues, typeForTool, type ShapePaint } from "../objects/registry";
+import { objectType, rectangleType, hasText, hasPoints, hasRectangle, creationValues, typeForTool, type ShapePaint } from "../objects/registry";
 import { resizeObject, resizeSet, type Corner, type Rectangle } from "../resize";
+import { resizeWithStrokes } from "../strokes";
 import { remap } from "../marks";
 import { textUnits } from "../styles";
 
@@ -42,14 +43,14 @@ export function useGeometryEdits({
     commit({
       ...model.current,
       objects: model.current.objects.map((o) =>
-        o.id === id && o.text !== value
+        o.id === id && hasText(o) && o.text !== value
           ? { ...o, ...(hasRectangle(o) ? { height: objectType(o.type).growsWithText ? savedHeight(o, lineCount(o, value), textUnits(o.textSize)) : o.height } : {}), text: value, marks: remap(o.marks, o.text, value) }
           : o
       ),
     });
   }
   function changeText(value: string) {
-    if (!item || readOnly) return;
+    if (!item || !hasText(item) || readOnly) return;
     beginTextSession(item);
     setDrafts((d) => ({ ...d, [item.id]: value }));
     setStatus("Unsaved");
@@ -99,8 +100,14 @@ export function useGeometryEdits({
     });
   }
   function resizedBoard(corner: Corner, start: ResizeStart[], dx: number, dy: number, shift: boolean) {
+    if (start.some(({ object }) => hasPoints(object))) {
+      const objects = resizeWithStrokes(corner, start, { x: dx, y: dy }, (o, width) => hasText(o) && objectType(o.type).growsWithText
+        ? neededHeight(lineCount({ ...o, width }), textUnits(o.textSize)) : 0);
+      const changes = new Map(objects.map((o) => [o.id, o]));
+      return { ...model.current, objects: model.current.objects.map((o) => changes.get(o.id) ?? o) };
+    }
     const members = start.map(({ object, rectangle }) => ({ ...rectangle, sizeRange: rectangleType(object.type).sizeRange,
-      neededHeight: (width: number) => objectType(object.type).growsWithText ? neededHeight(lineCount({ ...object, width }), textUnits(object.textSize)) : 0,
+      neededHeight: (width: number) => hasText(object) && objectType(object.type).growsWithText ? neededHeight(lineCount({ ...object, width }), textUnits(object.textSize)) : 0,
     }));
     const geometry = members.length === 1
       ? [resizeObject(corner, start[0].rectangle, { x: dx, y: dy }, shift, members[0].neededHeight, members[0].sizeRange)]

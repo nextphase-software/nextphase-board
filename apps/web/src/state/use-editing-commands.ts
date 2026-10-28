@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { Board as SavedBoard, BoardV7 as Board, ItemV7 as Item, ResolvedItem } from "../document";
+import type { Board as SavedBoard, BoardV8 as Board, ItemV8 as Item, ResolvedItem } from "../document";
 import { count } from "../document";
 import { catalog } from "../activities/catalog";
 import { activityPreview, insertActivity, readActivity, type Activity, type Preview } from "../activities";
@@ -11,13 +11,15 @@ import { textUnits, type Style } from "../styles";
 import type { View } from "../view";
 import { arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "../arrange";
 import { assignSection, orderInBands, wrapReason, wrapSelection } from "../sections";
-import { objectType, hasRectangle, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, type ShapeKeys, type ShapePaint } from "../objects/registry";
+import { objectType, hasRectangle, hasText, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, type ShapeKeys, type ShapePaint } from "../objects/registry";
 import { groupObjects, groupReason, ungroupObjects } from "../group";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "../clipboard";
 
+import { changeStrokeWeight, changeStrokeColor, changeOrdinaryColor } from "../strokes";
 import { copiedSet, copiedSetReason, cascadeCount, connectReason, createConnector } from "../connectors";
 
 type Input = {
+  tool: string;
   shapeSession: { update: (paint: ShapePaint) => void };
   growHeight: number;
   growAvailable: boolean;
@@ -50,7 +52,7 @@ type Input = {
 };
 
 export function useEditingCommands({
-  shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
+  tool, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
   setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
   displayedObjects, commandReason, selectionReason, clipboardState, editingState,
   arrangementMembers, lineCount, editor, selector, setPanel, setTool,
@@ -167,13 +169,14 @@ export function useEditingCommands({
       setInline(false);
       const remaining = [...selected].filter((id) => !result.affectedIds.includes(id));
       const removedSelection = remaining.length < selected.size;
-      if (affected.length) select(affected.map((o) => o.id));
+      if ((name === "Undo" || name === "Redo") && isDrawingTool(tool)) select([]);
+      else if (affected.length) select(affected.map((o) => o.id));
       else if (removedSelection || deleting) {
         select(deleting ? [] : remaining);
         if (deleting || !remaining.length) scene.current?.focus();
       }
       const label = current
-        ? current.type + " " + (current.order + 1) + " · " + (current.text.slice(0, 36) || "Empty")
+        ? current.type + " " + (current.order + 1) + " · " + ((current.text ?? "").slice(0, 36) || "Empty")
         : "object";
       const resultMessage = deleting ? (targets.length > 1
         ? (name === "Cut" ? "Cut " : "Deleted ") + targets.length + " objects. Undo restores them."
@@ -240,8 +243,9 @@ export function useEditingCommands({
     if (selectionReason || key !== "color" && model.current.objects.some((o) => selected.has(o.id) && hasRectangle(o) && !objectType(o.type).richText)) return;
     finishTextSession();
     setInline(false);
+    if (key === "color") { commit({ ...model.current, objects: changeOrdinaryColor(model.current.objects, selected, value as Style["color"]) }, true); return; }
     const objects = model.current.objects.map((current) => {
-      if (!hasRectangle(current) || !selected.has(current.id) || key === "color" && usesShapePaint(current) || current[key] === value) return current;
+      if (!hasRectangle(current) || !hasText(current) || !selected.has(current.id) || current[key] === value) return current;
       const styled = { ...current, [key]: value };
       return key === "textSize" && objectType(styled.type).growsWithText
         ? { ...styled, height: savedHeight(styled, lineCount(styled), textUnits(styled.textSize)) }
@@ -259,7 +263,7 @@ export function useEditingCommands({
       const end = codePointOffset(field.value, field.selectionEnd);
       if (end > start) {
         const objects = model.current.objects.map((o) => {
-          if (!hasRectangle(o) || !selected.has(o.id)) return o;
+          if (!hasRectangle(o) || !hasText(o) || !selected.has(o.id)) return o;
           const next = { ...o, marks: toggle(o.marks, count(o.text), start, end, flag) };
           return { ...next, height: objectType(next.type).growsWithText ? savedHeight(next, lineCount(next), textUnits(next.textSize)) : next.height };
         });
@@ -268,10 +272,10 @@ export function useEditingCommands({
       }
     }
     if (!beingEdited) setInline(false);
-    const targets = model.current.objects.filter((o) => hasRectangle(o) && selected.has(o.id) && o.text.length > 0);
+    const targets = model.current.objects.filter(hasRectangle).filter(hasText).filter((o) => selected.has(o.id) && o.text.length > 0);
     const remove = targets.every((o) => formatted(o.marks, count(o.text), flag));
     const objects = model.current.objects.map((o) => {
-      if (!hasRectangle(o) || !selected.has(o.id) || !o.text.length || formatted(o.marks, count(o.text), flag) !== remove) return o;
+      if (!hasRectangle(o) || !hasText(o) || !selected.has(o.id) || !o.text.length || formatted(o.marks, count(o.text), flag) !== remove) return o;
       const next = { ...o, marks: toggle(o.marks, count(o.text), 0, count(o.text), flag) };
       return { ...next, height: objectType(next.type).growsWithText ? savedHeight(next, lineCount(next), textUnits(next.textSize)) : next.height };
     });
@@ -282,7 +286,7 @@ export function useEditingCommands({
     finishTextSession(); setInline(false);
     const changed: Item[] = [];
     const objects = model.current.objects.map((o) => {
-      if (!hasRectangle(o) || !selected.has(o.id) || !usesShapePaint(o)) return o;
+      if (!hasRectangle(o) || !hasText(o) || !selected.has(o.id) || !usesShapePaint(o)) return o;
       const next = change(o);
       if (next !== o) changed.push(next);
       return next;
@@ -298,6 +302,19 @@ export function useEditingCommands({
     if (!growAvailable) return;
     shapeCommand((o) => ({ ...o, height: growHeight }));
   }
+  function strokeWeight(weight: InkWeight) {
+    if (selectionReason) return;
+    try {
+      const objects = model.current.objects.map((o) => hasPoints(o) && selected.has(o.id) ? changeStrokeWeight(o, weight) : o);
+      finishTextSession(); setInline(false); commit({ ...model.current, objects }, true);
+    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
+  }
+  function strokeColor(color: string) {
+    if (selectionReason) return;
+    const objects = changeStrokeColor(model.current.objects, selected, color);
+    finishTextSession(); setInline(false); commit({ ...model.current, objects }, true);
+  }
+  const strokeCommands = { color: strokeColor, weight: strokeWeight };
   const shapeCommands = { changeShape, changeFill: changeShapeFill, changeBorder: changeShapeBorder, grow };
-  return { loadTemplates, addActivity, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
+  return { strokeCommands, loadTemplates, addActivity, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
 }

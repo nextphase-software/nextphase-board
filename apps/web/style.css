@@ -634,3 +634,24 @@ small {
   .templates-panel { max-height: calc(100% - 300px); }
   .template-cards { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Drawing controls share the toolbar container and stay a single scrollable row. */
+.drawing-bar { bottom: 78px; left: 50%; transform: translateX(-50%); display: flex; align-items: center;
+  gap: 4px; max-width: calc(100% - 24px); width: max-content; overflow-x: auto; flex-wrap: nowrap; }
+.drawing-bar .icon-button { min-width: 36px; min-height: 36px; }
+.drawing-bar button[aria-pressed=true] { background: #e9e2fb; color: #29272e; }
+.drawing-bar .ink-dot[aria-pressed=true] { background: white; }
+.drawing-bar .ink-dot[aria-pressed=true] .colour-dot { outline: 2px solid #7051cf; outline-offset: 2px; }
+.drawing-bar button:disabled { opacity: .35; }
+.context[data-menu-open=true], .context:has(details[open]) { z-index: 6; }
+.stroke-control { position: relative; }
+.stroke-control summary { display: inline-flex; gap: 6px; align-items: center; min-height: 40px; cursor: pointer; list-style: none; }
+.stroke-control summary::-webkit-details-marker { display: none; }
+.stroke-control summary[aria-disabled=true] { opacity: .45; cursor: default; }
+.stroke-control summary:focus-visible { outline: 3px solid #7051cf; outline-offset: 3px; }
+.ink-menu { position: absolute; top: 48px; left: 0; min-width: 160px; background: white; color: #29272e;
+  padding: 8px; border: 1px solid #e9e7ed; border-radius: 12px; box-shadow: 0 2px 8px #29202e20; }
+.context .ink-menu button { width: 100%; min-height: 40px; color: #29272e; padding: 6px 8px; }
+.context .ink-menu button[aria-pressed=true] { background: #e9e2fb; }
+@media (max-width:1000px) { .drawing-bar { bottom: 138px; } }
+@media (max-width:767px) { .drawing-bar { bottom: 142px; } }

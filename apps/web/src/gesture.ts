@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { RectangleItem as Item } from "./document";
+import type { RectangleItem, StrokeItem } from "./document";
 import type { Corner, Rectangle } from "./resize";
 import type { View } from "./view";
 
-export type ResizeStart = { object: Item; rectangle: Rectangle };
+export type ResizeStart = { object: RectangleItem | StrokeItem; rectangle: Rectangle };
 import type { ConnectionDrag } from "./connection-drag.ts";
 
 export type Drag = {
+  drawing?: { positions: { x: number; y: number }[]; tool: string };
   connection?: ConnectionDrag;
   id: string;
   ids?: string[];

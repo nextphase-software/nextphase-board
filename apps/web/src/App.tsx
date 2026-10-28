@@ -42,8 +42,8 @@ export function App() {
   const { readOnly, setReadOnly, status, setStatus } = useSessionStatus();
   const {
     selectionBox, setSelectionBox, tool, setTool, busy, setBusy, spacePan, setSpacePan,
-    scene, spacePanRef, drag,
-  } = useGestureState();
+    scene, spacePanRef, drag, drawing, selectionStarted,
+  } = useGestureState(() => select(""), () => finishTextSession(), () => setInline(false));
   const { inline, setInline, composing, setComposing, textSelection, setTextSelection } = useTextEntry();
   const { setMessage, messageSequence, latestAcknowledgement, visibleMessage } = useMessages();
   const {
@@ -52,7 +52,7 @@ export function App() {
     updateHistory, clearHistory, beginTextSession, finishTextSession, commit, load,
   } = useBoardDocument({ readOnly, setStatus });
   const {
-    connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,
+    strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,
     selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats, richText,
   } = useSelection({ board, drafts, textSelection });
   const { invalidObjectText, invalidFields, invalid, pending } = useValidity({
@@ -71,7 +71,7 @@ export function App() {
     setInline(false);
     setSwatchFor("");
     setArrangeFor("");
-    setSelected(new Set(typeof value === "string" ? value ? [value] : [] : value));
+    const ids = new Set(typeof value === "string" ? value ? [value] : [] : value); if (ids.size) selectionStarted(); setSelected(ids);
   }
   const { snapshots, alive, adopt, save, reopen, boardFiles, boardQuestion } = useStorageSession({
     readOnly, setReadOnly, setStatus, setMessage, load, clearHistory, model,
@@ -94,10 +94,10 @@ export function App() {
     setStatus, setTool, setPanel, setInline, editor, lineCount,
   });
   const {
-    dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,
+    preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,
     pointerCancel, lostPointerCapture,
   } = useCanvasInput({
-    shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+    drawing, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
     setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
     scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
     selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
@@ -118,8 +118,8 @@ export function App() {
     selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
     item: resolvedItem, itemHeight, dotsVisible, editorBox,
   });
-  const { loadTemplates, addActivity, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
-    shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
+  const { strokeCommands, loadTemplates, addActivity, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
+    tool, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
     arrangementMembers, lineCount, editor, selector, setPanel, setTool,
@@ -148,7 +148,7 @@ export function App() {
         className={"scene" + (spacePan ? busy ? " grabbing" : " grab" : "")}
         style={{
           cursor: drag.current?.corner ? (drag.current.corner === "nw" || drag.current.corner === "se"
-            ? "nwse-resize" : "nesw-resize") : undefined,
+            ? "nwse-resize" : "nesw-resize") : drawingCursor,
           backgroundSize: `${24 * view.z}px ${24 * view.z}px`,
           backgroundPosition: `${size.w / 2 - view.x * view.z}px ${
             size.h / 2 - view.y * view.z
@@ -166,7 +166,7 @@ export function App() {
         onLostPointerCapture={lostPointerCapture}
       >
         <BoardDrawing
-          size={size} view={view} board={board} objectLayouts={objectLayouts} selected={selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
+          preview={preview} size={size} view={view} board={board} objectLayouts={objectLayouts} selected={selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
         />
         <Overlays
           selectedGroups={selectedGroups} pos={pos} view={view} handlesVisible={handlesVisible}
@@ -201,7 +201,7 @@ export function App() {
       )}
       {panel === "Objects" && (
         <ObjectsPanel
-          shapeSelection={shapeSelection} shapeCommands={shapeCommands} growAvailable={growAvailable} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
+          strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} growAvailable={growAvailable} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
           duplicateReason={duplicateReason} board={board} busy={busy} composing={composing} setPanel={setPanel}
           objectsButton={objectsButton} selector={selector} selected={selected}
           finishTextSession={finishTextSession} select={select} numbers={numbers} drafts={drafts}
@@ -214,7 +214,7 @@ export function App() {
       )}
       {selected.size > 0 && (
         <ContextBar
-          shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
+          strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
           connectorOnly={connectorOnly} connectorCount={connectors.length} duplicateReason={duplicateReason} contextBar={contextBar} contextFits={contextFits} contextLeft={contextLeft}
           contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
           composing={composing} busy={busy} inline={inline} finishTextSession={finishTextSession}
@@ -237,7 +237,7 @@ export function App() {
       )}
       <ShapesPanel tool={tool} setTool={setTool} scene={scene} disabled={busy || composing || readOnly} />
       <Palette
-        tool={tool} busy={busy} composing={composing} readOnly={readOnly} setTool={setTool}
+        drawing={drawing} tool={tool} busy={busy} composing={composing} readOnly={readOnly} setTool={setTool}
         setInline={setInline} scene={scene} loadTemplates={loadTemplates} panel={panel} toggle={toggle} templatesButton={templatesButton} firstTemplateButton={firstTemplateButton} addActivity={addActivity} templatePreviews={templatePreviews}
       />
       <ZoomControls

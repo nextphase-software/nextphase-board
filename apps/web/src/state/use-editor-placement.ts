@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { ResolvedItem as Item } from "../document";
-import { objectType, rectangleType, textBox, hasEnds } from "../objects/registry";
+import { objectType, rectangleType, hasText, textBox, hasEnds } from "../objects/registry";
 import { labelEditorBox } from "../connectors";
 import { textUnits } from "../styles";
 import type { View } from "../view";
@@ -41,7 +41,7 @@ export function useEditorPlacement({
   useEffect(() => {
     if (inline && !composing) {
       editor.current?.focus();
-      if (item && !objectType(item.type).richText && item.text === objectType(item.type).initialText) editor.current?.select();
+      if (item && hasText(item) && !objectType(item.type).richText && item.text === objectType(item.type).initialText) editor.current?.select();
     }
   }, [inline, selected]);
   useEffect(() => {
@@ -50,7 +50,7 @@ export function useEditorPlacement({
       if (fallbackFocus.current) {
         fallbackFocus.current = false;
         editor.current?.focus();
-        if (item && !objectType(item.type).richText && item.text === objectType(item.type).initialText) editor.current?.select();
+        if (item && hasText(item) && !objectType(item.type).richText && item.text === objectType(item.type).initialText) editor.current?.select();
       } else selector.current?.focus();
     }
   }, [panel]);
@@ -61,13 +61,13 @@ export function useEditorPlacement({
     setInline(false);
   }
   function edit() {
-    if (!item || readOnly || busy || composing) return;
+    if (!item || !hasText(item) || readOnly || busy || composing) return;
     finishTextSession();
     setPanel("");
     setInline(true);
   }
   useEffect(() => {
-    if (!inline || !item || composing) return;
+    if (!inline || !item || !hasText(item) || composing) return;
     const p = pos(item), rect = (objectType(item.type).richText ? editor.current : editor.current?.parentElement)?.getBoundingClientRect();
     const obscured = rect &&
       Array.from(
@@ -94,8 +94,8 @@ export function useEditorPlacement({
       size.w < 768 || p.left < 0 || p.top < 0 ||
       p.left + item.width * view.z > size.w ||
       p.top + itemHeight * view.z > size.h ||
-      textBox({ ...item, height: itemHeight }).width * view.z < rectangleType(item.type as Parameters<typeof rectangleType>[0]).editorMinimum.width ||
-      textBox({ ...item, height: itemHeight }).height * view.z < rectangleType(item.type as Parameters<typeof rectangleType>[0]).editorMinimum.height ||
+      textBox({ ...item, height: itemHeight }).width * view.z < objectType(item.type).editorMinimum.width ||
+      textBox({ ...item, height: itemHeight }).height * view.z < objectType(item.type).editorMinimum.height ||
       textUnits(item.textSize) * view.z < 12 || obscured
     ) fallbackEditor();
   }, [inline, selected, view, size, composing, itemHeight, item?.width, item?.textSize, item?.connectorLayout?.labelPoint.x, item?.connectorLayout?.labelPoint.y, item?.connectorLayout ? text : undefined]);

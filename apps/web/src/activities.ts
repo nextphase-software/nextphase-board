@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { readBoardFile } from "./board-file.ts";
-import type { BoardV7, ItemV7 } from "./document.ts";
+import type { BoardV7, ItemV7, BoardV8, ItemV8 } from "./document.ts";
 import { copyObjects } from "./clipboard.ts";
-import { extraValues, hasEnds, hasRectangle, isContainer, rectangleType } from "./objects/registry.ts";
+import { hasEnds, hasRectangle, isContainer, rectangleType } from "./objects/registry.ts";
 import type { View } from "./view.ts";
 
 export type Activity = { name: string; file: string };
@@ -23,7 +23,7 @@ export async function readActivity(entry: Activity): Promise<BoardV7> {
   return board as BoardV7;
 }
 
-export function activityBox(objects: readonly ItemV7[]): Box | null {
+export function activityBox(objects: readonly ItemV8[]): Box | null {
   const rectangles = objects.filter(hasRectangle);
   return rectangles.length ? {
     left: Math.min(...rectangles.map((o) => o.x)), top: Math.min(...rectangles.map((o) => o.y)),
@@ -44,13 +44,13 @@ export function activityView(box: Box, current: View, size: Size): View {
   return { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2, z };
 }
 
-export function insertActivity(board: BoardV7, activity: BoardV7, view: View, size: Size) {
+export function insertActivity(board: BoardV8, activity: BoardV7, view: View, size: Size) {
   const box = activityBox(activity.objects)!, existing = activityBox(board.objects);
   const dx = existing ? existing.right + 120 - box.left : view.x - (box.left + box.right) / 2;
   const dy = existing ? existing.top - box.top : view.y - (box.top + box.bottom) / 2;
   const next = copyObjects(board, {
     objects: activity.objects.map(({ generation: _generation, order: _order, ...o }) => ({
-      ...o, marks: o.marks.map((m) => ({ ...m })), ...extraValues(o),
+      ...structuredClone(o),
     })),
     sourceIdentifiers: [activity.boardId, ...activity.retiredGenerations,
       ...activity.objects.flatMap((o) => [o.id, o.generation, ...(o.group ? [o.group] : [])])],

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useMemo, type RefObject } from "react";
 import Konva from "konva";
-import type { BoardV7 as Board, ItemV7 as Item, ResolvedItem } from "../document";
+import type { BoardV8 as Board, ItemV8 as Item, ResolvedItem } from "../document";
 import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT } from "../geometry";
-import { objectType, textBox, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds } from "../objects/registry";
+import { objectType, textBox, hasText, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds } from "../objects/registry";
 import { groupNumbers, wholeGroups } from "../group";
 import { cornerPoint, type Corner } from "../resize";
 import { boundingBox } from "../selection";
@@ -43,13 +43,14 @@ function measure(text: string, style: RunStyle, fontSize: number): number {
   }
   return measurement.measureSize(text).width;
 }
-function runLines(object: Item, text = object.text) {
-  if (!hasRectangle(object)) return null;
+function runLines(object: Item, text = object.text ?? "") {
+  if (!hasRectangle(object) || !hasText(object)) return null;
   const marks = text === object.text ? object.marks : remap(object.marks, object.text, text);
   return marks.length || usesShapePaint(object) ? layoutRuns(text, marks, textBox(object).width,
     (value, style) => measure(value, style, textUnits(object.textSize))) : null;
 }
-function lineCount(object: Item, text = object.text): number {
+function lineCount(object: Item, text = object.text ?? ""): number {
+  if (!hasText(object)) return 0;
   if (!hasRectangle(object)) return text.split(/\r\n|[\r\n]/).length;
   const runs = runLines(object, text);
   if (runs) return Math.max(1, runs.length);
@@ -70,7 +71,7 @@ export function useObjectLayouts({
 }: Input) {
   const objectLayouts = useMemo(() => {
     const layouts = new Map(board.objects.filter(hasRectangle).map((o): [string, { height: number; runs: RunLine[] | null; limited: boolean; fadeStart: number; fadeEnd: number; fits?: boolean; fitHeight?: number; connector?: ConnectorLayout }] => {
-    if (!objectType(o.type).richText) return [o.id, { height: o.height, runs: null,
+    if (!hasText(o) || !objectType(o.type).richText) return [o.id, { height: o.height, runs: null,
       limited: false, fadeStart: 0, fadeEnd: 0 }];
     // Uncommitted composition/invalid input may grow the editor's preview only.
     if (usesShapePaint(o)) {

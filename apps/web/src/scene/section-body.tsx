@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import Konva from "konva";
 import { Group, Rect, Text } from "react-konva";
-import type { ItemV6 as Item } from "../document";
+import type { ItemV6 as Item, StrokeItem } from "../document";
 import { TEXT_LAYOUT } from "../geometry";
 import { objectType } from "../objects/registry";
 
@@ -23,7 +23,7 @@ export function SectionBody({ o, selected, inline, dropTarget }: {
 }
 
 export function SectionDropHint({ section, ideas }: {
-  section: Item; ideas: (Item & { displayHeight: number })[];
+  section: Item; ideas: ((Item | StrokeItem) & { displayHeight: number })[];
 }) {
   const text = "Joins " + (section.text.replace(/\r\n|[\r\n]/g, " ") || "section");
   const measurement = new Konva.Text({ text, fontFamily: TEXT_LAYOUT.fontFamily, fontSize: 16, fontStyle: "500" });

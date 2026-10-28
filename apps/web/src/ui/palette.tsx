@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
 import { OBJECT_TYPES, placementTool, kindForTool, SHAPE_KINDS } from "../objects/registry";
+import { DrawButton, DrawingBar, type DrawingControls } from "./drawing-tools";
 import { TemplatesPanel } from "./templates-panel";
 import type { Activity, Preview } from "../activities";
 import { Icon } from "../icons";
 
 type Props = {
+  drawing: DrawingControls;
   loadTemplates: () => Promise<void>;
   panel: string;
   toggle: (name: string) => void;
@@ -23,14 +25,15 @@ type Props = {
 };
 
 export function Palette({
-  loadTemplates, panel, toggle, templatesButton, firstTemplateButton, addActivity, templatePreviews, tool, busy, composing, readOnly, setTool, setInline, scene
+  drawing, loadTemplates, panel, toggle, templatesButton, firstTemplateButton, addActivity, templatePreviews, tool, busy, composing, readOnly, setTool, setInline, scene
 }: Props) {
+  const arm = (name: string) => { setTool(name); setInline(false); scene.current?.focus(); };
   return (
     <>
     <nav className="palette floating" aria-label="Board tools">
-      {(["Select", "Pan", ...OBJECT_TYPES.flatMap((t) => t.tool ? [t.tool] : [])] as const).map((
+      {(["Select", "Pan", ...OBJECT_TYPES.flatMap((t) => t.tool ? [t.tool] : [])] as const).flatMap((
         name,
-      ) => (
+      ) => [
         <button
           key={name}
           className={"icon-button" + (name === OBJECT_TYPES[0].tool ? " tool-divider" : "")}
@@ -46,14 +49,16 @@ export function Palette({
         >
           <Icon name={name} />
           <span className="tooltip">{name}{placementTool(name)?.shapePaint ? " · " + SHAPE_KINDS[0].key : ""}</span>
-        </button>
-      ))}
+        </button>,
+        ...(placementTool(name)?.shapePaint ? [<DrawButton key="Draw" tool={tool} drawing={drawing} disabled={readOnly || busy || composing} arm={arm} />] : []),
+      ])}
       <button ref={templatesButton} className="icon-button" aria-label="Templates"
         aria-expanded={panel === "Templates"} aria-pressed={panel === "Templates"}
         disabled={readOnly || busy || composing} onClick={() => { if (panel !== "Templates") void loadTemplates(); toggle("Templates"); }}>
         <Icon name="Templates" /><span className="tooltip">Templates</span>
       </button>
     </nav>
+    <DrawingBar tool={tool} drawing={drawing} disabled={readOnly || busy || composing} arm={arm} />
     {panel === "Templates" && <TemplatesPanel close={() => toggle("Templates")} addActivity={addActivity}
       previews={templatePreviews} firstButton={firstTemplateButton} disabled={readOnly || busy || composing} />}
     </>

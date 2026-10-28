@@ -124,3 +124,13 @@ export function cornerPoint(corner: Corner, rectangle: Rectangle) {
     y: rectangle.y + (corner.startsWith("s") ? rectangle.height : 0),
   };
 }
+
+export function nearestHandle<T extends { corner: Corner; x: number; y: number }>(handles: readonly T[], point: Delta, zoom: number): T | undefined {
+  const order: Corner[] = ["nw", "ne", "sw", "se"];
+  return handles.filter((h) => Math.abs((point.x - h.x) * zoom) <= 8 && Math.abs((point.y - h.y) * zoom) <= 8)
+    .reduce<T | undefined>((best, h) => {
+      if (!best) return h;
+      const distance = Math.hypot(point.x - h.x, point.y - h.y) - Math.hypot(point.x - best.x, point.y - best.y);
+      return distance < 0 || distance === 0 && order.indexOf(h.corner) < order.indexOf(best.corner) ? h : best;
+    }, undefined);
+}

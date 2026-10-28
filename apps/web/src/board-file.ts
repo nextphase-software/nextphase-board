@@ -30,7 +30,7 @@ export async function readBoardFile(file: { size: number; arrayBuffer: () => Pro
   if (!/^[a-f0-9]{64}$/.test(value.sha256) || await digest(value.payload) !== value.sha256) refuse(FILE_REASONS[2]);
   let board;
   try { board = JSON.parse(value.payload); } catch { return refuse(FILE_REASONS[3]); }
-  if (Number.isSafeInteger(board?.schemaVersion) && board.schemaVersion > 7) refuse(FILE_REASONS[4]);
+  if (Number.isSafeInteger(board?.schemaVersion) && board.schemaVersion > 8) refuse(FILE_REASONS[4]);
   try {
     validate(board);
     if (canonical(board) !== value.payload) refuse(FILE_REASONS[3]);

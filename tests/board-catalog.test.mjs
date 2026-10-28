@@ -231,7 +231,7 @@ test("refresh validates both records, carries metadata only on a matching head, 
     assert.equal(result.title, "Old title"); assert.equal(result.savedAt, 123); assert.equal(result.fromFile, true);
     assert.equal(result.head, fingerprint(raw));
   }
-  const payload = JSON.stringify({ ...board(other), schemaVersion: 8 });
+  const payload = JSON.stringify({ ...board(other), schemaVersion: 9 });
   const future = JSON.stringify({ formatVersion: 1, storageRevision: 1, payload, sha256: await digest(payload) });
   const x = database([[boardKeys(other).head, future]]), [result] = await x.store().refreshList();
   assert.deepEqual(result, { ...entryDefaults(other), head: fingerprint(future), state: "newer" });

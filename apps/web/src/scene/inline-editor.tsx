@@ -2,7 +2,7 @@
 import type { PointerEventHandler, ReactNode, RefObject } from "react";
 import type { ResolvedItem as Item } from "../document";
 import { TEXT_INSET, TEXT_LAYOUT } from "../geometry";
-import { objectType, textBox, hasEnds } from "../objects/registry";
+import { objectType, textBox, hasText, hasEnds } from "../objects/registry";
 import { labelEditorBox } from "../connectors";
 import { textUnits } from "../styles";
 import type { View } from "../view";
@@ -19,6 +19,7 @@ type Props = {
 };
 
 export function InlineEditor({ inlineSurface, trackPointer, pos, item, view, itemHeight, text, nativeEditor }: Props) {
+  if (!hasText(item)) return null;
   const richText = objectType(item.type).richText;
   const ends = hasEnds(item);
   const box = ends ? labelEditorBox(item.connectorLayout!.labelPoint, text) : textBox({ ...item, height: itemHeight });

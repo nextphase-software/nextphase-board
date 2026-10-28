@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { Adapter, type Board as SavedBoard, type BoardV7 as Board, empty, type ItemV7 as Item, upgrade } from "../document";
-import { defaultPaint, type ShapePaint } from "../objects/registry";
+import { Adapter, type Board as SavedBoard, type BoardV8 as Board, empty, type ItemV8 as Item, upgrade } from "../document";
+import { defaultPaint, hasText, type ShapePaint } from "../objects/registry";
 import { emptyHistory, record, type History } from "../history";
 
 type Input = {
@@ -31,7 +31,7 @@ export function useBoardDocument({ readOnly, setStatus }: Input) {
     updateHistory(emptyHistory());
   }
   function beginTextSession(item: Item | undefined) {
-    if (!item || readOnly || textSession.current?.id === item.id) return;
+    if (!item || !hasText(item) || readOnly || textSession.current?.id === item.id) return;
     finishTextSession();
     textSession.current = { before: model.current, id: item.id };
   }

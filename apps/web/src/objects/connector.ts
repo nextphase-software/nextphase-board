@@ -9,7 +9,7 @@ function validEnd(value: unknown): boolean {
 }
 export const connector = {
   type: "connector", label: "Connector", tool: null, validFrom: 7, body: "connector-body",
-  ends: true, container: false, richText: false, textLimit: 100, initialText: "",
+  points: false, text: true, ends: true, container: false, richText: false, textLimit: 100, initialText: "",
   draws: false, kinds: [] as readonly { kind: string; tool: string; key: string; round: boolean }[],
   shapePaint: false, growsWithText: false, previewRadius: 0,
   defaultStyle: fixedStyle, legacyStyle: fixedStyle,

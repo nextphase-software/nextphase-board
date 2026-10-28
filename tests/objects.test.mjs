@@ -8,7 +8,7 @@ import { text } from "../apps/web/src/objects/text.ts";
 import { COLORS, colorEntry, textUnits } from "../apps/web/src/styles.ts";
 
 test("object types retain sticky and text order, labels and placement tools", () => {
-  assert.deepEqual(OBJECT_TYPES.map((t) => t.type), ["sticky", "shape", "text", "section", "connector"]);
+  assert.deepEqual(OBJECT_TYPES.map((t) => t.type), ["sticky", "shape", "text", "section", "stroke", "connector"]);
   assert.equal(objectType("sticky"), sticky);
   assert.equal(objectType("text"), text);
   assert.equal(objectType("sticky").label, "Sticky");
@@ -27,7 +27,7 @@ test("lookups reject values that no record has", () => {
 });
 
 test("v7 registry owns ends, rectangles, eligibility, bands and key sets", async () => {
-  const { hasEnds, hasRectangle, eligibleIdea, orderBand, typeWithEnds, ADD_OPTIONS, objectKeys } = await import("../apps/web/src/objects/registry.ts");
+  const { hasEnds, hasRectangle, hasPoints, sectionIdea, eligibleIdea, orderBand, typeWithEnds, ADD_OPTIONS, objectKeys } = await import("../apps/web/src/objects/registry.ts");
   const record = typeWithEnds();
   assert.equal(record, OBJECT_TYPES.at(-1)); assert.equal(record.type, "connector");
   assert.equal(record.tool, null); assert.equal(record.validFrom, 7);
@@ -41,7 +41,9 @@ test("v7 registry owns ends, rectangles, eligibility, bands and key sets", async
   for (const t of OBJECT_TYPES) {
     const o = { type: t.type };
     assert.equal(hasEnds(o), t.ends); assert.equal(hasRectangle(o), !t.ends);
-    assert.equal(eligibleIdea(o), !t.ends && !t.container);
+    assert.equal(eligibleIdea(o), !t.ends && !t.container && !t.points);
+    assert.equal(sectionIdea(o), !t.ends && !t.container);
+    assert.equal(hasPoints(o), t.points);
     assert.equal(orderBand(o), t.container ? 0 : t.ends ? 1 : 2);
     assert.equal(objectKeys(t.type, 7).includes("x"), !t.ends);
   }

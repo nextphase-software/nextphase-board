@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
-import { count, validText, type Board as SavedBoard, type BoardV7 as Board } from "../document";
+import { count, validText, type Board as SavedBoard, type BoardV8 as Board } from "../document";
 import type { BoardEntry } from "../board-catalog";
 import { BoardsList } from "./boards-list";
 

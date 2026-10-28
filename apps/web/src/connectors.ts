@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-import { freshIdentifier, type BoardV7, type ConnectorItem, type ItemV7 } from "./document.ts";
+import { freshIdentifier, type BoardV8, type ConnectorItem, type ItemV8 } from "./document.ts";
 import { editingCommandReason } from "./commands.ts";
-import { eligibleIdea, hasEnds, hasRectangle, isContainer, orderBand, typeWithEnds, type EndsKeys } from "./objects/registry.ts";
+import { eligibleIdea, hasPoints, hasEnds, hasRectangle, isContainer, orderBand, typeWithEnds, type EndsKeys } from "./objects/registry.ts";
 import { boxSelection, type DisplayObject, type Point } from "./selection.ts";
+import { strokeHit, strokeInBox } from "./strokes.ts";
 import type { Rectangle } from "./resize.ts";
 
 export const FOLLOW_REASON = "Connectors follow the ideas they join.";
@@ -121,13 +122,13 @@ export function connectorInBox(layout: ConnectorLayout, box: Rectangle): boolean
 }
 export function selectInBox<T extends DisplayObject & { type: string; connectorLayout?: ConnectorLayout }>(start: Point, end: Point, objects: readonly T[]): string[] {
   const box = { x: Math.min(start.x, end.x), y: Math.min(start.y, end.y), width: Math.abs(end.x - start.x), height: Math.abs(end.y - start.y) };
-  const rectangles = new Set(boxSelection(start, end, objects.filter(hasRectangle)));
+  const rectangles = new Set(boxSelection(start, end, objects.filter(hasRectangle).filter((o) => !hasPoints(o) || strokeInBox(o, box))));
   return objects.filter((o) => rectangles.has(o.id) || hasEnds(o) && connectorInBox(o.connectorLayout!, box))
     .sort((a, b) => a.order - b.order).map((o) => o.id);
 }
-export function hitObject<T extends DisplayObject & { type: string; text: string; connectorLayout?: ConnectorLayout }>(objects: readonly T[], point: Point, zoom: number): T | undefined {
+export function hitObject<T extends DisplayObject & { type: string; text?: string; connectorLayout?: ConnectorLayout }>(objects: readonly T[], point: Point, zoom: number): T | undefined {
   const ordered = bands(objects).reverse(), rectangles = ordered.filter((o) => orderBand(o) === 2);
-  return rectangles.find((o) => insideBox(point, { ...o, height: o.displayHeight }))
+  return rectangles.find((o) => hasPoints(o) ? strokeHit(o as unknown as import("./document.ts").StrokeItem, point, zoom) : insideBox(point, { ...o, height: o.displayHeight }))
     ?? ordered.find((o) => hasEnds(o) && o.text && insideBox(point, o.connectorLayout!.labelBox))
     ?? ordered.find((o) => hasEnds(o) && lineHit(o.connectorLayout!, point, zoom))
     ?? ordered.find((o) => isContainer(o) && insideBox(point, { ...o, height: o.displayHeight }));
@@ -155,19 +156,19 @@ export function remapEnds<T extends { type: string }>(o: T, ids: ReadonlyMap<str
 export function copiedSetReason(objects: readonly { id: string; type: string; section?: string | null }[], selected: ReadonlySet<string>): string {
   return selected.size && !copiedSet(objects, selected).size ? COPY_REASON : "";
 }
-export function connectReason(board: BoardV7, selected: ReadonlySet<string>, state: Parameters<typeof editingCommandReason>[0]): string {
+export function connectReason(board: BoardV8, selected: ReadonlySet<string>, state: Parameters<typeof editingCommandReason>[0]): string {
   const reason = editingCommandReason(state);
   if (reason) return reason;
   const ideas = board.objects.filter((o) => selected.has(o.id));
   if (selected.size !== 2 || ideas.length !== 2 || !ideas.every(eligibleIdea)) return "Select exactly two ideas to connect.";
   return board.objects.length >= 250 ? "250 object limit reached" : "";
 }
-export function createConnector(board: BoardV7, from: string, to: string): { board: BoardV7; id: string } {
+export function createConnector(board: BoardV8, from: string, to: string): { board: BoardV8; id: string } {
   if (from === to || [from, to].some((id) => !board.objects.some((o) => o.id === id && eligibleIdea(o)))) throw Error("Invalid connector ends");
   if (board.objects.length >= 250) throw Error("250 object limit reached");
   const type = typeWithEnds(), id = freshIdentifier(board);
   const object: ConnectorItem = { id, generation: freshIdentifier(board, [id]), type: type.type,
     text: type.initialText, ...type.defaultStyle, group: null, marks: [], section: null,
     from: { object: from, anchor: "auto" }, to: { object: to, anchor: "auto" }, order: board.objects.length };
-  return { id, board: { ...board, objects: bands<ItemV7>([...board.objects, object]).map((o, order) => ({ ...o, order })) } };
+  return { id, board: { ...board, objects: bands<ItemV8>([...board.objects, object]).map((o, order) => ({ ...o, order })) } };
 }

@@ -127,7 +127,7 @@ export function paintAfterStep(step: { changes: { before: object | null; after: 
 }
 export const shape = {
   type: "shape", label: "Shapes", tool: "Shapes", validFrom: 6, body: "shape-body",
-  ends: false, container: false, richText: true, textLimit: 1000, initialText: "", draws: true,
+  points: false, text: true, ends: false, container: false, richText: true, textLimit: 1000, initialText: "", draws: true,
   sizeRange: { min: 40, max: 2000 }, defaultSize: { width: 180, height: 180 },
   defaultStyle: { color: "neutral", textSize: "small", align: "center" },
   legacyStyle: { color: "neutral", textSize: "small", align: "center" },

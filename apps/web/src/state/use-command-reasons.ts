@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { RefObject } from "react";
-import type { Board as SavedBoard, BoardV7 as Board, ResolvedItem as Item } from "../document";
+import type { Board as SavedBoard, BoardV8 as Board, ResolvedItem as Item } from "../document";
 import type { History } from "../history";
 import { placementTool } from "../objects/registry";
 import { editingCommandReason } from "../commands";

@@ -7,7 +7,7 @@ export const text = {
   tool: "Text",
   validFrom: 1,
   body: "note",
-  ends: false, container: false,
+  points: false, text: true, ends: false, container: false,
   richText: true,
   textLimit: 1000,
   initialText: "",

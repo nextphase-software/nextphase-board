@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { ItemV7 as Item } from "../document";
+import type { ItemV8 as Item } from "../document";
+import { hasText } from "../objects/registry";
 import { remap, segments } from "../marks";
 
 export function FormatPreview({ item, text }: { item: Item; text: string }) {
+  if (!hasText(item)) return null;
   const marks = text === item.text ? item.marks : remap(item.marks, item.text, text);
   if (!marks.length) return null;
   return <p className="format-preview" aria-hidden="true">

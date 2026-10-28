@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction, SyntheticEvent } from "react";
-import { count, type ItemV7 as Item, validText } from "../document";
-import { objectType } from "../objects/registry";
+import { count, type ItemV8 as Item, validText } from "../document";
+import { objectType, hasText } from "../objects/registry";
 import { codePointOffset, type Flag, type TextSelection } from "../marks";
 
 type Props = {
@@ -29,6 +29,7 @@ export function ContentField({
   changeText, setComposing, setDrafts, commitText, finishTextSession, setInline,
   setTextSelection, toggleFormat,
 }: Props) {
+  if (item && !hasText(item)) return null;
   const type = item ? objectType(item.type) : undefined;
   const label = type && !type.richText ? "Name" : "Content";
   const limit = type?.textLimit ?? 1000;

@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { add, clamp, type Board as SavedBoard, type BoardV7 as Board, type ResolvedItem as Item } from "../document";
+import { add, clamp, type Board as SavedBoard, type BoardV8 as Board, type ResolvedItem as Item } from "../document";
 import { expandSelection, pressSelection, toggleGroup } from "../group";
-import type { Corner } from "../resize";
+import { nearestHandle, type Corner } from "../resize";
 import type { View } from "../view";
 import { drawRectangle, dropped, placeObject, withMembers } from "../sections";
-import { isContainer, hasEnds, placementTool, typeForTool, toolForKey, creationValues, type ShapePaint } from "../objects/registry";
+import { isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, type ShapePaint } from "../objects/registry";
 import type { Drag, ResizeStart } from "../gesture";
 
 import { connectionDots, pressedDot, connectionTarget } from "../connection-drag";
 import { hitObject, selectInBox, createConnector } from "../connectors";
+import { deleteObject } from "../history";
+import { drawingPoints, strokeGeometry, makeStroke, erasedStrokes } from "../strokes";
 import { editingCommandReason } from "../commands";
 
 type Input = {
+  drawing: { style: DrawingStyle };
   shapeSession: { paint: RefObject<ShapePaint> };
   model: RefObject<Board>;
   commit: (input: SavedBoard, recordObject?: boolean, orderIds?: readonly string[]) => void;
@@ -55,7 +58,7 @@ type Input = {
 };
 
 export function useCanvasInput({
-  shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+  drawing, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
   setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
   scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
   selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
@@ -64,6 +67,10 @@ export function useCanvasInput({
   const canShowDots = tool === "Select" && !readOnly && !inline && !composing && !textEditing && !busy && !spacePanRef.current && !drag.current;
   const dots = canShowDots ? connectionDots(displayedObjects, selected, view.z) : [];
   const dotsVisible = dots.length > 0;
+  const activeDrawing = drag.current?.drawing;
+  const preview = activeDrawing && !isEraser(activeDrawing.tool) && (drag.current?.crossed || inkInfo(drawingStyleFor(activeDrawing.tool, drawing.style)).round)
+    ? { ...drawingStyleFor(activeDrawing.tool, drawing.style), ...strokeGeometry(drawingPoints(activeDrawing.positions), drawingStyleFor(activeDrawing.tool, drawing.style)) } : null;
+  const drawingCursor = isEraser(tool) ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Ccircle cx='7' cy='7' r='6' fill='white' fill-opacity='.4' stroke='%235f5b66'/%3E%3C/svg%3E") 7 7, crosshair` : undefined;
   const connection = drag.current?.connection;
   function point(e: { clientX: number; clientY: number }) {
     const r = scene.current!.getBoundingClientRect();
@@ -94,7 +101,7 @@ export function useCanvasInput({
     setSelectionBox(null);
     drag.current = null;
     setBusy(false);
-    if (!d?.temporary) setTool("Select");
+    if (!d?.temporary && !d?.drawing) setTool("Select");
     releaseCapture(d?.pointerId);
     setBoard({ ...model.current });
   }
@@ -121,6 +128,13 @@ export function useCanvasInput({
   }, [readOnly]);
   function sceneKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget || composing) return;
+    if (e.key === "Escape" && drag.current?.drawing) { e.preventDefault(); e.stopPropagation(); cancel(); return; }
+    const drawTool = drawingKey(e.key, e.shiftKey);
+    if (drawTool && !readOnly && !inline && !textEditing && !busy && !drag.current && !e.nativeEvent.isComposing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault(); e.stopPropagation(); setTool(drawTool); return;
+    }
+    if (e.key === "Escape" && isDrawingTool(tool) && !drag.current) { e.preventDefault(); e.stopPropagation(); setTool("Select"); return; }
+    if (e.key === "Enter" && isDrawingTool(tool)) { e.preventDefault(); e.stopPropagation(); return; }
     const kindTool = toolForKey(e.key);
     if (kindTool && !readOnly && !inline && !busy && !drag.current && !e.nativeEvent.isComposing &&
       !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
@@ -167,14 +181,19 @@ export function useCanvasInput({
     }
     finishTextSession();
     const p = point(e);
+    if (isDrawingTool(tool)) {
+      if (editingCommandReason({ readOnly, composing, pointerGesture: false, invalidObjectText })) return;
+      drag.current = { id: "", x: p.x, y: p.y, cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false,
+        pointerId: e.pointerId, drawing: { positions: [p], tool } };
+      setBusy(true); scene.current?.focus(); e.currentTarget.setPointerCapture(e.pointerId); e.preventDefault(); return;
+    }
     const dot = pressedDot(dots, p, view.z);
     if (dot && !editingCommandReason({ readOnly, composing, pointerGesture: false, invalidObjectText })) {
       drag.current = { id: dot.id, x: p.x, y: p.y, cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false,
         pointerId: e.pointerId, connection: { source: dot.id, start: dot.start, pointer: p, target: null } };
       setBusy(true); scene.current?.focus(); e.currentTarget.setPointerCapture(e.pointerId); e.preventDefault(); return;
     }
-    const handle = handlesVisible ? handlePoints.find((h) =>
-      Math.abs((p.x - h.x) * view.z) <= 8 && Math.abs((p.y - h.y) * view.z) <= 8) : undefined;
+    const handle = handlesVisible ? nearestHandle(handlePoints, p, view.z) : undefined;
     if (handle) {
       drag.current = {
         id: "", corner: handle.corner, resizeStart: resizeStart(),
@@ -243,6 +262,11 @@ export function useCanvasInput({
     trackPointer(e);
     const d = drag.current;
     if (!d) return;
+    if (d.drawing) {
+      d.drawing.positions.push(point(e));
+      d.crossed ||= Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3;
+      setBoard({ ...model.current }); return;
+    }
     if (d.connection) {
       const p = point(e);
       d.connection = { ...d.connection, pointer: p, target: connectionTarget(displayedObjects, d.connection.source, p) };
@@ -293,6 +317,19 @@ export function useCanvasInput({
     setBusy(false);
     if (!d) return;
     const delta = Math.hypot(e.clientX - d.cx, e.clientY - d.cy);
+    if (d.drawing) {
+      if (!editingCommandReason({ readOnly, composing, pointerGesture: false, invalidObjectText })) try {
+        const positions = [...d.drawing.positions, point(e)];
+        if (isEraser(d.drawing.tool)) {
+          const touched = erasedStrokes(model.current.objects, positions, d.view.z);
+          if (touched.length) commit(deleteObject(model.current, { past: [], future: [] }, touched).board, true);
+        } else {
+          const object = makeStroke(model.current, positions, drawingStyleFor(d.drawing.tool, drawing.style), !!d.crossed || delta >= 3, e.shiftKey);
+          if (object) commit(placeObject(model.current, object), true);
+        }
+      } catch (error) { setMessage(String(error)); }
+      setBoard({ ...model.current }); releaseCapture(d.pointerId); return;
+    }
     if (d.connection) {
       const p = point(e), rect = scene.current!.getBoundingClientRect();
       const target = e.clientX >= rect.left && e.clientY >= rect.top && e.clientX <= rect.right &&
@@ -350,12 +387,12 @@ export function useCanvasInput({
     releaseCapture(d.pointerId);
   }
   function doubleClick(e: React.MouseEvent<HTMLDivElement>) {
-    if (spacePanRef.current || composing || busy) return;
+    if (spacePanRef.current || composing || busy || isDrawingTool(tool)) return;
     const p = point(e);
     const hit = hitObject(displayedObjects, p, view.z);
     if (!hit) return;
     select(hit.id);
-    if (!readOnly) {
+    if (!readOnly && hasText(hit)) {
       setPanel("");
       setInline(true);
     }
@@ -372,5 +409,5 @@ export function useCanvasInput({
       cancel();
     }
   }
-  return { dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick, pointerCancel, lostPointerCapture };
+  return { preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick, pointerCancel, lostPointerCapture };
 }

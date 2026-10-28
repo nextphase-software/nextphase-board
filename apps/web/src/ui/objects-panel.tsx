@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject, ReactNode } from "react";
-import type { BoardV7 as Board, ItemV7 as Item } from "../document";
+import type { BoardV8 as Board, ItemV8 as Item } from "../document";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "../styles";
 import { objectLabel } from "../sections";
-import { ADD_OPTIONS, isContainer, eligibleIdea, hasRectangle } from "../objects/registry";
+import { ADD_OPTIONS, isContainer, sectionIdea, hasRectangle } from "../objects/registry";
 import { FLAGS, FLAG_LABELS, type Flag } from "../marks";
 import { Icon } from "../icons";
 import type { Rectangle } from "../resize";
@@ -13,9 +13,11 @@ import type { View } from "../view";
 import { FOLLOW_REASON } from "../connectors";
 import { ArrangeControls } from "./arrange-controls";
 import { ShapeFields, GrowButton, type ShapeControlProps } from "./shape-controls";
+import { StrokeFields, type StrokeControlProps } from "./stroke-controls";
 import { FormatPreview } from "./format-preview";
 
 type Props = {
+  strokeSelection: StrokeControlProps["selection"]; strokeCommands: StrokeControlProps["commands"];
   duplicateReason: string;
   shapeSelection: ShapeControlProps["selection"];
   shapeCommands: ShapeControlProps["commands"];
@@ -58,12 +60,12 @@ type Props = {
 };
 
 export function ObjectsPanel({
-  duplicateReason, shapeSelection, shapeCommands, growAvailable, board, richText, setSection, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
+  strokeSelection, strokeCommands, duplicateReason, shapeSelection, shapeCommands, growAvailable, board, richText, setSection, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
   numbers, drafts, nativeEditor, item, text, selectionColor, selectionSize, selectionAlign, selectionReason,
   selectionFormats, toggleFormat, changeStyle, command, readOnly, move, bounds, resizeBy, arrange, arrangementReason,
   objectClipboard, clipboardState, clipboardCommand, create, view
 }: Props) {
-  const ideas = board.objects.filter((o) => selected.has(o.id) && eligibleIdea(o));
+  const ideas = board.objects.filter((o) => selected.has(o.id) && sectionIdea(o));
   const geometryReason = !selected.size || readOnly || composing || busy ? selectionReason : board.objects.some((o) => selected.has(o.id) && hasRectangle(o)) ? "" : FOLLOW_REASON;
   const sections = board.objects.filter(isContainer);
   const sharedSection = ideas.length && ideas.every((o) => o.section === ideas[0].section) ? ideas[0].section ?? "" : "mixed";
@@ -105,6 +107,7 @@ export function ObjectsPanel({
       </select>
       {selected.size > 1 ? <p>{selected.size} objects selected</p> : nativeEditor}
       {richText && selected.size === 1 && item && <FormatPreview item={item} text={text} />}
+      <StrokeFields selection={strokeSelection} commands={strokeCommands} reason={selectionReason} />
       <ShapeFields selection={shapeSelection} commands={shapeCommands} reason={selectionReason} />
       {selected.size > 0 && <div className="object-styles">
         {shapeSelection.hasOther && <><label htmlFor="object-colour">Colour</label>

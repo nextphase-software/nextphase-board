@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-import { add, clamp, type BoardV7 as Board, type ItemV7 as Item } from "./document.ts";
+import { add, clamp, type BoardV8 as Board, type ItemV8 as Item } from "./document.ts";
 import { arrangeOrder, type OrderCommand } from "./arrange.ts";
 import { editingCommandReason } from "./commands.ts";
 import { boundingBox, limitMove, type DisplayObject, type Point } from "./selection.ts";
-import { containerType, isContainer, labelPrefix, hasRectangle, hasEnds, eligibleIdea, orderBand } from "./objects/registry.ts";
+import { containerType, isContainer, labelPrefix, hasRectangle, hasEnds, hasText, sectionIdea, orderBand } from "./objects/registry.ts";
 
 import { bands, FOLLOW_REASON } from "./connectors.ts";
 
@@ -40,7 +40,7 @@ export function sectionAt(objects: readonly Item[], point: Point): (Item & { x: 
 
 export function dropTargets(board: Board, moving: ReadonlySet<string>, newJoinsOnly = false): Map<string, string | null> {
   const carried = new Set(board.objects.filter((o) => isContainer(o) && moving.has(o.id)).map((o) => o.id));
-  const ideas = board.objects.filter(eligibleIdea).filter((o) => moving.has(o.id) && !carried.has(o.section!));
+  const ideas = board.objects.filter(sectionIdea).filter((o) => moving.has(o.id) && !carried.has(o.section!));
   return new Map(ideas.flatMap((o): [string, string | null][] => {
     const group = o.group && board.objects.filter((m) => m.group === o.group);
     const whole = group && group.every((m) => moving.has(m.id));
@@ -67,7 +67,7 @@ export function moveWithMembers(board: Board, selected: ReadonlySet<string>, dx:
 
 export function assignSection(board: Board, selected: ReadonlySet<string>, section: string | null): Board {
   if (section !== null && !board.objects.some((o) => o.id === section && isContainer(o))) throw Error("Unknown section");
-  const objects = board.objects.map((o) => selected.has(o.id) && eligibleIdea(o) && o.section !== section ? { ...o, section } : o);
+  const objects = board.objects.map((o) => selected.has(o.id) && sectionIdea(o) && o.section !== section ? { ...o, section } : o);
   return objects.some((o, i) => o !== board.objects[i]) ? { ...board, objects } : board;
 }
 
@@ -76,7 +76,7 @@ export function placeObject(board: Board, object: Item): Board {
   const section = isContainer(object);
   const placed = section ? object : { ...object, section: sectionAt(board.objects, centre(object))?.id ?? null };
   const objects = bandOrder([...board.objects, placed]).map((o, order) => ({ ...o, order,
-    section: section && eligibleIdea(o) && contains(object, centre(o)) ? object.id : o.section,
+    section: section && sectionIdea(o) && contains(object, centre(o)) ? object.id : o.section,
   }));
   return { ...board, objects };
 }
@@ -118,12 +118,12 @@ export function objectLabel(board: Board, object: Item, numbers: ReadonlyMap<str
   const container = isContainer(object);
   const peers = board.objects.filter((o) => orderBand(o) === orderBand(object));
   const prefix = labelPrefix(object) + " " + (peers.findIndex((o) => o.id === object.id) + 1);
-  const text = drafts[object.id] ?? object.text;
+  const text = hasText(object) ? drafts[object.id] ?? object.text : "";
   const name = container ? shortName(text) : text.slice(0, 36) || "Empty";
   if (hasEnds(object)) {
     const endpoint = (id: string) => {
       const idea = board.objects.find((o) => o.id === id)!;
-      return labelPrefix(idea) + " " + (board.objects.filter(eligibleIdea).findIndex((o) => o.id === id) + 1);
+      return labelPrefix(idea) + " " + (board.objects.filter(sectionIdea).findIndex((o) => o.id === id) + 1);
     };
     return prefix + " · " + shortName(text) + " · " + endpoint(object.from.object) + " to " + endpoint(object.to.object);
   }
@@ -132,8 +132,8 @@ export function objectLabel(board: Board, object: Item, numbers: ReadonlyMap<str
     return prefix + " · " + name + " · " + count + (count === 1 ? " item" : " items");
   }
   const parent = board.objects.find((o) => o.id === object.section);
-  return prefix + (object.group !== null ? " · Group " + numbers.get(object.group) : "") + " · " + name +
-    (parent ? " · in " + shortName(drafts[parent.id] ?? parent.text) : "");
+  return prefix + (object.group !== null ? " · Group " + numbers.get(object.group) : "") + (hasText(object) ? " · " + name : "") +
+    (parent ? " · in " + shortName(drafts[parent.id] ?? parent.text ?? "") : "");
 }
 
 export function remapSection(section: string | null | undefined, ids: ReadonlyMap<string, string>): string | null {

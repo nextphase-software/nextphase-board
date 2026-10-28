@@ -299,3 +299,69 @@ performance test unless the maintainer asks.
 None beyond the repository's own documents.
 
 ## Implementation record
+
+### 2026-10-28 — Implementation handoff
+
+- Brief implemented: **0002-W3 v1 only**, with document v9, interaction v23 and web modules
+  v21 as committed on main. Base: `d9c0415ef0256fe7a382003902db2d44cbda8afe`.
+- Branch: `codex/0002-W3-connector-styles`; worktree: `.worktrees/codex-0002-W3`.
+- **Validated source/test revision:** `df8e77f91be18d127b83383bbabf3850f428f21d`
+  (`feat(web): style and reconnect connector relationships`). The validation below ran with a
+  clean worktree at that commit. This implementation record is a later documentation-only
+  commit; its final branch tip is reported separately in the handoff.
+- Implemented the connector toolbar, independent mixed style values, remembered style, both
+  endpoint drag previews and reconnecting, Objects' Ends and direct select keys, pinned routes,
+  three line shapes, head geometry/insets and hits, v9 canonical validation and legacy upgrades,
+  atomic adapter style, and style/anchor preservation through copies and history.
+- Scope inspection: exactly the six new files and forty-four changed implementation files
+  authorized above. `App.tsx` remains 258 lines (budget 262); screen parts 26, object-type modules
+  7, scene parts 9 and hooks 19. The existing module/type-name guards remain in force.
+- Added dependencies: **none**. Dependency versions, lock, licenses, activity files, contracts
+  and build scripts are unchanged.
+
+Commands ran from the repository root with the shell selecting the pinned toolchain. Every
+command below exited **0**:
+
+| Exact command | Result at the validated revision |
+| --- | --- |
+| `node --version` | `v24.22.1` |
+| `npm --version` | `11.19.1` |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Installed 19 packages successfully |
+| `npm --prefix apps/web run typecheck` | Passed; no TypeScript diagnostics |
+| `node --test tests/connector-styles.test.mjs tests/connectors.test.mjs tests/document.test.mjs tests/modules.test.mjs` | 177 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web test` | 595 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Built application; accepted lock, runtime inventory and distributed notices verified |
+| `npm --prefix apps/web run build:fixtures` | Built disposable fixtures; accepted lock, runtime inventory and distributed notices verified |
+| `git diff --name-only main...HEAD` | 50 implementation paths, all authorized by this brief; this record adds only the brief itself |
+| `git diff --check` | Passed |
+
+The new test file contains 48 cases covering the v9 keys, all style values and anchors, invalid
+ends, exact legacy bytes and upgrades, canonical styled records, atomic adapter values,
+Undo/Redo and resurrection, pinned side pairs, default-layout equivalence, Curved control
+points and exact cubic subdivision, Straight outline clipping and coincident centres, every
+head at both weights and oblique offsets, proportional insets, dash/label/hit/bounds rules,
+previews, drop sides, reconnect/style no-ops and refusals, copies, creation and v7 activity
+insertion. Synthetic hook/screen tests also exercise remembered-style reset and history
+independence, both creation routes, multi-connector style transactions, endpoint capture and
+release, own-idea/dot drops, cancellation, toolbar order/mixed values and Ends labels/keys.
+These synthetic surfaces are unit evidence, not real-browser evidence.
+
+| Criterion | Implementer evidence | Remaining reviewer evidence |
+| --- | --- | --- |
+| 0002-W3-AC01 | Style/geometry/toolbar/mixed-value unit cases pass | Scenario S2–S47 in a browser |
+| 0002-W3-AC02 | Reconnect rules, sides, previews, synthetic pointer and Ends-key cases pass | Scenario S48–S61, including real focus/capture and blur |
+| 0002-W3-AC03 | Canonical legacy/current records, adapter, Undo/Redo, copies, activity and board-file tests pass | Scenario S1 and S60–S68, including actual storage reopening and older-application preservation |
+
+**Exclusions and limitations.** No browser was launched and no browser comparison or regression
+harness was run, including the fixture-page PASS checks. Scenario S, previous-behaviour
+comparisons A–J, earlier browser scenarios and the Safari samples remain with the reviewer.
+No browser matrix, accessibility audit, native IME check, performance/load test, merge, push or
+publication was performed. The unit suite has no remaining failure at the validated revision,
+so there was no failing case requiring comparison against `47e1b62`; that baseline was not run.
+The known zero-length Shift-highlight concern and every feature exclusion above remain outside
+this implementation.
+
+Code-discovery graph listing/indexing calls were denied by the sandbox approval policy, so
+local source inspection was used. The source commit's mandatory public-boundary hooks both
+reported PASS, with no bypass. Git also emitted a sandbox denial for `packed-refs.lock` during
+commit maintenance; the commit exited successfully and its branch reference was verified.

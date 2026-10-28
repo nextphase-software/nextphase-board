@@ -2,11 +2,20 @@
 
 A collaborative visual workspace for teams.
 
-The first development build implements [0001-W1 v6](docs/briefs/0001-W1-capture-and-reopen-a-board.md):
-one browser-local board with sticky notes, plain text, pointer and keyboard editing,
-movement, pan/zoom and explicit save/reopen. Full milestone acceptance and independent
-implementation review are pending. This increment requires no hosting provider,
-account system or server storage.
+Board is built in the open, one reviewed milestone at a time. Today it has sticky notes,
+text, shapes, sections, connectors, ready-made templates, and drawing with a marker,
+highlighter and eraser. Boards are saved in your browser, and you can save a copy to a file
+and open it again. There are no accounts and no server storage yet.
+
+## Try the preview
+
+**<https://board-preview.nextphase.software>**
+
+This is an evolving preview, not a finished product. It is updated as each milestone is
+reviewed and merged, so new features appear over time and existing ones may change. Your
+boards stay in your browser on this device and are not sent anywhere; use Save a copy to
+file if you want to keep one. Desktop Chrome and Safari are the browsers checked so far. The
+[briefs](docs/briefs/README.md) describe what each milestone added.
 
 ## Run locally
 
@@ -24,9 +33,9 @@ menu, place a Sticky or Text object, edit it and click Save. Objects provides na
 selection, text editing, Add and movement controls. Keyboard Enter on the focused
 canvas places an armed tool; Enter inside a text field inserts a newline.
 
-Saving stores one board only in this origin and browser profile. Browser storage is
-not a backup. A second tab is read-only until the writer closes and Retry editing
-is selected. Use synthetic or disposable content in this development build.
+Saving stores boards only in this origin and browser profile. Browser storage is
+not a backup. A second tab on the same board is read-only until the writer closes and
+Retry editing is selected. Use synthetic or disposable content in this development build.
 
 To check that your setup works and try each feature, follow
 [Try and test NextPhase Board](docs/guides/try-board.md).

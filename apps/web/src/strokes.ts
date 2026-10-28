@@ -23,8 +23,8 @@ function paddedBounds(points: readonly Point[], pad: number): Rectangle & { poin
 }
 export const absolutePoints = (o: StrokeItem): Point[] => o.points.map(([x, y]) => ({ x: o.x + x, y: o.y + y }));
 export function makeStroke(board: BoardV8, positions: readonly Point[], style: Omit<StrokeKeys, "points">, crossed: boolean, straight = false): StrokeItem | null {
-  if (!crossed && !inkInfo(style).round) return null;
   if (board.objects.length >= 250) throw Error("250 object limit reached");
+  if (!crossed && !inkInfo(style).round) return null;
   const points = crossed ? drawingPoints(positions, straight) : [positions[0], positions[0]];
   const id = freshIdentifier(board);
   return { id, generation: freshIdentifier(board, [id]), type: typeWithPoints().type,

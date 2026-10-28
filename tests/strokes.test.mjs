@@ -110,6 +110,7 @@ test("click rule makes a 4 by 4 marker dot and no highlight; limit refuses a new
   assert.deepEqual([dot.x, dot.y, dot.width, dot.height, dot.points], [8, 18, 4, 4, [[2, 2], [2, 2]]]);
   assert.equal(makeStroke(b, positions, style("highlighter"), false), null);
   assert.throws(() => makeStroke({ ...b, objects: Array(250).fill(dot) }, positions, style(), true), /250 object limit/);
+  assert.throws(() => makeStroke({ ...b, objects: Array(250).fill(dot) }, positions, style("highlighter"), false), /250 object limit/);
 });
 
 test("drawing smooths once, thins by the exact 1000-index rule, keeps ends, and Shift bypasses smoothing", () => {

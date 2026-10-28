@@ -184,6 +184,7 @@ export function useEditingCommands({
         : name === "Duplicate" ? (targets.length > 1
           ? "Duplicated " + targets.length + " objects. Copies selected."
           : "Duplicated " + label + ". Copy selected.")
+        : isDrawingTool(tool) ? name + " complete."
         : name + " complete. " + (affected.length > 1 ? affected.length + " affected objects selected."
           : affected.length ? "Affected object selected."
           : removedSelection ? remaining.length ? "Removed objects deselected." : "Selection cleared."

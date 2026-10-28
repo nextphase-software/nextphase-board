@@ -397,3 +397,52 @@ The full unit suite had no failure requiring baseline comparison. Normal commit 
 ran and the public-boundary checks passed. Git emitted the same nonfatal
 `.git/packed-refs.lock` sandbox diagnostic; the fix commit succeeded. No stash,
 hook bypass, push, merge or publication was performed.
+
+### Fix round 2 — F2–F5 (P3), 2026-10-27
+
+Addressed the independent contract-read findings against `7f6df4c` only:
+
+- **F2:** `use-editing-commands.ts` captures the notice label before applying a command.
+  The extracted `commandObjectLabel` in the brief-authorized `sections.ts` rules module
+  uses registry `labelPrefix` and the same band numbering as `objectLabel` for objects
+  without text. A single-stroke Delete, Cut or Duplicate notice now names, for example,
+  `marker stroke 3` or `highlight 4`, with no text suffix. Text-bearing objects retain
+  the previous type, absolute order number, text truncation and `Empty` fallback exactly.
+  The hook's message builder is nested; Node tests exercise its extracted label helper
+  directly, including section/connector entries preceding strokes and unchanged text labels.
+- **F3:** composition, screen and scene checks reuse the rules guard's shared
+  `typeNameComparisons` patterns for `===` and `!==` in both operand orders. Examples
+  cover every guarded name, including stroke, marker and highlighter, with both quote forms.
+- **F4:** an integral three-point control validates for every kind/weight; changing only
+  the middle point's x coordinate by 0.5 is rejected, with endpoints and padding unchanged.
+- **F5:** a three-point thin marker resized at factor `11/6` (about 1.83) must have
+  exactly `[[2,2],[8,11],[17,17]]` and rectangle `{x:8,y:18,width:19,height:19}`.
+
+Branch: `codex/0009-W1-drawing`. **Validated source/test revision:**
+`787e1fad4f9a80ea6568772ace8bfa454798d26c`. That commit changes only
+`apps/web/src/state/use-editing-commands.ts`, `apps/web/src/sections.ts`,
+`tests/modules.test.mjs` and `tests/strokes.test.mjs`. This appended record is the
+only subsequent change; the final branch tip is reported separately. No dependency,
+package, lock, contract, browser test or other application file changed. F2 is the
+only behavior change; validation and resize implementations are unchanged.
+
+The focused check passed on the candidate before committing it unchanged. All required
+checks below then ran on the validated revision, from the repository root with the pinned
+toolchain selected on `PATH`.
+
+| Exact command | Result |
+| --- | --- |
+| `node --test tests/strokes.test.mjs tests/modules.test.mjs` | Exit 0; 64 passed, 0 failed, 0 skipped (focused candidate check). |
+| `node --version` | Exit 0; `v24.22.1`. |
+| `npm --version` | Exit 0; `11.19.1`. |
+| `npm --prefix apps/web run typecheck` | Exit 0; no TypeScript errors. |
+| `npm --prefix apps/web test` | Exit 0; 541 passed, 0 failed, 0 skipped. |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and distributed notices verified. |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; the same lock/inventory/notices verification passed. |
+| `git diff --check` | Exit 0; no whitespace errors. |
+
+Browsers, A–J comparisons, scenario R and the browser regression harness were not launched;
+these remain with the reviewer because browsers cannot start in this sandbox. No unit failure
+required baseline comparison. Normal commit hooks ran and public-boundary checks passed;
+Git's nonfatal `.git/packed-refs.lock` sandbox diagnostic did not prevent the source/test
+commit. Nothing was stashed, no hook was bypassed, and nothing was pushed or merged.

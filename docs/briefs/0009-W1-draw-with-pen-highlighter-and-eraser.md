@@ -360,3 +360,40 @@ that the sandbox disallows; read-only file searches were used as the fallback. C
 normal Git hooks: the public-boundary checks passed. Git also emitted a nonfatal sandbox
 lock diagnostic for `.git/packed-refs.lock`; both source/test commits succeeded. Nothing was
 stashed, no hook was bypassed, and nothing was pushed.
+
+### Fix round 1 — F1 (P3), 2026-10-27
+
+Addressed the context-menu markup difference reported against `25177d4` at A–J
+checkpoints 5, 6 and 16. Removed `data-menu-open` from the context section in
+`apps/web/src/ui/context-bar.tsx`. In `apps/web/style.css`, the same `z-index: 6`
+now follows existing menu elements through `.context:has(.arrange-menu)`,
+`.context:has(#colour-swatches)` and `.context:has(details[open])`. Open Arrange,
+Colour and Weight menus retain interaction v22's stacking above the bottom toolbar
+and drawing bar without adding markup or an A–J mask.
+
+- Branch: `codex/0009-W1-drawing`.
+- **Validated source/test revision:** `07ec12b61656e5f150b0aee835b5b4ce8e8c9d16`.
+- Only the two authorized application files changed in that commit. This appended
+  record is the only subsequent change; the final branch tip is reported separately.
+- Static source comparison: the context section's opening markup matches `1b9d302`
+  exactly, and `data-menu-open` is absent. This is not a browser comparison result.
+- Dependencies added: none. No test, package, lock, contract or other source file changed.
+
+Commands ran from the repository root with the pinned toolchain selected on `PATH`:
+
+| Exact command | Result |
+| --- | --- |
+| `node --version` | Exit 0; `v24.22.1`. |
+| `npm --version` | Exit 0; `11.19.1`. |
+| `npm --prefix apps/web run typecheck` | Exit 0; no TypeScript errors. |
+| `npm --prefix apps/web test` | Exit 0; 537 passed, 0 failed, 0 skipped. |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and distributed notices verified. |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; the same lock/inventory/notices verification passed. |
+| `git diff --check` | Exit 0; no whitespace errors. |
+
+No browser, A–J comparison, scenario R or browser regression harness was launched;
+those checks remain with the reviewer because browsers cannot start in this sandbox.
+The full unit suite had no failure requiring baseline comparison. Normal commit hooks
+ran and the public-boundary checks passed. Git emitted the same nonfatal
+`.git/packed-refs.lock` sandbox diagnostic; the fix commit succeeded. No stash,
+hook bypass, push, merge or publication was performed.

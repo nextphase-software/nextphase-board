@@ -170,14 +170,23 @@ one history step; and [0001 web modules v19](0001-web-modules-v19.md) adds a rul
 folder and one screen part, and shares the clipboard's copy step. They replace interaction v20 and
 web modules v18 for later work.
 
-Drafts for 0009-W1 brief v1: [0001 document v8](0001-document-v8.md) adds the `stroke` type (a
+[0001 document v8](0001-document-v8.md), accepted with 0009-W1, adds the `stroke` type (a
 marker or highlighter line held as points), says how version 1 to 7 boards are read and which
 version references in the board file, storage and activity contracts now name 8;
 [0001 interaction v22](0001-interaction-v22.md) says how the Draw button, the drawing bar, drawing,
 erasing, selecting, resizing and editing strokes work; and
 [0001 web modules v20](0001-web-modules-v20.md) adds an object type, a rules module, a scene part
 and two screen parts, and widens the type-name guard. They replace document v7, interaction v21
-and web modules v19 for later work once accepted.
+and web modules v19 for later work.
+
+Drafts for 0002-W3 brief v1: [0001 document v9](0001-document-v9.md) gives a connector a saved
+style (line colour, weight, dash, a head at each end, line shape) and side anchors, says how
+version 1 to 8 boards are read and which version references now name 9;
+[0001 interaction v23](0001-interaction-v23.md) says how the connector bar and its popups, the
+heads and line shapes, reconnecting by pointer and from Objects, and the remembered style work;
+and [0001 web modules v21](0001-web-modules-v21.md) adds two rules modules and three screen
+parts. They replace document v8, interaction v22 and web modules v20 for later work once
+accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

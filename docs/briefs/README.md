@@ -176,12 +176,21 @@ moves the view to them, in one history step, following
 [web modules v19](../architecture/0001-web-modules-v19.md), is implemented and merged into main.
 
 [0009-W1 v1 — Draw with pen, highlighter and eraser](0009-W1-draw-with-pen-highlighter-and-eraser.md)
-is a draft: a Draw button arms the Marker, the Highlighter or the Eraser, with a drawing bar for
+in which a Draw button arms the Marker, the Highlighter or the Eraser, with a drawing bar for
 weight and colour; drawn lines are saved as strokes in document version 8 and can be selected,
 recoloured, resized, moved, copied, grouped and put in sections; the eraser removes whole strokes
 and nothing else, following [document v8](../architecture/0001-document-v8.md),
 [interaction v22](../architecture/0001-interaction-v22.md) and
-[web modules v20](../architecture/0001-web-modules-v20.md).
+[web modules v20](../architecture/0001-web-modules-v20.md), is implemented and merged into main.
+
+[0002-W3 v1 — Style and reconnect relationships](0002-W3-style-and-reconnect-relationships.md)
+is a draft: a selected connector's bar sets its colour, line style, start and end heads and line
+shape (elbowed, curved or straight); dragging an end circle, or Objects' Ends fields, moves that
+end to another idea or side and pins it; new connectors take the last style chosen; styles and
+sides are saved in document version 9, following
+[document v9](../architecture/0001-document-v9.md),
+[interaction v23](../architecture/0001-interaction-v23.md) and
+[web modules v21](../architecture/0001-web-modules-v21.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

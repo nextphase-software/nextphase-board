@@ -1,10 +1,11 @@
 BRIEF VERSION: 0009-W1 v1 (2026-10-27)
 # 0009-W1 — Draw with pen, highlighter and eraser
 
-Status: Draft. Implementation starts only after the maintainer commits this brief,
-[0001 document v8](../architecture/0001-document-v8.md),
+Status: Implemented. Independently reviewed at `12e9fcc` (pass) and merged into main
+on 2026-10-27 with [0001 document v8](../architecture/0001-document-v8.md),
 [0001 interaction v22](../architecture/0001-interaction-v22.md) and
-[0001 web modules v20](../architecture/0001-web-modules-v20.md) to main.
+[0001 web modules v20](../architecture/0001-web-modules-v20.md). The implementation record
+below, which lists the validated revisions, was written before that review.
 
 ## Outcome
 

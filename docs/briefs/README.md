@@ -166,14 +166,22 @@ versions stays where it is, following [storage v2](../architecture/0001-storage-
 [interaction v20](../architecture/0001-interaction-v20.md) and
 [web modules v18](../architecture/0001-web-modules-v18.md), is implemented and merged into main.
 
-[0008-W1 v1 — Insert a local editable activity](0008-W1-insert-a-local-editable-activity.md) is a
-draft: a Templates button opens a panel of three ready-made activities (Retrospective,
+[0008-W1 v1 — Insert a local editable activity](0008-W1-insert-a-local-editable-activity.md),
+in which a Templates button opens a panel of three ready-made activities (Retrospective,
 Brainstorm, Kanban, in [0008-W1-activities](0008-W1-activities/)); Add template copies an
 activity's objects beside the existing content as ordinary, editable objects, selects them and
 moves the view to them, in one history step, following
 [activity catalogue v1](../architecture/0008-activity-catalogue-v1.md),
 [interaction v21](../architecture/0001-interaction-v21.md) and
-[web modules v19](../architecture/0001-web-modules-v19.md).
+[web modules v19](../architecture/0001-web-modules-v19.md), is implemented and merged into main.
+
+[0009-W1 v1 — Draw with pen, highlighter and eraser](0009-W1-draw-with-pen-highlighter-and-eraser.md)
+is a draft: a Draw button arms the Marker, the Highlighter or the Eraser, with a drawing bar for
+weight and colour; drawn lines are saved as strokes in document version 8 and can be selected,
+recoloured, resized, moved, copied, grouped and put in sections; the eraser removes whole strokes
+and nothing else, following [document v8](../architecture/0001-document-v8.md),
+[interaction v22](../architecture/0001-interaction-v22.md) and
+[web modules v20](../architecture/0001-web-modules-v20.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

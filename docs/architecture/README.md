@@ -162,13 +162,22 @@ edits; and [0001 web modules v18](0001-web-modules-v18.md) adds two rules module
 screen parts to the inventory. They replace storage v1, interaction v19 and web modules v17 for
 later work.
 
-Drafts for 0008-W1 brief v1: [0008 activity catalogue v1](0008-activity-catalogue-v1.md) says
+[0008 activity catalogue v1](0008-activity-catalogue-v1.md), accepted with 0008-W1, says
 where the ready-made activities live, what each catalogue entry and activity file must be, and
 how provenance is shown; [0001 interaction v21](0001-interaction-v21.md) says how the Templates
 button and panel work and how adding an activity places, copies, selects and shows its objects in
 one history step; and [0001 web modules v19](0001-web-modules-v19.md) adds a rules module, a data
 folder and one screen part, and shares the clipboard's copy step. They replace interaction v20 and
-web modules v18 for later work once accepted.
+web modules v18 for later work.
+
+Drafts for 0009-W1 brief v1: [0001 document v8](0001-document-v8.md) adds the `stroke` type (a
+marker or highlighter line held as points), says how version 1 to 7 boards are read and which
+version references in the board file, storage and activity contracts now name 8;
+[0001 interaction v22](0001-interaction-v22.md) says how the Draw button, the drawing bar, drawing,
+erasing, selecting, resizing and editing strokes work; and
+[0001 web modules v20](0001-web-modules-v20.md) adds an object type, a rules module, a scene part
+and two screen parts, and widens the type-name guard. They replace document v7, interaction v21
+and web modules v19 for later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

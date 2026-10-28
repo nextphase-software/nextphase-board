@@ -1,10 +1,12 @@
 BRIEF VERSION: 0008-W1 v1 (2026-10-27)
 # 0008-W1 — Insert a local editable activity
 
-Status: Draft. Implementation starts only after the maintainer commits this brief, its three
-activity files, [0008 activity catalogue v1](../architecture/0008-activity-catalogue-v1.md),
+Status: Implemented. Independently reviewed at `c8bf3f7` (pass) and merged into main
+on 2026-10-27 with its three activity files,
+[0008 activity catalogue v1](../architecture/0008-activity-catalogue-v1.md),
 [0001 interaction v21](../architecture/0001-interaction-v21.md) and
-[0001 web modules v19](../architecture/0001-web-modules-v19.md) to main.
+[0001 web modules v19](../architecture/0001-web-modules-v19.md). The implementation record
+below, which lists the validated revisions, was written before that review.
 
 ## Outcome
 

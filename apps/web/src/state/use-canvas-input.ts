@@ -347,7 +347,13 @@ export function useCanvasInput({
         const target = e.clientX >= rect.left && e.clientY >= rect.top && e.clientX <= rect.right && e.clientY <= rect.bottom
           ? reconnectTarget(displayedObjects, d.connection.source, p, view.z) : null;
         if (target && !editingCommandReason({ readOnly, composing, pointerGesture: false, invalidObjectText })) {
-          commit(reconnect(model.current, d.connection.reconnect.id, d.connection.reconnect.end, { object: target.target, anchor: target.side }), true);
+          const { id, end } = d.connection.reconnect;
+          const object = model.current.objects.filter(hasEnds).find((o) => o.id === id);
+          const side = object?.[end].anchor;
+          const drawnSide = side === "auto" ? displayedObjects.find((o) => o.id === id)?.connectorLayout?.[end].side : side;
+          if (target.target !== object?.[end].object || target.side !== drawnSide) {
+            commit(reconnect(model.current, id, end, { object: target.target, anchor: target.side }), true);
+          }
         }
         setBoard({ ...model.current }); releaseCapture(d.pointerId); return;
       }

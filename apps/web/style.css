@@ -663,5 +663,6 @@ small {
 .connector-end { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px; margin: 6px 0; align-items: center; }
 .connector-end select { min-width: 0; width: 100%; }
 .reconnect-outline { position: absolute; border: 1px solid #518de0; pointer-events: none; }
-.scene > .connection-dot.drop-side { width: 24px; height: 24px; border: 3px solid #518de0; }
+.scene > .connection-dot.drop-side { width: 24px; height: 24px; border: 3px solid #518de0; border-radius: 50%; }
+.connection-dot.drop-side::after { inset: 0; }
 .context:has(.connector-popup) { z-index: 6; }

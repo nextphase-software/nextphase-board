@@ -195,7 +195,8 @@ for (const weight of ["thin", "thick"]) test(`head table, fill, insets and outwa
   assert.deepEqual(shapes.circle.circle, { x: 100 + 8 * s, y: 50, radius: 8 * s });
   assert.deepEqual(shapes.diamond.points, [p, { x: 100 + 10 * s, y: 50 + 9 * s }, { x: 100 + 20 * s, y: 50 }, { x: 100 + 10 * s, y: 50 - 9 * s }]);
   for (const [head, inset] of [["solid-arrow", 18], ["triangle", 18], ["circle", 16], ["diamond", 20]]) {
-    assert.equal(shapes[head].inset, inset * s); assert.equal(shapes[head].filled, true); assert.equal(shapes[head].width, 2);
+    assert.equal(shapes[head].inset, inset * s); assert.equal(shapes[head].filled, true);
+    assert.equal(shapes[head].width, head === "solid-arrow" || head === "triangle" ? 2 : 0);
     assert(shapes[head].extent.every((q) => q.x >= p.x));
   }
   assert.equal(shapes.circle.circle.x - shapes.circle.circle.radius, p.x);
@@ -353,13 +354,14 @@ const compiled = await build({ stdin: { contents: `
 const hooks = await import("data:text/javascript;base64," + Buffer.from(compiled.outputFiles[0].text).toString("base64"));
 const renderHook = (fn) => { let value; renderToStaticMarkup(createElement(function Harness() { value = fn(); return null; })); return value; };
 function harness(b, selected = selection(line(b)), options = {}) {
-  const doc = renderHook(() => hooks.useBoardDocument({ readOnly: false, setStatus() {} }));
+  const statuses = [];
+  const doc = renderHook(() => hooks.useBoardDocument({ readOnly: false, setStatus(value) { statuses.push(value); } }));
   doc.load(b);
   const captures = new Set(), events = { selected, message: "", busy: false, focus: "", status: "", updates: 0 };
   const surface = { getBoundingClientRect: () => ({ left: 0, top: 0, right: 1280, bottom: 800 }),
     focus() { events.focus = "scene"; }, setPointerCapture(id) { captures.add(id); }, hasPointerCapture: (id) => captures.has(id), releasePointerCapture(id) { captures.delete(id); } };
   const drag = { current: null }, state = { readOnly: false, composing: false, pointerGesture: false, invalidObjectText: false };
-  const h = { doc, events, surface, drag, captures, canvas: null, commands: null, refresh };
+  const h = { doc, events, statuses, surface, drag, captures, canvas: null, commands: null, refresh };
   function refresh() {
     const b = doc.model.current, boxes = rectangles(b), objects = b.objects.map((o) => {
       const l = hasEnds(o) ? connectorLayout(o, boxes, measure) : undefined;
@@ -434,16 +436,48 @@ for (const end of ["from", "to"]) test(`actual ${end} drag captures ahead of the
   h.commands.command("Undo"); assert.equal(canonical(h.doc.model.current), canonical(b)); h.doc.adapter.current.destroy();
 });
 
-test("actual own-idea side drops pin once, repeated identical drops make no step, and target dots set their side", () => {
+test("actual own-idea drops change only a different side, repeated drops make no step, and target dots set their side", () => {
   const b = joined(), h = harness(b), c = line(b), own = ideas(b)[0];
   const p = { x: own.x + own.width / 2, y: own.y + 1 };
   h.canvas.pointerDown(pointer(h, layout(b).from)); h.canvas.pointerUp(pointer(h, p));
   assert.equal(line(h.doc.model.current).from.anchor, "top"); assert.equal(h.doc.historyRef.current.past.length, 1);
   h.refresh(); h.canvas.pointerDown(pointer(h, layout(h.doc.model.current).from)); h.canvas.pointerUp(pointer(h, p));
-  assert.equal(h.doc.historyRef.current.past.length, 1);
+  assert.equal(h.doc.historyRef.current.past.length, 1); assert.equal(h.doc.revision.current, 1);
+  assert.deepEqual(h.statuses, ["Unsaved"]);
   const target = ideas(b)[2], dots = connectionDots([...rectangles(b).values()], selection(target), 1), dot = dots.find((d) => d.side === "top");
   h.refresh(); h.canvas.pointerDown(pointer(h, layout(h.doc.model.current).from)); h.canvas.pointerUp(pointer(h, dot.point));
   assert.deepEqual(line(h.doc.model.current).from, { object: target.id, anchor: "top" }); assert.equal(h.events.message, ""); h.doc.adapter.current.destroy();
+});
+
+for (const end of ["from", "to"]) test(`actual auto ${end} end drops keep the same drawn side unchanged and pin another side`, () => {
+  const b = joined(), c = line(b), h = harness(b), start = layout(b)[end], before = h.doc.model.current;
+  const own = ideas(b).find((o) => o.id === c[end].object);
+  h.canvas.pointerDown(pointer(h, start)); h.canvas.pointerUp(pointer(h, start));
+  assert.equal(h.doc.model.current, before); assert.equal(line(h.doc.model.current)[end].anchor, "auto");
+  assert.equal(h.doc.revision.current, 0); assert.equal(h.doc.historyRef.current.past.length, 0);
+  assert.deepEqual(h.statuses, []); assert.equal(h.captures.size, 0);
+  // Returning to the same side after moving is also a no-op.
+  h.refresh(); h.canvas.pointerDown(pointer(h, start));
+  h.canvas.pointerMove(pointer(h, { x: 700, y: 300 })); h.canvas.pointerUp(pointer(h, start));
+  assert.equal(h.doc.model.current, before); assert.deepEqual(h.statuses, []);
+  assert.equal(h.doc.revision.current, 0); assert.equal(h.doc.historyRef.current.past.length, 0);
+  const side = start.side === "top" ? "bottom" : "top";
+  const p = { x: own.x + own.width / 2, y: side === "top" ? own.y + 1 : own.y + own.height - 1 };
+  h.refresh(); h.canvas.pointerDown(pointer(h, start)); h.canvas.pointerUp(pointer(h, p));
+  assert.deepEqual(line(h.doc.model.current)[end], { object: own.id, anchor: side });
+  assert.equal(h.doc.revision.current, 1); assert.equal(h.doc.historyRef.current.past.length, 1);
+  assert.deepEqual(h.statuses, ["Unsaved"]); h.doc.adapter.current.destroy();
+});
+
+test("loading a version 8 board with connectors upgrades without a revision, history step or Unsaved status", () => {
+  const old = oldVersion(joined(), 8), bytes = canonical(old), statuses = [];
+  const doc = renderHook(() => hooks.useBoardDocument({ readOnly: false, setStatus(value) { statuses.push(value); } }));
+  doc.load(validate(JSON.parse(bytes)));
+  assert.equal(doc.model.current.schemaVersion, 9); assert.equal(doc.revision.current, 0);
+  assert.deepEqual(doc.historyRef.current, emptyHistory()); assert.deepEqual(statuses, []);
+  assert.deepEqual(connectorStyleOf(line(doc.model.current)), defaults);
+  assert.equal(line(doc.model.current).from.anchor, "auto"); assert.equal(line(doc.model.current).to.anchor, "auto");
+  assert.equal(canonical(old), bytes); doc.adapter.current.destroy();
 });
 
 for (const finish of ["empty", "other", "outside", "cancel", "lost", "escape"]) test(`actual reconnect ${finish} restores the end with no change, history or notice`, () => {

@@ -12,8 +12,8 @@ export function ConnectorBody({ object, layout, selected, inline, zoom, pass }: 
   if (pass === "line") return <Group>
     <Path data={layout.path} stroke={type.edge(object)} strokeWidth={layout.width} dash={layout.dash} lineCap="round" lineJoin="round" />
     {layout.heads.map((head, i) => head.circle ? <Circle key={i} x={head.circle.x} y={head.circle.y} radius={head.circle.radius}
-      fill={type.edge(object)} stroke={type.edge(object)} strokeWidth={head.width} />
-      : head.points.length ? <Line key={i} points={head.points.flatMap((p) => [p.x, p.y])} stroke={type.edge(object)}
+      fill={type.edge(object)} stroke={head.width ? type.edge(object) : undefined} strokeWidth={head.width} />
+      : head.points.length ? <Line key={i} points={head.points.flatMap((p) => [p.x, p.y])} stroke={head.width ? type.edge(object) : undefined}
         strokeWidth={head.width} fill={head.filled ? type.edge(object) : undefined} closed={head.filled} lineCap="round" lineJoin="round" /> : null)}
   </Group>;
   return <Group>

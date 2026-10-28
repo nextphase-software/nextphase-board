@@ -643,7 +643,7 @@ small {
 .drawing-bar .ink-dot[aria-pressed=true] { background: white; }
 .drawing-bar .ink-dot[aria-pressed=true] .colour-dot { outline: 2px solid #7051cf; outline-offset: 2px; }
 .drawing-bar button:disabled { opacity: .35; }
-.context[data-menu-open=true], .context:has(details[open]) { z-index: 6; }
+.context:has(.arrange-menu), .context:has(#colour-swatches), .context:has(details[open]) { z-index: 6; }
 .stroke-control { position: relative; }
 .stroke-control summary { display: inline-flex; gap: 6px; align-items: center; min-height: 40px; cursor: pointer; list-style: none; }
 .stroke-control summary::-webkit-details-marker { display: none; }

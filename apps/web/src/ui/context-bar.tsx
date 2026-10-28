@@ -75,7 +75,7 @@ export function ContextBar({
   return (
     <section
       ref={contextBar}
-      className="context" data-menu-open={swatchOpen || arrangeOpen || undefined}
+      className="context"
       aria-hidden={!contextFits}
       inert={!contextFits}
       style={{

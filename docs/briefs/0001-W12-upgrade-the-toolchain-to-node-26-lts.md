@@ -121,4 +121,86 @@ Retrieved 2026-10-28: [Node.js 26.13.0 release notes](https://nodejs.org/en/blog
 
 ## Implementation record
 
-Not started.
+Implemented 2026-10-29 on `codex/0001-W12-node-26-lts`, from committed main
+`e3a10f0f71260056e8f93eee5a0b6c0a73db464c`.
+Validated source/test revision: `429e7eeec88d4ff904deaa7b73bef92d0730ac5d`.
+The runtime checks below ran on the tree committed at that revision; the only
+subsequent change is this implementation record. The final branch tip is reported
+separately in the handoff. Independent review and merge remain outstanding.
+
+The preinstalled official `node-v26.13.0-darwin-arm64` distribution was used;
+nothing was downloaded again. Its tarball and release SHASUMS256 were already
+available beside it. For the checksum command below, `TOOLCHAIN_CACHE` denotes
+that supplied cache directory. The distribution's `bin` directory was first on
+`PATH` for all regeneration, validation and commit commands; no global packages
+were installed. These parameter names keep machine-specific paths out of the
+public record.
+
+```sh
+(cd "$TOOLCHAIN_CACHE" && rg ' node-v26\.13\.0-darwin-arm64\.tar\.gz$' SHASUMS256-v26.13.0.txt | shasum -a 256 -c -)
+```
+
+Exit 0, `node-v26.13.0-darwin-arm64.tar.gz: OK`. The actual and expected SHA-256
+were both `d38bd5e5a2ddce6bbb5ce45e46e208337da4d51fffe611e567fd32073d6439f6`.
+
+Commands from the repository root, in order on Node 26.13.0 / npm 11.20.0:
+
+| Command | Result |
+| --- | --- |
+| `npm --prefix apps/web install --package-lock-only --ignore-scripts --no-audit --no-fund` | Exit 0; up to date. Byte comparison against the base with only its root engine values replaced confirmed no other lock changes. |
+| `node --version` | Exit 0; `v26.13.0`. |
+| `npm --version` | Exit 0; `11.20.0`. |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed, no engine warning. |
+| `npm --prefix apps/web run check:deps` | Exit 0; no required dependency or peer problems. Other platforms' optional native packages and Konva's optional canvas/Skia adapters remained uninstalled as contracted. |
+| `npm --prefix apps/web run typecheck` | Exit 0. |
+| `npm --prefix apps/web test` | Exit 0; 641 passed, 0 failed, skipped or cancelled. Node emitted a non-failing experimental localStorage warning because no `--localstorage-file` was supplied; no engine warning. |
+| `npm --prefix apps/web run audit:licenses` | Exit 0; accepted lock, runtime inventory and distributed notices verified. |
+| `npm --prefix apps/web run build` | Exit 0; application built and notices verified. |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built and notices verified. |
+| `git status --porcelain` | Exit 0; empty at the validated source/test revision, before this record was appended. |
+| `git diff --name-only e3a10f0..HEAD` | Exit 0 at the validated revision; exactly the nine implementation files listed below. |
+
+Separately, on 2026-10-29,
+`npm --prefix apps/web audit --package-lock-only --audit-level=low` exited 0:
+`found 0 vulnerabilities`. This live-registry advisory snapshot is separate from
+AC02; no dependency remediation was performed.
+
+Additional focused checks:
+
+- `git diff --check`: exit 0.
+- `git diff e3a10f0..HEAD -- apps/web/package-lock.json`: only the two root
+  engine values changed.
+- `cmp apps/web/package-lock.json docs/architecture/0001-dependency-lock-v2.json`:
+  exit 0, byte-identical.
+- `shasum -a 256 apps/web/package-lock.json docs/architecture/0001-dependency-lock-v2.json`:
+  exit 0; both `ea98496119115189d32eab507ac3a2fdae35f148f15a40fcbab316b7d668e650`,
+  matching toolchain v2.
+- Inline Node assertions verified the manifest changed only its engines, the v2
+  inventory changed only the six specified metadata fields (all package entries
+  unchanged), the notices script changed only its two snapshot paths, and all
+  toolchain links in the four updated contributor documents resolve.
+- `git diff --exit-code e3a10f0..HEAD -- apps/web/src tests docs/architecture/0001-toolchain-v1.md docs/architecture/0001-toolchain-v2.md docs/architecture/0001-dependency-lock-v1.json docs/architecture/0001-dependency-inventory-v1.json docs/architecture/0001-runtime-notices-v1.txt`:
+  exit 0; these inputs are unchanged.
+
+The validated revision changes only `README.md`, `CONTRIBUTING.md`,
+`apps/web/package.json`, `apps/web/package-lock.json`,
+`docs/architecture/0001-dependency-lock-v2.json`,
+`docs/architecture/0001-dependency-inventory-v2.json`,
+`docs/architecture/README.md`, `docs/guides/try-board.md`, and
+`scripts/check-notices.mjs`. The handoff commit adds only this record.
+Added dependencies: none. Dependency versions, integrities, resolved URLs,
+package set, licensing and runtime notices remain unchanged.
+
+Exclusions: per maintainer instruction, the two-clean-clone build comparison
+against the base on Node 24.22.1 / npm 11.19.1 is deferred to the reviewer's
+check run outside this worktree. No equality of build bytes is claimed here;
+AC03's build-comparison evidence remains pending. Browser fixtures were built
+but not executed; no browser matrix, manual journeys, serve checks, broader
+test campaign, CI, deployment, push or merge ran. Browsers cannot start in this
+sandbox.
+
+Environment notes: the graph discovery tool was denied by the sandbox approval
+policy, so the named notices script was read directly. Mandatory public-boundary
+commit hooks passed. The implementation commit command exited 0 but Git also
+reported sandbox denial creating `packed-refs.lock`; the resulting commit and
+clean worktree were verified afterward. No hooks were bypassed.

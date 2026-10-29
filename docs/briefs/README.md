@@ -192,6 +192,12 @@ sides are saved in document version 9, following
 [interaction v23](../architecture/0001-interaction-v23.md) and
 [web modules v21](../architecture/0001-web-modules-v21.md).
 
+[0001-W12 v1 — Upgrade the toolchain to Node 26 LTS](0001-W12-upgrade-the-toolchain-to-node-26-lts.md)
+is a draft: the pinned toolchain moves from Node.js 24.22.1 to Node.js 26.13.0, the first
+Node 26 LTS release, with its bundled npm 11.20.0; the dependency lock changes only in its root
+`engines` values and the application, its dependencies and its behavior stay the same, following
+[toolchain v2](../architecture/0001-toolchain-v2.md).
+
 Each brief is a complete contributor-facing contract. Use this structure:
 
 ```text

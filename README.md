@@ -19,8 +19,8 @@ file if you want to keep one. Desktop Chrome and Safari are the browsers checked
 
 ## Run locally
 
-Use **Node 24.22.1 and npm 11.19.1**, as specified in the
-[toolchain contract](docs/architecture/0001-toolchain-v1.md). From the repository root:
+Use **Node 26.13.0 and npm 11.20.0**, as specified in the
+[toolchain contract](docs/architecture/0001-toolchain-v2.md). From the repository root:
 
 ```sh
 npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund

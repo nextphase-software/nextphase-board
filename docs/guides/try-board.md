@@ -24,8 +24,8 @@ There are no accounts, sharing or sync.
 ## What you need
 
 - Git.
-- **Node 24.22.1 and npm 11.19.1**, the exact versions in the
-  [toolchain contract](../architecture/0001-toolchain-v1.md). A Node version manager
+- **Node 26.13.0 and npm 11.20.0**, the exact versions in the
+  [toolchain contract](../architecture/0001-toolchain-v2.md). A Node version manager
   makes it easy to switch to them.
 - **Chrome or Safari** on the same computer.
 

@@ -6,8 +6,10 @@ Current accepted implementation contract set for 0001-W1 brief v6:
 - [0001 storage v1](0001-storage-v1.md): save ordering, writer ownership and recovery.
 - [0001 interaction v4](0001-interaction-v4.md): full canvas, floating controls,
   native overlay/secondary-panel editing, placement, focus and browser evidence.
-- [0001 toolchain v1](0001-toolchain-v1.md): exact pins, generated lock, notices,
-  public-input verification and application commands.
+- [0001 toolchain v2](0001-toolchain-v2.md), for 0001-W12 v1: Node 26.13.0 /
+  npm 11.20.0, generated lock, notices, public-input verification and application
+  commands. It replaces [toolchain v1](0001-toolchain-v1.md) for later work; v1
+  remains as history.
 
 [0001 interaction v5](0001-interaction-v5.md), accepted with 0001-W2, adds undo,
 redo, duplicate and delete with session-only history and scene-scoped shortcuts,
@@ -200,7 +202,9 @@ files, importing, drawing, resizing, Description and Objects work for images; an
 scene part and a screen part. They replace document v9, storage v2, board file v1, interaction v23
 and web modules v21 for later work once accepted.
 
-Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
+Document/storage v1 are incorporated unchanged. Toolchain v2 changes only the
+runtime pin and accepted snapshots; all other toolchain v1 rules still apply.
+Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions
 with minimal change-scoped checks; broader testing needs explicit instruction.
 Interaction v1/v2 remain historical for briefs

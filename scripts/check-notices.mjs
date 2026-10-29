@@ -8,9 +8,9 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const json = async (path) =>
   JSON.parse(await readFile(resolve(root, path), "utf8"));
 const lock = await json("apps/web/package-lock.json");
-const accepted = await json("docs/architecture/0001-dependency-lock-v1.json");
+const accepted = await json("docs/architecture/0001-dependency-lock-v2.json");
 const inventory = await json(
-  "docs/architecture/0001-dependency-inventory-v1.json",
+  "docs/architecture/0001-dependency-inventory-v2.json",
 );
 assert.deepEqual(
   lock,

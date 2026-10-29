@@ -1,10 +1,11 @@
 BRIEF VERSION: 0002-W3 v1 (2026-10-28)
 # 0002-W3 — Style and reconnect relationships
 
-Status: Draft. Implementation starts only after the maintainer commits this brief,
-[0001 document v9](../architecture/0001-document-v9.md),
+Status: Implemented. Independently reviewed at `6339964` (pass) and merged into main
+on 2026-10-28 with [0001 document v9](../architecture/0001-document-v9.md),
 [0001 interaction v23](../architecture/0001-interaction-v23.md) and
-[0001 web modules v21](../architecture/0001-web-modules-v21.md) to main.
+[0001 web modules v21](../architecture/0001-web-modules-v21.md). The implementation record
+below, which lists the validated revisions, was written before that review.
 
 ## Outcome
 

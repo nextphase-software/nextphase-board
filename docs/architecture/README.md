@@ -179,14 +179,26 @@ erasing, selecting, resizing and editing strokes work; and
 and two screen parts, and widens the type-name guard. They replace document v7, interaction v21
 and web modules v19 for later work.
 
-Drafts for 0002-W3 brief v1: [0001 document v9](0001-document-v9.md) gives a connector a saved
+[0001 document v9](0001-document-v9.md), accepted with 0002-W3, gives a connector a saved
 style (line colour, weight, dash, a head at each end, line shape) and side anchors, says how
 version 1 to 8 boards are read and which version references now name 9;
 [0001 interaction v23](0001-interaction-v23.md) says how the connector bar and its popups, the
 heads and line shapes, reconnecting by pointer and from Objects, and the remembered style work;
 and [0001 web modules v21](0001-web-modules-v21.md) adds two rules modules and three screen
-parts. They replace document v8, interaction v22 and web modules v20 for later work once
-accepted.
+parts. They replace document v8, interaction v22 and web modules v20 for later work.
+
+Drafts for 0012-W1 brief v1: [0001 document v10](0001-document-v10.md) adds the `image` type (a
+picture placed as an idea, saved as a reference to its picture's SHA-256, its pixel size and a
+description) and says how version 1 to 9 boards are read;
+[0001 storage v3](0001-storage-v3.md) keeps each picture once, as its own record beside the
+boards, written with a save and removed when no board refers to it;
+[0006 board file v2](0006-board-file-v2.md) carries the pictures in the file, reads files of
+versions 1 and 2 and raises the limit to 72 MiB;
+[0001 interaction v24](0001-interaction-v24.md) says how the Image button, pasting and dropping
+files, importing, drawing, resizing, Description and Objects work for images; and
+[0001 web modules v22](0001-web-modules-v22.md) adds an object type, two rules modules, a hook, a
+scene part and a screen part. They replace document v9, storage v2, board file v1, interaction v23
+and web modules v21 for later work once accepted.
 
 Document/storage/toolchain v1 are incorporated unchanged. Interaction v4 keeps
 v3's functional behavior and records the explicit native OS IME deferral. Brief v6 supersedes prior broad verification prescriptions

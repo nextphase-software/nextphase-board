@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from "react";
-import type { BoardV9 as Board } from "../document";
+import type { BoardV10 as Board } from "../document";
 import { count } from "../document";
 import { FLAGS, formatted, formattedRange, type Flag, type TextSelection } from "../marks";
-import { objectType, hasText, hasPoints, usesShapePaint, commonShapeValue, hasRectangle, hasEnds } from "../objects/registry";
+import { objectType, isImage, hasText, hasPoints, usesShapePaint, commonShapeValue, hasRectangle, hasEnds } from "../objects/registry";
 import { colorEntry, commonStyle } from "../styles";
 
 type Input = {
@@ -20,7 +20,8 @@ export function useSelection({ board, drafts, textSelection }: Input) {
   const strokes = selectedObjects.filter(hasPoints);
   const strokeSelection = { objects: strokes, only: strokes.length > 0 && strokes.length === selectedObjects.length, sameKind: strokes.length > 0 && strokes.every((o) => o.kind === strokes[0].kind) };
   const textIdeas = ideas.filter(hasText);
-  const richText = ideas.length > 0 && ideas.every((o) => objectType(o.type).richText);
+  const formattingIdeas = ideas.filter((o) => !isImage(o));
+  const richText = formattingIdeas.length > 0 && formattingIdeas.every((o) => objectType(o.type).richText);
   const selectionKey = JSON.stringify(selectedObjects.map((o) => o.id));
   const selectedId = selectedObjects.length === 1 ? selectedObjects[0].id : "";
   const item = board.objects.find((o) => o.id === selectedId),

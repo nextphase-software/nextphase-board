@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { useImages } from "./state/use-images"; import { ImageNames } from "./scene/image-body";
 import { screenPoint } from "./view";
 import { useSessionStatus } from "./state/use-session-status";
 import { useGestureState } from "./state/use-gesture-state";
@@ -37,11 +38,10 @@ import { ZoomControls } from "./ui/zoom-controls";
 import { InformationControls } from "./ui/information-controls";
 import { BoardQuestion } from "./ui/board-question";
 import { NavigationPanel } from "./ui/navigation-panel";
-
 export function App() {
   const { readOnly, setReadOnly, status, setStatus } = useSessionStatus();
   const {
-    selectionBox, setSelectionBox, tool, setTool, busy, setBusy, spacePan, setSpacePan,
+    selectionBox, setSelectionBox, tool, setTool, busy: gestureBusy, setBusy, spacePan, setSpacePan,
     scene, spacePanRef, drag, drawing, selectionStarted,
   } = useGestureState(() => select(""), () => finishTextSession(), () => setInline(false));
   const { inline, setInline, composing, setComposing, textSelection, setTextSelection } = useTextEntry();
@@ -56,9 +56,12 @@ export function App() {
     selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats, richText,
   } = useSelection({ board, drafts, textSelection });
   const { invalidObjectText, invalidFields, invalid, pending } = useValidity({
-    board, drafts, title, composing, busy,
+    board, drafts, title, composing, busy: gestureBusy,
   });
-  const {
+  const images = useImages({ board, model, selected, readOnly, busy: gestureBusy, composing, invalidObjectText, pending,
+    commit, finishTextSession, select, setTool, setPanel: (value) => setPanel(value), setInline, setComposing, setMessage, scene,
+    getView: () => view, getStore: () => store.current, isAlive: () => alive.current, barVisible: () => size.w >= 768 && contextFits || panel === "Objects" });
+  const busy = images.busy; const {
     editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
     handlesVisible, handlePoints, itemHeight,
   } = useObjectLayouts({
@@ -73,7 +76,7 @@ export function App() {
     setArrangeFor("");
     const ids = new Set(typeof value === "string" ? value ? [value] : [] : value); if (ids.size) selectionStarted(); setSelected(ids);
   }
-  const { snapshots, alive, adopt, save, reopen, boardFiles, boardQuestion } = useStorageSession({
+  const { store, snapshots, alive, adopt, save, reopen, boardFiles, boardQuestion } = useStorageSession({
     readOnly, setReadOnly, setStatus, setMessage, load, clearHistory, model,
     revision, adapter, select, setInline, setView, invalid, busy, composing, pending, title,
   });
@@ -125,6 +128,7 @@ export function App() {
     arrangementMembers, lineCount, editor, selector, setPanel, setTool,
   });
   const { pageKeyDown } = usePageKeys({
+    chooseImages: images.chooseImages,
     command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
     setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
   });
@@ -141,10 +145,10 @@ export function App() {
         "--notice-top": layout.notice + "px",
         "--panel-top": layout.panel + "px",
       } as React.CSSProperties}
-      onKeyDown={pageKeyDown}
+      onKeyDown={pageKeyDown} onKeyDownCapture={images.guardGesture}
     >
       <div
-        ref={scene}
+        ref={scene} onPointerDownCapture={images.guardGesture} onPaste={images.paste(() => clipboardCommand("Paste"))} onDragOver={images.dragOver} onDrop={images.drop}
         className={"scene" + (spacePan ? busy ? " grabbing" : " grab" : "")}
         style={{
           cursor: drag.current?.corner ? (drag.current.corner === "nw" || drag.current.corner === "se"
@@ -166,7 +170,7 @@ export function App() {
         onLostPointerCapture={lostPointerCapture}
       >
         <BoardDrawing
-          connection={connection} preview={preview} size={size} view={view} board={board} objectLayouts={objectLayouts} selected={selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
+          bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={board} objectLayouts={objectLayouts} selected={selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
         />
         <Overlays
           selectedGroups={selectedGroups} pos={pos} view={view} handlesVisible={handlesVisible}
@@ -175,7 +179,7 @@ export function App() {
         <GrowButton available={growAvailable} grow={shapeCommands.grow} style={resolvedItem ? { left: pos(resolvedItem).left + resolvedItem.width * view.z / 2, top: pos(resolvedItem).top + resolvedItem.height * view.z } : undefined} />
         <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} />
       </div>
-      <FileBar
+      <ImageNames board={board} /><FileBar
         boardButton={boardButton} composing={composing} busy={busy} toggle={toggle} panel={panel}
         title={title} objectsButton={objectsButton} undoReason={undoReason} redoReason={redoReason}
         command={command}
@@ -201,7 +205,7 @@ export function App() {
       )}
       {panel === "Objects" && (
         <ObjectsPanel
-          connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} growAvailable={growAvailable} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
+          description={images.description} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} growAvailable={growAvailable} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
           duplicateReason={duplicateReason} board={board} busy={busy} composing={composing} setPanel={setPanel}
           objectsButton={objectsButton} selector={selector} selected={selected}
           finishTextSession={finishTextSession} select={select} numbers={numbers} drafts={drafts}
@@ -214,7 +218,7 @@ export function App() {
       )}
       {selected.size > 0 && (
         <ContextBar
-          connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
+          description={images.description} imageCount={images.count} imagesOnly={images.only} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
           connectorObjects={connectors} connectorPopup={connectorPopup} connectorOnly={connectorOnly} connectorCount={connectors.length} duplicateReason={duplicateReason} contextBar={contextBar} contextFits={contextFits} contextLeft={contextLeft}
           contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
           composing={composing} busy={busy} inline={inline} finishTextSession={finishTextSession}
@@ -237,7 +241,7 @@ export function App() {
       )}
       <ShapesPanel tool={tool} setTool={setTool} scene={scene} disabled={busy || composing || readOnly} />
       <Palette
-        drawing={drawing} tool={tool} busy={busy} composing={composing} readOnly={readOnly} setTool={setTool}
+        imagePicker={images.picker} drawing={drawing} tool={tool} busy={busy} composing={composing} readOnly={readOnly} setTool={setTool}
         setInline={setInline} scene={scene} loadTemplates={loadTemplates} panel={panel} toggle={toggle} templatesButton={templatesButton} firstTemplateButton={firstTemplateButton} addActivity={addActivity} templatePreviews={templatePreviews}
       />
       <ZoomControls

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { add, type Board as SavedBoard, type BoardV9 as Board, type ItemV9 as Item, validText } from "../document";
+import { add, type Board as SavedBoard, type BoardV10 as Board, type ItemV10 as Item, validText } from "../document";
 import { neededHeight, savedHeight } from "../geometry";
 import { moveWithMembers, placeObject } from "../sections";
-import { objectType, rectangleType, hasText, hasPoints, hasRectangle, creationValues, typeForTool, type ShapePaint } from "../objects/registry";
+import { objectType, rectangleType, hasText, keepsProportions, hasRectangle, creationValues, typeForTool, type ShapePaint } from "../objects/registry";
 import { resizeObject, resizeSet, type Corner, type Rectangle } from "../resize";
 import { resizeWithStrokes } from "../strokes";
 import { remap } from "../marks";
@@ -100,7 +100,7 @@ export function useGeometryEdits({
     });
   }
   function resizedBoard(corner: Corner, start: ResizeStart[], dx: number, dy: number, shift: boolean) {
-    if (start.some(({ object }) => hasPoints(object))) {
+    if (start.some(({ object }) => keepsProportions(object))) {
       const objects = resizeWithStrokes(corner, start, { x: dx, y: dy }, (o, width) => hasText(o) && objectType(o.type).growsWithText
         ? neededHeight(lineCount({ ...o, width }), textUnits(o.textSize)) : 0);
       const changes = new Map(objects.map((o) => [o.id, o]));

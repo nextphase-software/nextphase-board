@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { type Board, canonical, validate } from "./document.ts";
 import { boardKeys, entryDefaults, fingerprint, LIST_KEY, parseList, recordBoardKey, serializeList, type BoardEntry } from "./board-catalog.ts";
+import { tabPictures, writePictures, type Pictures } from "./image-assets.ts";
 export type Pair = [unknown, unknown];
 export type Envelope = {
   formatVersion: 1;
@@ -97,7 +98,7 @@ export class LocalStore {
       t.onerror = () => {};
     });
   }
-  save(b: Board, revision: number, creating = false) {
+  save(b: Board, revision: number, creating = false, pictures: Pictures = tabPictures) {
     const captured = structuredClone(b), payload = canonical(captured);
     const run = async () => {
       if (!this.active || !this.db) throw Error("Writer closed");
@@ -149,6 +150,7 @@ export class LocalStore {
             fromFile: creating || (revision === 0 && (old?.fromFile ?? false)),
             head: `${storageRevision}:${sha256}`, state: "valid" };
           s.put(serializeList([...entries.filter((e) => e.key !== this.key), entry]), LIST_KEY);
+          writePictures(s, captured, pictures);
         };
         t.oncomplete = () => {
           this.transactions.delete(t);
@@ -167,9 +169,9 @@ export class LocalStore {
     this.tail = result.catch(() => {});
     return result;
   }
-  create(b: Board) {
+  create(b: Board, pictures: Pictures = tabPictures) {
     if (this.key === "original") throw Error("A file requires a new board key");
-    return this.save(b, 0, true);
+    return this.save(b, 0, true, pictures);
   }
   // Enumerate keys first, then request only recognised values. Foreign records are never read.
   records(mode: IDBTransactionMode = "readonly", compare?: Map<string, unknown>, list?: string): Promise<Map<string, unknown>> {
@@ -216,7 +218,7 @@ export class LocalStore {
             const e = typeof raw === "string" ? JSON.parse(raw) : null;
             if (Number.isSafeInteger(e?.formatVersion) && e.formatVersion > 1) return true;
             const b = typeof e?.payload === "string" ? JSON.parse(e.payload) : null;
-            return Number.isSafeInteger(b?.schemaVersion) && b.schemaVersion > 9;
+            return Number.isSafeInteger(b?.schemaVersion) && b.schemaVersion > 10;
           } catch { return false; }
         });
         return { ...(prior ?? entryDefaults(key)), head, state: newer ? "newer" : "damaged" };

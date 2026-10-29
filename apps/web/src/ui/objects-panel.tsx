@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject, ReactNode } from "react";
-import type { BoardV9 as Board, ItemV9 as Item } from "../document";
+import type { BoardV10 as Board, ItemV10 as Item } from "../document";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "../styles";
 import { objectLabel } from "../sections";
 import { ADD_OPTIONS, isContainer, sectionIdea, hasRectangle, hasEnds } from "../objects/registry";
@@ -18,7 +18,10 @@ import { ConnectorFields } from "./connector-fields";
 import type { ConnectorCommands } from "./connector-menu";
 import { FormatPreview } from "./format-preview";
 
+import { DescriptionField, type DescriptionControl } from "./image-controls";
+
 type Props = {
+  description: DescriptionControl;
   strokeSelection: StrokeControlProps["selection"]; strokeCommands: StrokeControlProps["commands"];
   connectorCommands: ConnectorCommands;
   duplicateReason: string;
@@ -63,7 +66,7 @@ type Props = {
 };
 
 export function ObjectsPanel({
-  strokeSelection, strokeCommands, connectorCommands, duplicateReason, shapeSelection, shapeCommands, growAvailable, board, richText, setSection, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
+  description, strokeSelection, strokeCommands, connectorCommands, duplicateReason, shapeSelection, shapeCommands, growAvailable, board, richText, setSection, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
   numbers, drafts, nativeEditor, item, text, selectionColor, selectionSize, selectionAlign, selectionReason,
   selectionFormats, toggleFormat, changeStyle, command, readOnly, move, bounds, resizeBy, arrange, arrangementReason,
   objectClipboard, clipboardState, clipboardCommand, create, view
@@ -108,7 +111,7 @@ export function ObjectsPanel({
           </option>
         ))}
       </select>
-      {selected.size > 1 ? <p>{selected.size} objects selected</p> : nativeEditor}
+      {selected.size > 1 ? <p>{selected.size} objects selected</p> : description.image ? <DescriptionField control={description} /> : nativeEditor}
       {selected.size === 1 && item && hasEnds(item) && <ConnectorFields board={board} object={item} numbers={numbers} drafts={drafts} commands={connectorCommands} reason={selectionReason} />}
       {richText && selected.size === 1 && item && <FormatPreview item={item} text={text} />}
       <StrokeFields selection={strokeSelection} commands={strokeCommands} reason={selectionReason} />

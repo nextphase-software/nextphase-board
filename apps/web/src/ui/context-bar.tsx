@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
-import { clamp, count, type ItemV9 as Item } from "../document";
+import { clamp, count, type ItemV10 as Item } from "../document";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, colorEntry, type Style } from "../styles";
 import { objectType, hasText } from "../objects/registry";
 import { FLAGS, FLAG_LABELS, type Flag } from "../marks";
@@ -12,7 +12,10 @@ import { ConnectorControls } from "./connector-controls";
 import { StrokeControls, type StrokeControlProps } from "./stroke-controls";
 import { ArrangeControls } from "./arrange-controls";
 
+import { ImageControls, type DescriptionControl } from "./image-controls";
+
 type Props = {
+  imageCount: number; imagesOnly: boolean; description: DescriptionControl;
   strokeSelection: StrokeControlProps["selection"]; strokeCommands: StrokeControlProps["commands"];
   connectorObjects: ConnectorMenuProps["objects"]; connectorCommands: ConnectorMenuProps["commands"]; connectorPopup: ConnectorMenuProps["popup"];
   connectorOnly: boolean;
@@ -67,7 +70,7 @@ type Props = {
 };
 
 export function ContextBar({
-  strokeSelection, strokeCommands, connectorObjects, connectorCommands, connectorPopup, connectorOnly, connectorCount, duplicateReason, shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
+  imageCount, imagesOnly, description, strokeSelection, strokeCommands, connectorObjects, connectorCommands, connectorPopup, connectorOnly, connectorCount, duplicateReason, shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
   inline, richText, finishTextSession, setInline, scene, edit, text, colourControl, colourButton,
   selectionReason, colourLabel, swatchOpen, setArrangeFor, setSwatchFor, selectionKey,
   selectionColor, swatches, contextWidth, size, closeSwatches, changeStyle, selectionSize,
@@ -87,6 +90,7 @@ export function ContextBar({
       }}
     >
       {strokeSelection.only ? <StrokeControls selection={strokeSelection} commands={strokeCommands} reason={selectionReason} remove={() => command("Delete")} /> : connectorOnly ? <ConnectorControls objects={connectorObjects} commands={connectorCommands} popup={connectorPopup} count={selected.size} empty={!text} reason={selectionReason} edit={edit} remove={() => command("Delete")} /> : <>
+      {imagesOnly ? <ImageControls count={imageCount} control={description} /> : <>
       <ShapeControls part="kind" selection={shapeSelection} commands={shapeCommands} reason={selectionReason} popup={shapePopup} />
       {(!shapeSelection.objects.length || connectorCount > 0 || strokeSelection.objects.length > 0) && <span>{item ? objectType(item.type).label : selected.size + " objects"}</span>}
       <span className="divider" aria-hidden="true" />
@@ -171,6 +175,7 @@ export function ContextBar({
           <Icon name={flag} /><span className="tooltip">{selectionReason || FLAG_LABELS[flag]}</span>
         </button>)}
       </span>
+      </>}
       </>}
       <span className="arrange-control" ref={arrangeControl}>
         <button ref={arrangeButton} className="icon-button" disabled={!!selectionReason}

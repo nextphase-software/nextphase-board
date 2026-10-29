@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { freshIdentifier, type BoardV9 } from "./document.ts";
+import { freshIdentifier, type BoardV10 } from "./document.ts";
 import { isContainer, hasRectangle } from "./objects/registry.ts";
 import { editingCommandReason } from "./commands.ts";
 
@@ -47,7 +47,7 @@ export function groupNumbers(objects: readonly Member[]): Map<string, number> {
   return numbers;
 }
 
-export function groupReason(command: GroupCommand, board: BoardV9, selected: ReadonlySet<string>, state: EditingState): string {
+export function groupReason(command: GroupCommand, board: BoardV10, selected: ReadonlySet<string>, state: EditingState): string {
   const editing = editingCommandReason(state);
   if (editing) return editing;
   const members = board.objects.filter(hasRectangle).filter((o) => selected.has(o.id));
@@ -62,14 +62,14 @@ export function groupReason(command: GroupCommand, board: BoardV9, selected: Rea
 }
 
 const editable = { readOnly: false, composing: false, pointerGesture: false, invalidObjectText: false };
-export function groupObjects(board: BoardV9, selected: ReadonlySet<string>): BoardV9 {
+export function groupObjects(board: BoardV10, selected: ReadonlySet<string>): BoardV10 {
   const reason = groupReason("Group", board, selected, editable);
   if (reason) throw Error(reason);
   const group = freshIdentifier(board);
   return { ...board, objects: board.objects.map((o) => hasRectangle(o) && selected.has(o.id) ? { ...o, group } : o) };
 }
 
-export function ungroupObjects(board: BoardV9, selected: ReadonlySet<string>): BoardV9 {
+export function ungroupObjects(board: BoardV10, selected: ReadonlySet<string>): BoardV10 {
   const reason = groupReason("Ungroup", board, selected, editable);
   if (reason) throw Error(reason);
   const groups = new Set(board.objects.filter((o) => selected.has(o.id) && o.group !== null).map((o) => o.group));

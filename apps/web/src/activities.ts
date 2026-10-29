@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { readBoardFile } from "./board-file.ts";
-import { upgrade, type BoardV7, type ItemV7, type BoardV9, type ItemV8 } from "./document.ts";
+import { upgrade, type BoardV7, type ItemV7, type BoardV10, type ItemV10 } from "./document.ts";
 import { copyObjects } from "./clipboard.ts";
 import { hasEnds, hasRectangle, isContainer, rectangleType } from "./objects/registry.ts";
 import type { View } from "./view.ts";
@@ -23,7 +23,7 @@ export async function readActivity(entry: Activity): Promise<BoardV7> {
   return board as BoardV7;
 }
 
-export function activityBox(objects: readonly ItemV8[]): Box | null {
+export function activityBox(objects: readonly (ItemV7 | ItemV10)[]): Box | null {
   const rectangles = objects.filter(hasRectangle);
   return rectangles.length ? {
     left: Math.min(...rectangles.map((o) => o.x)), top: Math.min(...rectangles.map((o) => o.y)),
@@ -44,7 +44,7 @@ export function activityView(box: Box, current: View, size: Size): View {
   return { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2, z };
 }
 
-export function insertActivity(board: BoardV9, activity: BoardV7, view: View, size: Size) {
+export function insertActivity(board: BoardV10, activity: BoardV7, view: View, size: Size) {
   const box = activityBox(activity.objects)!, existing = activityBox(board.objects);
   const dx = existing ? existing.right + 120 - box.left : view.x - (box.left + box.right) / 2;
   const dy = existing ? existing.top - box.top : view.y - (box.top + box.bottom) / 2;

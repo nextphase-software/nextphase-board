@@ -666,3 +666,16 @@ small {
 .scene > .connection-dot.drop-side { width: 24px; height: 24px; border: 3px solid #518de0; border-radius: 50%; }
 .connection-dot.drop-side::after { inset: 0; }
 .context:has(.connector-popup) { z-index: 6; }
+
+/* Local image descriptions reuse the dark contextual panel. */
+.image-description-control { display: inline-flex; }
+.image-description-panel {
+  position: absolute; left: 0; top: 48px; width: min(340px, calc(100vw - 24px));
+  padding: 12px; display: grid; gap: 8px; background: #1f1f22; color: white;
+  border-radius: 12px; box-shadow: 0 2px 8px #29202e20;
+}
+.image-description-field { min-height: 0; height: auto; }
+.context:has(.image-description-panel) { z-index: 6; }
+@media (max-width:479.98px) {
+  .palette { max-width: calc(100% - 24px); overflow-x: auto; flex-wrap: nowrap; }
+}

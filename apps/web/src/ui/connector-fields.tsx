@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { KeyboardEvent } from "react";
-import type { BoardV9, ConnectorItem } from "../document";
+import type { BoardV10, ConnectorItem } from "../document";
 import { END_SIDES, eligibleIdea } from "../objects/registry";
 import { objectLabel } from "../sections";
 import type { ConnectorCommands } from "./connector-menu";
@@ -16,7 +16,7 @@ function selectKey(e: KeyboardEvent<HTMLSelectElement>, choose: (value: string) 
   if (options[index]) choose(options[index].value);
 }
 export function ConnectorFields({ board, object, numbers, drafts, commands, reason }: {
-  board: BoardV9; object: ConnectorItem; numbers: Map<string, number>; drafts: Record<string, string>; commands: ConnectorCommands; reason: string;
+  board: BoardV10; object: ConnectorItem; numbers: Map<string, number>; drafts: Record<string, string>; commands: ConnectorCommands; reason: string;
 }) {
   return <fieldset className="connector-ends" disabled={!!reason} aria-describedby="selection-reason"><legend>Ends</legend>
     {(["from", "to"] as const).map((end) => {

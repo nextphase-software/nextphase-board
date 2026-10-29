@@ -6,7 +6,10 @@ import { TemplatesPanel } from "./templates-panel";
 import type { Activity, Preview } from "../activities";
 import { Icon } from "../icons";
 
+import { ImageButton, type ImagePicker } from "./image-controls";
+
 type Props = {
+  imagePicker: ImagePicker;
   drawing: DrawingControls;
   loadTemplates: () => Promise<void>;
   panel: string;
@@ -25,7 +28,7 @@ type Props = {
 };
 
 export function Palette({
-  drawing, loadTemplates, panel, toggle, templatesButton, firstTemplateButton, addActivity, templatePreviews, tool, busy, composing, readOnly, setTool, setInline, scene
+  imagePicker, drawing, loadTemplates, panel, toggle, templatesButton, firstTemplateButton, addActivity, templatePreviews, tool, busy, composing, readOnly, setTool, setInline, scene
 }: Props) {
   const arm = (name: string) => { setTool(name); setInline(false); scene.current?.focus(); };
   return (
@@ -57,6 +60,7 @@ export function Palette({
         disabled={readOnly || busy || composing} onClick={() => { if (panel !== "Templates") void loadTemplates(); toggle("Templates"); }}>
         <Icon name="Templates" /><span className="tooltip">Templates</span>
       </button>
+      <ImageButton picker={imagePicker} />
     </nav>
     <DrawingBar tool={tool} drawing={drawing} disabled={readOnly || busy || composing} arm={arm} />
     {panel === "Templates" && <TemplatesPanel close={() => toggle("Templates")} addActivity={addActivity}

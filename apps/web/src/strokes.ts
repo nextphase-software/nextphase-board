@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import { clamp, freshIdentifier, type BoardV9, type StrokeItem, type ItemV9 } from "./document.ts";
-import { hasPoints, hasRectangle, hasText, usesShapePaint, inkInfo, inkWidth, inkColors, typeWithPoints, rectangleType, type StrokeKeys, type InkPoint, type InkWeight } from "./objects/registry.ts";
+import { clamp, freshIdentifier, type BoardV10, type StrokeItem, type ItemV10 } from "./document.ts";
+import { isImage, hasPoints, hasRectangle, hasText, usesShapePaint, inkInfo, inkWidth, inkColors, typeWithPoints, rectangleType, type StrokeKeys, type InkPoint, type InkWeight } from "./objects/registry.ts";
 import { cornerPoint, type Corner, type Rectangle } from "./resize.ts";
 import type { Style } from "./styles.ts";
 import type { Point } from "./selection.ts";
@@ -22,7 +22,7 @@ function paddedBounds(points: readonly Point[], pad: number): Rectangle & { poin
     height: Math.max(...points.map((p) => p.y)) + pad - y, points: points.map((p) => [p.x - x, p.y - y]) };
 }
 export const absolutePoints = (o: StrokeItem): Point[] => o.points.map(([x, y]) => ({ x: o.x + x, y: o.y + y }));
-export function makeStroke(board: BoardV9, positions: readonly Point[], style: Omit<StrokeKeys, "points">, crossed: boolean, straight = false): StrokeItem | null {
+export function makeStroke(board: BoardV10, positions: readonly Point[], style: Omit<StrokeKeys, "points">, crossed: boolean, straight = false): StrokeItem | null {
   if (board.objects.length >= 250) throw Error("250 object limit reached");
   if (!crossed && !inkInfo(style).round) return null;
   const points = crossed ? drawingPoints(positions, straight) : [positions[0], positions[0]];
@@ -38,10 +38,10 @@ export function changeStrokeWeight(o: StrokeItem, weight: InkWeight): StrokeItem
   if (!withinBoard(next)) throw Error("The stroke would exceed the board edges.");
   return next;
 }
-export function changeOrdinaryColor(objects: readonly ItemV9[], selected: ReadonlySet<string>, color: Style["color"]): ItemV9[] {
+export function changeOrdinaryColor(objects: readonly ItemV10[], selected: ReadonlySet<string>, color: Style["color"]): ItemV10[] {
   return objects.map((o) => hasRectangle(o) && hasText(o) && !usesShapePaint(o) && selected.has(o.id) && o.color !== color ? { ...o, color } : o);
 }
-export function changeStrokeColor(objects: readonly ItemV9[], selected: ReadonlySet<string>, color: string): ItemV9[] {
+export function changeStrokeColor(objects: readonly ItemV10[], selected: ReadonlySet<string>, color: string): ItemV10[] {
   const targets = objects.filter(hasPoints).filter((o) => selected.has(o.id));
   if (!targets.length || targets.some((o) => o.kind !== targets[0].kind) || !inkColors(targets[0]).some((c) => c.name === color)) return [...objects];
   return objects.map((o) => hasPoints(o) && selected.has(o.id) && o.color !== color ? { ...o, color } : o);
@@ -88,7 +88,7 @@ export function strokeHit(o: StrokeItem, p: Point, zoom: number): boolean {
   const points = absolutePoints(o);
   return points.slice(1).some((b, i) => pointSegmentDistance(p, points[i], b) <= 8 / zoom) || inkDistance(o, p, p) === 0;
 }
-export function erasedStrokes(objects: readonly ItemV9[], path: readonly Point[], zoom: number): StrokeItem[] {
+export function erasedStrokes(objects: readonly ItemV10[], path: readonly Point[], zoom: number): StrokeItem[] {
   if (!path.length) return [];
   return objects.filter(hasPoints).filter((o) => path.some((p, i) => inkDistance(o, i ? path[i - 1] : p, p) <= 6 / zoom));
 }
@@ -104,8 +104,8 @@ export function scaleStroke(o: StrokeItem, factor: number, corner: Corner, oppos
   const g = paddedBounds(relative, pad);
   return { ...o, ...g, x: east ? opposite.x : opposite.x - g.width, y: south ? opposite.y : opposite.y - g.height };
 }
-export function resizeWithStrokes(corner: Corner, members: readonly { object: Exclude<ItemV9, import("./document.ts").ConnectorItem>; rectangle: Rectangle }[], delta: Point,
-  neededHeight: (object: Exclude<ItemV9, import("./document.ts").ConnectorItem>, width: number) => number): (ItemV9 & Rectangle)[] {
+export function resizeWithStrokes(corner: Corner, members: readonly { object: Exclude<ItemV10, import("./document.ts").ConnectorItem>; rectangle: Rectangle }[], delta: Point,
+  neededHeight: (object: Exclude<ItemV10, import("./document.ts").ConnectorItem>, width: number) => number): (ItemV10 & Rectangle)[] {
   if (!members.length || !delta.x && !delta.y) return members.map((m) => m.object);
   const x = Math.min(...members.map((m) => m.rectangle.x)), y = Math.min(...members.map((m) => m.rectangle.y));
   const bounds = { x, y, width: Math.max(...members.map((m) => m.rectangle.x + m.rectangle.width)) - x,
@@ -115,7 +115,7 @@ export function resizeWithStrokes(corner: Corner, members: readonly { object: Ex
   const sx = 1 + (east ? delta.x : -delta.x) / bounds.width, sy = 1 + (south ? delta.y : -delta.y) / bounds.height;
   const wanted = sx >= 1 && sy >= 1 ? Math.max(sx, sy) : sx <= 1 && sy <= 1 ? Math.min(sx, sy) : sx + sy >= 2 ? Math.max(sx, sy) : Math.min(sx, sy);
   const floor = Math.max(...members.map(({ object: o, rectangle: r }) => hasPoints(o) ? strokeFloor(o)
-    : Math.max(Math.min(Math.max(80, rectangleType(o.type).sizeRange.min), r.width) / r.width, rectangleType(o.type).sizeRange.min / r.height)));
+    : Math.max(Math.min(Math.max(isImage(o) ? 1 : 80, rectangleType(o.type).sizeRange.min), r.width) / r.width, rectangleType(o.type).sizeRange.min / r.height)));
   const project = (s: number) => members.map(({ object: o, rectangle: r }) => {
     if (s === 1) return o;
     const opposite = { x: fixed.x + (r.x + (east ? 0 : r.width) - fixed.x) * s,

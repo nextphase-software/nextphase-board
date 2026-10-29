@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-import { add, clamp, type BoardV9 as Board, type ItemV9 as Item } from "./document.ts";
+import { add, clamp, type BoardV10 as Board, type ItemV10 as Item } from "./document.ts";
 import { arrangeOrder, type OrderCommand } from "./arrange.ts";
 import { editingCommandReason } from "./commands.ts";
 import { boundingBox, limitMove, type DisplayObject, type Point } from "./selection.ts";
-import { containerType, isContainer, labelPrefix, hasRectangle, hasEnds, hasText, sectionIdea, orderBand } from "./objects/registry.ts";
+import { isImage, containerType, isContainer, labelPrefix, hasRectangle, hasEnds, hasText, sectionIdea, orderBand } from "./objects/registry.ts";
 
 import { bands, FOLLOW_REASON } from "./connectors.ts";
 
@@ -128,7 +128,7 @@ export function commandObjectLabel(board: Board, object: Item): string {
 export function objectLabel(board: Board, object: Item, numbers: ReadonlyMap<string, number>, drafts: Record<string, string> = {}): string {
   const container = isContainer(object);
   const prefix = numberedObjectLabel(board, object);
-  const text = hasText(object) ? drafts[object.id] ?? object.text : "";
+  const text = hasText(object) ? drafts[object.id] ?? object.text : isImage(object) ? object.description || "No description" : "";
   const name = container ? shortName(text) : text.slice(0, 36) || "Empty";
   if (hasEnds(object)) {
     const endpoint = (id: string) => {
@@ -142,7 +142,7 @@ export function objectLabel(board: Board, object: Item, numbers: ReadonlyMap<str
     return prefix + " · " + name + " · " + count + (count === 1 ? " item" : " items");
   }
   const parent = board.objects.find((o) => o.id === object.section);
-  return prefix + (object.group !== null ? " · Group " + numbers.get(object.group) : "") + (hasText(object) ? " · " + name : "") +
+  return prefix + (object.group !== null ? " · Group " + numbers.get(object.group) : "") + (hasText(object) || isImage(object) ? " · " + name : "") +
     (parent ? " · in " + shortName(drafts[parent.id] ?? parent.text ?? "") : "");
 }
 

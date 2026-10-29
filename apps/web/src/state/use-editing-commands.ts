@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { Board as SavedBoard, BoardV9 as Board, ItemV9 as Item, ResolvedItem } from "../document";
+import type { Board as SavedBoard, BoardV10 as Board, ItemV10 as Item, ResolvedItem } from "../document";
 import { count } from "../document";
 import { catalog } from "../activities/catalog";
 import { activityPreview, insertActivity, readActivity, type Activity, type Preview } from "../activities";
@@ -11,7 +11,7 @@ import { textUnits, type Style } from "../styles";
 import type { View } from "../view";
 import { arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "../arrange";
 import { assignSection, commandObjectLabel, orderInBands, wrapReason, wrapSelection } from "../sections";
-import { type ConnectorStyle, type End, objectType, hasRectangle, hasText, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, type ShapeKeys, type ShapePaint } from "../objects/registry";
+import { type ConnectorStyle, type End, objectType, isImage, hasRectangle, hasText, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, type ShapeKeys, type ShapePaint } from "../objects/registry";
 import { groupObjects, groupReason, ungroupObjects } from "../group";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "../clipboard";
 
@@ -240,7 +240,7 @@ export function useEditingCommands({
     commit(next, true);
   }
   function changeStyle<K extends keyof Style>(key: K, value: Style[K]) {
-    if (selectionReason || key !== "color" && model.current.objects.some((o) => selected.has(o.id) && hasRectangle(o) && !objectType(o.type).richText)) return;
+    if (selectionReason || key !== "color" && model.current.objects.some((o) => selected.has(o.id) && hasRectangle(o) && !isImage(o) && !objectType(o.type).richText)) return;
     finishTextSession();
     setInline(false);
     if (key === "color") { commit({ ...model.current, objects: changeOrdinaryColor(model.current.objects, selected, value as Style["color"]) }, true); return; }
@@ -254,7 +254,7 @@ export function useEditingCommands({
     commit({ ...model.current, objects }, true);
   }
   function toggleFormat(flag: Flag) {
-    if (selectionReason || model.current.objects.some((o) => selected.has(o.id) && hasRectangle(o) && !objectType(o.type).richText)) return;
+    if (selectionReason || model.current.objects.some((o) => selected.has(o.id) && hasRectangle(o) && !isImage(o) && !objectType(o.type).richText)) return;
     finishTextSession();
     const field = editor.current;
     const beingEdited = field === document.activeElement && selected.size === 1;

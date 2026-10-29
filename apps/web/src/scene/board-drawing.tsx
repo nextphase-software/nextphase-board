@@ -2,17 +2,20 @@
 import type { ConnectionDrag } from "../connection-drag";
 import { reconnectPreview } from "../connectors";
 import { Layer, Stage } from "react-konva";
-import type { BoardV9 as Board } from "../document";
+import type { BoardV10 as Board } from "../document";
 import type { View } from "../view";
 import { bandOrder, dropTargets } from "../sections";
-import { objectType, hasRectangle, hasText, hasPoints, type StrokeKeys, type Rectangle, hasEnds, orderBand } from "../objects/registry";
+import { isImage, objectType, hasRectangle, hasText, hasPoints, type StrokeKeys, type Rectangle, hasEnds, orderBand } from "../objects/registry";
 import { StrokeBody } from "./stroke-body";
 import { ConnectorBody } from "./connector-body";
 import { ShapeBody } from "./shape-body";
 import { SectionBody, SectionDropHint } from "./section-body";
 import { NoteBody, type ObjectLayout } from "./note-body";
 
+import { ImageBody } from "./image-body";
+
 type Props = {
+  bitmaps: ReadonlyMap<string, ImageBitmap>;
   connection?: ConnectionDrag;
   preview: (Rectangle & StrokeKeys) | null;
   size: { w: number; h: number };
@@ -24,7 +27,7 @@ type Props = {
   movingIds: readonly string[];
 };
 
-export function BoardDrawing({ connection, preview, size, view, board, objectLayouts, selected, inline, movingIds }: Props) {
+export function BoardDrawing({ bitmaps, connection, preview, size, view, board, objectLayouts, selected, inline, movingIds }: Props) {
   const rectangles = new Map(board.objects.filter(hasRectangle).map((o) => [o.id, { ...o, displayHeight: objectLayouts.get(o.id)!.height }]));
   const targets = dropTargets(board, new Set(movingIds), true);
   const sections = new Set([...targets.values()].filter((id) => id !== null));
@@ -40,6 +43,7 @@ export function BoardDrawing({ connection, preview, size, view, board, objectLay
           const layout = objectLayouts.get(o.id)!;
           if (hasEnds(o)) return <ConnectorBody key={o.id + pass} object={o} layout={connection?.reconnect?.id === o.id ? reconnectPreview(o, connection.reconnect.end, connection.pointer, connection.side ?? "auto", rectangles, () => layout.connector!.labelBox.width - 24) : layout.connector!}
             selected={selected.has(o.id)} inline={inline} zoom={view.z} pass={pass === 1 ? "line" : "label"} />;
+          if (isImage(o)) return <ImageBody key={o.id} object={o} bitmap={bitmaps.get(o.asset)} selected={selected.has(o.id)} zoom={view.z} />;
           if (hasPoints(o)) return <StrokeBody key={o.id} object={o} selected={selected.has(o.id)} zoom={view.z} />;
           if (!hasRectangle(o)) return null;
           return (

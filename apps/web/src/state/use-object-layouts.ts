@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useMemo, type RefObject } from "react";
 import Konva from "konva";
-import type { BoardV9 as Board, ItemV9 as Item, ResolvedItem } from "../document";
+import type { BoardV10 as Board, ItemV10 as Item, ResolvedItem } from "../document";
 import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT } from "../geometry";
 import { objectType, textBox, hasText, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds } from "../objects/registry";
 import { groupNumbers, wholeGroups } from "../group";

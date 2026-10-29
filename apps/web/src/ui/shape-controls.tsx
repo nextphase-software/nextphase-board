@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { CSSProperties, RefObject } from "react";
-import type { ItemV9 as Item } from "../document";
+import type { ItemV10 as Item } from "../document";
 import { SHAPE_KINDS, SHAPE_COLORS, FILL_MODES, BORDER_STYLES, shapeColor, shapeColorLabel, darkened, kindInfo, type ShapeKeys } from "../objects/registry";
 import { Icon } from "../icons";
 

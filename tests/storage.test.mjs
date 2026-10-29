@@ -88,7 +88,7 @@ test("mixed v2 head and v1 previous decode while legacy raw bytes remain exact",
   assert.equal(canonical((await decode(pair[1])).board), legacyPayload);
 });
 test("a correctly hashed unknown document version is rejected with raw bytes unchanged", async () => {
-  const payload = JSON.stringify({ ...b, schemaVersion: 10 });
+  const payload = JSON.stringify({ ...b, schemaVersion: 11 });
   const raw = JSON.stringify({ formatVersion: 1, storageRevision: 1, payload, sha256: await digest(payload) });
   const pair = [raw, undefined];
   await assert.rejects(decode(raw));
@@ -112,7 +112,7 @@ test("v7 grouped head and exact v2 previous decode without rewriting either reco
   const grouped = groupObjects(upgraded, new Set(upgraded.objects.slice(0, 2).map((o) => o.id)));
   const head = await wrap(2, grouped), pair = [head, previous], before = structuredClone(pair);
   const loaded = await readPair(pair);
-  assert.equal(loaded.board.schemaVersion, 9);
+  assert.equal(loaded.board.schemaVersion, 10);
   assert.deepEqual(loaded.board, grouped);
   assert.equal(loaded.board.objects[2].group, null);
   assert.equal((await decode(pair[1])).envelope.payload, bytes);
@@ -128,7 +128,7 @@ test("v7 shapes head and v5 previous decode without rewriting either record", as
   current.objects[1] = { ...current.objects[1], shape: "circle", fill: { mode: "transparent", color: "#7a3cf0" }, border: { style: "dashed", color: "#204060" } };
   const pair = [await wrap(2, current), previous], before = structuredClone(pair);
   const loaded = await readPair(pair);
-  assert.deepEqual(loaded.board, current); assert.equal(loaded.board.schemaVersion, 9);
+  assert.deepEqual(loaded.board, current); assert.equal(loaded.board.schemaVersion, 10);
   assert.equal(canonical((await decode(previous)).board), beforePayload);
   assert.deepEqual(pair, before);
 });

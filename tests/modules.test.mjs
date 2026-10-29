@@ -22,7 +22,7 @@ const objects = new URL("objects/", source);
 const objectTypes = files(objects).sort();
 const objectContents = objectTypes.map((name) => [name, readFileSync(new URL(name, objects), "utf8")]);
 
-test("screen parts contain exactly the twenty-six screen modules named through 0002-W3 v1", () => {
+test("screen parts contain exactly the twenty-seven screen modules named through 0002-W3 v1", () => {
   assert.deepEqual(screenParts, [
     "arrange-controls.tsx",
     "board-panel.tsx",
@@ -37,6 +37,7 @@ test("screen parts contain exactly the twenty-six screen modules named through 0
     "drawing-tools.tsx",
     "file-bar.tsx",
     "format-preview.tsx",
+    "image-controls.tsx",
     "information-button.tsx",
     "information-controls.tsx",
     "information-panel.tsx",
@@ -86,11 +87,12 @@ test("every screen part begins with the Apache-2.0 licence header", () => {
   }
 });
 
-test("scene parts contain exactly the nine modules named through 0009-W1 v1", () => {
+test("scene parts contain exactly the ten modules named through 0009-W1 v1", () => {
   assert.deepEqual(sceneParts, [
     "board-drawing.tsx",
     "connection-dots.tsx",
     "connector-body.tsx",
+    "image-body.tsx",
     "inline-editor.tsx",
     "note-body.tsx",
     "overlays.tsx",
@@ -100,8 +102,8 @@ test("scene parts contain exactly the nine modules named through 0009-W1 v1", ()
   ]);
 });
 
-test("object types contain exactly the seven object-type modules named through 0009-W1 v1", () => {
-  assert.deepEqual(objectTypes, ["connector.ts", "registry.ts", "section.ts", "shape.ts", "sticky.ts", "stroke.ts", "text.ts"]);
+test("object types contain exactly the eight object-type modules named through 0009-W1 v1", () => {
+  assert.deepEqual(objectTypes, ["connector.ts", "image.ts", "registry.ts", "section.ts", "shape.ts", "sticky.ts", "stroke.ts", "text.ts"]);
 });
 
 test("object types never import React or Konva", () => {
@@ -120,7 +122,7 @@ test("composition and screen parts ask the registry instead of comparing type na
 });
 
 test("screen and scene guard detects equality and inequality in both operand orders", () => {
-  for (const name of ["sticky", "text", "section", "shape", "square", "circle", "connector", "stroke", "marker", "highlighter"]) {
+  for (const name of ["sticky", "text", "section", "shape", "square", "circle", "connector", "stroke", "image", "marker", "highlighter"]) {
     for (const operator of ["===", "!=="]) for (const quote of ['"', "'"]) {
       const literal = quote + name + quote;
       for (const comparison of [`o.type ${operator} ${literal}`, `${literal} ${operator} o.type`]) {
@@ -133,7 +135,7 @@ test("screen and scene guard detects equality and inequality in both operand ord
   }
 });
 
-test("state contains exactly the nineteen hooks named by 0001-W17 v1 through 0001-W25 v1", () => {
+test("state contains exactly the twenty hooks named by 0001-W17 v1 through 0001-W25 v1", () => {
   assert.deepEqual(files(new URL("state/", source)).sort(), [
     "use-board-document.ts",
     "use-canvas-input.ts",
@@ -143,6 +145,7 @@ test("state contains exactly the nineteen hooks named by 0001-W17 v1 through 000
     "use-editor-placement.ts",
     "use-geometry-edits.ts",
     "use-gesture-state.ts",
+    "use-images.ts",
     "use-messages.ts",
     "use-object-layouts.ts",
     "use-page-keys.ts",
@@ -321,8 +324,8 @@ test("object types import only siblings or styles, which never imports object ty
 
 function typeNameComparisons(source) {
   return [
-    /[=!]==\s*["'](?:sticky|text|section|shape|square|circle|connector|stroke|marker|highlighter)["']/,
-    /["'](?:sticky|text|section|shape|square|circle|connector|stroke|marker|highlighter)["']\s*[=!]==/,
+    /[=!]==\s*["'](?:sticky|text|section|shape|square|circle|connector|stroke|image|marker|highlighter)["']/,
+    /["'](?:sticky|text|section|shape|square|circle|connector|stroke|image|marker|highlighter)["']\s*[=!]==/,
   ].filter((pattern) => pattern.test(source));
 }
 
@@ -353,6 +356,7 @@ test("rules type-name guard detects each forbidden form and allows text fields",
     'if (o.type === "connector") return;',
     'if ("connector" !== o.type) return;',
     'if (o.type === "stroke") return;',
+    'if (o.type === "image") return;',
     'if (o.kind === "marker") return;',
     'if ("highlighter" !== o.kind) return;',
     'if (o.shape !== "square") return;',

@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import type { BoardV9 as Board } from "../document";
+import type { BoardV10 as Board } from "../document";
 import type { ClipboardCommand } from "../clipboard";
 import type { Flag } from "../marks";
 
+import { nativePasteKey } from "../images.ts";
+
 type Input = {
+  chooseImages: () => void;
   command: (name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut") => string | undefined;
   clipboardCommand: (name: ClipboardCommand) => void;
   toggleFormat: (flag: Flag) => void;
@@ -25,7 +28,7 @@ type Input = {
 };
 
 export function usePageKeys({
-  command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
+  chooseImages, command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
   setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
 }: Input) {
   function pageKeyDown(e: React.KeyboardEvent<HTMLElement>) {
@@ -33,6 +36,7 @@ export function usePageKeys({
       !!e.target.closest("input,textarea,[contenteditable]:not([contenteditable=false])");
     if (!nativeText && (e.ctrlKey || e.metaKey) && !e.altKey) {
       const key = e.key.toLowerCase();
+      if (key === "k" && e.shiftKey && !composing && !e.nativeEvent.isComposing) { e.preventDefault(); chooseImages(); return; }
       if (key === "z" || (key === "y" && e.ctrlKey && !e.metaKey && !e.shiftKey)) {
         e.preventDefault();
         command(key === "y" || e.shiftKey ? "Redo" : "Undo");
@@ -56,6 +60,7 @@ export function usePageKeys({
         if (flag) { e.preventDefault(); toggleFormat(flag); return; }
       }
       if ((key === "c" || key === "x" || key === "v") && !e.shiftKey && e.target === scene.current) {
+        if (key === "v" && nativePasteKey(e.nativeEvent, navigator.platform)) return;
         e.preventDefault();
         clipboardCommand(key === "c" ? "Copy" : key === "x" ? "Cut" : "Paste");
         return;

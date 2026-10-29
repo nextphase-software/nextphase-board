@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OBJECT_TYPES, objectType, typeForTool, placementTool, containerType, isContainer } from "../apps/web/src/objects/registry.ts";
+import { OBJECT_TYPES, objectType, typeForTool, placementTool, containerType, isContainer, isImage } from "../apps/web/src/objects/registry.ts";
 import { sticky } from "../apps/web/src/objects/sticky.ts";
 import { section } from "../apps/web/src/objects/section.ts";
 import { text } from "../apps/web/src/objects/text.ts";
 import { COLORS, colorEntry, textUnits } from "../apps/web/src/styles.ts";
 
 test("object types retain sticky and text order, labels and placement tools", () => {
-  assert.deepEqual(OBJECT_TYPES.map((t) => t.type), ["sticky", "shape", "text", "section", "stroke", "connector"]);
+  assert.deepEqual(OBJECT_TYPES.map((t) => t.type), ["sticky", "shape", "text", "section", "stroke", "connector", "image"]);
   assert.equal(objectType("sticky"), sticky);
   assert.equal(objectType("text"), text);
   assert.equal(objectType("sticky").label, "Sticky");
@@ -29,7 +29,7 @@ test("lookups reject values that no record has", () => {
 test("v7 registry owns ends, rectangles, eligibility, bands and key sets", async () => {
   const { hasEnds, hasRectangle, hasPoints, sectionIdea, eligibleIdea, orderBand, typeWithEnds, ADD_OPTIONS, objectKeys } = await import("../apps/web/src/objects/registry.ts");
   const record = typeWithEnds();
-  assert.equal(record, OBJECT_TYPES.at(-1)); assert.equal(record.type, "connector");
+  assert.equal(record, OBJECT_TYPES.find((t) => t.ends)); assert.equal(record.type, "connector");
   assert.equal(record.tool, null); assert.equal(record.validFrom, 7);
   assert.equal(record.richText, false); assert.equal(record.container, false);
   assert.equal(record.textLimit, 100); assert.equal(record.initialText, "");
@@ -41,7 +41,7 @@ test("v7 registry owns ends, rectangles, eligibility, bands and key sets", async
   for (const t of OBJECT_TYPES) {
     const o = { type: t.type };
     assert.equal(hasEnds(o), t.ends); assert.equal(hasRectangle(o), !t.ends);
-    assert.equal(eligibleIdea(o), !t.ends && !t.container && !t.points);
+    assert.equal(eligibleIdea(o), !t.ends && !t.container && !t.points && !isImage(o));
     assert.equal(sectionIdea(o), !t.ends && !t.container);
     assert.equal(hasPoints(o), t.points);
     assert.equal(orderBand(o), t.container ? 0 : t.ends ? 1 : 2);

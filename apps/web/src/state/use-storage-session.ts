@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { type Adapter, type Board as SavedBoard, type BoardV9 as Board, empty, freshIdentifier } from "../document";
+import { type Adapter, type Board as SavedBoard, type BoardV10 as Board, empty, freshIdentifier } from "../document";
 import { decode, LocalStore, readPair } from "../storage";
 import { boardKeys, isBoardKey, LIST_KEY, orderedBoards, parseList, recordBoardKey, type BoardEntry } from "../board-catalog";
-import { boardFileName, readBoardFile, writeBoardFile } from "../board-file";
+import { boardFileName, readBoardBundle, writeBoardFile } from "../board-file";
 import type { View } from "../view";
+
+import { boardPictures, readPictures, pictureBytes, PICTURE_LIMIT, tabPictures, type Pictures } from "../image-assets.ts";
+import { decodePicture } from "../images.ts";
 
 type Input = {
   readOnly: boolean;
@@ -25,7 +28,7 @@ type Input = {
   composing: boolean;
   pending: RefObject<{ invalid: boolean; composing: boolean; busy: boolean }>;
 };
-type Target = { key: string; name: string } | { board: SavedBoard; name: string };
+type Target = { key: string; name: string } | { board: SavedBoard; name: string; pictures: Pictures };
 type Ownership = { release: () => void; task: Promise<void> };
 const OPEN_KEY = "nextphase-board/open/v1";
 
@@ -248,7 +251,8 @@ export function useStorageSession({
         created = new LocalStore(undefined, id); incoming.current.store = created;
         await created.open(() => {});
         if (!alive.current || token !== epoch.current) throw Error("Session closed");
-        await created.create(board); created.close();
+        await created.create(board, target.pictures); created.close();
+        for (const [hash, picture] of target.pictures) tabPictures.set(hash, picture);
         if (!alive.current || token !== epoch.current) throw Error("Session closed");
         incoming.current = null;
         setReadOnly(true); await stop();
@@ -281,15 +285,24 @@ export function useStorageSession({
     const focus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     pendingOpenFocus.current = null;
     operation.current = true; setOpening(true);
-    let board: SavedBoard;
-    try { board = await readBoardFile(file); }
+    let board: SavedBoard, pictures: Pictures;
+    try {
+      const bundle = await readBoardBundle(file); board = bundle.board; pictures = bundle.pictures;
+      if (bundle.fileVersion === 1) {
+        pictures = new Map(tabPictures);
+        if (store.current?.db) await readPictures(store.current.db, boardPictures(board), pictures);
+        if (pictureBytes(board, pictures) > PICTURE_LIMIT) throw Error("its pictures exceed the 50 MiB board limit");
+      } else for (const picture of pictures.values()) {
+        try { (await decodePicture(picture)).close(); } catch { throw Error("it is damaged"); }
+      }
+    }
     catch (error) {
       setMessage(`“${file.name}” was not opened: ${error instanceof Error ? error.message : "it is not a Board file"}. Nothing changed.`);
       operation.current = false; pendingOpenFocus.current = focus;
       setOpening(false); return;
     }
     operation.current = false; setOpening(false);
-    ask({ board, name: file.name }, fileButton.current);
+    ask({ board, pictures, name: file.name }, fileButton.current);
   }
   async function answer(value: "cancel" | "discard" | "save") {
     if (answerPending || operation.current || !questionTarget.current) return;
@@ -304,13 +317,20 @@ export function useStorageSession({
   async function saveCopy() {
     if (invalid || busy || composing || operation.current) return;
     try {
-      const raw = await writeBoardFile(model.current, revision.current === ack.current ? opened.current : undefined);
+      const board = structuredClone(model.current), unchanged = revision.current === ack.current ? opened.current : undefined;
+      if (store.current?.db) await readPictures(store.current.db, boardPictures(unchanged ?? board));
+      for (const hash of boardPictures(unchanged ?? board)) {
+        const picture = tabPictures.get(hash);
+        if (!picture) throw Error("a picture is unavailable");
+        try { (await decodePicture(picture)).close(); } catch { throw Error("a picture is unavailable"); }
+      }
+      const raw = await writeBoardFile(board, unchanged);
       const url = URL.createObjectURL(new Blob([raw], { type: "application/octet-stream" }));
-      const link = document.createElement("a"); link.href = url; link.download = boardFileName(model.current.title);
+      const link = document.createElement("a"); link.href = url; link.download = boardFileName(board.title);
       link.click(); setTimeout(() => URL.revokeObjectURL(url), 0);
-    } catch { setMessage("Could not save a copy to file: the board is larger than 4 MB."); }
+    } catch (error) { setMessage("Could not save a copy to file: " + (error instanceof Error ? error.message : String(error)) + "."); }
   }
-  return { snapshots, alive, adopt, save, reopen,
+  return { store, snapshots, alive, adopt, save, reopen,
     boardFiles: { entries, heldLocks, boardKey: key, readOnly, opening, invalid, panelRef: panelRef.current,
       fileInput, fileButton, openBoard, openFile, saveCopy },
     boardQuestion: { question, boardName: title || "Unnamed board", answerPending,

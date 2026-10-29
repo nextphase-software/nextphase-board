@@ -98,6 +98,7 @@ function database(initial = []) {
         abort() { if (completed || aborted) return; aborted = true; setImmediate(() => { t.onabort?.(); done(); }); },
         objectStore() { return {
           get(key) { reads.push(key); return request(() => local.get(key)); },
+          delete(key) { return request(() => local.delete(key)); },
           getAllKeys() { return request(() => [...local.keys()].sort()); },
           put(value, key) { puts.push(key); return request(() => { if (mode !== "readwrite") throw Error("Read-only write"); local.set(key, structuredClone(value)); return key; }); },
         }; },
@@ -231,7 +232,7 @@ test("refresh validates both records, carries metadata only on a matching head, 
     assert.equal(result.title, "Old title"); assert.equal(result.savedAt, 123); assert.equal(result.fromFile, true);
     assert.equal(result.head, fingerprint(raw));
   }
-  const payload = JSON.stringify({ ...board(other), schemaVersion: 10 });
+  const payload = JSON.stringify({ ...board(other), schemaVersion: 11 });
   const future = JSON.stringify({ formatVersion: 1, storageRevision: 1, payload, sha256: await digest(payload) });
   const x = database([[boardKeys(other).head, future]]), [result] = await x.store().refreshList();
   assert.deepEqual(result, { ...entryDefaults(other), head: fingerprint(future), state: "newer" });
@@ -282,4 +283,67 @@ test("refresh compares malformed structured values without trusting their identi
   const x = database([["head", raw]]);
   x.race((data) => { data.get("head").bad.get("key")[0] = 9; });
   await x.store().refreshList(); assert.deepEqual(x.writes, []);
+});
+
+const { addImages } = await import("../apps/web/src/images.ts");
+const { assetKey, pictureHash, tabPictures, storePicture, readPictures } = await import("../apps/web/src/image-assets.ts");
+const imageBytes = Uint8Array.from([137,80,78,71,13,10,26,10,1]).buffer;
+const imageHash = await pictureHash(imageBytes);
+const imagePicture = { bytes:imageBytes,mime:"image/png",pixelWidth:2,pixelHeight:2 };
+const imagesBoard = (b=board(id)) => addImages(b,[{hash:imageHash,picture:imagePicture,width:2,height:2}],{x:0,y:0});
+
+test("save writes a missing picture once, never reads or rewrites it, and preserves it through the previous record", async () => {
+  const d=database(),s=d.store(id),b=imagesBoard(),cache=new Map([[imageHash,imagePicture]]);
+  await s.save(b,1,false,cache);
+  assert.deepEqual(d.data.get(assetKey(imageHash)),imagePicture);
+  assert.equal(d.writes.filter(k=>k===assetKey(imageHash)).length,1); assert(!d.reads.includes(assetKey(imageHash)));
+  await s.save(b,2,false,cache); assert.equal(d.writes.filter(k=>k===assetKey(imageHash)).length,1);
+  const without={...b,objects:[]};
+  await s.save(without,3,false,cache); assert(d.data.has(assetKey(imageHash)));
+  await s.save(without,4,false,cache); assert(!d.data.has(assetKey(imageHash))); assert(!d.reads.includes(assetKey(imageHash)));
+  // History can still supply the bytes after storage collection.
+  await s.save(b,5,false,cache); assert.deepEqual(d.data.get(assetKey(imageHash)),imagePicture);
+});
+
+test("creation writes every file picture in its board transaction and save failure is atomic", async () => {
+  const d=database(),s=d.store(id),cache=new Map([[imageHash,imagePicture]]);
+  await s.create(imagesBoard(),cache);
+  assert.equal(d.transactions.length,1); assert.deepEqual(d.transactions[0].options,{durability:"strict"});
+  assert(d.data.has(boardKeys(id).head)&&d.data.has(assetKey(imageHash)));
+  const before=structuredClone(d.data); d.fail(); await assert.rejects(s.save({...imagesBoard(),title:"Failed"},2,false,cache)); assert.deepEqual(d.data,before);
+  const empty=database(); empty.fail(); await assert.rejects(empty.store(id).create(imagesBoard(),cache)); assert.equal(empty.data.size,0);
+});
+
+test("collection keeps another board's, previous and future-version asset references, and skips every removal for unparseable board data", async () => {
+  const key=assetKey(imageHash),b=imagesBoard(board(other));
+  for (const [record,raw] of [
+    [boardKeys(other).head,await wrap(b)],
+    [boardKeys(other).previous,await wrap(b)],
+    [boardKeys(other).head,JSON.stringify({payload:JSON.stringify({...b,schemaVersion:11})})],
+  ]) {
+    const d=database([[key,imagePicture],[record,raw]]); await d.store(id).create(board(id),new Map()); assert(d.data.has(key)); assert(!d.reads.includes(key));
+  }
+  for(const raw of ["bad",123,JSON.stringify({payload:3}),JSON.stringify({payload:"bad"}),JSON.stringify({payload:"{}"})]) {
+    const d=database([[key,imagePicture],[boardKeys(other).head,raw]]); await d.store(id).create(board(id),new Map()); assert(d.data.has(key)); assert(!d.reads.includes(key));
+  }
+  const d=database([[key,imagePicture]]); await d.store(id).create(board(id),new Map()); assert(!d.data.has(key));
+});
+
+test("unavailable or invalid picture records are not repaired, and picture changes do not affect list refresh comparison", async () => {
+  const key=assetKey(imageHash),b=imagesBoard(),invalid={...imagePicture,mime:"image/jpeg"};
+  const d=database([[key,invalid]]); await d.store(id).create(b,new Map([[imageHash,imagePicture]])); assert.deepEqual(d.data.get(key),invalid); assert(!d.reads.includes(key));
+  const missing=database(); await missing.store(id).create(b,new Map()); assert(!missing.data.has(key));
+  for(const change of [data=>data.set(key,imagePicture),data=>data.delete(key),data=>data.set(key,invalid)]) {
+    const x=database([["head",await wrap(board())],[key,imagePicture]]); x.race(change);
+    await x.store().refreshList(); assert.deepEqual(x.writes,[LIST_KEY]); assert(!x.reads.includes(key));
+  }
+});
+
+test("import strict transaction waits for completion, abort adds no record, and does not touch boards or the list", async () => {
+  const raw=await wrap(board()),d=database([["head",raw]]),s=d.store(),pending=storePicture(s.db,imageHash,imagePicture,s.transactions);
+  assert(!d.data.has(assetKey(imageHash))); await pending;
+  assert(d.data.has(assetKey(imageHash))); assert.equal(d.data.get("head"),raw); assert.deepEqual(d.writes,[assetKey(imageHash)]);
+  assert.deepEqual(d.transactions[0].options,{durability:"strict"}); assert.equal(s.transactions.size,0);
+  const aborted=database(); aborted.fail(); const writer=aborted.store();
+  await assert.rejects(storePicture(writer.db,imageHash,imagePicture,writer.transactions)); assert.equal(aborted.data.size,0);
 });

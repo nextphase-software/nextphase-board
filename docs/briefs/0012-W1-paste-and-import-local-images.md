@@ -360,3 +360,62 @@ Retrieved 2026-10-28: [HTML: `createImageBitmap`](https://html.spec.whatwg.org/m
 [storage v3](../architecture/0001-storage-v3.md).
 
 ## Implementation record
+
+### 2026-10-28 — v1 implementation handoff
+
+- Branch: `codex/0012-W1-images`; worktree: `.worktrees/codex-0012-W1`.
+- Committed main prerequisite/base: `a8d3d3ed99f9ee046141180fc1924d1e29597415`.
+- Validated source/test revision: `ef816a8935b0048c0ecf44d93d3f397cfa470d4f`
+  (`feat(web): import and persist local images`). The record is a separate
+  documentation commit; the final branch tip is reported separately in the handoff.
+- Scope: this brief v1 with document v10, storage v3, board file v2, interaction
+  v24 and web modules v22. All seven new files and the 44 permitted existing
+  source/test files are included. `App.tsx` remains 262 lines. No dependencies
+  were added, removed or updated; manifests, locks, contracts and CSP are unchanged.
+- Runtime: Node `24.22.1`, npm `11.19.1`, with the official platform archive
+  checksum matched to its release checksum file. All final commands below ran
+  from the repository root with that distribution's `bin` directory on `PATH`.
+
+| Exact command | Result at the validated revision |
+| --- | --- |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; 19 packages installed |
+| `npm --prefix apps/web run typecheck` | Exit 0 |
+| `node --test tests/images.test.mjs tests/board-file.test.mjs tests/board-catalog.test.mjs tests/document.test.mjs tests/storage.test.mjs tests/modules.test.mjs` | Exit 0; 173 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web test` | Exit 0; 641 passed, 0 failed, 0 skipped |
+| `npm --prefix apps/web run build` | Exit 0; application built; accepted lock, runtime inventory and distributed notices verified |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; disposable fixtures built; accepted lock, runtime inventory and distributed notices verified |
+| `git diff --name-only main...HEAD` | Exit 0; exactly the 51 permitted source/test files before this record; the final tip additionally includes this brief's record |
+| `git diff --check main...HEAD` | Exit 0 |
+| `git status --short` | Exit 0; clean after the implementation commit and validation |
+
+The image tests cover schema and adapter boundaries, legacy payload preservation,
+signature detection, landing/scaling arithmetic and encoding choices, row placement,
+unique-byte and object limits, notices, unavailable pictures, history, copies,
+proportional resize, mixed text controls, paste-key routing and Description drafts.
+Server-rendered hooks use synthetic surfaces; their event, picker and decoder doubles
+are unit evidence, not browser evidence. Storage tests cover strict picture import,
+atomic save/creation, conservative collection and list refresh isolation. Board-file
+tests cover v1 compatibility, v2 bundles and refusal ordering, malformed picture
+entries, pixel mismatches, the 50 MiB and 72 MiB boundaries and a 20 MiB round-trip.
+
+During implementation, an earlier full unit run failed only a new image-resize test
+that compared a computed double to an exact integer. The assertion now uses a
+numeric tolerance while retaining the proportion and board-edge checks. That new
+test is absent at `6339964`; no existing test failed in that run. There are no
+remaining failures. No baseline test campaign was needed. An initial installation
+used the shell's Node 26 and emitted an engine warning; installation and every final
+check were repeated successfully with the pinned toolchain.
+
+Exclusions: no browser was launched, no browser regression harness ran, and no
+scenario T, A–J comparison, other browser scenario, Safari check, browser matrix,
+accessibility audit, native IME check or performance/load test is claimed. Those
+browser checks remain with the independent reviewer, including the required negative
+control at `6339964`. The three acceptance criteria have unit evidence; final browser
+acceptance and review of the exact revision remain pending.
+
+The graph discovery and indexing MCP calls were unavailable under the sandbox's
+approval policy; source inspection was used after both attempts were rejected.
+Mandatory public-boundary hooks passed on the implementation commit. Git printed a
+nonfatal sandbox warning while trying to lock packed refs; the commit, branch tip
+and clean worktree were verified afterward. No hooks were bypassed, no stash was
+used, and nothing was pushed, merged or published.

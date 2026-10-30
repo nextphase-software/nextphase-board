@@ -282,4 +282,285 @@ affect when a request completes).
 
 ## Implementation record
 
-Not yet implemented.
+Implemented 2026-10-30 on `codex/0003-W3-discover-and-reopen-workspace-boards`.
+
+- Governing brief: 0003-W3 v1, with API/access/hosted persistence v2 and exactly
+  the unchanged prerequisite versions listed above.
+- Base: `be3272347581874319b773fa40dbc406013d2d36` (committed main).
+- Validated source/test revision: `e3b5ad8e6029e7a38f9f7dc2d840e6228879b277`.
+- Validated source/test tree: `d98b41b5d9e91ec1ae93dbb11e078eb6bf36024e`; the committed tree matches the index
+  tree used for the final validation runs.
+- This implementation record is committed separately. The final branch tip is
+  reported separately in the handoff; no merge, push or publication is authorized.
+
+Delivered repeatable schema upgrades, service-only list/open/copy functions and
+indexes; authenticated discovery, paging, recents, optional creation titles and
+room-backed renames; saved-state copies through optional host interfaces; and
+restore reconciliation with the Node volume fence raised above the board row.
+The document remains authoritative. Copies and opens run outside the room queue,
+and the runners retain background work. The copy checkpoint is `meta.copied`.
+Guests without grants are hidden, and title ordering folds only ASCII A–Z.
+
+No dependencies were added or changed. Manifests, lock, toolchain v4, inventory,
+notices inputs, document format and web source are unchanged. Existing server
+checks changed only at S6 and S48, as authorized; all 662 base unit checks remain,
+with nine new unit checks in `tests/lists.test.mjs`.
+
+**Environment and commands.** Node `v26.13.0` and npm `11.20.0` were checked,
+with the supplied pinned toolchain directory first on PATH for every command.
+Machine-specific environment values are parameterized here: `W3_TOOLCHAIN_BIN`
+is that directory, `W3_STACK` is the supplied stack settings file, and `W3_BASE`
+and `W3_DRYRUN` are disposable folders in the system temporary directory. The
+commands below preserve the executed program names, arguments and flags without
+publishing local paths or credentials.
+
+```sh
+export PATH="$W3_TOOLCHAIN_BIN:$PATH"
+node --version
+npm --version
+export BOARD_TEST_STACK="$W3_STACK"
+```
+
+| Gate | Commands and inspection | Result |
+| --- | --- | --- |
+| V1 | `git diff --exit-code be32723 -- package-lock.json package.json ':(glob)**/package.json'`; byte comparison of every tracked manifest and the root lock against the base | Exit 0; byte-identical |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` | Exit 0; 118 packages installed |
+| V3 | `npm run typecheck` | Exit 0 for all five workspaces |
+| V4 | `npm test` | Exit 0; 671 passed, 0 failed, 0 skipped; only `tests/lists.test.mjs` is new in the root unit suite |
+| V5 | `npm run build`; `npm run build:fixtures`; base archive/build and byte comparison described below; `git diff --exit-code be32723 -- apps/web` | Exit 0; all four web artifacts byte-identical |
+| V6 | `npm run build:server`; `npm run audit:licenses` | Both exit 0; `apps/server/dist/node.mjs`, `worker.mjs`, `NODE_NOTICES.txt` and `WORKER_NOTICES.txt` written and verified |
+| V7 | `WRANGLER_LOG_PATH="$W3_DRYRUN/wrangler.log" npx wrangler deploy --dry-run --outdir "$W3_DRYRUN/bundle" -c apps/server/wrangler.json` | Exit 0; dry run only; nothing uploaded |
+| V8 | `npm run test:server:node` with the supplied `BOARD_TEST_STACK` | Exit 0; S1–S50 and S55–S76 pass; both summaries have zero failures |
+| V9 | `npm run test:server:workerd` with the supplied `BOARD_TEST_STACK` | Exit 0; 48 W1 checks and 21 list checks pass; S37, S43 and S70 are Node only |
+| V10 | `BOARD_TEST_TARGET=docker npm run test:server:node` with the supplied `BOARD_TEST_STACK` | Exit 0; S51–S54 pass; lists file skips every check and emits no summary |
+| V11 | `git diff --name-status be32723..e3b5ad8e6029e7a38f9f7dc2d840e6228879b277`; precommit scope inspection; `git diff --check` | Exit 0; 27 source/test/README files, all within deliverables 1–5; this record adds only the brief itself |
+
+```text
+PASS: V1
+PASS: V2
+PASS: V3
+PASS: V4
+PASS: V5
+PASS: V6
+PASS: V7
+PASS: V8
+PASS: V9
+PASS: V10
+PASS: V11
+```
+
+V12 was not run: it is assigned to the independent review's check run.
+No browser was launched. No browser comparison, Safari/IME/accessibility matrix,
+hosted deployment, real hosted point-in-time restore, or broader load test ran.
+The required S69 is a storage-rewind simulation with an external fence.
+
+The stack was already running: no Supabase CLI start, stop or status command,
+signing-key helper or stack-file helper was run. Setup applies the plain SQL
+twice, uses independent synthetic W1/list identities and cleans up its data.
+The Docker driver removes only its own image, container and named volume; the
+supplied stack and base image are left alone. Temporary inputs and logs stay in
+the system temporary directory.
+
+Development checks included
+`node --test tests/lists.test.mjs tests/room.test.mjs` (13 passed), and both
+server commands filtered with `-- -t '^S(5[5-9]|6[0-9]|7[0-6]) '`.
+Early failures were a TypeScript parameter property unsupported by Node's
+strip-only loader and two assertions treating peer history as an unread queue;
+these were corrected. The focused workerd run passed all 21 applicable checks.
+After final inspection removed a redundant restore cancellation call, the final
+unit/typecheck/build checks and all three server commands were run again on the
+source/test tree above. No existing assertion outside S6/S48 needed changing.
+
+The graph discovery tool was unavailable under this session's approval policy
+(`MCP tool call requires approval, but approval policy is never`); discovery
+therefore used direct reads. Workerd prints network-connection-lost diagnostics
+while outage checks deliberately reset proxy connections. Those diagnostics are
+retained in the temporary raw logs; every required assertion and both summaries
+still passed. They are not reported as additional passing checks.
+
+**Base web build.** `git archive be32723 | tar -x -C "$W3_BASE"` created a
+clean disposable base checkout. In it,
+`npm ci --ignore-scripts --no-audit --no-fund` and `npm run build` both exited 0.
+A Python byte comparison read each base/candidate artifact and asserted equality.
+The candidate's source under `apps/web` is also unchanged.
+
+| Artifact under `apps/web/dist` | Bytes | SHA-256 of both builds |
+| --- | ---: | --- |
+| `app.js` | 841801 | `e2e3fdbfa681ac1a7e01d325a353043b8bb88f5902dc1de64f87293e9271db7f` |
+| `style.css` | 19837 | `c1bd44f1005f7d36e5814ffea0a239a14940c0dbac7144203b8a42a245829f2c` |
+| `index.html` | 576 | `66f0d8d097b0c1b88dba01e2fe87c1233b576b3d0019e81401434a7f58a74c8e` |
+| `THIRD_PARTY_NOTICES.txt` | 16169 | `3367640f4a3b473755079ad41dc46c67bd65ed2dd21a0ca47edcd14944d3a91d` |
+
+**Final server evidence.** S lines and both summary lines are preserved below
+for each runner, without combining separate runs.
+
+**Source commit.** `git commit -m "feat(server): add workspace board discovery and rename"`
+exited 0, with both mandatory public-boundary hooks reporting PASS. Git printed
+an advisory `packed-refs.lock` permission error; `git show-ref --verify` confirmed
+the branch reference at the validated commit, and its tree matches the validated
+index tree. No hook was bypassed.
+
+**node**
+
+```text
+PASS: S1 independent ES256 identities
+PASS: S2 missing and malformed tokens
+PASS: S3 tampering and shared-secret algorithms
+PASS: S4 expiry audience and issuer
+PASS: S5 pinned keys survive endpoint failure
+PASS: S6 every protected route checks tokens before lookups
+PASS: S7 create route role matrix and titles
+PASS: S8 board details role matrix
+PASS: S9 ticket and join role matrix
+PASS: S10 canonical export role matrix
+PASS: S11 owner lists members grants and invitations
+PASS: S12 invitation create cancel matrix and private rows
+PASS: S13 raise matrix no-op and lowering refusals
+PASS: S14 invitation acceptance identity expiry cancellation and retries
+PASS: S15 unoffered routes return not found
+PASS: S16 refused joins disclose no board content
+PASS: S17 viewer edits are never acknowledged
+PASS: S18 saved precedes broadcast
+PASS: S19 incomplete edits wait until dependencies arrive
+PASS: S20 receipt retry is idempotent and bound to update bytes
+PASS: S21 highest board role wins
+PASS: S22 guest access and Data API rows agree
+PASS: S23 board invitations add an outsider as a guest
+PASS: S24 workspace raises close all affected boards with 4409
+PASS: S25 a board raise leaves other rooms connected
+PASS: S26 acceptance refreshes a cached viewer
+PASS: S27 a redundant effective grant leaves epoch and connection alone
+PASS: S28 failed fanout is recovered on next join
+PASS: S29 tickets are one-time short-lived and origin-bound
+PASS: S30 renewal and expiry survive hibernation
+PASS: S31 invited confirmed account signs in once without sign-ups
+PASS: S32 new rooms are empty and first open is idempotent
+PASS: S33 exact 2 MiB board persists in bounded chunks
+PASS: S34 oversized message leaves transport usable
+PASS: S35 hundred-edit and idle snapshots retain two generations
+PASS: S36 waiting count bytes deadline and hibernation
+PASS: S37 Node restart drops waits and clients resend
+PASS: S38 hostile transitions hidden fields history and size store nothing
+PASS: S39 hosted image edits are refused
+PASS: S40 ordinary wakes retain cached access during outage
+PASS: S41 large logical restore locks until replay and clears tickets
+PASS: S42 physical rewind respects an external fence
+PASS: S43 copied Node volume requires replay after marking
+PASS: S44 unreadable fence fails closed independently of Supabase
+PASS: S45 replay lowers and removes cached effective roles
+PASS: S46 access history floor enforces the inclusive replay boundary
+PASS: S47 operator authentication limits and runner-specific routes
+PASS: S48 schema is repeatable and authenticated writes are denied
+PASS: S49 workspace setup creates its owner and refuses a second run
+PASS: S50 fanout timing for 1 10 and 50 connected boards
+SUMMARY {"runner":"node","checks":50,"pass":50,"fail":0,"measures":{"storage":{"jsonChunks":2,"yjsChunks":2,"largestRowBytes":1048596,"reloadMs":179.23583300000064},"fanoutMs":{"1":22.285499999998137,"10":48.445958000003884,"50":60.515833999997994}}}
+PASS: S55 workspace discovery follows workspace roles and granted boards
+PASS: S56 board lists apply roles hide missing access and expose exact fields
+PASS: S57 recent boards include only opened accessible boards newest first
+PASS: S58 creation supports Untitled validates bodies and preserves role refusals
+PASS: S59 rename role matrix title rules and document size limit
+PASS: S60 new routes authenticate every invalid token before looking up resources
+PASS: S61 rename saves once broadcasts exports and reaches every list
+PASS: S62 ordinary title edits reach board details and both lists
+PASS: S63 refused edits copy nothing and ordinary NUL titles keep their document
+PASS: S64 edited times throttle idle flush and failed copies retry after sixty seconds
+PASS: S65 copy failure cannot refuse or undo edits and recovery catches up
+PASS: S66 slow copies leave ten save acknowledgements below two hundred milliseconds
+PASS: S67 saved row writes compare generation before revision and accept equal pairs
+PASS: S68 logical restore rewinds name and edit time and fences delayed copies
+PASS: S69 point in time rewind reconciles names with an external fence
+PASS: S70 marked Node volume raises above row generation and stays locked offline
+PASS: S71 locked rename hides boards from outsiders and stores no edit
+PASS: S72 opens reorder tie by descending ID survive failure and cap at fifty
+PASS: S73 removing the last guest grant removes board and workspace discovery
+PASS: S74 all six sort directions page 250 tied boards exactly once
+PASS: S75 cursor shape context and unknown sort directions are refused
+PASS: S76 title order folds ASCII then compares original bytes and reverses exactly
+SUMMARY-LISTS {"runner":"node","checks":22,"pass":22,"fail":0,"measures":{"ackMsWhileCopySlow":0.8468330000000606}}
+```
+
+**workerd**
+
+```text
+PASS: S1 independent ES256 identities
+PASS: S2 missing and malformed tokens
+PASS: S3 tampering and shared-secret algorithms
+PASS: S4 expiry audience and issuer
+PASS: S5 pinned keys survive endpoint failure
+PASS: S6 every protected route checks tokens before lookups
+PASS: S7 create route role matrix and titles
+PASS: S8 board details role matrix
+PASS: S9 ticket and join role matrix
+PASS: S10 canonical export role matrix
+PASS: S11 owner lists members grants and invitations
+PASS: S12 invitation create cancel matrix and private rows
+PASS: S13 raise matrix no-op and lowering refusals
+PASS: S14 invitation acceptance identity expiry cancellation and retries
+PASS: S15 unoffered routes return not found
+PASS: S16 refused joins disclose no board content
+PASS: S17 viewer edits are never acknowledged
+PASS: S18 saved precedes broadcast
+PASS: S19 incomplete edits wait until dependencies arrive
+PASS: S20 receipt retry is idempotent and bound to update bytes
+PASS: S21 highest board role wins
+PASS: S22 guest access and Data API rows agree
+PASS: S23 board invitations add an outsider as a guest
+PASS: S24 workspace raises close all affected boards with 4409
+PASS: S25 a board raise leaves other rooms connected
+PASS: S26 acceptance refreshes a cached viewer
+PASS: S27 a redundant effective grant leaves epoch and connection alone
+PASS: S28 failed fanout is recovered on next join
+PASS: S29 tickets are one-time short-lived and origin-bound
+PASS: S30 renewal and expiry survive hibernation
+PASS: S31 invited confirmed account signs in once without sign-ups
+PASS: S32 new rooms are empty and first open is idempotent
+PASS: S33 exact 2 MiB board persists in bounded chunks
+PASS: S34 oversized message leaves transport usable
+PASS: S35 hundred-edit and idle snapshots retain two generations
+PASS: S36 waiting count bytes deadline and hibernation
+PASS: S38 hostile transitions hidden fields history and size store nothing
+PASS: S39 hosted image edits are refused
+PASS: S40 ordinary wakes retain cached access during outage
+PASS: S41 large logical restore locks until replay and clears tickets
+PASS: S42 physical rewind respects an external fence
+PASS: S44 unreadable fence fails closed independently of Supabase
+PASS: S45 replay lowers and removes cached effective roles
+PASS: S46 access history floor enforces the inclusive replay boundary
+PASS: S47 operator authentication limits and runner-specific routes
+PASS: S48 schema is repeatable and authenticated writes are denied
+PASS: S49 workspace setup creates its owner and refuses a second run
+PASS: S50 fanout timing for 1 10 and 50 connected boards
+SUMMARY {"runner":"workerd","checks":48,"pass":48,"fail":0,"measures":{"storage":{"jsonChunks":2,"yjsChunks":2,"largestRowBytes":1048596,"reloadMs":181},"fanoutMs":{"1":9,"10":44,"50":84}}}
+PASS: S55 workspace discovery follows workspace roles and granted boards
+PASS: S56 board lists apply roles hide missing access and expose exact fields
+PASS: S57 recent boards include only opened accessible boards newest first
+PASS: S58 creation supports Untitled validates bodies and preserves role refusals
+PASS: S59 rename role matrix title rules and document size limit
+PASS: S60 new routes authenticate every invalid token before looking up resources
+PASS: S61 rename saves once broadcasts exports and reaches every list
+PASS: S62 ordinary title edits reach board details and both lists
+PASS: S63 refused edits copy nothing and ordinary NUL titles keep their document
+PASS: S64 edited times throttle idle flush and failed copies retry after sixty seconds
+PASS: S65 copy failure cannot refuse or undo edits and recovery catches up
+PASS: S66 slow copies leave ten save acknowledgements below two hundred milliseconds
+PASS: S67 saved row writes compare generation before revision and accept equal pairs
+PASS: S68 logical restore rewinds name and edit time and fences delayed copies
+PASS: S69 point in time rewind reconciles names with an external fence
+PASS: S71 locked rename hides boards from outsiders and stores no edit
+PASS: S72 opens reorder tie by descending ID survive failure and cap at fifty
+PASS: S73 removing the last guest grant removes board and workspace discovery
+PASS: S74 all six sort directions page 250 tied boards exactly once
+PASS: S75 cursor shape context and unknown sort directions are refused
+PASS: S76 title order folds ASCII then compares original bytes and reverses exactly
+SUMMARY-LISTS {"runner":"workerd","checks":21,"pass":21,"fail":0,"measures":{"ackMsWhileCopySlow":2}}
+```
+
+**docker**
+
+```text
+PASS: S51 Docker image builds with the pinned digest
+PASS: S52 container passes identity join secrecy and edit checks
+PASS: S53 Docker restart preserves the board and permits another saved edit
+PASS: S54 self-hosted Supabase accepts ES256 and refuses HS256
+SUMMARY {"runner":"docker","checks":4,"pass":4,"fail":0,"measures":{}}
+```

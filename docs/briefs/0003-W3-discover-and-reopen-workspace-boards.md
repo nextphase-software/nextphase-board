@@ -1,8 +1,9 @@
 BRIEF VERSION: 0003-W3 v1 (2026-10-30)
 # 0003-W3 — Discover and reopen workspace boards
 
-Status: Draft. Implementation starts only after the maintainer commits this brief and its
-contracts to main: [0003 API v2](../architecture/0003-api-v2.md),
+Status: Implemented. Independently reviewed at `5cb8f0b` (pass) and merged into main on
+2026-10-30 ([evidence summary](0003-W3-discover-and-reopen-workspace-boards-evidence.md)) with its
+contracts: [0003 API v2](../architecture/0003-api-v2.md),
 [0003 access v2](../architecture/0003-access-v2.md) and
 [0003 hosted persistence v2](../architecture/0003-hosted-persistence-v2.md). Unchanged and still
 in force: [0003 identity v1](../architecture/0003-identity-v1.md),

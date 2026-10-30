@@ -230,14 +230,25 @@ checks both against a local Supabase stack, and the web app does not change, fol
 [toolchain v4](../architecture/0001-toolchain-v4.md) and
 [web modules v24](../architecture/0001-web-modules-v24.md), is implemented and merged into main.
 
-[0003-W3 v1 — Discover and reopen workspace boards](0003-W3-discover-and-reopen-workspace-boards.md)
-is a draft: the server lists a person's workspaces, the boards in a workspace on which they have
+[0003-W3 v1 — Discover and reopen workspace boards](0003-W3-discover-and-reopen-workspace-boards.md),
+in which the server lists a person's workspaces, the boards in a workspace on which they have
 a role and the boards they opened most recently, an editor can rename a board, and a new board
 can be created as "Untitled"; the board's room copies its saved name and last-edited time to
 Supabase for the lists without ever holding up a save, and the web app does not change,
 following the [0003 API v2](../architecture/0003-api-v2.md),
 [access v2](../architecture/0003-access-v2.md) and
-[hosted persistence v2](../architecture/0003-hosted-persistence-v2.md) contracts.
+[hosted persistence v2](../architecture/0003-hosted-persistence-v2.md) contracts, is implemented
+and merged into main.
+
+[0003-W2 v1 — Revoke access across active sessions](0003-W2-revoke-access-across-active-sessions.md)
+is a draft: the workspace owner lowers or removes a person's workspace role or board grant, the
+person's role on every board is worked out again from what is left, each board's room refuses
+their edits, deletes their waiting edits and closes their connections within 2 seconds, nothing
+gives the access back, the owner is told when every board has applied the change, a retry every
+minute finishes what a board missed, and the operator can disable and enable a person; the web
+app does not change, following the [0003 access v3](../architecture/0003-access-v3.md),
+[API v3](../architecture/0003-api-v3.md), [sync v2](../architecture/0003-sync-v2.md) and
+[identity v2](../architecture/0003-identity-v2.md) contracts.
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

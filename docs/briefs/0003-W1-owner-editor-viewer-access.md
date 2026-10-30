@@ -1,8 +1,9 @@
 BRIEF VERSION: 0003-W1 v1 (2026-10-30)
 # 0003-W1 — Enforce owner, editor and viewer access
 
-Status: Draft. Implementation starts only after the maintainer commits this brief and its
-contracts to main: [0003 identity v1](../architecture/0003-identity-v1.md),
+Status: Implemented. Independently reviewed at `c4cfb58` (pass) and merged into main on
+2026-10-30 ([evidence summary](0003-W1-owner-editor-viewer-access-evidence.md)) with its
+contracts: [0003 identity v1](../architecture/0003-identity-v1.md),
 [0003 access v1](../architecture/0003-access-v1.md), [0003 API v1](../architecture/0003-api-v1.md),
 [0003 sync v1](../architecture/0003-sync-v1.md),
 [0003 hosted persistence v1](../architecture/0003-hosted-persistence-v1.md),
@@ -400,9 +401,10 @@ Retrieved 2026-10-30: the public references of the contracts listed above, and
 - This record is committed separately. The final branch tip is reported in the
   implementation handoff, separately from the validated source/test revision.
 
-The initial CRLF-notices stop was resolved by the planner's 2026-10-30 ruling:
-hash original licence bytes, then normalize CRLF and lone CR to LF; no contract,
-accepted notices or inventory file was changed.
+The initial CRLF-notices stop was resolved by the rule now stated in
+[toolchain v4](../architecture/0001-toolchain-v4.md), "Notices for each artifact":
+hash original licence bytes, then normalize CRLF and lone CR to LF; no accepted
+notices or inventory file was changed.
 
 The first commit attempt was blocked by the public allowlist and retried successfully after the maintainer's 2026-10-30 change; hooks remained enabled.
 

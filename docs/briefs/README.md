@@ -216,8 +216,8 @@ the web app and nothing a person sees or saves changes, following
 [toolchain v3](../architecture/0001-toolchain-v3.md) and
 [web modules v23](../architecture/0001-web-modules-v23.md), is implemented and merged into main.
 
-[0003-W1 v1 — Enforce owner, editor and viewer access](0003-W1-owner-editor-viewer-access.md)
-is a draft: Board gets its server, in which the workspace owner invites people as editors,
+[0003-W1 v1 — Enforce owner, editor and viewer access](0003-W1-owner-editor-viewer-access.md),
+in which Board gets its server, in which the workspace owner invites people as editors,
 viewers or guests of the workspace or of a single board, a person's role on a board is the
 highest any level gives them, and the server refuses everything else with a reason; the same
 room runs in a Cloudflare Durable Object and in a Node process for self-hosting, one test suite
@@ -228,7 +228,16 @@ checks both against a local Supabase stack, and the web app does not change, fol
 [self-host runner](../architecture/0003-self-host-runner-v1.md) contracts,
 [document v11](../architecture/0001-document-v11.md),
 [toolchain v4](../architecture/0001-toolchain-v4.md) and
-[web modules v24](../architecture/0001-web-modules-v24.md).
+[web modules v24](../architecture/0001-web-modules-v24.md), is implemented and merged into main.
+
+[0003-W3 v1 — Discover and reopen workspace boards](0003-W3-discover-and-reopen-workspace-boards.md)
+is a draft: the server lists a person's workspaces, the boards in a workspace on which they have
+a role and the boards they opened most recently, an editor can rename a board, and a new board
+can be created as "Untitled"; the board's room copies its saved name and last-edited time to
+Supabase for the lists without ever holding up a save, and the web app does not change,
+following the [0003 API v2](../architecture/0003-api-v2.md),
+[access v2](../architecture/0003-access-v2.md) and
+[hosted persistence v2](../architecture/0003-hosted-persistence-v2.md) contracts.
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

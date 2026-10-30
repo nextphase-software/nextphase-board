@@ -122,7 +122,9 @@ shipped for that artifact in the inventory. `npm run audit:licenses` checks all 
 artifacts that exist: the web notices against v1 byte for byte, and each server notices file
 against its bundle and its section of v2. A section runs from its "Third-party notices for" line
 to the next such line or the end of the file; the comparison ignores blank lines at the end of
-the section and of the generated file.
+the section and of the generated file. Notices files use LF line endings: a licence file is
+checked against the inventory by the SHA-256 of its original bytes, and only then written into
+the notices file with every CRLF and lone CR turned into LF.
 
 ## Security advisories
 

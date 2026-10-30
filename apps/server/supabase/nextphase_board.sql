@@ -22,6 +22,23 @@ CREATE TABLE IF NOT EXISTS nextphase_board.boards (
   title text NOT NULL, created_by uuid NOT NULL REFERENCES nextphase_board.people(id),
   created_at timestamptz NOT NULL DEFAULT now()
 );
+-- Upgrade existing installations as well as a fresh schema.
+ALTER TABLE nextphase_board.boards ADD COLUMN IF NOT EXISTS edited_at timestamptz;
+UPDATE nextphase_board.boards SET edited_at = created_at WHERE edited_at IS NULL;
+ALTER TABLE nextphase_board.boards ALTER COLUMN edited_at SET DEFAULT now();
+ALTER TABLE nextphase_board.boards ALTER COLUMN edited_at SET NOT NULL;
+ALTER TABLE nextphase_board.boards ADD COLUMN IF NOT EXISTS document_generation bigint NOT NULL DEFAULT 0;
+ALTER TABLE nextphase_board.boards ADD COLUMN IF NOT EXISTS document_revision bigint NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS nextphase_board.board_opens (
+  person_id uuid REFERENCES nextphase_board.people(id),
+  board_id uuid REFERENCES nextphase_board.boards(id) ON DELETE CASCADE,
+  opened_at timestamptz NOT NULL, PRIMARY KEY(person_id, board_id)
+);
+CREATE INDEX IF NOT EXISTS boards_edited ON nextphase_board.boards(workspace_id, edited_at, id);
+CREATE INDEX IF NOT EXISTS boards_created ON nextphase_board.boards(workspace_id, created_at, id);
+CREATE INDEX IF NOT EXISTS boards_title ON nextphase_board.boards
+  (workspace_id, (translate(title, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz') COLLATE "C"), title COLLATE "C", id);
+CREATE INDEX IF NOT EXISTS opens_recent ON nextphase_board.board_opens(person_id, opened_at DESC, board_id DESC);
 CREATE TABLE IF NOT EXISTS nextphase_board.board_grants (
   board_id uuid REFERENCES nextphase_board.boards(id), person_id uuid REFERENCES nextphase_board.people(id),
   role text NOT NULL CHECK (role IN ('editor','viewer')), PRIMARY KEY(board_id, person_id)
@@ -183,13 +200,79 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   FROM nextphase_board.boards b WHERE b.id = board
 $$;
 
+CREATE OR REPLACE FUNCTION nextphase_board.record_board_open(person uuid, board uuid, opened_at timestamptz)
+RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$
+  INSERT INTO nextphase_board.board_opens VALUES(person, board, opened_at)
+  ON CONFLICT(person_id, board_id) DO UPDATE
+    SET opened_at = greatest(nextphase_board.board_opens.opened_at, excluded.opened_at)
+$$;
+CREATE OR REPLACE FUNCTION nextphase_board.copy_saved_board(board uuid, title text, edited_at timestamptz, generation bigint, revision bigint)
+RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$
+  UPDATE nextphase_board.boards b SET title = copy_saved_board.title,
+    edited_at = coalesce(copy_saved_board.edited_at, b.edited_at),
+    document_generation = generation, document_revision = revision
+  WHERE b.id = board AND (generation, revision) >= (b.document_generation, b.document_revision)
+$$;
+CREATE OR REPLACE FUNCTION nextphase_board.list_workspaces(person uuid)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT coalesce(jsonb_agg(jsonb_build_object('id', w.id, 'name', w.name, 'role', m.role)
+    ORDER BY w.name COLLATE "C", w.id), '[]'::jsonb)
+  FROM nextphase_board.workspaces w JOIN nextphase_board.workspace_members m ON m.workspace_id = w.id
+  WHERE m.person_id = person AND (m.role <> 'guest' OR EXISTS (
+    SELECT 1 FROM nextphase_board.boards b WHERE b.workspace_id = w.id
+      AND nextphase_board.board_role(person, b.id) IS NOT NULL))
+$$;
+CREATE OR REPLACE FUNCTION nextphase_board.list_boards(person uuid, workspace uuid, sort text, direction text, after_key text, after_id uuid)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' SET timezone = 'UTC' AS $$
+DECLARE ordering text; cursor_value text; comparison text; result jsonb;
+BEGIN
+  IF sort NOT IN ('edited', 'created', 'title') OR direction NOT IN ('asc', 'desc') THEN
+    RAISE EXCEPTION 'bad_request';
+  END IF;
+  IF sort = 'title' THEN
+    ordering := '(translate(b.title, ''ABCDEFGHIJKLMNOPQRSTUVWXYZ'', ''abcdefghijklmnopqrstuvwxyz'') COLLATE "C", b.title COLLATE "C", b.id)';
+    cursor_value := '(translate($3, ''ABCDEFGHIJKLMNOPQRSTUVWXYZ'', ''abcdefghijklmnopqrstuvwxyz'') COLLATE "C", $3 COLLATE "C", $4)';
+  ELSE
+    ordering := CASE sort WHEN 'edited' THEN '(b.edited_at, b.id)' ELSE '(b.created_at, b.id)' END;
+    cursor_value := '($3::timestamptz, $4)';
+  END IF;
+  comparison := CASE direction WHEN 'asc' THEN '>' ELSE '<' END;
+  EXECUTE format($query$
+    SELECT coalesce(jsonb_agg(page.row), '[]'::jsonb) FROM (
+      SELECT jsonb_build_object('id', b.id, 'workspaceId', b.workspace_id, 'title', b.title,
+        'role', nextphase_board.board_role($1, b.id), 'createdAt', b.created_at, 'editedAt', b.edited_at,
+        'openedAt', o.opened_at, 'cursorKey', %s) AS row
+      FROM nextphase_board.boards b LEFT JOIN nextphase_board.board_opens o ON o.board_id = b.id AND o.person_id = $1
+      WHERE b.workspace_id = $2 AND nextphase_board.board_role($1, b.id) IS NOT NULL
+        AND ($3 IS NULL OR %s %s %s)
+      ORDER BY %s %s LIMIT 101
+    ) page
+  $query$, CASE sort WHEN 'title' THEN 'b.title' WHEN 'edited' THEN 'b.edited_at::text' ELSE 'b.created_at::text' END,
+    ordering, comparison, cursor_value, ordering, direction)
+  INTO result USING person, workspace, after_key, after_id;
+  RETURN result;
+END $$;
+CREATE OR REPLACE FUNCTION nextphase_board.list_recent_boards(person uuid)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT coalesce(jsonb_agg(page.row), '[]'::jsonb) FROM (
+    SELECT jsonb_build_object('id', b.id, 'workspaceId', b.workspace_id, 'workspaceName', w.name,
+      'title', b.title, 'role', nextphase_board.board_role(person, b.id),
+      'createdAt', b.created_at, 'editedAt', b.edited_at, 'openedAt', o.opened_at) AS row
+    FROM nextphase_board.board_opens o JOIN nextphase_board.boards b ON b.id = o.board_id
+      JOIN nextphase_board.workspaces w ON w.id = b.workspace_id
+    WHERE o.person_id = person AND nextphase_board.board_role(person, b.id) IS NOT NULL
+    ORDER BY o.opened_at DESC, b.id DESC LIMIT 50
+  ) page
+$$;
+
 -- Repeated runs replace policies without widening privileges.
 DO $$ DECLARE t text; BEGIN
-  FOREACH t IN ARRAY ARRAY['people','workspaces','workspace_members','boards','board_grants','invitations','access_changes','access_log_floor'] LOOP
+  FOREACH t IN ARRAY ARRAY['people','workspaces','workspace_members','boards','board_opens','board_grants','invitations','access_changes','access_log_floor'] LOOP
     EXECUTE format('ALTER TABLE nextphase_board.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS read_own ON nextphase_board.%I', t);
   END LOOP;
 END $$;
+CREATE POLICY read_own ON nextphase_board.board_opens FOR SELECT TO authenticated USING (person_id = auth.uid());
 CREATE POLICY read_own ON nextphase_board.boards FOR SELECT TO authenticated
   USING (nextphase_board.board_role(auth.uid(),id) IS NOT NULL);
 CREATE POLICY read_own ON nextphase_board.workspaces FOR SELECT TO authenticated USING (

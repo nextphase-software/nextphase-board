@@ -4,6 +4,7 @@ import type { Auth } from "./auth.ts";
 import type { Supabase } from "./supabase.ts";
 export interface RoomClient {
   ticket(person: Person): Promise<{ ticket: string; expiresAt: number }>;
+  rename(person: Person, title: string): Promise<{ id: string; title: string; revision: number }>;
   export(person: Person): Promise<string>;
   changed(): Promise<void>;
   backup(): Promise<unknown>;

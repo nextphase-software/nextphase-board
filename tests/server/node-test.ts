@@ -3,18 +3,20 @@ import { readFile } from "node:fs/promises";
 import { startNode } from "../../apps/server/src/start-node.ts";
 import { checkSettings } from "../../apps/server/src/settings.ts";
 const settings = checkSettings(JSON.parse(await readFile(process.env.BOARD_SETTINGS!, "utf8")));
+let fixedNow: number | null = null;
 let offset = 0, unreachable: string[] = [];
-const app = await startNode(settings, { now: () => Date.now() + offset, backupLimit: 16777216 });
+const app = await startNode(settings, { now: () => fixedNow ?? Date.now() + offset, backupLimit: 16777216 });
 const original = app.runtime.room;
 app.runtime.room = (board) => {
   const room = original(board);
-  return { ticket: (p) => room.ticket(p), export: (p) => room.export(p), backup: () => room.backup(), restore: (v) => room.restore(v),
+  return { rename: (p, title) => room.rename(p, title), ticket: (p) => room.ticket(p), export: (p) => room.export(p), backup: () => room.backup(), restore: (v) => room.restore(v),
     changed: () => unreachable.includes(board) ? Promise.reject(Error("Room unavailable")) : room.changed() };
 };
 process.on("message", async (message: any) => {
   try {
     let result: any = {};
     const value = message.value;
+    if (value.fixedNow !== undefined) fixedNow = value.fixedNow;
     if (value.offset !== undefined) offset = value.offset;
     if (value.unreachable) unreachable = value.unreachable;
     if (value.backupLimit !== undefined) for (const entry of app.rooms.values()) entry.room.env.backupLimit = value.backupLimit;

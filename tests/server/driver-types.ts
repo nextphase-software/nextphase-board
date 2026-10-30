@@ -9,6 +9,7 @@ export interface Peer {
 }
 export type Context = {
   people: Record<string, { id: string; email: string; token: string }>;
+  listsPeople: Context["people"];
   bad: Record<string, string>; jwks: object; issuer: string; proxyUrl: string; helperUrl: string;
   origin: string; operatorKey: string; stack: { apiUrl: string }; serviceKey: string;
 };
@@ -19,7 +20,7 @@ export interface Driver {
   control(value: Record<string, unknown>): Promise<any>;
   wake(board: string): Promise<void>;
   restoreFile(board: string, envelope: unknown, fenced: boolean): Promise<void>;
-  volumeCopy?(board: string): Promise<void>;
+  volumeCopy?(board: string, whileNewer?: () => Promise<void>): Promise<void>;
   rows(board: string, table: string): Promise<any[]>;
   close(): Promise<void>;
 }

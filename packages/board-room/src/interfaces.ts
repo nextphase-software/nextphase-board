@@ -9,7 +9,15 @@ export interface AccessSource {
   role(person: string, board: string): Promise<Role | null>;
   changes(board: string, after: number): Promise<AccessPage>;
 }
+export type SavedBoard = { boardId: string; title: string; editedAt: number; generation: number; revision: number };
+export interface BoardRows {
+  copy(saved: Omit<SavedBoard, "editedAt"> & { editedAt: number | null }): Promise<void>;
+  opened(person: string, board: string, at: number): Promise<void>;
+}
+export interface Background { run(task: Promise<void>): void }
 export interface RoomEnvironment {
+  rows?: BoardRows;
+  background?: Background;
   storage: Storage;
   access: AccessSource;
   now(): number;

@@ -123,6 +123,7 @@ check(5, "pinned keys survive endpoint failure", async () => {
 check(6, "every protected route checks tokens before lookups", async () => {
   const f = await fixture();
   const routes = (id: string) => [
+    ["GET", "/workspaces"], ["GET", `/workspaces/${id}/boards`], ["GET", "/recent-boards"], ["PATCH", `/boards/${id}`],
     ["POST", `/workspaces/${id}/boards`], ["GET", `/boards/${id}`], ["POST", `/boards/${id}/join-tickets`], ["GET", `/boards/${id}/export`],
     ...["members", "grants", "invitations"].map((part) => ["GET", `/workspaces/${id}/${part}`]),
     ["POST", `/workspaces/${id}/invitations`], ["POST", `/boards/${id}/invitations`],
@@ -559,12 +560,17 @@ check(47, "operator authentication limits and runner-specific routes", async () 
 check(48, "schema is repeatable and authenticated writes are denied", async () => {
   const f = await fixture();
   const catalog = await helper("sql", { sql: `SELECT count(*), bool_and(relrowsecurity) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='nextphase_board' AND relkind='r';
-    SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='nextphase_board' AND p.proname IN ('bootstrap_workspace','remember_person','create_board','write_member_role','write_board_grant','create_invitation','cancel_invitation','accept_invitation','access_changes_after') AND has_function_privilege('authenticated',p.oid,'execute');` });
-  assert.match(catalog, /8\|t/); assert.match(catalog, /\n0\n/);
-  for (const table of ["people", "workspaces", "workspace_members", "boards", "board_grants", "invitations", "access_changes", "access_log_floor"]) {
+    SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='nextphase_board' AND p.proname IN ('bootstrap_workspace','remember_person','create_board','write_member_role','write_board_grant','create_invitation','cancel_invitation','accept_invitation','access_changes_after','record_board_open','copy_saved_board','list_workspaces','list_boards','list_recent_boards') AND has_function_privilege('authenticated',p.oid,'execute');` });
+  assert.match(catalog, /9\|t/); assert.match(catalog, /\n0\n/);
+  for (const table of ["people", "workspaces", "workspace_members", "boards", "board_opens", "board_grants", "invitations", "access_changes", "access_log_floor"]) {
     assert((await helper("rls", { token: person("owner").token, table, write: { id: crypto.randomUUID() } })).error);
   }
   for (const [rpc, parameters] of [
+    ["record_board_open", { person: person("owner").id, board: f.a, opened_at: new Date().toISOString() }],
+    ["copy_saved_board", { board: f.a, title: "Forbidden", edited_at: null, generation: 0, revision: 0 }],
+    ["list_workspaces", { person: person("owner").id }],
+    ["list_boards", { person: person("owner").id, workspace: f.workspace, sort: "edited", direction: "desc", after_key: null, after_id: null }],
+    ["list_recent_boards", { person: person("owner").id }],
     ["remember_person", { person: person("owner").id, email: person("owner").email }],
     ["create_board", { workspace: f.workspace, person: person("owner").id, title: "Forbidden" }],
     ["write_member_role", { workspace: f.workspace, person: person("viewer").id, role: "editor" }],

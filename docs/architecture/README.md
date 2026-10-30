@@ -245,3 +245,8 @@ The 0003-W1 v1 implementation uses these committed prerequisites:
 - [0001 web modules v24](0001-web-modules-v24.md): the shared sync/room packages and server import boundaries.
 
 The browser client and its local data formats remain unchanged in this milestone.
+
+For 0003-W3 v1, the server uses [0003 API v2](0003-api-v2.md),
+[0003 access v2](0003-access-v2.md) and
+[0003 hosted persistence v2](0003-hosted-persistence-v2.md) in place of their v1
+contracts. The other 0003-W1 prerequisites above remain in force.

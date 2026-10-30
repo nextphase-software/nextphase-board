@@ -15,6 +15,6 @@ export default defineConfig({
     } };
   })],
   resolve: { alias: { "board-test-driver": fileURLToPath(new URL("tests/server/driver-workerd.ts", import.meta.url)) } },
-  test: { provide: { runner: "workerd" }, include: ["tests/server/suite.test.ts"], globalSetup: ["tests/server/setup.ts"],
+  test: { provide: { runner: "workerd" }, include: ["tests/server/suite.test.ts", "tests/server/lists.test.ts"], globalSetup: ["tests/server/setup.ts"],
     fileParallelism: false, testTimeout: 120000, hookTimeout: 120000, reporters: ["default"] },
 });

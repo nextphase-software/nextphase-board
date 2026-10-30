@@ -116,10 +116,11 @@ export async function makeDriver(context: Context): Promise<Driver> {
       storage.close();
       await cp(file, resolve(dataDir, "boards", board + ".sqlite")); await start();
     },
-    async volumeCopy(board) {
+    async volumeCopy(board, whileNewer) {
       await stop();
       const copy = resolve(folder, "volume"); await cp(dataDir, copy, { recursive: true });
       await start();
+      if (whileNewer) await whileNewer();
       await ipc({ board, raiseFence: true }); // Make both the board and fence newer than the copy.
       await stop();
       await rm(dataDir, { recursive: true }); await cp(copy, dataDir, { recursive: true });

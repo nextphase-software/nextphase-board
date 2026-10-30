@@ -30,7 +30,7 @@ export function workerRuntime(env: WorkerEnv): Runtime {
       if (!response.ok) throw new RoomError(response.status, result.error.reason, result.error.needed);
       return result;
     }
-    return { ticket: (person) => call("ticket", person), export: (person) => call("export", person),
+    return { rename: (person, title) => call("rename", { person, title }), ticket: (person) => call("ticket", person), export: (person) => call("export", person),
       changed: () => call("changed"), backup: () => call("backup"), restore: (value) => call("restore", value),
       async restoreToTime(bookmark) {
         const result = await call("restore-to-time", bookmark);

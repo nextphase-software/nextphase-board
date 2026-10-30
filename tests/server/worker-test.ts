@@ -4,7 +4,7 @@ import { createApp } from "../../apps/server/src/app.ts";
 import { Auth } from "../../apps/server/src/auth.ts";
 import { workerRuntime, type WorkerEnv } from "../../apps/server/src/worker-runtime.ts";
 export { RestoreFence };
-export type Controls = { offset?: number; fenceUnreadable?: boolean; backupLimit?: number; noOperator?: boolean; unreachable?: string[] };
+export type Controls = { fixedNow?: number | null; offset?: number; fenceUnreadable?: boolean; backupLimit?: number; noOperator?: boolean; unreachable?: string[] };
 export type TestEnv = WorkerEnv & { CONTROLS: DurableObjectNamespace };
 export class TestControls {
   state: DurableObjectState;
@@ -25,7 +25,7 @@ export class BoardRoom extends ProductionRoom {
   environment(board: string) {
     const environment = super.environment(board);
     const actualFence = environment.fence;
-    environment.now = () => Date.now() + (this.current.offset ?? 0);
+    environment.now = () => this.current.fixedNow ?? Date.now() + (this.current.offset ?? 0);
     environment.fence = () => this.current.fenceUnreadable ? Promise.reject(Error("Fence unreadable")) : actualFence();
     environment.backupLimit = this.current.backupLimit ?? environment.backupLimit;
     const auth = new Auth({ supabaseUrl: this.env.SUPABASE_URL, issuer: this.env.SUPABASE_ISSUER, jwks: JSON.parse(this.env.JWKS) }, environment.now);
@@ -41,7 +41,7 @@ export default {
     const state = await controls(env);
     const base = workerRuntime(env);
     const runtime = { ...base, operatorKey: state.noOperator ? undefined : base.operatorKey,
-      auth: new Auth({ supabaseUrl: env.SUPABASE_URL, issuer: env.SUPABASE_ISSUER, jwks: JSON.parse(env.JWKS) }, () => Date.now() + (state.offset ?? 0)),
+      auth: new Auth({ supabaseUrl: env.SUPABASE_URL, issuer: env.SUPABASE_ISSUER, jwks: JSON.parse(env.JWKS) }, () => state.fixedNow ?? Date.now() + (state.offset ?? 0)),
       room(board: string) {
         const room = base.room(board);
         if (state.unreachable?.includes(board)) return { ...room, changed: () => Promise.reject(Error("Room unavailable")) };

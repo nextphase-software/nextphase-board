@@ -119,3 +119,11 @@ evicts Durable Objects with WebSockets hibernated; S37 and S43 are Node only.
 S51–S54 run only with the Docker target. Each executed S check prints one PASS or
 FAIL line; each suite ends with a JSON SUMMARY including measured storage and
 fanout values. Test clocks, faults and rewinds live only in the test bootstraps.
+
+## Workspace discovery checks (0003-W3)
+
+`tests/lists.test.mjs` covers cursor validation, ASCII title order and saved-state
+copy decisions in `npm test`. `tests/server/lists.test.ts` adds S55–S76 to both
+server commands, using independent identities, an injected clock and named RPC
+failures/delays. It prints `SUMMARY-LISTS` and is silent for the Docker target.
+S70 runs only on Node; V12 belongs to the independent review check run.

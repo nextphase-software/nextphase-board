@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { validText } from "nextphase-board-rules/document.ts";
+import { validTitle } from "../cursor.ts";
 import { RoomError } from "nextphase-board-room/protocol.ts";
 import { boardDetails } from "../supabase.ts";
 import type { Runtime } from "../runtime.ts";
@@ -9,9 +9,10 @@ export function boards(app: ServerApp, runtime: Runtime) {
     const workspace = id(c, "workspace"), person = c.get("person");
     await authorize(runtime, person.id, workspace, "workspace", "editor");
     const value = await body(c);
-    shape(value, ["title"]);
-    if (typeof value.title !== "string" || !validText(value.title, 120, true)) throw new RoomError(400, "bad_request");
-    const row = await runtime.db.rpc("create_board", { workspace, person: person.id, title: value.title });
+    shape(value, value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0 ? [] : ["title"]);
+    const title = Object.keys(value).length ? value.title : "Untitled";
+    if (!validTitle(title)) throw new RoomError(400, "bad_request");
+    const row = await runtime.db.rpc("create_board", { workspace, person: person.id, title });
     return c.json(boardDetails(row), 201);
   });
   app.get("/boards/:board", async (c) => {

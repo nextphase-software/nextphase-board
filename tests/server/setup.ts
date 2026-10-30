@@ -30,15 +30,15 @@ export default async function setup(project: any) {
   }
   const run = randomUUID();
   const roles = ["owner", "editor", "viewer", "granted", "plain", "outsider"];
-  const people: Record<string, any> = {};
+  const people: Record<string, any> = {}, listsPeople: Record<string, any> = {};
   const auth = createClient(stack.apiUrl, stack.anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  for (const name of roles) {
-    const email = `w1-${run}-${name}@example.test`, password = randomUUID() + randomUUID();
+  for (const [group, destination] of [["w1", people], ["lists", listsPeople]] as const) for (const name of roles) {
+    const email = `${group}-${run}-${name}@example.test`, password = randomUUID() + randomUUID();
     const result = await db.client.auth.admin.createUser({ email, password, email_confirm: true });
     if (result.error || !result.data.user) throw Error("Cannot create independent test identity");
     const login = await auth.auth.signInWithPassword({ email, password });
     if (login.error || !login.data.session) throw Error("Cannot sign in independent test identity");
-    people[name] = { id: result.data.user.id, email, token: login.data.session.access_token };
+    destination[name] = { id: result.data.user.id, email, token: login.data.session.access_token };
     await db.rpc("remember_person", { person: result.data.user.id, email });
   }
   const keys = JSON.parse(await readFile(stack.signingKeyPath, "utf8"));
@@ -47,6 +47,8 @@ export default async function setup(project: any) {
   const issuer = stack.apiUrl + "/auth/v1";
   const bad = await badTokens(key, issuer, people.owner, stack.jwtSecret);
   let offline = false;
+  const rpcControls = new Map<string, { fail?: boolean; delayMs?: number }>();
+  const rpcLog: { name: string; at: number; parameters: unknown; forwardedAt?: number }[] = [];
   // All server Supabase and key-endpoint calls pass through this proxy. Test
   // administration uses the stack directly, leaving its containers untouched.
   const proxy = createServer(async (req, res) => {
@@ -56,6 +58,15 @@ export default async function setup(project: any) {
       for (const [name, value] of Object.entries(req.headers)) if (value && name !== "host") headers.set(name, Array.isArray(value) ? value.join(",") : value);
       const chunks: Buffer[] = [];
       for await (const chunk of req) chunks.push(Buffer.from(chunk));
+      const name = /^\/rest\/v1\/rpc\/([^?]+)/.exec(req.url ?? "")?.[1];
+      if (name) {
+        const record = { name, at: Date.now(), parameters: chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {} };
+        rpcLog.push(record);
+        const control = rpcControls.get(name);
+        if (control?.delayMs) await new Promise((resolve) => setTimeout(resolve, control.delayMs));
+        if (control?.fail) { res.writeHead(503); res.end(); return; }
+        (record as any).forwardedAt = Date.now();
+      }
       const response = await fetch(stack.apiUrl + req.url, { method: req.method, headers,
         ...(chunks.length ? { body: Buffer.concat(chunks) } : {}) });
       res.writeHead(response.status, Object.fromEntries(response.headers)); res.end(Buffer.from(await response.arrayBuffer()));
@@ -63,9 +74,10 @@ export default async function setup(project: any) {
   });
   await new Promise<void>((resolve) => proxy.listen(0, "0.0.0.0", resolve));
   const proxyUrl = `http://127.0.0.1:${(proxy.address() as any).port}`;
+  const contextPeople = people;
   let caseNumber = 0;
   const createdWorkspaces: string[] = [], invitedIds: string[] = [];
-  async function fixture() {
+  async function fixture(people = contextPeople) {
     const workspace = await db.rpc<string>("bootstrap_workspace", { name: `W1 ${run} ${++caseNumber}`, owner_id: people.owner.id, owner_email: people.owner.email });
     createdWorkspaces.push(workspace);
     for (const [name, offered] of [["editor", "editor"], ["viewer", "viewer"], ["granted", "guest"], ["plain", "guest"]]) {
@@ -84,7 +96,12 @@ export default async function setup(project: any) {
       let result: any;
       switch (req.url) {
         case "/fixture": result = await fixture(); break;
-        case "/proxy": offline = value.offline; result = {}; break;
+        case "/lists-fixture": result = await fixture(listsPeople); break;
+        case "/proxy":
+          if (value.offline !== undefined) offline = value.offline;
+          if (value.rpc) rpcControls.set(value.rpc, { fail: value.fail, delayMs: value.delayMs });
+          if (value.clearLog) rpcLog.length = 0;
+          result = rpcLog; break;
         case "/rpc":
           result = await db.rpc(value.name, value.parameters);
           if (value.name === "bootstrap_workspace") createdWorkspaces.push(result);
@@ -137,7 +154,7 @@ export default async function setup(project: any) {
     } catch (error) { res.writeHead(500, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Test helper failed", detail: (error as Error).message.slice(0, 300) })); }
   });
   await new Promise<void>((resolve) => helper.listen(0, "127.0.0.1", resolve));
-  const context = { docker: process.env.BOARD_TEST_TARGET === "docker", people, bad, jwks, issuer, proxyUrl, helperUrl: `http://127.0.0.1:${(helper.address() as any).port}`,
+  const context = { docker: process.env.BOARD_TEST_TARGET === "docker", people, listsPeople, bad, jwks, issuer, proxyUrl, helperUrl: `http://127.0.0.1:${(helper.address() as any).port}`,
     origin: "http://127.0.0.1:4173", operatorKey: randomUUID(), stack: { apiUrl: stack.apiUrl }, serviceKey: stack.serviceRoleKey };
   project.provide("board", context);
   return async () => {
@@ -150,7 +167,7 @@ export default async function setup(project: any) {
       DELETE FROM nextphase_board.workspace_members WHERE workspace_id='${workspace}';
       DELETE FROM nextphase_board.access_log_floor WHERE workspace_id='${workspace}';
       DELETE FROM nextphase_board.workspaces WHERE id='${workspace}'; COMMIT;`);
-    for (const person of [...Object.values(people), ...invitedIds.map((id) => ({ id }))]) {
+    for (const person of [...Object.values(people), ...Object.values(listsPeople), ...invitedIds.map((id) => ({ id }))]) {
       await db.client.schema("nextphase_board").from("people").delete().eq("id", person.id);
       await db.client.auth.admin.deleteUser(person.id);
     }

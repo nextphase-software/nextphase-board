@@ -15,7 +15,8 @@ export function roomEnvironment(state: DurableObjectState, env: WorkerEnv, board
     if (!response.ok) throw Error("Restore fence unavailable");
     return (await response.json() as { generation: number }).generation;
   };
-  return { storage: new WorkerStorage(state.storage), access: runtime.db, now: Date.now,
+  return { storage: new WorkerStorage(state.storage), access: runtime.db, rows: runtime.db,
+    background: { run: (task) => state.waitUntil(task) }, now: Date.now,
     fence: () => fenceCall("read"), raiseFence: () => fenceCall("raise"),
     hash: async (value) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(value)))].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
     randomTicket: () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
@@ -60,6 +61,7 @@ export class WorkerRoom {
       let result: unknown;
       switch (url.pathname) {
         case "/ticket": result = await room.ticket(value); break;
+        case "/rename": result = await room.rename(value.person, value.title); break;
         case "/export": result = await room.export(value); break;
         case "/changed": await room.changed(); result = null; break;
         case "/backup": result = await room.backup(); break;

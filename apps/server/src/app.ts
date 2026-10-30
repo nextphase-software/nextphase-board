@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { errorBody, RoomError } from "nextphase-board-room/protocol.ts";
 import type { Runtime, AppVariables } from "./runtime.ts";
 import { accessRoutes } from "./routes/access.ts";
+import { lists } from "./routes/lists.ts";
 import { boards } from "./routes/boards.ts";
 import { invitations } from "./routes/invitations.ts";
 import { operators } from "./routes/operator.ts";
@@ -19,7 +20,7 @@ export function createApp(runtime: Runtime) {
       c.header("Vary", "Origin");
     }
     if (c.req.method === "OPTIONS" && origin === runtime.allowedOrigin) {
-      c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+      c.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
       c.header("Access-Control-Allow-Headers", "Authorization, Content-Type");
       return c.body(null, 204);
     }
@@ -28,6 +29,7 @@ export function createApp(runtime: Runtime) {
     await next();
   });
   boards(app, runtime);
+  lists(app, runtime);
   accessRoutes(app, runtime);
   invitations(app, runtime);
   operators(app, runtime);

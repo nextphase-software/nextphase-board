@@ -4,6 +4,7 @@ import { WebSocketServer } from "ws";
 import { mkdir, access } from "node:fs/promises";
 import { resolve } from "node:path";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
+import { meta } from "nextphase-board-room/storage.ts";
 import { Room } from "nextphase-board-room/room.ts";
 import { BACKUP_LIMIT, RoomError, type Attachment, type Connection } from "nextphase-board-room/protocol.ts";
 import { NodeStorage } from "./node-storage.ts";
@@ -47,6 +48,11 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
       });
     },
   };
+  const tasks = new Set<Promise<void>>();
+  const background = { run(task: Promise<void>) {
+    tasks.add(task);
+    void task.finally(() => tasks.delete(task)).catch(() => {});
+  } };
   const rooms = new Map<string, { room: Room; storage: NodeStorage; connections: Set<Connection>; timer?: ReturnType<typeof setTimeout> }>();
   function roomEntry(board: string) {
     let entry = rooms.get(board);
@@ -55,7 +61,17 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
     storage.exec("CREATE TABLE IF NOT EXISTS waiting (connection_id TEXT, sequence INTEGER, message_bytes INTEGER NOT NULL, received_at INTEGER NOT NULL, deadline INTEGER NOT NULL, request_id TEXT NOT NULL, \"update\" BLOB NOT NULL, PRIMARY KEY(connection_id, sequence))");
     storage.exec("DELETE FROM waiting");
     const connections = new Set<Connection>();
-    const room = new Room(board, { storage, access: db, now, fence: () => fences.read(board), raiseFence: () => fences.raise(board),
+    const room = new Room(board, { storage, access: db, rows: db, background, now,
+      async fence() {
+        let generation = await fences.read(board);
+        if (meta(storage, "restore_pending")) {
+          const row = (await db.rows("boards", { id: board }))[0];
+          if (!row) throw Error("Board row unavailable");
+          const minimum = Math.max(generation, Number(row.document_generation));
+          do { generation = await fences.raise(board); } while (generation <= minimum);
+        }
+        return generation;
+      }, raiseFence: () => fences.raise(board),
       hash: async (value) => createHash("sha256").update(value).digest("hex"), randomTicket: () => randomBytes(32).toString("base64url"),
       randomId: randomUUID, verify: (token) => auth.verify(token), connections: () => [...connections],
       backupLimit: options.backupLimit ?? BACKUP_LIMIT,
@@ -128,7 +144,9 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
         for (const connection of entry.connections) connection.close(1001);
       }
       await new Promise<void>((resolve) => server.close(() => resolve()));
-      for (const entry of rooms.values()) { await entry.room.ordered(async () => {}); entry.storage.close(); }
+      for (const entry of rooms.values()) await entry.room.ordered(async () => {});
+      while (tasks.size) await Promise.allSettled([...tasks]);
+      for (const entry of rooms.values()) { clearTimeout(entry.timer); entry.storage.close(); }
       fenceStorage?.close();
     },
   };

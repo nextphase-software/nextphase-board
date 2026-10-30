@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { RoomError, type Role } from "nextphase-board-room/protocol.ts";
-import type { AccessPage, AccessSource, BoardDetails } from "nextphase-board-room/interfaces.ts";
+import type { AccessPage, AccessSource, BoardDetails, BoardRows, SavedBoard } from "nextphase-board-room/interfaces.ts";
+import type { Cursor, Sort, Order } from "./cursor.ts";
 export type RecordRow = Record<string, any>;
-export class Supabase implements AccessSource {
+export class Supabase implements AccessSource, BoardRows {
   client: SupabaseClient;
   constructor(url: string, serviceKey: string, fetcher = fetch) {
     this.client = createClient(url, serviceKey, {
@@ -42,6 +43,19 @@ export class Supabase implements AccessSource {
     const granted = await this.rows("board_grants", { person_id: person });
     return granted.some((grant) => boards.some((board) => board.id === grant.board_id)) ? "guest" : null;
   }
+  async copy(saved: Omit<SavedBoard, "editedAt"> & { editedAt: number | null }): Promise<void> {
+    await this.rpc("copy_saved_board", { board: saved.boardId, title: saved.title,
+      edited_at: saved.editedAt === null ? null : new Date(saved.editedAt).toISOString(),
+      generation: saved.generation, revision: saved.revision });
+  }
+  async opened(person: string, board: string, at: number): Promise<void> {
+    await this.rpc("record_board_open", { person, board, opened_at: new Date(at).toISOString() });
+  }
+  workspaces(person: string): Promise<RecordRow[]> { return this.rpc("list_workspaces", { person }); }
+  boards(person: string, workspace: string, sort: Sort, direction: Order, after?: Cursor): Promise<RecordRow[]> {
+    return this.rpc("list_boards", { person, workspace, sort, direction, after_key: after?.key ?? null, after_id: after?.id ?? null });
+  }
+  recentBoards(person: string): Promise<RecordRow[]> { return this.rpc("list_recent_boards", { person }); }
   async account(email: string) {
     for (let page = 1; ; page++) {
       const { data, error } = await this.client.auth.admin.listUsers({ page, perPage: 1000 });

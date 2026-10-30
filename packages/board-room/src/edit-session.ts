@@ -8,7 +8,7 @@ import { snapshot } from "./snapshots.ts";
 import { meta, setMeta } from "./storage.ts";
 import { base64, bytes, send, unbase64, type Connection } from "./protocol.ts";
 type Edit = { requestId: string; epoch: number; update: string };
-type LiveBoard = { doc: Y.Doc; board: BoardV10 };
+type LiveBoard = { doc: Y.Doc; board: BoardV10; saved(): void };
 
 // Called only inside the room's queue. This module owns edit authorization,
 // receipts and waiting edits; the room owns lifecycle and transport framing.
@@ -83,6 +83,7 @@ export class EditSession {
     for (const other of this.env.connections()) if (other.attachment().connectionId !== connection.attachment().connectionId) {
       send(other, { kind: "update", revision, update: base64(update) });
     }
+    this.host.saved();
     return "saved";
   }
   private async retryWaiting() {

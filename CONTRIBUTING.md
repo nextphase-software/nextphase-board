@@ -5,7 +5,7 @@ are offered under that license unless explicitly stated otherwise. Preserve
 applicable copyright and attribution notices.
 
 The first development application uses the exact stack in the
-[0001 toolchain v2 contract](docs/architecture/0001-toolchain-v2.md)
+[0001 toolchain v3 contract](docs/architecture/0001-toolchain-v3.md)
 (Node 26.13.0 / npm 11.20.0). Use only the minimum
 [focused checks](tests/README.md) needed for the changed behavior. Broader testing
 requires an explicit maintainer instruction. Each implementation

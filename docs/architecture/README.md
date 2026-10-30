@@ -6,10 +6,15 @@ Current accepted implementation contract set for 0001-W1 brief v6:
 - [0001 storage v1](0001-storage-v1.md): save ordering, writer ownership and recovery.
 - [0001 interaction v4](0001-interaction-v4.md): full canvas, floating controls,
   native overlay/secondary-panel editing, placement, focus and browser evidence.
-- [0001 toolchain v2](0001-toolchain-v2.md), for 0001-W12 v1: Node 26.13.0 /
+- [0001 toolchain v2](0001-toolchain-v2.md), accepted with 0001-W12 v1: Node 26.13.0 /
   npm 11.20.0, generated lock, notices, public-input verification and application
   commands. It replaces [toolchain v1](0001-toolchain-v1.md) for later work; v1
   remains as history.
+- [0001 toolchain v3](0001-toolchain-v3.md), a draft for 0016-W2 v1: the repository's own
+  packages under `packages/`, linked into the app with npm, the
+  [v3 lock](0001-dependency-lock-v3.json) with the link's two entries, the
+  [v3 inventory](0001-dependency-inventory-v3.json) and a type check of the board rules
+  package without browser types. It replaces toolchain v2 for later work once accepted.
 
 [0001 interaction v5](0001-interaction-v5.md), accepted with 0001-W2, adds undo,
 redo, duplicate and delete with session-only history and scene-scoped shortcuts,
@@ -189,7 +194,7 @@ heads and line shapes, reconnecting by pointer and from Objects, and the remembe
 and [0001 web modules v21](0001-web-modules-v21.md) adds two rules modules and three screen
 parts. They replace document v8, interaction v22 and web modules v20 for later work.
 
-Drafts for 0012-W1 brief v1: [0001 document v10](0001-document-v10.md) adds the `image` type (a
+Accepted with 0012-W1 brief v1: [0001 document v10](0001-document-v10.md) adds the `image` type (a
 picture placed as an idea, saved as a reference to its picture's SHA-256, its pixel size and a
 description) and says how version 1 to 9 boards are read;
 [0001 storage v3](0001-storage-v3.md) keeps each picture once, as its own record beside the
@@ -200,7 +205,13 @@ versions 1 and 2 and raises the limit to 72 MiB;
 files, importing, drawing, resizing, Description and Objects work for images; and
 [0001 web modules v22](0001-web-modules-v22.md) adds an object type, two rules modules, a hook, a
 scene part and a screen part. They replace document v9, storage v2, board file v1, interaction v23
-and web modules v21 for later work once accepted.
+and web modules v21 for later work.
+
+Draft for 0016-W2 brief v1: [0001 web modules v23](0001-web-modules-v23.md) moves the saved
+document, its validation, text marks, the style palette and the object types into the board
+rules package, `packages/board-rules`, keeps the Yjs adapter in the web app, and adds a rule and
+guard tests that keep the package free of the web app and the browser. It replaces web modules
+v22 for later work once accepted.
 
 Document/storage v1 are incorporated unchanged. Toolchain v2 changes only the
 runtime pin and accepted snapshots; all other toolchain v1 rules still apply.

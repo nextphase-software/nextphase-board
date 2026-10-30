@@ -1,12 +1,15 @@
 BRIEF VERSION: 0012-W1 v1 (2026-10-28)
 # 0012-W1 — Paste and import local images
 
-Status: Draft. Implementation starts only after the maintainer commits this brief,
-[0001 document v10](../architecture/0001-document-v10.md),
+Status: Implemented. Independently reviewed at `944a4b2` (pass) and merged into main
+on 2026-10-29 with [0001 document v10](../architecture/0001-document-v10.md),
 [0001 storage v3](../architecture/0001-storage-v3.md),
 [0006 board file v2](../architecture/0006-board-file-v2.md),
 [0001 interaction v24](../architecture/0001-interaction-v24.md) and
-[0001 web modules v22](../architecture/0001-web-modules-v22.md) to main.
+[0001 web modules v22](../architecture/0001-web-modules-v22.md). Its
+[evidence summary](0012-W1-paste-and-import-local-images-evidence.md) maps each criterion to
+its checks. The implementation record below, which lists the validated revisions, was
+written before that review.
 
 ## Outcome
 

@@ -20,7 +20,7 @@ file if you want to keep one. Desktop Chrome and Safari are the browsers checked
 ## Run locally
 
 Use **Node 26.13.0 and npm 11.20.0**, as specified in the
-[toolchain contract](docs/architecture/0001-toolchain-v2.md). From the repository root:
+[toolchain contract](docs/architecture/0001-toolchain-v3.md). From the repository root:
 
 ```sh
 npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund

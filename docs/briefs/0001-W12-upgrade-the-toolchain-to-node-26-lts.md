@@ -1,8 +1,10 @@
 BRIEF VERSION: 0001-W12 v1 (2026-10-22)
 # 0001-W12 — Upgrade the toolchain to Node 26 LTS
 
-Status: Draft. Implementation starts only after the maintainer commits this brief
-and [0001 toolchain v2](../architecture/0001-toolchain-v2.md) to main.
+Status: Implemented. Independently reviewed at `29e4280` (pass) and merged into main
+on 2026-10-29 with [0001 toolchain v2](../architecture/0001-toolchain-v2.md). The
+implementation record below, which lists the validated revisions, was written before
+that review.
 
 ## Outcome
 

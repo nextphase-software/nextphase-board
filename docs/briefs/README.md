@@ -184,19 +184,37 @@ and nothing else, following [document v8](../architecture/0001-document-v8.md),
 [web modules v20](../architecture/0001-web-modules-v20.md), is implemented and merged into main.
 
 [0002-W3 v1 — Style and reconnect relationships](0002-W3-style-and-reconnect-relationships.md)
-is a draft: a selected connector's bar sets its colour, line style, start and end heads and line
+in which a selected connector's bar sets its colour, line style, start and end heads and line
 shape (elbowed, curved or straight); dragging an end circle, or Objects' Ends fields, moves that
 end to another idea or side and pins it; new connectors take the last style chosen; styles and
 sides are saved in document version 9, following
 [document v9](../architecture/0001-document-v9.md),
 [interaction v23](../architecture/0001-interaction-v23.md) and
-[web modules v21](../architecture/0001-web-modules-v21.md).
+[web modules v21](../architecture/0001-web-modules-v21.md), is implemented and merged into main.
+
+[0012-W1 v1 — Paste and import local images](0012-W1-paste-and-import-local-images.md),
+in which an Image button, pasting and dropping files put PNG, JPEG, GIF and WebP pictures on the
+board as images that move, resize keeping their shape, copy and carry a description; each picture
+is stored once in the browser beside the board, and board files carry the pictures, following
+[document v10](../architecture/0001-document-v10.md),
+[storage v3](../architecture/0001-storage-v3.md),
+[board file v2](../architecture/0006-board-file-v2.md),
+[interaction v24](../architecture/0001-interaction-v24.md) and
+[web modules v22](../architecture/0001-web-modules-v22.md), is implemented and merged into main.
 
 [0001-W12 v1 — Upgrade the toolchain to Node 26 LTS](0001-W12-upgrade-the-toolchain-to-node-26-lts.md)
-is a draft: the pinned toolchain moves from Node.js 24.22.1 to Node.js 26.13.0, the first
+in which the pinned toolchain moves from Node.js 24.22.1 to Node.js 26.13.0, the first
 Node 26 LTS release, with its bundled npm 11.20.0; the dependency lock changes only in its root
 `engines` values and the application, its dependencies and its behavior stay the same, following
-[toolchain v2](../architecture/0001-toolchain-v2.md).
+[toolchain v2](../architecture/0001-toolchain-v2.md), is implemented and merged into main.
+
+[0016-W2 v1 — Board rules move into a shared package](0016-W2-board-rules-package.md)
+is a draft: the saved document and its validation, text marks, the style palette and the eight
+object types move from the web app into `packages/board-rules`, a package the web app links with
+npm and imports by name, so that a server can later use the same rules; the Yjs adapter stays in
+the web app and nothing a person sees or saves changes, following
+[toolchain v3](../architecture/0001-toolchain-v3.md) and
+[web modules v23](../architecture/0001-web-modules-v23.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

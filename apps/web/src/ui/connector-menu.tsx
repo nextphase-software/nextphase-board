@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { RefObject } from "react";
-import type { ConnectorItem } from "../document";
-import { HEADS, HEAD_LABELS, LINE_SHAPES, LINE_SHAPE_LABELS, SHAPE_COLORS, shapeColor, shapeColorLabel, type ConnectorStyle, type End } from "../objects/registry";
+import type { ConnectorItem } from "nextphase-board-rules/document.ts";
+import { HEADS, HEAD_LABELS, LINE_SHAPES, LINE_SHAPE_LABELS, SHAPE_COLORS, shapeColor, shapeColorLabel, type ConnectorStyle, type End } from "nextphase-board-rules/objects/registry.ts";
 import { Icon } from "../icons";
 import { CustomColour } from "./shape-controls";
 import { HeadIcon, LineShapeIcon, LineStyleIcon } from "./connector-icons";

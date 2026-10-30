@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { PointerEventHandler, ReactNode, RefObject } from "react";
-import type { ResolvedItem as Item } from "../document";
-import { TEXT_INSET, TEXT_LAYOUT } from "../geometry";
-import { objectType, textBox, hasText, hasEnds } from "../objects/registry";
+import { TEXT_INSET, TEXT_LAYOUT, type ResolvedItem as Item } from "../geometry";
+import { objectType, textBox, hasText, hasEnds } from "nextphase-board-rules/objects/registry.ts";
 import { labelEditorBox } from "../connectors";
-import { textUnits } from "../styles";
+import { textUnits } from "nextphase-board-rules/styles.ts";
 import type { View } from "../view";
 
 type Props = {

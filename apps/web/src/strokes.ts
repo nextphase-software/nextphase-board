@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-import { clamp, freshIdentifier, type BoardV10, type StrokeItem, type ItemV10 } from "./document.ts";
-import { isImage, hasPoints, hasRectangle, hasText, usesShapePaint, inkInfo, inkWidth, inkColors, typeWithPoints, rectangleType, type StrokeKeys, type InkPoint, type InkWeight } from "./objects/registry.ts";
+import { clamp, freshIdentifier, type BoardV10, type StrokeItem, type ItemV10 } from "nextphase-board-rules/document.ts";
+import { isImage, hasPoints, hasRectangle, hasText, usesShapePaint, inkInfo, inkWidth, inkColors, typeWithPoints, rectangleType, type StrokeKeys, type InkPoint, type InkWeight } from "nextphase-board-rules/objects/registry.ts";
 import { cornerPoint, type Corner, type Rectangle } from "./resize.ts";
-import type { Style } from "./styles.ts";
+import type { Style } from "nextphase-board-rules/styles.ts";
 import type { Point } from "./selection.ts";
 
 export function drawingPoints(positions: readonly Point[], straight = false): Point[] {
@@ -104,8 +104,8 @@ export function scaleStroke(o: StrokeItem, factor: number, corner: Corner, oppos
   const g = paddedBounds(relative, pad);
   return { ...o, ...g, x: east ? opposite.x : opposite.x - g.width, y: south ? opposite.y : opposite.y - g.height };
 }
-export function resizeWithStrokes(corner: Corner, members: readonly { object: Exclude<ItemV10, import("./document.ts").ConnectorItem>; rectangle: Rectangle }[], delta: Point,
-  neededHeight: (object: Exclude<ItemV10, import("./document.ts").ConnectorItem>, width: number) => number): (ItemV10 & Rectangle)[] {
+export function resizeWithStrokes(corner: Corner, members: readonly { object: Exclude<ItemV10, import("nextphase-board-rules/document.ts").ConnectorItem>; rectangle: Rectangle }[], delta: Point,
+  neededHeight: (object: Exclude<ItemV10, import("nextphase-board-rules/document.ts").ConnectorItem>, width: number) => number): (ItemV10 & Rectangle)[] {
   if (!members.length || !delta.x && !delta.y) return members.map((m) => m.object);
   const x = Math.min(...members.map((m) => m.rectangle.x)), y = Math.min(...members.map((m) => m.rectangle.y));
   const bounds = { x, y, width: Math.max(...members.map((m) => m.rectangle.x + m.rectangle.width)) - x,

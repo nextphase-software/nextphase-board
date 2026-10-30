@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { add, empty, validate } from "../apps/web/src/document.ts";
+import { add, empty, validate } from "../packages/board-rules/src/document.ts";
 import { expandSelection, groupNumbers, groupObjects, groupReason, pressSelection, toggleGroup, ungroupObjects, wholeGroups } from "../apps/web/src/group.ts";
 import { boundingBox, boxSelection, limitMove } from "../apps/web/src/selection.ts";
 

@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { App } from "../../apps/web/src/App";
-import { add, empty } from "../../apps/web/src/document";
+import { add, empty } from "../../packages/board-rules/src/document.ts";
 import { LocalStore, readPair } from "../../apps/web/src/storage";
 
 // Integration regressions use real App/IndexedDB, with synthetic DOM input and

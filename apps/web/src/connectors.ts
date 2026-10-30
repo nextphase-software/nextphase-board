@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import { freshIdentifier, type BoardV10, type ConnectorItem, type ItemV10 } from "./document.ts";
+import { freshIdentifier, type BoardV10, type ConnectorItem, type ItemV10 } from "nextphase-board-rules/document.ts";
 import { editingCommandReason } from "./commands.ts";
-import { eligibleIdea, hasPoints, hasEnds, hasRectangle, isContainer, orderBand, typeWithEnds, type EndsKeys, type End, type ConnectorStyle, defaultConnectorStyle, validConnectorStyle, outlinePoint, lineWidth, lineDash } from "./objects/registry.ts";
+import { eligibleIdea, hasPoints, hasEnds, hasRectangle, isContainer, orderBand, typeWithEnds, type EndsKeys, type End, type ConnectorStyle, defaultConnectorStyle, validConnectorStyle, outlinePoint, lineWidth, lineDash } from "nextphase-board-rules/objects/registry.ts";
 import { boxSelection, type DisplayObject, type Point } from "./selection.ts";
 import { strokeHit, strokeInBox } from "./strokes.ts";
 import type { Rectangle } from "./resize.ts";
@@ -11,7 +11,7 @@ import { connectorHead, type ConnectorHead } from "./connector-heads.ts";
 
 export const FOLLOW_REASON = "Connectors follow the ideas they join.";
 export const COPY_REASON = "Select both ideas to copy their connector.";
-export type DrawnRectangle = Rectangle & { displayHeight?: number; type?: string; shape?: import("./objects/registry.ts").ShapeKeys["shape"] };
+export type DrawnRectangle = Rectangle & { displayHeight?: number; type?: string; shape?: import("nextphase-board-rules/objects/registry.ts").ShapeKeys["shape"] };
 export type Side = "left" | "right" | "top" | "bottom";
 export type Midpoint = Point & { side: Side; normal: Point };
 export type ConnectorLayout = {
@@ -170,7 +170,7 @@ export function selectInBox<T extends DisplayObject & { type: string; connectorL
 }
 export function hitObject<T extends DisplayObject & { type: string; text?: string; connectorLayout?: ConnectorLayout }>(objects: readonly T[], point: Point, zoom: number): T | undefined {
   const ordered = bands(objects).reverse(), rectangles = ordered.filter((o) => orderBand(o) === 2);
-  return rectangles.find((o) => hasPoints(o) ? strokeHit(o as unknown as import("./document.ts").StrokeItem, point, zoom) : insideBox(point, { ...o, height: o.displayHeight }))
+  return rectangles.find((o) => hasPoints(o) ? strokeHit(o as unknown as import("nextphase-board-rules/document.ts").StrokeItem, point, zoom) : insideBox(point, { ...o, height: o.displayHeight }))
     ?? ordered.find((o) => hasEnds(o) && o.text && insideBox(point, o.connectorLayout!.labelBox))
     ?? ordered.find((o) => hasEnds(o) && lineHit(o.connectorLayout!, point, zoom))
     ?? ordered.find((o) => isContainer(o) && insideBox(point, { ...o, height: o.displayHeight }));

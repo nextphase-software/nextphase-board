@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { RefObject } from "react";
-import type { ImageItem } from "../document.ts";
-import { count } from "../document.ts";
+import type { ImageItem } from "nextphase-board-rules/document.ts";
+import { count } from "nextphase-board-rules/document.ts";
 export type ImagePicker = { disabled: boolean; mac: boolean; choose: () => void };
 export type DescriptionControl = {
   image: ImageItem | undefined; value: string; opened: boolean; disabled: boolean;

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { readBoardFile } from "./board-file.ts";
-import { upgrade, type BoardV7, type ItemV7, type BoardV10, type ItemV10 } from "./document.ts";
+import { upgrade, type BoardV7, type ItemV7, type BoardV10, type ItemV10 } from "nextphase-board-rules/document.ts";
 import { copyObjects } from "./clipboard.ts";
-import { hasEnds, hasRectangle, isContainer, rectangleType } from "./objects/registry.ts";
+import { hasEnds, hasRectangle, isContainer, rectangleType } from "nextphase-board-rules/objects/registry.ts";
 import type { View } from "./view.ts";
 
 export type Activity = { name: string; file: string };

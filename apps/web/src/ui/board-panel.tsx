@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
-import { count, validText, type Board as SavedBoard, type BoardV10 as Board } from "../document";
+import { count, validText, type Board as SavedBoard, type BoardV10 as Board } from "nextphase-board-rules/document.ts";
 import type { BoardEntry } from "../board-catalog";
 import { BoardsList } from "./boards-list";
 

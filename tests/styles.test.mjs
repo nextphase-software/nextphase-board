@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   ALIGNMENTS, COLORS, TEXT_SIZES,
   colorEntry, commonStyle, textUnits,
-} from "../apps/web/src/styles.ts";
+} from "../packages/board-rules/src/styles.ts";
 
 test("tables cover exactly the document v2 names and interaction v8 values", () => {
   assert.deepEqual(COLORS.map((c) => c.name), ["rose", "yellow", "orange", "green", "teal", "blue", "violet", "neutral"]);

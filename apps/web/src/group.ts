@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import { freshIdentifier, type BoardV10 } from "./document.ts";
-import { isContainer, hasRectangle } from "./objects/registry.ts";
+import { freshIdentifier, type BoardV10 } from "nextphase-board-rules/document.ts";
+import { isContainer, hasRectangle } from "nextphase-board-rules/objects/registry.ts";
 import { editingCommandReason } from "./commands.ts";
 
 import { FOLLOW_REASON } from "./connectors.ts";

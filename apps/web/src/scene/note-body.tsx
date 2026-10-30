@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Group, Rect, Text } from "react-konva";
-import type { RectangleItem as Item } from "../document";
+import type { RectangleItem as Item } from "nextphase-board-rules/document.ts";
 import { TEXT_INSET, TEXT_LAYOUT } from "../geometry";
-import { objectType } from "../objects/registry";
-import { textUnits } from "../styles";
+import { objectType } from "nextphase-board-rules/objects/registry.ts";
+import { textUnits } from "nextphase-board-rules/styles.ts";
 import { lineOffset, type RunLine } from "../text-runs";
 import type { View } from "../view";
 

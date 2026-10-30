@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { FLAGS, type Flag, type Mark } from "./marks.ts";
+import { FLAGS, type Flag, type Mark } from "nextphase-board-rules/marks.ts";
 
 export type RunStyle = Pick<Mark, Flag>;
 export type Piece = { text: string; style: RunStyle; x: number; width: number };

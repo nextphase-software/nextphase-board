@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { ConnectorStyle } from "../objects/registry";
+import type { ConnectorStyle } from "nextphase-board-rules/objects/registry.ts";
 export function HeadIcon({ head, start = false }: { head: ConnectorStyle["startHead"]; start?: boolean }) {
   const paths = {
     none: null,

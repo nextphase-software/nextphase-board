@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { placementTool } from "../objects/registry";
+import { placementTool } from "nextphase-board-rules/objects/registry.ts";
 import type { Corner, Rectangle } from "../resize";
 import { boundingBox, type DisplayObject } from "../selection";
 import type { View } from "../view";

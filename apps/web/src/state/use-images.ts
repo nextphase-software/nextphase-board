@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type RefObject, type Dispatch, type SetStateAction } from "react";
-import type { Board, BoardV10 } from "../document.ts";
-import { isImage } from "../objects/registry.ts";
+import type { Board, BoardV10 } from "nextphase-board-rules/document.ts";
+import { isImage } from "nextphase-board-rules/objects/registry.ts";
 import { boardPictures, readPictures, storePicture, tabPictures } from "../image-assets.ts";
 import { addImages, decodePicture, describeImage, descriptionDraft, IMAGE_ACCEPT, IMAGE_REASONS, importReason, platformPaste, prepareImage, refusalNotice, type PreparedImage } from "../images.ts";
 import { signature } from "../image-assets.ts";

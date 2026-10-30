@@ -5,10 +5,10 @@ import { readFileSync } from "node:fs";
 import { catalog } from "../apps/web/src/activities/catalog.ts";
 import { activityBox, activityPreview, activityView, insertActivity, readActivity } from "../apps/web/src/activities.ts";
 import { readBoardFile, writeBoardFile } from "../apps/web/src/board-file.ts";
-import { add, canonical, empty as emptyBoard, validate } from "../apps/web/src/document.ts";
+import { add, canonical, empty as emptyBoard, validate } from "../packages/board-rules/src/document.ts";
 import { emptyHistory, record, redo, undo } from "../apps/web/src/history.ts";
 import { groupObjects } from "../apps/web/src/group.ts";
-import { hasEnds, hasRectangle, isContainer, orderBand, rectangleType } from "../apps/web/src/objects/registry.ts";
+import { hasEnds, hasRectangle, isContainer, orderBand, rectangleType } from "../packages/board-rules/src/objects/registry.ts";
 
 const empty = () => ({ ...emptyBoard(), title: "Synthetic activities" });
 const view = { x: 230, y: -170, z: 1 }, size = { w: 1280, h: 800 };

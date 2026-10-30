@@ -2,16 +2,16 @@
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import {
-  Adapter,
   add as addV2,
   canonical,
   empty as emptyV2,
   upgrade,
   validate,
   validText,
-} from "../apps/web/src/document.ts";
-import { objectType } from "../apps/web/src/objects/registry.ts";
-import { ALIGNMENTS, COLORS, TEXT_SIZES } from "../apps/web/src/styles.ts";
+} from "../packages/board-rules/src/document.ts";
+import { Adapter } from "../apps/web/src/document-adapter.ts";
+import { objectType } from "../packages/board-rules/src/objects/registry.ts";
+import { ALIGNMENTS, COLORS, TEXT_SIZES } from "../packages/board-rules/src/styles.ts";
 const legacy = (b) => ({ ...b, schemaVersion: 1, objects: b.objects.map(({ color, textSize, align, group, marks, section, ...o }) => o) });
 const v2 = (b) => ({ ...b, schemaVersion: 2, objects: b.objects.map(({ group, marks, section, ...o }) => o) });
 const v3 = (b) => ({ ...b, schemaVersion: 3, objects: b.objects.map(({ marks, section, ...o }) => o) });

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from "react";
-import type { BoardV10 as Board } from "../document";
-import { count } from "../document";
-import { FLAGS, formatted, formattedRange, type Flag, type TextSelection } from "../marks";
-import { objectType, isImage, hasText, hasPoints, usesShapePaint, commonShapeValue, hasRectangle, hasEnds } from "../objects/registry";
-import { colorEntry, commonStyle } from "../styles";
+import type { BoardV10 as Board } from "nextphase-board-rules/document.ts";
+import { count } from "nextphase-board-rules/document.ts";
+import { FLAGS, formatted, formattedRange, type Flag, type TextSelection } from "nextphase-board-rules/marks.ts";
+import { objectType, isImage, hasText, hasPoints, usesShapePaint, commonShapeValue, hasRectangle, hasEnds } from "nextphase-board-rules/objects/registry.ts";
+import { colorEntry, commonStyle } from "nextphase-board-rules/styles.ts";
 
 type Input = {
   board: Board;

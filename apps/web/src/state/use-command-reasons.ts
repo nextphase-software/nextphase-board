@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { RefObject } from "react";
-import type { Board as SavedBoard, BoardV10 as Board, ResolvedItem as Item } from "../document";
+import type { Board as SavedBoard, BoardV10 as Board } from "nextphase-board-rules/document.ts";
+import type { ResolvedItem as Item } from "../geometry";
 import type { History } from "../history";
-import { placementTool } from "../objects/registry";
+import { placementTool } from "nextphase-board-rules/objects/registry.ts";
 import { editingCommandReason } from "../commands";
 
 import { copiedSetReason } from "../connectors";

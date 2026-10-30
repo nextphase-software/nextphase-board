@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { add, empty, canonical, validate, Adapter } from "../apps/web/src/document.ts";
+import { add, empty, canonical, validate } from "../packages/board-rules/src/document.ts";
+import { Adapter } from "../apps/web/src/document-adapter.ts";
 import { shape, SHAPE_KINDS, SHAPE_COLORS, FILL_MODES, BORDER_STYLES, darkened, shapeColor,
   shapeTextColor, shapeTextBox, shapeTextLayout, fitHeight, canGrow, changeKind, changeFill,
   changeBorder, commonShapeValue, defaultPaint, paintOf, paintAfterStep, creationValues,
-  objectType, usesShapePaint } from "../apps/web/src/objects/registry.ts";
+  objectType, usesShapePaint } from "../packages/board-rules/src/objects/registry.ts";
 import { layoutRuns, graphemes } from "../apps/web/src/text-runs.ts";
 import { emptyHistory, record, undo, redo, duplicate, deleteObject } from "../apps/web/src/history.ts";
 import { buildSnapshot, buildPaste } from "../apps/web/src/clipboard.ts";

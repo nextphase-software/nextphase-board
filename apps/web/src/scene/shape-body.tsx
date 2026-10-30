@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Ellipse, Group, Rect, Text } from "react-konva";
-import type { ItemV6 as Item } from "../document";
-import { objectType, textBox, kindInfo } from "../objects/registry";
-import { textUnits } from "../styles";
+import type { ItemV6 as Item } from "nextphase-board-rules/document.ts";
+import { objectType, textBox, kindInfo } from "nextphase-board-rules/objects/registry.ts";
+import { textUnits } from "nextphase-board-rules/styles.ts";
 import { lineOffset } from "../text-runs";
 import type { View } from "../view";
 import type { ObjectLayout } from "./note-body";

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject, ReactNode } from "react";
-import type { BoardV10 as Board, ItemV10 as Item } from "../document";
-import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "../styles";
+import type { BoardV10 as Board, ItemV10 as Item } from "nextphase-board-rules/document.ts";
+import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "nextphase-board-rules/styles.ts";
 import { objectLabel } from "../sections";
-import { ADD_OPTIONS, isContainer, sectionIdea, hasRectangle, hasEnds } from "../objects/registry";
-import { FLAGS, FLAG_LABELS, type Flag } from "../marks";
+import { ADD_OPTIONS, isContainer, sectionIdea, hasRectangle, hasEnds } from "nextphase-board-rules/objects/registry.ts";
+import { FLAGS, FLAG_LABELS, type Flag } from "nextphase-board-rules/marks.ts";
 import { Icon } from "../icons";
 import type { Rectangle } from "../resize";
 import type { ArrangeCommand } from "../arrange";

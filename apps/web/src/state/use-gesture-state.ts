@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { Drag } from "../gesture";
-import { defaultDrawingStyle, isDrawingTool, inkForTool, INK_KINDS, type InkWeight } from "../objects/registry";
+import { defaultDrawingStyle, isDrawingTool, inkForTool, INK_KINDS, type InkWeight } from "nextphase-board-rules/objects/registry.ts";
 
 export function useGestureState(clearSelection: () => void, finishTextSession: () => void, closeEditor: () => void) {
   const [selectionBox, setSelectionBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null),

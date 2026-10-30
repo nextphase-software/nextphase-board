@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import { clamp, freshIdentifier, type BoardV10, type ImageItem, validText } from "./document.ts";
-import { imageType, isImage, type Rectangle } from "./objects/registry.ts";
+import { clamp, freshIdentifier, type BoardV10, type ImageItem, validText } from "nextphase-board-rules/document.ts";
+import { imageType, isImage, type Rectangle } from "nextphase-board-rules/objects/registry.ts";
 import { bandOrder, sectionAt } from "./sections.ts";
 import { PICTURE_LIMIT, pictureHash, signature, tabPictures, type Picture } from "./image-assets.ts";
 export const IMAGE_ACCEPT = "image/png,image/jpeg,image/gif,image/webp";

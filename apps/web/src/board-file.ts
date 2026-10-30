@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import { canonical, validate, type Board } from "./document.ts";
+import { canonical, validate, type Board } from "nextphase-board-rules/document.ts";
 import { digest } from "./storage.ts";
-import { isImage } from "./objects/registry.ts";
+import { isImage } from "nextphase-board-rules/objects/registry.ts";
 import { assetKey, boardPictures, pictureBytes, PICTURE_LIMIT, tabPictures, validPicture, type Picture, type Pictures } from "./image-assets.ts";
 export const FILE_LIMIT = 75497472;
 export const FILE_REASONS = ["it is larger than 72 MiB", "it is not a Board file", "it is damaged", "it is not a valid board", "it was made by a newer version of Board"] as const;

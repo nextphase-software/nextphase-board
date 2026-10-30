@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { DRAWING_TOOLS, INK_KINDS, INK_WEIGHTS, drawingStyleFor, inkColors, isDrawingTool, isEraser, type DrawingStyle, type InkWeight } from "../objects/registry";
+import { DRAWING_TOOLS, INK_KINDS, INK_WEIGHTS, drawingStyleFor, inkColors, isDrawingTool, isEraser, type DrawingStyle, type InkWeight } from "nextphase-board-rules/objects/registry.ts";
 export type DrawingControls = { lastDrawingTool: string; style: DrawingStyle; change: (value: { color?: string; weight?: InkWeight }) => void };
 export function DrawingIcon({ name }: { name: string }) {
   const index = DRAWING_TOOLS.findIndex((t) => t === name);

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Circle, Group, Line, Path, Rect, Text } from "react-konva";
-import type { ConnectorItem } from "../document";
+import type { ConnectorItem } from "nextphase-board-rules/document.ts";
 import type { ConnectorLayout } from "../connectors";
-import { objectType } from "../objects/registry";
+import { objectType } from "nextphase-board-rules/objects/registry.ts";
 import { TEXT_LAYOUT } from "../geometry";
 
 export function ConnectorBody({ object, layout, selected, inline, zoom, pass }: {

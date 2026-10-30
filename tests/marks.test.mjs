@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { FLAGS, FLAG_LABELS, validMarks, normalize, toggle, formatted, formattedRange, codePointOffset, segments, remap } from "../apps/web/src/marks.ts";
+import { FLAGS, FLAG_LABELS, validMarks, normalize, toggle, formatted, formattedRange, codePointOffset, segments, remap } from "../packages/board-rules/src/marks.ts";
 const bold = (start, end) => ({ start, end, bold: true });
 const italic = (start, end) => ({ start, end, italic: true });
 

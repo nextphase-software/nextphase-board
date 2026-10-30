@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Group, Image, Rect, Text } from "react-konva";
-import type { ImageItem, BoardV10 } from "../document.ts";
-import { isImage } from "../objects/registry.ts";
+import type { ImageItem, BoardV10 } from "nextphase-board-rules/document.ts";
+import { isImage } from "nextphase-board-rules/objects/registry.ts";
 export function ImageBody({ object: o, bitmap, selected, zoom }: { object: ImageItem; bitmap?: ImageBitmap; selected: boolean; zoom: number }) {
   const available = bitmap?.width === o.pixelWidth && bitmap?.height === o.pixelHeight;
   return <Group>

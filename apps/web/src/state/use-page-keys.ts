@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import type { BoardV10 as Board } from "../document";
+import type { BoardV10 as Board } from "nextphase-board-rules/document.ts";
 import type { ClipboardCommand } from "../clipboard";
-import type { Flag } from "../marks";
+import type { Flag } from "nextphase-board-rules/marks.ts";
 
 import { nativePasteKey } from "../images.ts";
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { type Board, canonical, validate } from "./document.ts";
+import { type Board, canonical, validate } from "nextphase-board-rules/document.ts";
 import { boardKeys, entryDefaults, fingerprint, LIST_KEY, parseList, recordBoardKey, serializeList, type BoardEntry } from "./board-catalog.ts";
 import { tabPictures, writePictures, type Pictures } from "./image-assets.ts";
 export type Pair = [unknown, unknown];

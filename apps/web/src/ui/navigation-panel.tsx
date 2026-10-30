@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
-import { clamp } from "../document";
+import { clamp } from "nextphase-board-rules/document.ts";
 import type { View } from "../view";
 
 type Props = {

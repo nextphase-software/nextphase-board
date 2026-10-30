@@ -6,7 +6,7 @@
   "type": "module",
   "engines": { "node": "26.13.0", "npm": "11.20.0" },
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p ../../packages/board-rules",
     "test": "node --test ../../tests/*.test.mjs",
     "check:deps": "npm ls --all",
     "audit:licenses": "node ../../scripts/check-notices.mjs",
@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "konva": "10.9.0",
+    "nextphase-board-rules": "file:../../packages/board-rules",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-konva": "19.3.2",

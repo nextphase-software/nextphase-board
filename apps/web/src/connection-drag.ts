@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { eligibleIdea } from "./objects/registry.ts";
+import { eligibleIdea } from "nextphase-board-rules/objects/registry.ts";
 import { insideBox, sideMidpoints, type Side } from "./connectors.ts";
 import type { DisplayObject, Point } from "./selection.ts";
 

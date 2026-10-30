@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
-import { OBJECT_TYPES, placementTool, kindForTool, SHAPE_KINDS } from "../objects/registry";
+import { OBJECT_TYPES, placementTool, kindForTool, SHAPE_KINDS } from "nextphase-board-rules/objects/registry.ts";
 import { DrawButton, DrawingBar, type DrawingControls } from "./drawing-tools";
 import { TemplatesPanel } from "./templates-panel";
 import type { Activity, Preview } from "../activities";

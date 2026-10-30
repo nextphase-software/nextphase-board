@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 
 const source = new URL("../apps/web/src/", import.meta.url);
 const ui = new URL("ui/", source);
@@ -18,9 +18,94 @@ const contents = screenParts.map((name) => [name, readFileSync(new URL(name, ui)
 const scene = new URL("scene/", source);
 const sceneParts = files(scene).sort();
 const sceneContents = sceneParts.map((name) => [name, readFileSync(new URL(name, scene), "utf8")]);
-const objects = new URL("objects/", source);
+const rules = new URL("../packages/board-rules/src/", import.meta.url);
+const objects = new URL("objects/", rules);
 const objectTypes = files(objects).sort();
 const objectContents = objectTypes.map((name) => [name, readFileSync(new URL(name, objects), "utf8")]);
+const rulesParts = files(rules).sort();
+const rulesContents = rulesParts.map((name) => [name, readFileSync(new URL(name, rules), "utf8")]);
+
+function specifiers(content) {
+  return Array.from(content.matchAll(/\b(?:import|export)\s+(?:[^;]*?\s+from\s*)?["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)/g), (match) => match[1] ?? match[2]);
+}
+
+function rulesImportProblems(content, file) {
+  return specifiers(content).filter((specifier) => {
+    if (!specifier.startsWith(".")) return true;
+    const target = new URL(specifier, file);
+    return !target.href.startsWith(rules.href) || !existsSync(target);
+  });
+}
+
+function webImportProblems(content) {
+  return specifiers(content).filter((specifier) =>
+    /(?:^|\/)packages\//.test(specifier) ||
+    specifier.startsWith("nextphase-board-rules/") && !rulesParts.includes(specifier.slice("nextphase-board-rules/".length)));
+}
+
+test("the package holds exactly its modules", () => {
+  assert.deepEqual(rulesParts, [
+    "document.ts", "marks.ts", "objects/connector.ts", "objects/image.ts", "objects/registry.ts",
+    "objects/section.ts", "objects/shape.ts", "objects/sticky.ts", "objects/stroke.ts", "objects/text.ts",
+    "platform.d.ts", "styles.ts",
+  ]);
+  for (const [name, content] of rulesContents) {
+    assert.equal(content.split("\n")[0], "// SPDX-License-Identifier: Apache-2.0", name);
+  }
+});
+
+test("board rules import only their own files", () => {
+  for (const [name, content] of rulesContents) {
+    assert.deepEqual(rulesImportProblems(content, new URL(name, rules)), [], name);
+  }
+});
+
+test("the web app keeps no copy and imports by name", () => {
+  for (const name of ["document.ts", "marks.ts", "styles.ts", "objects"]) {
+    assert(!existsSync(new URL(name, source)), name);
+  }
+  let namesPackage = false;
+  for (const name of files(source)) {
+    const content = readFileSync(new URL(name, source), "utf8");
+    assert.deepEqual(webImportProblems(content), [], name);
+    namesPackage ||= specifiers(content).some((specifier) => specifier.startsWith("nextphase-board-rules/"));
+  }
+  assert(namesPackage, "The web app must import the board rules package");
+});
+
+test("the import guards catch each forbidden form", () => {
+  const document = new URL("document.ts", rules);
+  for (const content of [
+    'import * as Y from "yjs";',
+    'import { history } from "../../../apps/web/src/history.ts";',
+    'export { clamp } from "../../../scripts/build-web.mjs";',
+    'type T = typeof import("nextphase-board-rules/document.ts");',
+    'import { history } from "../history.ts";',
+  ]) {
+    assert(rulesImportProblems(content, document).length > 0, content);
+  }
+  for (const content of [
+    'import { colorEntry } from "../styles.ts";',
+    'export * from "./shape.ts";',
+  ]) {
+    assert.deepEqual(rulesImportProblems(content, new URL("objects/text.ts", rules)), [], content);
+  }
+  assert.deepEqual(rulesImportProblems('type T = typeof import("./objects/image.ts");', document), []);
+  for (const content of [
+    'import { add } from "../../../packages/board-rules/src/document.ts";',
+    'import { add } from "../../packages/board-rules/src/document";',
+    'import { add } from "nextphase-board-rules/history.ts";',
+  ]) {
+    assert(webImportProblems(content).length > 0, content);
+  }
+  for (const content of [
+    'import { add } from "nextphase-board-rules/document.ts";',
+    'import type { Rectangle } from "nextphase-board-rules/objects/registry.ts";',
+    'import { record } from "../history";',
+  ]) {
+    assert.deepEqual(webImportProblems(content), [], content);
+  }
+});
 
 test("screen parts contain exactly the twenty-seven screen modules named through 0002-W3 v1", () => {
   assert.deepEqual(screenParts, [
@@ -315,7 +400,7 @@ test("object types import only siblings or styles, which never imports object ty
       assert.match(declaration[1], /^(?:\.\/[^/]+\.ts|\.\.\/styles\.ts)$/, name);
     }
   }
-  const styles = readFileSync(new URL("styles.ts", source), "utf8");
+  const styles = readFileSync(new URL("styles.ts", rules), "utf8");
   const declarations = styles.matchAll(/\b(?:import|export)\s+(?:[^;]*?\s+from\s*)?["']([^"']+)["']/g);
   for (const declaration of declarations) {
     assert.doesNotMatch(declaration[1], /(?:^|\/)objects(?:\/|$)/);
@@ -334,11 +419,15 @@ function typeNameUses(source) {
 }
 
 test("rules modules ask the registry instead of naming types", () => {
-  const rules = readdirSync(source).filter((name) => name.endsWith(".ts"));
-  assert(rules.includes("document.ts"));
-  assert(rules.includes("styles.ts"));
-  for (const name of [...rules, ...files(new URL("state/", source)).map((n) => "state/" + n)]) {
+  const webRules = readdirSync(source).filter((name) => name.endsWith(".ts"));
+  assert(webRules.includes("document-adapter.ts"));
+  const packageRules = readdirSync(rules).filter((name) => name.endsWith(".ts") && !name.endsWith(".d.ts")).sort();
+  assert.deepEqual(packageRules, ["document.ts", "marks.ts", "styles.ts"]);
+  for (const name of [...webRules, ...files(new URL("state/", source)).map((n) => "state/" + n)]) {
     assert.deepEqual(typeNameUses(readFileSync(new URL(name, source), "utf8")), [], name);
+  }
+  for (const name of packageRules) {
+    assert.deepEqual(typeNameUses(readFileSync(new URL(name, rules), "utf8")), [], name);
   }
 });
 
@@ -376,8 +465,10 @@ test("rules type-name guard detects each forbidden form and allows text fields",
 
 
 test("rules modules never import React or Konva", () => {
-  for (const name of files(source).filter((name) => !name.includes("/") && name.endsWith(".ts"))) {
-    const content = readFileSync(new URL(name, source), "utf8");
+  const webRules = files(source).filter((name) => !name.includes("/") && name.endsWith(".ts"));
+  assert(webRules.length > 0);
+  const webContents = webRules.map((name) => [name, readFileSync(new URL(name, source), "utf8")]);
+  for (const [name, content] of [...webContents, ...rulesContents]) {
     assert.doesNotMatch(content, /\bimport\s+(?:[^;]*?\s+from\s*)?["'](?:react|react-dom|react-konva|konva)(?:\/[^"']*)?["']/, name);
   }
 });

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-import { add, clamp, type BoardV10 as Board, type ItemV10 as Item } from "./document.ts";
+import { add, clamp, type BoardV10 as Board, type ItemV10 as Item } from "nextphase-board-rules/document.ts";
 import { arrangeOrder, type OrderCommand } from "./arrange.ts";
 import { editingCommandReason } from "./commands.ts";
 import { boundingBox, limitMove, type DisplayObject, type Point } from "./selection.ts";
-import { isImage, containerType, isContainer, labelPrefix, hasRectangle, hasEnds, hasText, sectionIdea, orderBand } from "./objects/registry.ts";
+import { isImage, containerType, isContainer, labelPrefix, hasRectangle, hasEnds, hasText, sectionIdea, orderBand } from "nextphase-board-rules/objects/registry.ts";
 
 import { bands, FOLLOW_REASON } from "./connectors.ts";
 

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import Konva from "konva";
 import { Group, Rect, Text } from "react-konva";
-import type { ItemV6 as Item, ImageItem, StrokeItem } from "../document";
+import type { ItemV6 as Item, ImageItem, StrokeItem } from "nextphase-board-rules/document.ts";
 import { TEXT_LAYOUT } from "../geometry";
-import { objectType } from "../objects/registry";
+import { objectType } from "nextphase-board-rules/objects/registry.ts";
 
 export function SectionBody({ o, selected, inline, dropTarget }: {
   o: Item; selected: Set<string>; inline: boolean; dropTarget: boolean;

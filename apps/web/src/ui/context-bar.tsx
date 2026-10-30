@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
-import { clamp, count, type ItemV10 as Item } from "../document";
-import { ALIGNMENTS, COLORS, TEXT_SIZES, colorEntry, type Style } from "../styles";
-import { objectType, hasText } from "../objects/registry";
-import { FLAGS, FLAG_LABELS, type Flag } from "../marks";
+import { clamp, count, type ItemV10 as Item } from "nextphase-board-rules/document.ts";
+import { ALIGNMENTS, COLORS, TEXT_SIZES, colorEntry, type Style } from "nextphase-board-rules/styles.ts";
+import { objectType, hasText } from "nextphase-board-rules/objects/registry.ts";
+import { FLAGS, FLAG_LABELS, type Flag } from "nextphase-board-rules/marks.ts";
 import { Icon } from "../icons";
 import type { ArrangeCommand } from "../arrange";
 import { ShapeControls, type ShapeControlProps, type ShapePopup } from "./shape-controls";

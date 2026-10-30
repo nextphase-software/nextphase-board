@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import { freshIdentifier, type BoardV10, type ItemV10 } from "./document.ts";
-import { hasRectangle, hasText } from "./objects/registry.ts";
+import { freshIdentifier, type BoardV10, type ItemV10 } from "nextphase-board-rules/document.ts";
+import { hasRectangle, hasText } from "nextphase-board-rules/objects/registry.ts";
 import { editingCommandReason } from "./commands.ts";
 import { wholeGroups } from "./group.ts";
 import { bandOrder, remapSection } from "./sections.ts";

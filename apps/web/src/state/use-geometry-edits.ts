@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { add, type Board as SavedBoard, type BoardV10 as Board, type ItemV10 as Item, validText } from "../document";
+import { add, type Board as SavedBoard, type BoardV10 as Board, type ItemV10 as Item, validText } from "nextphase-board-rules/document.ts";
 import { neededHeight, savedHeight } from "../geometry";
 import { moveWithMembers, placeObject } from "../sections";
-import { objectType, rectangleType, hasText, keepsProportions, hasRectangle, creationValues, typeForTool, type ShapePaint } from "../objects/registry";
+import { objectType, rectangleType, hasText, keepsProportions, hasRectangle, creationValues, typeForTool, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
 import { resizeObject, resizeSet, type Corner, type Rectangle } from "../resize";
 import { resizeWithStrokes } from "../strokes";
-import { remap } from "../marks";
-import { textUnits } from "../styles";
+import { remap } from "nextphase-board-rules/marks.ts";
+import { textUnits } from "nextphase-board-rules/styles.ts";
 
 import type { ResizeStart } from "../gesture";
 

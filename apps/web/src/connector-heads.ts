@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { lineWidth, type ConnectorStyle } from "./objects/registry.ts";
+import { lineWidth, type ConnectorStyle } from "nextphase-board-rules/objects/registry.ts";
 import type { Point } from "./selection.ts";
 
 export type ConnectorHead = { points: Point[]; circle?: Point & { radius: number }; filled: boolean;

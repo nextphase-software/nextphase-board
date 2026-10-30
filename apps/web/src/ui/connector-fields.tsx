@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { KeyboardEvent } from "react";
-import type { BoardV10, ConnectorItem } from "../document";
-import { END_SIDES, eligibleIdea } from "../objects/registry";
+import type { BoardV10, ConnectorItem } from "nextphase-board-rules/document.ts";
+import { END_SIDES, eligibleIdea } from "nextphase-board-rules/objects/registry.ts";
 import { objectLabel } from "../sections";
 import type { ConnectorCommands } from "./connector-menu";
 function selectKey(e: KeyboardEvent<HTMLSelectElement>, choose: (value: string) => void) {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Group, Line, Rect } from "react-konva";
-import { inkColor, inkInfo, inkWidth, type StrokeKeys, type Rectangle } from "../objects/registry";
+import { inkColor, inkInfo, inkWidth, type StrokeKeys, type Rectangle } from "nextphase-board-rules/objects/registry.ts";
 
 export function StrokeBody({ object: o, selected = false, zoom }: {
   object: Rectangle & StrokeKeys; selected?: boolean; zoom: number;

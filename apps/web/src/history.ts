@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-import { freshIdentifier as fresh, type Board, type Item } from "./document.ts";
+import { freshIdentifier as fresh, type Board, type Item } from "nextphase-board-rules/document.ts";
 
 import { bandOrder, orderParticipants, remapSection } from "./sections.ts";
 
 import { cascade, copiedSet, remapEnds, COPY_REASON } from "./connectors.ts";
-import { hasRectangle } from "./objects/registry.ts";
+import { hasRectangle } from "nextphase-board-rules/objects/registry.ts";
 
 type ObjectChange = { before: Item | null; after: Item | null };
 export type Step = { changes: ObjectChange[]; affectedIds?: string[] };

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { canonical, empty } from "../../apps/web/src/document";
+import { canonical, empty } from "../../packages/board-rules/src/document.ts";
 import { digest, LocalStore, readPair } from "../../apps/web/src/storage";
 
 function assert(condition: unknown, message: string): asserts condition {

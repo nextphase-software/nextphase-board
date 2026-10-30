@@ -2,7 +2,7 @@
 import { editingCommandReason } from "./commands.ts";
 import type { DisplayObject } from "./selection.ts";
 
-import { hasRectangle } from "./objects/registry.ts";
+import { hasRectangle } from "nextphase-board-rules/objects/registry.ts";
 import { FOLLOW_REASON } from "./connectors.ts";
 
 export const ARRANGE_GROUPS = [

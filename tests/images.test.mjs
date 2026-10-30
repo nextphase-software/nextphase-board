@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Adapter, add, canonical, empty, upgrade, validate } from "../apps/web/src/document.ts";
+import { add, canonical, empty, upgrade, validate } from "../packages/board-rules/src/document.ts";
+import { Adapter } from "../apps/web/src/document-adapter.ts";
 import { addImages, landingSize, scaledPixels, imageRow, importReason, refusalNotice, prepareImage, decodePicture, IMAGE_REASONS, nativePasteKey, descriptionDraft, describeImage } from "../apps/web/src/images.ts";
 import { signature, pictureHash, validPicture, assetKey, pictureBytes, readPictures, storePicture, PICTURE_LIMIT, tabPictures } from "../apps/web/src/image-assets.ts";
-import { objectKeys, isImage, hasRectangle, hasText, hasPoints, imageType, eligibleIdea, defaultDrawingStyle } from "../apps/web/src/objects/registry.ts";
+import { objectKeys, isImage, hasRectangle, hasText, hasPoints, imageType, eligibleIdea, defaultDrawingStyle } from "../packages/board-rules/src/objects/registry.ts";
 import { record, emptyHistory, undo, redo, duplicate } from "../apps/web/src/history.ts";
 import { groupObjects, groupNumbers } from "../apps/web/src/group.ts";
 import { objectLabel } from "../apps/web/src/sections.ts";

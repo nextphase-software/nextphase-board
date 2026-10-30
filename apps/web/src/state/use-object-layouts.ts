@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useMemo, type RefObject } from "react";
 import Konva from "konva";
-import type { BoardV10 as Board, ItemV10 as Item, ResolvedItem } from "../document";
-import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT } from "../geometry";
-import { objectType, textBox, hasText, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds } from "../objects/registry";
+import type { BoardV10 as Board, ItemV10 as Item } from "nextphase-board-rules/document.ts";
+import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT, type ResolvedItem } from "../geometry";
+import { objectType, textBox, hasText, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds } from "nextphase-board-rules/objects/registry.ts";
 import { groupNumbers, wholeGroups } from "../group";
 import { cornerPoint, type Corner } from "../resize";
 import { boundingBox } from "../selection";
-import { textUnits } from "../styles";
-import { remap } from "../marks";
+import { textUnits } from "nextphase-board-rules/styles.ts";
+import { remap } from "nextphase-board-rules/marks.ts";
 import { layoutRuns, type RunStyle, type RunLine } from "../text-runs";
 import type { Drag } from "../gesture";
 

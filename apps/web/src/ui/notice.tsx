@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction } from "react";
-import { placementTool } from "../objects/registry";
-import type { Board as SavedBoard } from "../document";
+import { placementTool } from "nextphase-board-rules/objects/registry.ts";
+import type { Board as SavedBoard } from "nextphase-board-rules/document.ts";
 
 type Props = {
   showNotice: boolean;

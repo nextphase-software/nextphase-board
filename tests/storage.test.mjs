@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { add, canonical, empty } from "../apps/web/src/document.ts";
+import { add, canonical, empty } from "../packages/board-rules/src/document.ts";
 import { decode, digest, readPair } from "../apps/web/src/storage.ts";
 const b = { ...empty(), title: "Storage" };
 const wrap = async (revision, board = b) =>
@@ -63,7 +63,7 @@ test("correctly hashed envelopes cannot adopt non-string UUID fields", async () 
 });
 
 test("mixed v2 head and v1 previous decode while legacy raw bytes remain exact", async () => {
-  const { upgrade } = await import("../apps/web/src/document.ts");
+  const { upgrade } = await import("../packages/board-rules/src/document.ts");
   const current = add(add({ ...empty(), title: "Legacy storage" }, "sticky", 0, 0), "text", 400, 0);
   const legacy = { ...current, schemaVersion: 1, objects: current.objects.map(({ color, textSize, align, group, marks, section, ...o }) => o) };
   legacy.objects[0].text = "Legacy\n你好 🧭";
@@ -97,7 +97,7 @@ test("a correctly hashed unknown document version is rejected with raw bytes unc
 });
 
 test("v7 grouped head and exact v2 previous decode without rewriting either record", async () => {
-  const { upgrade } = await import("../apps/web/src/document.ts");
+  const { upgrade } = await import("../packages/board-rules/src/document.ts");
   const { groupObjects } = await import("../apps/web/src/group.ts");
   let current = { ...empty(), title: "Saved groups" };
   for (let i = 0; i < 3; i++) current = add(current, "sticky", i * 400, 0);

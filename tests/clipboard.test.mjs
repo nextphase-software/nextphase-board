@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildPaste, buildSnapshot, clipboardReason, plainText } from "../apps/web/src/clipboard.ts";
-import { add, empty, validate } from "../apps/web/src/document.ts";
+import { add, empty, validate } from "../packages/board-rules/src/document.ts";
 import { groupObjects } from "../apps/web/src/group.ts";
 import { deleteObject, emptyHistory, record, undo, redo } from "../apps/web/src/history.ts";
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef } from "react";
-import { objectType, hasText } from "../objects/registry";
-import { type BoardV10 as Board, validText } from "../document";
+import { objectType, hasText } from "nextphase-board-rules/objects/registry.ts";
+import { type BoardV10 as Board, validText } from "nextphase-board-rules/document.ts";
 
 type Input = {
   board: Board;

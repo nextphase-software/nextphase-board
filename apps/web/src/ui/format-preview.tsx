@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { ItemV10 as Item } from "../document";
-import { hasText } from "../objects/registry";
-import { remap, segments } from "../marks";
+import type { ItemV10 as Item } from "nextphase-board-rules/document.ts";
+import { hasText } from "nextphase-board-rules/objects/registry.ts";
+import { remap, segments } from "nextphase-board-rules/marks.ts";
 
 export function FormatPreview({ item, text }: { item: Item; text: string }) {
   if (!hasText(item)) return null;

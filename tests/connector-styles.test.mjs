@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { add, empty, validate, canonical, upgrade, Adapter } from "../apps/web/src/document.ts";
+import { add, empty, validate, canonical, upgrade } from "../packages/board-rules/src/document.ts";
+import { Adapter } from "../apps/web/src/document-adapter.ts";
 import { defaultConnectorStyle, connectorStyleOf, CONNECTOR_STYLE_KEYS, HEADS, LINE_SHAPES, END_SIDES,
-  SHAPE_COLORS, hasEnds, hasRectangle, eligibleIdea, lineWidth, lineDash, outlinePoint, objectKeys } from "../apps/web/src/objects/registry.ts";
+  SHAPE_COLORS, hasEnds, hasRectangle, eligibleIdea, lineWidth, lineDash, outlinePoint, objectKeys } from "../packages/board-rules/src/objects/registry.ts";
 import { connectorRoute, roundedPath, arrowPoints, halfway, connectorLayout, reconnectPreview, lineHit, connectorInBox,
   createConnector, changeConnectorStyle, reconnect } from "../apps/web/src/connectors.ts";
 import { connectorHead } from "../apps/web/src/connector-heads.ts";

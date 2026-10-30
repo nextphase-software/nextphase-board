@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { RectangleItem, StrokeItem, ImageItem } from "./document";
+import type { RectangleItem, StrokeItem, ImageItem } from "nextphase-board-rules/document.ts";
 import type { Corner, Rectangle } from "./resize";
 import type { View } from "./view";
 

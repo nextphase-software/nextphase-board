@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { Board } from "./document.ts";
-import { isImage } from "./objects/registry.ts";
+import type { Board } from "nextphase-board-rules/document.ts";
+import { isImage } from "nextphase-board-rules/objects/registry.ts";
 import { recordBoardKey } from "./board-catalog.ts";
 export const PICTURE_LIMIT = 52428800;
 export type Picture = { bytes: ArrayBuffer; mime: "image/png" | "image/jpeg" | "image/gif" | "image/webp"; pixelWidth: number; pixelHeight: number };

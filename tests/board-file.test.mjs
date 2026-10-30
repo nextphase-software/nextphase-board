@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { add, canonical, empty, upgrade } from "../apps/web/src/document.ts";
+import { add, canonical, empty, upgrade } from "../packages/board-rules/src/document.ts";
 import { createConnector } from "../apps/web/src/connectors.ts";
 import { digest } from "../apps/web/src/storage.ts";
 import { boardFileName, FILE_LIMIT, readBoardFile, writeBoardFile } from "../apps/web/src/board-file.ts";

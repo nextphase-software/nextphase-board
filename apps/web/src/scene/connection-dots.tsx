@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { ResolvedItem } from "../document";
+import type { ResolvedItem } from "../geometry";
 import { connectionDots, type ConnectionDot, type ConnectionDrag } from "../connection-drag";
 
-import { eligibleIdea } from "../objects/registry";
+import { eligibleIdea } from "nextphase-board-rules/objects/registry.ts";
 
 export function ConnectionDots({ dots, connection, objects, pos, zoom }: {
   dots: readonly ConnectionDot[]; connection: ConnectionDrag | undefined; objects: readonly ResolvedItem[];

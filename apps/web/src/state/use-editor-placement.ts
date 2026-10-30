@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import type { ResolvedItem as Item } from "../document";
-import { objectType, rectangleType, hasText, textBox, hasEnds } from "../objects/registry";
+import type { ResolvedItem as Item } from "../geometry";
+import { objectType, rectangleType, hasText, textBox, hasEnds } from "nextphase-board-rules/objects/registry.ts";
 import { labelEditorBox } from "../connectors";
-import { textUnits } from "../styles";
+import { textUnits } from "nextphase-board-rules/styles.ts";
 import type { View } from "../view";
 
 type Input = {

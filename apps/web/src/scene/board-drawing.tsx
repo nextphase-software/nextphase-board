@@ -2,10 +2,10 @@
 import type { ConnectionDrag } from "../connection-drag";
 import { reconnectPreview } from "../connectors";
 import { Layer, Stage } from "react-konva";
-import type { BoardV10 as Board } from "../document";
+import type { BoardV10 as Board } from "nextphase-board-rules/document.ts";
 import type { View } from "../view";
 import { bandOrder, dropTargets } from "../sections";
-import { isImage, objectType, hasRectangle, hasText, hasPoints, type StrokeKeys, type Rectangle, hasEnds, orderBand } from "../objects/registry";
+import { isImage, objectType, hasRectangle, hasText, hasPoints, type StrokeKeys, type Rectangle, hasEnds, orderBand } from "nextphase-board-rules/objects/registry.ts";
 import { StrokeBody } from "./stroke-body";
 import { ConnectorBody } from "./connector-body";
 import { ShapeBody } from "./shape-body";

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { SHAPE_KINDS, kindForTool } from "../objects/registry";
+import { SHAPE_KINDS, kindForTool } from "nextphase-board-rules/objects/registry.ts";
 import { Icon } from "../icons";
 
 export function ShapesPanel({ tool, setTool, scene, disabled }: {

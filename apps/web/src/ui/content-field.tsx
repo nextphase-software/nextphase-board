@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction, SyntheticEvent } from "react";
-import { count, type ItemV10 as Item, validText } from "../document";
-import { objectType, hasText } from "../objects/registry";
-import { codePointOffset, type Flag, type TextSelection } from "../marks";
+import { count, type ItemV10 as Item, validText } from "nextphase-board-rules/document.ts";
+import { objectType, hasText } from "nextphase-board-rules/objects/registry.ts";
+import { codePointOffset, type Flag, type TextSelection } from "nextphase-board-rules/marks.ts";
 
 type Props = {
   editor: RefObject<HTMLTextAreaElement | null>;

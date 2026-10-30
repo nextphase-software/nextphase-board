@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OBJECT_TYPES, objectType, typeForTool, placementTool, containerType, isContainer, isImage } from "../apps/web/src/objects/registry.ts";
-import { sticky } from "../apps/web/src/objects/sticky.ts";
-import { section } from "../apps/web/src/objects/section.ts";
-import { text } from "../apps/web/src/objects/text.ts";
-import { COLORS, colorEntry, textUnits } from "../apps/web/src/styles.ts";
+import { OBJECT_TYPES, objectType, typeForTool, placementTool, containerType, isContainer, isImage } from "../packages/board-rules/src/objects/registry.ts";
+import { sticky } from "../packages/board-rules/src/objects/sticky.ts";
+import { section } from "../packages/board-rules/src/objects/section.ts";
+import { text } from "../packages/board-rules/src/objects/text.ts";
+import { COLORS, colorEntry, textUnits } from "../packages/board-rules/src/styles.ts";
 
 test("object types retain sticky and text order, labels and placement tools", () => {
   assert.deepEqual(OBJECT_TYPES.map((t) => t.type), ["sticky", "shape", "text", "section", "stroke", "connector", "image"]);
@@ -27,7 +27,7 @@ test("lookups reject values that no record has", () => {
 });
 
 test("v7 registry owns ends, rectangles, eligibility, bands and key sets", async () => {
-  const { hasEnds, hasRectangle, hasPoints, sectionIdea, eligibleIdea, orderBand, typeWithEnds, ADD_OPTIONS, objectKeys } = await import("../apps/web/src/objects/registry.ts");
+  const { hasEnds, hasRectangle, hasPoints, sectionIdea, eligibleIdea, orderBand, typeWithEnds, ADD_OPTIONS, objectKeys } = await import("../packages/board-rules/src/objects/registry.ts");
   const record = typeWithEnds();
   assert.equal(record, OBJECT_TYPES.find((t) => t.ends)); assert.equal(record.type, "connector");
   assert.equal(record.tool, null); assert.equal(record.validFrom, 7);
@@ -124,7 +124,7 @@ test("records own version, body, container, formatting, text and size rules", ()
 });
 
 test("v6 records own extras, kinds, text boxes, font size, paint, growth and editor minima", async () => {
-  const { shape, SHAPE_KINDS, ADD_OPTIONS, objectKeys, extraValues, kindForTool, toolForKey, labelPrefix, textBox, fontSize } = await import("../apps/web/src/objects/registry.ts");
+  const { shape, SHAPE_KINDS, ADD_OPTIONS, objectKeys, extraValues, kindForTool, toolForKey, labelPrefix, textBox, fontSize } = await import("../packages/board-rules/src/objects/registry.ts");
   assert.equal(OBJECT_TYPES[1], shape); assert.equal(shape.tool, "Shapes");
   assert.equal(shape.validFrom, 6); assert.equal(shape.body, "shape-body");
   assert.equal(shape.container, false); assert.equal(shape.richText, true); assert.equal(shape.draws, true);

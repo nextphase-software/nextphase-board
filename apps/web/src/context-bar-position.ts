@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import { clamp, type ResolvedItem as Item } from "./document.ts";
-import { isContainer, hasEnds } from "./objects/registry.ts";
+import { clamp } from "nextphase-board-rules/document.ts";
+import type { ResolvedItem as Item } from "./geometry.ts";
+import { isContainer, hasEnds } from "nextphase-board-rules/objects/registry.ts";
 import type { Rectangle } from "./resize.ts";
 import type { View } from "./view.ts";
 

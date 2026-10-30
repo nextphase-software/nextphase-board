@@ -2,7 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { allowedHeight, displayHeight, neededHeight, savedHeight } from "../apps/web/src/geometry.ts";
-import { Adapter, add, canonical, empty, validate } from "../apps/web/src/document.ts";
+import { add, canonical, empty, validate } from "../packages/board-rules/src/document.ts";
+import { Adapter } from "../apps/web/src/document-adapter.ts";
 import { emptyHistory, record, redo, undo } from "../apps/web/src/history.ts";
 
 function rectangularBoard() {

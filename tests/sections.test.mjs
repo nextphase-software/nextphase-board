@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Adapter, add, canonical, empty, validate } from "../apps/web/src/document.ts";
+import { add, canonical, empty, validate } from "../packages/board-rules/src/document.ts";
+import { Adapter } from "../apps/web/src/document-adapter.ts";
 import { assignSection, bandOrder, drawRectangle, dropTargets, dropped, moveWithMembers,
   objectLabel, orderInBands, orderParticipants, placeObject, remapSection, sectionAt,
   withMembers, wrapReason, wrapSelection } from "../apps/web/src/sections.ts";

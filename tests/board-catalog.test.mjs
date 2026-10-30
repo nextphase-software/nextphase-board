@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canonical, empty } from "../apps/web/src/document.ts";
+import { canonical, empty } from "../packages/board-rules/src/document.ts";
 import { LocalStore, digest, readPair } from "../apps/web/src/storage.ts";
 import { boardKeys, isBoardKey, recordBoardKey, fingerprint, LIST_KEY, entryDefaults, parseList, serializeList, orderedBoards, savedTime, boardStatus } from "../apps/web/src/board-catalog.ts";
 const id = "10000000-0000-4000-8000-000000000001", other = "20000000-0000-4000-8000-000000000002";

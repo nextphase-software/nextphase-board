@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { add, clamp, type Board as SavedBoard, type BoardV10 as Board, type ResolvedItem as Item } from "../document";
+import { add, clamp, type Board as SavedBoard, type BoardV10 as Board } from "nextphase-board-rules/document.ts";
+import type { ResolvedItem as Item } from "../geometry";
 import { expandSelection, pressSelection, toggleGroup } from "../group";
 import { nearestHandle, type Corner } from "../resize";
 import type { View } from "../view";
 import { drawRectangle, dropped, placeObject, withMembers } from "../sections";
-import { isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, type ShapePaint, type ConnectorStyle } from "../objects/registry";
+import { isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, type ShapePaint, type ConnectorStyle } from "nextphase-board-rules/objects/registry.ts";
 import type { Drag, ResizeStart } from "../gesture";
 
 import { connectionDots, pressedDot, connectionTarget, pressedEnd, reconnectTarget } from "../connection-drag";

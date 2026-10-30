@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { ChangeEvent, KeyboardEvent } from "react";
-import type { StrokeItem } from "../document";
-import { inkColors, inkColor, INK_WEIGHTS, typeWithPoints, type InkWeight } from "../objects/registry";
+import type { StrokeItem } from "nextphase-board-rules/document.ts";
+import { inkColors, inkColor, INK_WEIGHTS, typeWithPoints, type InkWeight } from "nextphase-board-rules/objects/registry.ts";
 export type StrokeSelection = { objects: StrokeItem[]; only: boolean; sameKind: boolean };
 export type StrokeCommands = { color: (color: string) => void; weight: (weight: InkWeight) => void };
 export type StrokeControlProps = { selection: StrokeSelection; commands: StrokeCommands; reason: string };

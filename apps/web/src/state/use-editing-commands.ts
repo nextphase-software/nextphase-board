@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { Board as SavedBoard, BoardV10 as Board, ItemV10 as Item, ResolvedItem } from "../document";
-import { count } from "../document";
+import type { Board as SavedBoard, BoardV10 as Board, ItemV10 as Item } from "nextphase-board-rules/document.ts";
+import { count } from "nextphase-board-rules/document.ts";
 import { catalog } from "../activities/catalog";
 import { activityPreview, insertActivity, readActivity, type Activity, type Preview } from "../activities";
-import { codePointOffset, formatted, toggle, type Flag } from "../marks";
+import { codePointOffset, formatted, toggle, type Flag } from "nextphase-board-rules/marks.ts";
 import { deleteObject, duplicate, redo, undo, type History } from "../history";
-import { savedHeight } from "../geometry";
-import { textUnits, type Style } from "../styles";
+import { savedHeight, type ResolvedItem } from "../geometry";
+import { textUnits, type Style } from "nextphase-board-rules/styles.ts";
 import type { View } from "../view";
 import { arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "../arrange";
 import { assignSection, commandObjectLabel, orderInBands, wrapReason, wrapSelection } from "../sections";
-import { type ConnectorStyle, type End, objectType, isImage, hasRectangle, hasText, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, type ShapeKeys, type ShapePaint } from "../objects/registry";
+import { type ConnectorStyle, type End, objectType, isImage, hasRectangle, hasText, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, type ShapeKeys, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
 import { groupObjects, groupReason, ungroupObjects } from "../group";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "../clipboard";
 

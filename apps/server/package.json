@@ -1,0 +1,20 @@
+{
+  "name": "nextphase-board-server",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "dependencies": {
+    "@hono/node-server": "2.1.5",
+    "@supabase/supabase-js": "2.118.0",
+    "hono": "4.13.14",
+    "jose": "6.2.14",
+    "nextphase-board-room": "0.1.0",
+    "nextphase-board-rules": "0.1.0",
+    "nextphase-board-sync": "0.1.0",
+    "ws": "8.22.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

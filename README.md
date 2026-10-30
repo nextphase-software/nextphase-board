@@ -20,13 +20,16 @@ file if you want to keep one. Desktop Chrome and Safari are the browsers checked
 ## Run locally
 
 Use **Node 26.13.0 and npm 11.20.0**, as specified in the
-[toolchain contract](docs/architecture/0001-toolchain-v3.md). From the repository root:
+[toolchain contract](docs/architecture/0001-toolchain-v4.md). From the repository root:
 
 ```sh
-npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund
-npm --prefix apps/web run build
+npm ci --ignore-scripts --no-audit --no-fund
+npm run build
 npm --prefix apps/web run serve
 ```
+
+The optional server runs separately; see the [self-host runner contract](docs/architecture/0003-self-host-runner-v1.md)
+and [server setup](apps/server/README.md). This web client still saves locally.
 
 Open <http://127.0.0.1:4173> in Chrome or Safari. Name the board through the upper-left
 menu, place a Sticky or Text object, edit it and click Save. Objects provides native

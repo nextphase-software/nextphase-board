@@ -12,6 +12,8 @@ const fixture = process.argv.includes("--fixtures"),
   out = resolve(app, fixture ? "dist-fixtures" : "dist");
 await mkdir(out, { recursive: true });
 const result = await build({
+  absWorkingDir: root,
+  nodePaths: [resolve(root, "node_modules")],
   entryPoints: [
     resolve(
       root,
@@ -44,7 +46,7 @@ if (fixture) {
     entryPoints: [resolve(root, "tests/browser/app-regressions.mjs")],
     outfile: resolve(out, "regressions.js"), bundle: true, platform: "browser",
     format: "esm", target: "es2022", minify: true, legalComments: "eof", metafile: true,
-    nodePaths: [resolve(app, "node_modules")], jsx: "automatic",
+    absWorkingDir: root, nodePaths: [resolve(root, "node_modules")], jsx: "automatic",
     define: { "process.env.NODE_ENV": '"production"' },
   });
   await checkBundle(regressions.metafile, out);

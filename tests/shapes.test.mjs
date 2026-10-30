@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { add, empty, canonical, validate } from "../packages/board-rules/src/document.ts";
-import { Adapter } from "../apps/web/src/document-adapter.ts";
+import { Adapter } from "../packages/board-sync/src/document-adapter.ts";
 import { shape, SHAPE_KINDS, SHAPE_COLORS, FILL_MODES, BORDER_STYLES, darkened, shapeColor,
   shapeTextColor, shapeTextBox, shapeTextLayout, fitHeight, canGrow, changeKind, changeFill,
   changeBorder, commonShapeValue, defaultPaint, paintOf, paintAfterStep, creationValues,
@@ -290,15 +290,15 @@ test("Objects numbers squares and circles among ideas, retaining group and secti
 
 // Exercise the actual state commands without a DOM or browser. Esbuild resolves
 // the app's extensionless imports; React's server renderer supplies real hooks.
-const { build } = await import("../apps/web/node_modules/esbuild/lib/main.js");
-const reactURL = new URL("../apps/web/node_modules/react/index.js", import.meta.url);
+const { build } = await import("esbuild");
+const reactURL = new URL("../node_modules/react/index.js", import.meta.url);
 const { createElement } = await import(reactURL.href);
-const { renderToStaticMarkup } = await import("../apps/web/node_modules/react-dom/server.node.js");
+const { renderToStaticMarkup } = await import("react-dom/server");
 const compiled = await build({ stdin: {
   contents: 'export { useEditingCommands } from "./state/use-editing-commands.ts"; export { useBoardDocument } from "./state/use-board-document.ts"; export { useGeometryEdits } from "./state/use-geometry-edits.ts"; export { useCanvasInput } from "./state/use-canvas-input.ts"; export { ShapeControls, ShapeFields } from "./ui/shape-controls.tsx";',
   resolveDir: new URL("../apps/web/src/", import.meta.url).pathname, loader: "ts",
 }, bundle: true, write: false, platform: "node", format: "esm", plugins: [{ name: "shared-react", setup(build) {
-  build.onResolve({ filter: /^(react(?:\/.*)?|yjs)$/ }, (args) => ({ path: args.path === "react" ? reactURL.href : new URL(args.path === "yjs" ? "../apps/web/node_modules/yjs/dist/yjs.mjs" : "../apps/web/node_modules/" + args.path + ".js", import.meta.url).href, external: true }));
+  build.onResolve({ filter: /^(react(?:\/.*)?|yjs)$/ }, (args) => ({ path: args.path === "react" ? reactURL.href : new URL(args.path === "yjs" ? "../node_modules/yjs/dist/yjs.mjs" : "../node_modules/" + args.path + ".js", import.meta.url).href, external: true }));
 } }] });
 const hooks = await import("data:text/javascript;base64," + Buffer.from(compiled.outputFiles[0].text).toString("base64"));
 function commandHarness(b, options = {}) {

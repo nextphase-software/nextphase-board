@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { add, empty, validate } from "../packages/board-rules/src/document.ts";
-import { Adapter } from "../apps/web/src/document-adapter.ts";
+import { Adapter } from "../packages/board-sync/src/document-adapter.ts";
 import { deleteObject, duplicate, emptyHistory, record, redo, undo } from "../apps/web/src/history.ts";
 
 const board = () => ({ ...empty(), title: "Synthetic planning board" });

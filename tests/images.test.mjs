@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { add, canonical, empty, upgrade, validate } from "../packages/board-rules/src/document.ts";
-import { Adapter } from "../apps/web/src/document-adapter.ts";
+import { Adapter } from "../packages/board-sync/src/document-adapter.ts";
 import { addImages, landingSize, scaledPixels, imageRow, importReason, refusalNotice, prepareImage, decodePicture, IMAGE_REASONS, nativePasteKey, descriptionDraft, describeImage } from "../apps/web/src/images.ts";
 import { signature, pictureHash, validPicture, assetKey, pictureBytes, readPictures, storePicture, PICTURE_LIMIT, tabPictures } from "../apps/web/src/image-assets.ts";
 import { objectKeys, isImage, hasRectangle, hasText, hasPoints, imageType, eligibleIdea, defaultDrawingStyle } from "../packages/board-rules/src/objects/registry.ts";
@@ -204,10 +204,10 @@ test("Description draft truncates code points, refuses malformed Unicode, commit
 
 // Server-rendered hooks exercise commands and draft transactions using synthetic
 // surfaces only. They do not claim browser event, focus, IME or pixel evidence.
-const { build } = await import("../apps/web/node_modules/esbuild/lib/main.js");
-const reactURL = new URL("../apps/web/node_modules/react/index.js", import.meta.url);
+const { build } = await import("esbuild");
+const reactURL = new URL("../node_modules/react/index.js", import.meta.url);
 const { createElement } = await import(reactURL.href);
-const { renderToStaticMarkup } = await import("../apps/web/node_modules/react-dom/server.node.js");
+const { renderToStaticMarkup } = await import("react-dom/server");
 const compiled=await build({stdin:{contents:`
  export {useSelection} from "./state/use-selection.ts";
  export {useEditingCommands} from "./state/use-editing-commands.ts";
@@ -217,7 +217,7 @@ const compiled=await build({stdin:{contents:`
  export {tabPictures} from "./image-assets.ts";
  export {ImageButton, DescriptionField} from "./ui/image-controls.tsx";
 `,resolveDir:new URL("../apps/web/src/",import.meta.url).pathname,loader:"ts"},bundle:true,write:false,platform:"node",format:"esm",
- plugins:[{name:"shared-react",setup(build){build.onResolve({filter:/^(react(?:\/.*)?|yjs)$/},args=>({path:args.path==="react"?reactURL.href:new URL(args.path==="yjs"?"../apps/web/node_modules/yjs/dist/yjs.mjs":"../apps/web/node_modules/"+args.path+".js",import.meta.url).href,external:true}));}}]});
+ plugins:[{name:"shared-react",setup(build){build.onResolve({filter:/^(react(?:\/.*)?|yjs)$/},args=>({path:args.path==="react"?reactURL.href:new URL(args.path==="yjs"?"../node_modules/yjs/dist/yjs.mjs":"../node_modules/"+args.path+".js",import.meta.url).href,external:true}));}}]});
 const hooks=await import("data:text/javascript;base64,"+Buffer.from(compiled.outputFiles[0].text).toString("base64"));
 function renderHook(fn){let result;renderToStaticMarkup(createElement(function Harness(){result=fn();return null;}));return result;}
 const editingState={readOnly:false,composing:false,pointerGesture:false,invalidObjectText:false};

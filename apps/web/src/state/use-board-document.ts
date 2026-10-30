@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { type Board as SavedBoard, type BoardV10 as Board, empty, type ItemV10 as Item, upgrade } from "nextphase-board-rules/document.ts";
-import { Adapter } from "../document-adapter";
+import { Adapter } from "nextphase-board-sync/document-adapter.ts";
 import { defaultConnectorStyle, type ConnectorStyle, defaultPaint, hasText, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
 import { emptyHistory, record, type History } from "../history";
 

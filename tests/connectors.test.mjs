@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { add, empty, validate, canonical } from "../packages/board-rules/src/document.ts";
-import { Adapter } from "../apps/web/src/document-adapter.ts";
+import { Adapter } from "../packages/board-sync/src/document-adapter.ts";
 import { hasEnds, hasRectangle, eligibleIdea, typeWithEnds, objectKeys, CONNECTOR_STYLE_KEYS } from "../packages/board-rules/src/objects/registry.ts";
 import { connectorRoute, roundedPath, halfway, sideMidpoints, labelBox, labelEditorBox, arrowPoints,
   connectorLayout, lineHit, hitObject, connectorInBox, selectInBox, createConnector, bands, cascade, cascadeCount,
@@ -336,10 +336,10 @@ test("clipboard reasons refuse connector-only selections after editing reasons",
 });
 
 // Exercise the actual hooks with React's server renderer; no browser or DOM is launched.
-const { build } = await import("../apps/web/node_modules/esbuild/lib/main.js");
-const reactURL = new URL("../apps/web/node_modules/react/index.js", import.meta.url);
+const { build } = await import("esbuild");
+const reactURL = new URL("../node_modules/react/index.js", import.meta.url);
 const { createElement } = await import(reactURL.href);
-const { renderToStaticMarkup } = await import("../apps/web/node_modules/react-dom/server.node.js");
+const { renderToStaticMarkup } = await import("react-dom/server");
 const compiled = await build({ stdin: { contents: `
   export { useEditingCommands } from "./state/use-editing-commands.ts";
   export { useBoardDocument } from "./state/use-board-document.ts";
@@ -351,7 +351,7 @@ const compiled = await build({ stdin: { contents: `
 `, resolveDir: new URL("../apps/web/src/", import.meta.url).pathname, loader: "ts" },
   bundle: true, write: false, platform: "node", format: "esm", plugins: [{ name: "shared-react", setup(build) {
     build.onResolve({ filter: /^(react(?:\/.*)?|yjs)$/ }, (args) => ({ path: args.path === "react" ? reactURL.href :
-      new URL(args.path === "yjs" ? "../apps/web/node_modules/yjs/dist/yjs.mjs" : "../apps/web/node_modules/" + args.path + ".js", import.meta.url).href, external: true }));
+      new URL(args.path === "yjs" ? "../node_modules/yjs/dist/yjs.mjs" : "../node_modules/" + args.path + ".js", import.meta.url).href, external: true }));
   } }] });
 const hooks = await import("data:text/javascript;base64," + Buffer.from(compiled.outputFiles[0].text).toString("base64"));
 function harness(b, selected = ids(...b.objects), options = {}) {

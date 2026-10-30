@@ -230,3 +230,18 @@ boundaries, configuration and build inputs here when an implementation needs
 them. State behavior and constraints concretely, with public sources and dated
 versions. Commit prerequisite contracts with or before their implementation brief.
 Contributors must be able to build and verify the software from public material.
+
+The 0003-W1 v1 implementation uses these committed prerequisites:
+
+- [0003 identity v1](0003-identity-v1.md): Supabase Auth, ES256 keys and renewal.
+- [0003 access v1](0003-access-v1.md): workspaces, grants, invitations and replay.
+- [0003 API v1](0003-api-v1.md): HTTP routes and one-time join tickets.
+- [0003 sync v1](0003-sync-v1.md): edits, receipts, waiting and connection limits.
+- [0003 hosted persistence v1](0003-hosted-persistence-v1.md): SQLite chunks, snapshots, backups and restore fences.
+- [0003 self-host runner v1](0003-self-host-runner-v1.md): one Node process, Docker and workspace setup.
+- [0001 document v11](0001-document-v11.md): before/after and server identifier-history rules; saved format remains version 10.
+- [0001 toolchain v4](0001-toolchain-v4.md), [lock v4](0001-dependency-lock-v4.json),
+  [inventory v4](0001-dependency-inventory-v4.json) and [runtime notices v2](0001-runtime-notices-v2.txt): five workspaces and separate artifact notices.
+- [0001 web modules v24](0001-web-modules-v24.md): the shared sync/room packages and server import boundaries.
+
+The browser client and its local data formats remain unchanged in this milestone.

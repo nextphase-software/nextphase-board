@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { add, canonical, empty, validate } from "../packages/board-rules/src/document.ts";
-import { Adapter } from "../apps/web/src/document-adapter.ts";
+import { Adapter } from "../packages/board-sync/src/document-adapter.ts";
 import { assignSection, bandOrder, drawRectangle, dropTargets, dropped, moveWithMembers,
   objectLabel, orderInBands, orderParticipants, placeObject, remapSection, sectionAt,
   withMembers, wrapReason, wrapSelection } from "../apps/web/src/sections.ts";

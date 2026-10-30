@@ -21,13 +21,13 @@ Run a broader set only when explicitly requested. Use the exact Node/npm version
 in the toolchain contract. From the repository root:
 
 ```sh
-npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund
+npm ci --ignore-scripts --no-audit --no-fund
 npm --prefix apps/web run check:deps
-npm --prefix apps/web run typecheck
-npm --prefix apps/web test
-npm --prefix apps/web run audit:licenses
-npm --prefix apps/web run build
-npm --prefix apps/web run build:fixtures
+npm run typecheck
+npm test
+npm run audit:licenses
+npm run build
+npm run build:fixtures
 ```
 
 The unit suite covers document identity, canonical Unicode serialization,
@@ -89,3 +89,33 @@ a disposable fixture database, retained for reload. Edit/move/pan/zoom/save and
 reload; Inspect saved fixture reads its persisted contents. Close this workload
 tab before the regression fixture so its writer lock cannot block the tests.
 Diagnostic mount-to-load time is not input-to-paint or a performance guarantee.
+
+## Server validation (0003-W1)
+
+The shared suite uses six independent Supabase Auth identities and the same S checks
+on Node and workerd. It requires Docker and an already running, disposable local
+stack from `supabase/config.toml`. Provision that stack outside the suite:
+
+```sh
+node tests/server/make-signing-key.mjs
+npx supabase start
+node tests/server/write-stack-info.mjs
+npm run test:server:node
+npm run test:server:workerd
+BOARD_TEST_TARGET=docker npm run test:server:node
+```
+
+Set `BOARD_TEST_STACK` to use an existing stack settings JSON instead of
+`tests/server/.stack.json`. Settings and signing keys are ignored; they contain
+local test credentials. The suite never invokes the Supabase CLI. Setup applies
+the plain SQL before exposing the schema, creates disposable accounts/workspaces,
+and cleans up its own data. Each driver uses free ports and system temporary
+directories. Docker checks create and remove their own image and container.
+
+`tests/transition.test.mjs`, `tests/codec.test.mjs` and `tests/room.test.mjs` cover
+state transitions, strict Yjs projection and the host-neutral room with in-memory
+SQLite storage and an injected clock. They run with `npm test`. The workerd driver
+evicts Durable Objects with WebSockets hibernated; S37 and S43 are Node only.
+S51–S54 run only with the Docker target. Each executed S check prints one PASS or
+FAIL line; each suite ends with a JSON SUMMARY including measured storage and
+fanout values. Test clocks, faults and rewinds live only in the test bootstraps.

@@ -18,3 +18,9 @@ graphify-out/
 .boundary-logs/
 __pycache__/
 *.pyc
+apps/server/dist/
+.wrangler/
+supabase/.temp/
+supabase/.branches/
+supabase/signing_keys.json
+tests/server/.stack.json

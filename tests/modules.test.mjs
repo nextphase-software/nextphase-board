@@ -40,6 +40,10 @@ function rulesImportProblems(content, file) {
 function webImportProblems(content) {
   return specifiers(content).filter((specifier) =>
     /(?:^|\/)packages\//.test(specifier) ||
+    /(?:^|\/)server(?:\/|$)/.test(specifier) ||
+    specifier.startsWith("nextphase-board-room") ||
+    specifier === "nextphase-board-rules/transition.ts" ||
+    specifier.startsWith("nextphase-board-sync") && specifier !== "nextphase-board-sync/document-adapter.ts" ||
     specifier.startsWith("nextphase-board-rules/") && !rulesParts.includes(specifier.slice("nextphase-board-rules/".length)));
 }
 
@@ -47,7 +51,7 @@ test("the package holds exactly its modules", () => {
   assert.deepEqual(rulesParts, [
     "document.ts", "marks.ts", "objects/connector.ts", "objects/image.ts", "objects/registry.ts",
     "objects/section.ts", "objects/shape.ts", "objects/sticky.ts", "objects/stroke.ts", "objects/text.ts",
-    "platform.d.ts", "styles.ts",
+    "platform.d.ts", "styles.ts", "transition.ts",
   ]);
   for (const [name, content] of rulesContents) {
     assert.equal(content.split("\n")[0], "// SPDX-License-Identifier: Apache-2.0", name);
@@ -61,7 +65,7 @@ test("board rules import only their own files", () => {
 });
 
 test("the web app keeps no copy and imports by name", () => {
-  for (const name of ["document.ts", "marks.ts", "styles.ts", "objects"]) {
+  for (const name of ["document.ts", "marks.ts", "styles.ts", "objects", "document-adapter.ts"]) {
     assert(!existsSync(new URL(name, source)), name);
   }
   let namesPackage = false;
@@ -420,9 +424,10 @@ function typeNameUses(source) {
 
 test("rules modules ask the registry instead of naming types", () => {
   const webRules = readdirSync(source).filter((name) => name.endsWith(".ts"));
-  assert(webRules.includes("document-adapter.ts"));
+  assert(!webRules.includes("document-adapter.ts"));
+  assert(existsSync(new URL("../packages/board-sync/src/document-adapter.ts", import.meta.url)));
   const packageRules = readdirSync(rules).filter((name) => name.endsWith(".ts") && !name.endsWith(".d.ts")).sort();
-  assert.deepEqual(packageRules, ["document.ts", "marks.ts", "styles.ts"]);
+  assert.deepEqual(packageRules, ["document.ts", "marks.ts", "styles.ts", "transition.ts"]);
   for (const name of [...webRules, ...files(new URL("state/", source)).map((n) => "state/" + n)]) {
     assert.deepEqual(typeNameUses(readFileSync(new URL(name, source), "utf8")), [], name);
   }
@@ -470,5 +475,50 @@ test("rules modules never import React or Konva", () => {
   const webContents = webRules.map((name) => [name, readFileSync(new URL(name, source), "utf8")]);
   for (const [name, content] of [...webContents, ...rulesContents]) {
     assert.doesNotMatch(content, /\bimport\s+(?:[^;]*?\s+from\s*)?["'](?:react|react-dom|react-konva|konva)(?:\/[^"']*)?["']/, name);
+  }
+});
+
+function sharedImportProblems(content, file, folder, allowed) {
+  return specifiers(content).filter((name) => {
+    if (name.startsWith(".")) {
+      const target = new URL(name, file);
+      return !target.href.startsWith(folder.href) || !existsSync(target);
+    }
+    return !allowed.some((pkg) => name === pkg || name.startsWith(pkg + "/"));
+  });
+}
+
+test("shared sync and room modules keep their import boundaries and licence headers", () => {
+  for (const [name, allowed] of [
+    ["board-sync", ["nextphase-board-rules", "yjs"]],
+    ["board-room", ["nextphase-board-rules", "nextphase-board-sync", "yjs", "y-protocols", "lib0"]],
+  ]) {
+    const folder = new URL(`../packages/${name}/src/`, import.meta.url);
+    for (const path of files(folder)) {
+      const file = new URL(path, folder), content = readFileSync(file, "utf8");
+      assert.equal(content.split("\n")[0], "// SPDX-License-Identifier: Apache-2.0", path);
+      assert.deepEqual(sharedImportProblems(content, file, folder, allowed), [], path);
+      assert.doesNotMatch(content.replace(/"[^"\n]*"|'[^'\n]*'/g, ""), /\b(?:window|document|Buffer|process|fetch|setTimeout|WebSocket|DurableObjectState)\b(?=\s*[.(])/);
+    }
+  }
+});
+
+test("web and shared import guards reject all new forbidden dependencies", () => {
+  for (const name of ["nextphase-board-sync/codec.ts", "nextphase-board-room/room.ts",
+    "nextphase-board-rules/transition.ts", "../../server/src/app.ts", "../../../apps/server/src/app.ts"]) {
+    assert(webImportProblems(`import { value } from "${name}";`).length, name);
+  }
+  assert.deepEqual(webImportProblems('import { Adapter } from "nextphase-board-sync/document-adapter.ts";'), []);
+  const folder = new URL("../packages/board-sync/src/", import.meta.url);
+  for (const name of ["node:crypto", "hono", "nextphase-board-room/room.ts", "../../board-room/src/room.ts"]) {
+    assert(sharedImportProblems(`export * from "${name}";`, new URL("codec.ts", folder), folder,
+      ["nextphase-board-rules", "yjs"]).length, name);
+  }
+});
+
+test("production runners contain none of the test driver names", () => {
+  for (const name of ["node.ts", "worker.ts"]) {
+    const content = readFileSync(new URL("../apps/server/src/" + name, import.meta.url), "utf8");
+    assert.doesNotMatch(content, /driver-node|driver-workerd|node-test|worker-test|BOARD_TEST|\bfault\b|\binjectedClock\b/);
   }
 });

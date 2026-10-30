@@ -1,0 +1,30 @@
+{
+  "name": "nextphase-board",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": { "node": "26.13.0", "npm": "11.20.0" },
+  "workspaces": ["apps/web", "apps/server", "packages/board-rules", "packages/board-room", "packages/board-sync"],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "node --test --test-reporter=tap tests/*.test.mjs",
+    "test:server:node": "vitest run -c vitest.node.config.ts",
+    "test:server:workerd": "vitest run -c vitest.workerd.config.ts",
+    "build": "npm run build -w nextphase-board-web",
+    "build:fixtures": "npm run build:fixtures -w nextphase-board-web",
+    "build:server": "node scripts/build-server.mjs",
+    "audit:licenses": "node scripts/check-notices.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.4.11",
+    "@cloudflare/workers-types": "5.20261030.1",
+    "@types/node": "26.0.0",
+    "@types/ws": "8.18.2",
+    "esbuild": "0.28.2",
+    "supabase": "2.122.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5",
+    "wrangler": "4.156.0"
+  }
+}

@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { add, empty, validate, canonical, upgrade } from "../packages/board-rules/src/document.ts";
-import { Adapter } from "../apps/web/src/document-adapter.ts";
+import { Adapter } from "../packages/board-sync/src/document-adapter.ts";
 import { defaultConnectorStyle, connectorStyleOf, CONNECTOR_STYLE_KEYS, HEADS, LINE_SHAPES, END_SIDES,
   SHAPE_COLORS, hasEnds, hasRectangle, eligibleIdea, lineWidth, lineDash, outlinePoint, objectKeys } from "../packages/board-rules/src/objects/registry.ts";
 import { connectorRoute, roundedPath, arrowPoints, halfway, connectorLayout, reconnectPreview, lineHit, connectorInBox,
@@ -337,10 +337,10 @@ test("Duplicate and Paste preserve style and anchors while remapping both ends; 
 
 // Hook and screen-part checks use the server renderer with synthetic surfaces.
 // They do not launch a browser or claim browser focus/capture/blur evidence.
-const { build } = await import("../apps/web/node_modules/esbuild/lib/main.js");
-const reactURL = new URL("../apps/web/node_modules/react/index.js", import.meta.url);
+const { build } = await import("esbuild");
+const reactURL = new URL("../node_modules/react/index.js", import.meta.url);
 const { createElement } = await import(reactURL.href);
-const { renderToStaticMarkup } = await import("../apps/web/node_modules/react-dom/server.node.js");
+const { renderToStaticMarkup } = await import("react-dom/server");
 const compiled = await build({ stdin: { contents: `
   export { useBoardDocument } from "./state/use-board-document.ts";
   export { useEditingCommands } from "./state/use-editing-commands.ts";
@@ -350,7 +350,7 @@ const compiled = await build({ stdin: { contents: `
 `, resolveDir: new URL("../apps/web/src/", import.meta.url).pathname, loader: "ts" }, bundle: true, write: false, platform: "node", format: "esm",
   plugins: [{ name: "shared-react", setup(build) {
     build.onResolve({ filter: /^(react(?:\/.*)?|yjs)$/ }, (args) => ({ path: args.path === "react" ? reactURL.href :
-      new URL(args.path === "yjs" ? "../apps/web/node_modules/yjs/dist/yjs.mjs" : "../apps/web/node_modules/" + args.path + ".js", import.meta.url).href, external: true }));
+      new URL(args.path === "yjs" ? "../node_modules/yjs/dist/yjs.mjs" : "../node_modules/" + args.path + ".js", import.meta.url).href, external: true }));
   } }] });
 const hooks = await import("data:text/javascript;base64," + Buffer.from(compiled.outputFiles[0].text).toString("base64"));
 const renderHook = (fn) => { let value; renderToStaticMarkup(createElement(function Harness() { value = fn(); return null; })); return value; };

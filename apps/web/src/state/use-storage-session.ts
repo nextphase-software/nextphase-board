@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { type Board as SavedBoard, type BoardV10 as Board, empty, freshIdentifier } from "nextphase-board-rules/document.ts";
-import type { Adapter } from "../document-adapter";
+import type { Adapter } from "nextphase-board-sync/document-adapter.ts";
 import { decode, LocalStore, readPair } from "../storage";
 import { boardKeys, isBoardKey, LIST_KEY, orderedBoards, parseList, recordBoardKey, type BoardEntry } from "../board-catalog";
 import { boardFileName, readBoardBundle, writeBoardFile } from "../board-file";

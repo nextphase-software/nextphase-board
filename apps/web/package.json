@@ -4,7 +4,10 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "engines": { "node": "26.13.0", "npm": "11.20.0" },
+  "engines": {
+    "node": "26.13.0",
+    "npm": "11.20.0"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p ../../packages/board-rules",
     "test": "node --test ../../tests/*.test.mjs",
@@ -17,7 +20,8 @@
   },
   "dependencies": {
     "konva": "10.9.0",
-    "nextphase-board-rules": "file:../../packages/board-rules",
+    "nextphase-board-rules": "0.1.0",
+    "nextphase-board-sync": "0.1.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-konva": "19.3.2",

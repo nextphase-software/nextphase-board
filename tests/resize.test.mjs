@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { cornerPoint, resizeObject, resizeSet } from "../apps/web/src/resize.ts";
 import { add, empty, validate } from "../packages/board-rules/src/document.ts";
-import { Adapter } from "../apps/web/src/document-adapter.ts";
+import { Adapter } from "../packages/board-sync/src/document-adapter.ts";
 import { emptyHistory, record, redo, undo } from "../apps/web/src/history.ts";
 
 const start = { x: 100, y: 200, width: 200, height: 100 };

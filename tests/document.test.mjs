@@ -9,7 +9,7 @@ import {
   validate,
   validText,
 } from "../packages/board-rules/src/document.ts";
-import { Adapter } from "../apps/web/src/document-adapter.ts";
+import { Adapter } from "../packages/board-sync/src/document-adapter.ts";
 import { objectType } from "../packages/board-rules/src/objects/registry.ts";
 import { ALIGNMENTS, COLORS, TEXT_SIZES } from "../packages/board-rules/src/styles.ts";
 const legacy = (b) => ({ ...b, schemaVersion: 1, objects: b.objects.map(({ color, textSize, align, group, marks, section, ...o }) => o) });

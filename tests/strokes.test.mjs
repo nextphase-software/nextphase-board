@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { add, empty, validate, canonical, upgrade } from "../packages/board-rules/src/document.ts";
-import { Adapter } from "../apps/web/src/document-adapter.ts";
+import { Adapter } from "../packages/board-sync/src/document-adapter.ts";
 import { INK_KINDS, INK_WEIGHTS, inkWidth, inkColors, objectKeys, hasPoints, hasRectangle, eligibleIdea, sectionIdea, defaultDrawingStyle, drawingStyleFor, drawingKey, isDrawingTool } from "../packages/board-rules/src/objects/registry.ts";
 import { drawingPoints, strokeGeometry, makeStroke, strokeHit, erasedStrokes, strokeInBox, absolutePoints, changeStrokeWeight, changeStrokeColor, changeOrdinaryColor, resizeWithStrokes, strokeFloor } from "../apps/web/src/strokes.ts";
 import { hitObject, selectInBox, createConnector, connectReason } from "../apps/web/src/connectors.ts";

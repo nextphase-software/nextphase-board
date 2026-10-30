@@ -1,0 +1,20 @@
+{
+  "name": "nextphase-board-room",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "dependencies": {
+    "lib0": "0.2.119",
+    "nextphase-board-rules": "0.1.0",
+    "nextphase-board-sync": "0.1.0",
+    "y-protocols": "1.0.7",
+    "yjs": "13.6.33"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "exports": {
+    "./*": "./src/*"
+  }
+}

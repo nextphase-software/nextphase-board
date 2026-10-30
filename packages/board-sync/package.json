@@ -1,0 +1,17 @@
+{
+  "name": "nextphase-board-sync",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "dependencies": {
+    "nextphase-board-rules": "0.1.0",
+    "yjs": "13.6.33"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "exports": {
+    "./*": "./src/*"
+  }
+}

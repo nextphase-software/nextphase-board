@@ -389,4 +389,271 @@ Retrieved 2026-10-30: the public references of the contracts listed above, and
 
 ## Implementation record
 
-Not started.
+### 2026-10-30 — implemented and validated
+
+- Governing brief: 0003-W1 v1 and only its listed prerequisite versions.
+- Branch: `codex/0003-W1-owner-editor-viewer-access`.
+- Base: `d0976e6df03ce407321e62d5b21ce2a71ed917ea` (committed main).
+- Validated source/test revision: `508d00767a056afef23e868fc29f6b117375dd52`.
+- Validated tree: `6a88032e4ba2d32456865a38a433e74ee4437b0e`. The committed tree
+  is byte-identical to the index tree used for the full validation below.
+- This record is committed separately. The final branch tip is reported in the
+  implementation handoff, separately from the validated source/test revision.
+
+The initial CRLF-notices stop was resolved by the planner's 2026-10-30 ruling:
+hash original licence bytes, then normalize CRLF and lone CR to LF; no contract,
+accepted notices or inventory file was changed.
+
+The first commit attempt was blocked by the public allowlist and retried successfully after the maintainer's 2026-10-30 change; hooks remained enabled.
+
+**Commit and V15.**
+`git commit -m "feat(server): enforce owner editor and viewer access"` exited 0
+and created `508d00767a056afef23e868fc29f6b117375dd52`; the boundary hooks reported
+PASS. Git also printed a `packed-refs.lock` permission warning. The commit's
+branch reference and tree were then verified successfully.
+
+`git diff -M --name-status d0976e6..508d00767a056afef23e868fc29f6b117375dd52`
+exited 0. Inspection found 88 scoped entries, the adapter's R100 rename, and
+`apps/web/package-lock.json` deleted; every other path belongs to items 1–11.
+The implementation was unchanged on retry. No application tests or builds were
+repeated for this record-only completion, and nothing was pushed, merged or
+published.
+
+**Delivered source.** The workspace and accepted root lock; byte-preserving
+adapter move and two web import changes; strict codec and transition rules;
+host-neutral room modules for ordered edits, receipts, durable waiting, access
+replay/epochs, tickets, chunks, snapshots and restores; shared Hono routes,
+Supabase SQL and identity boundary; Worker/Node runners and restore fences;
+self-host scripts, Dockerfile, local stack configuration/helpers, build/notices
+checks, unit/module guards, both shared-suite drivers and contributor docs.
+No source under the web app changed beyond the adapter move and those imports.
+The new test bootstraps contain the injected clock and faults; production
+`worker.ts` and `node.ts` contain none of their switches or names.
+
+**Environment and commands.** Every command used the supplied Node 26.13.0
+installation first on PATH; `node --version` printed `v26.13.0`, and
+`npm --version` printed `11.20.0`. The supplied stack settings file was passed
+through `BOARD_TEST_STACK`. Machine-specific paths are parameterized below:
+`$W1_EVIDENCE` is a folder in the system temporary directory. Program names,
+arguments and flags are the ones executed.
+
+| Gate | Commands | Final result |
+| --- | --- | --- |
+| V1 | `npm install --package-lock-only --ignore-scripts --no-audit --no-fund`; `cmp package-lock.json docs/architecture/0001-dependency-lock-v4.json`; absence check for `apps/web/package-lock.json` | All exit 0; SHA-256 `0c0f248e512964df1f89b3c437ee3a25d17a18b25dab3527c17c97893c447d6d` |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` | Exit 0; 118 packages installed |
+| V3 | `npm run typecheck` | Exit 0; all five members |
+| V4 | `npm test` | Exit 0; 662 passed, 0 failed, 0 skipped; all 645 base tests retained |
+| V5 | `npm run build`; `npm run build:fixtures` | Both exit 0; fixture pages built, not launched |
+| V6 | `npm run build:server` | Exit 0; Node/Worker bundles and both notices written and checked |
+| V7 | `npm run audit:licenses` | Exit 0; all three artifacts covered; original installed licence bytes hashed before LF normalization |
+| V8 | `npm audit --audit-level=high`; `npm audit --omit=dev --audit-level=high` | Both exit 0; both report 0 vulnerabilities on 2026-10-30 |
+| V9 | `WRANGLER_LOG_PATH="$W1_EVIDENCE/wrangler.log" npx wrangler deploy --dry-run --outdir "$W1_EVIDENCE/wrangler" -c apps/server/wrangler.json` | Exit 0; dry-run only, nothing uploaded; log redirected to the temporary folder |
+| V10 | `npm run test:server:node` with the supplied `BOARD_TEST_STACK` | Exit 0; S1–S50, 50 passed, 0 failed |
+| V11 | `npm run test:server:workerd` with the supplied `BOARD_TEST_STACK` | Exit 0; 48 passed, 0 failed; S37/S43 are Node only |
+| V12 | `BOARD_TEST_TARGET=docker npm run test:server:node` with the supplied `BOARD_TEST_STACK` | Exit 0; S51–S54, 4 passed, 0 failed |
+| V14 | Base/candidate byte comparison of the four distribution files below | Identical |
+| V15 | `git diff -M --name-status d0976e6..508d00767a056afef23e868fc29f6b117375dd52` and scoped file/import inspection | Exit 0; 88 entries within items 1–11, adapter R100, old web lock deleted |
+
+Final gate lines:
+
+```text
+PASS: V1
+PASS: V2
+PASS: V3
+PASS: V4
+PASS: V5
+PASS: V6
+PASS: V7
+PASS: V8
+PASS: V9
+PASS: V10
+PASS: V11
+PASS: V12
+PASS: V14
+PASS: V15
+```
+
+V13 and V16 were not run and remain assigned to the review's check run. No
+browser, regression harness, Safari/IME/accessibility matrix, hosted deploy,
+actual hosted point-in-time restore, or broader load/performance campaign ran.
+The local point-in-time rewind is a simulation; its actual hosted
+`undoBookmark`/abort lifecycle still requires the first hosted deployment check.
+
+The Supabase stack was already running. No Supabase CLI start, stop or status
+command was executed, and neither stack helper was executed here; their clean
+clone exercise remains with review. Suite setup applies the schema twice
+before exposure, creates independent disposable identities and workspaces, and
+cleans up its data. The Docker driver creates its own image, container and
+named data volume, sends its temporary settings file with `docker cp`, and
+refreshes the selected port after restart. All of those resources were removed;
+the supplied base image and stack containers, volumes and networks were left
+alone. Read-only image/volume listings found no remaining test-owned resources.
+
+The knowledge-graph index call was blocked by this session's approval policy
+(`MCP tool call requires approval, but approval policy is never`), so code
+discovery used direct reads. Development failures were corrected before the
+validated tree: test-key import usage, guard false positives, workerd cleanup,
+Docker settings/port handling, and the simulated rewind's queued-close ordering.
+The full requested command sequence was then rerun on the tree named above.
+
+**V14 base build.** A disposable checkout of `d0976e6` was made with
+`git archive d0976e6` into the system temporary directory. In that checkout,
+`npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` and
+`npm --prefix apps/web run build` both exited 0. The final candidate matches:
+
+| File | Bytes | SHA-256 of both builds |
+| --- | ---: | --- |
+| `apps/web/dist/app.js` | 841801 | `e2e3fdbfa681ac1a7e01d325a353043b8bb88f5902dc1de64f87293e9271db7f` |
+| `apps/web/dist/style.css` | 19837 | `c1bd44f1005f7d36e5814ffea0a239a14940c0dbac7144203b8a42a245829f2c` |
+| `apps/web/dist/index.html` | 576 | `66f0d8d097b0c1b88dba01e2fe87c1233b576b3d0019e81401434a7f58a74c8e` |
+| `apps/web/dist/THIRD_PARTY_NOTICES.txt` | 16169 | `3367640f4a3b473755079ad41dc46c67bd65ed2dd21a0ca47edcd14944d3a91d` |
+
+**Dependencies.** No dependency outside toolchain v4 was introduced. The root
+lock is byte-identical to lock v4. The complete transitive versions, integrity
+and licence records remain inventory v4 (217 third-party entries plus 11
+workspace entries); neither it nor the accepted notices was edited.
+
+New server runtime dependencies are `hono` 4.13.14, `@hono/node-server` 2.1.5,
+`jose` 6.2.14, `@supabase/supabase-js` 2.118.0 and `ws` 8.22.0, all MIT.
+The room declares `y-protocols` 1.0.7 (MIT), `lib0` 0.2.119 (MIT) and
+`yjs` 13.6.33 (MIT); lib0/Yjs were already in the web graph. The new private
+`nextphase-board-sync` and `nextphase-board-room` packages are version 0.1.0,
+Apache-2.0 source of this repository. Root development tools, including the
+existing compiler/bundler now hoisted to the workspace, are:
+
+| Tool | Exact version | Declared licence |
+| --- | --- | --- |
+| `@cloudflare/vitest-plugin` | 1.4.11 | MIT |
+| `@cloudflare/workers-types` | 5.20261030.1 | MIT OR Apache-2.0 |
+| `@types/node` | 26.0.0 | MIT |
+| `@types/ws` | 8.18.2 | MIT |
+| `esbuild` | 0.28.2 | MIT |
+| `supabase` | 2.122.0 | MIT |
+| `typescript` | 7.0.2 | Apache-2.0 |
+| `vitest` | 5.0.5 | MIT |
+| `wrangler` | 4.156.0 | MIT OR Apache-2.0 |
+
+**Shared server-suite evidence.** These are the final runs' S and SUMMARY
+lines, preserved without merging results across runners. Storage row bytes
+measure column payload; fanout milliseconds are informational, with no pass
+threshold.
+
+**Node — V10.**
+
+```text
+PASS: S1 independent ES256 identities
+PASS: S2 missing and malformed tokens
+PASS: S3 tampering and shared-secret algorithms
+PASS: S4 expiry audience and issuer
+PASS: S5 pinned keys survive endpoint failure
+PASS: S6 every protected route checks tokens before lookups
+PASS: S7 create route role matrix and titles
+PASS: S8 board details role matrix
+PASS: S9 ticket and join role matrix
+PASS: S10 canonical export role matrix
+PASS: S11 owner lists members grants and invitations
+PASS: S12 invitation create cancel matrix and private rows
+PASS: S13 raise matrix no-op and lowering refusals
+PASS: S14 invitation acceptance identity expiry cancellation and retries
+PASS: S15 unoffered routes return not found
+PASS: S16 refused joins disclose no board content
+PASS: S17 viewer edits are never acknowledged
+PASS: S18 saved precedes broadcast
+PASS: S19 incomplete edits wait until dependencies arrive
+PASS: S20 receipt retry is idempotent and bound to update bytes
+PASS: S21 highest board role wins
+PASS: S22 guest access and Data API rows agree
+PASS: S23 board invitations add an outsider as a guest
+PASS: S24 workspace raises close all affected boards with 4409
+PASS: S25 a board raise leaves other rooms connected
+PASS: S26 acceptance refreshes a cached viewer
+PASS: S27 a redundant effective grant leaves epoch and connection alone
+PASS: S28 failed fanout is recovered on next join
+PASS: S29 tickets are one-time short-lived and origin-bound
+PASS: S30 renewal and expiry survive hibernation
+PASS: S31 invited confirmed account signs in once without sign-ups
+PASS: S32 new rooms are empty and first open is idempotent
+PASS: S33 exact 2 MiB board persists in bounded chunks
+PASS: S34 oversized message leaves transport usable
+PASS: S35 hundred-edit and idle snapshots retain two generations
+PASS: S36 waiting count bytes deadline and hibernation
+PASS: S37 Node restart drops waits and clients resend
+PASS: S38 hostile transitions hidden fields history and size store nothing
+PASS: S39 hosted image edits are refused
+PASS: S40 ordinary wakes retain cached access during outage
+PASS: S41 large logical restore locks until replay and clears tickets
+PASS: S42 physical rewind respects an external fence
+PASS: S43 copied Node volume requires replay after marking
+PASS: S44 unreadable fence fails closed independently of Supabase
+PASS: S45 replay lowers and removes cached effective roles
+PASS: S46 access history floor enforces the inclusive replay boundary
+PASS: S47 operator authentication limits and runner-specific routes
+PASS: S48 schema is repeatable and authenticated writes are denied
+PASS: S49 workspace setup creates its owner and refuses a second run
+PASS: S50 fanout timing for 1 10 and 50 connected boards
+SUMMARY {"runner":"node","checks":50,"pass":50,"fail":0,"measures":{"storage":{"jsonChunks":2,"yjsChunks":2,"largestRowBytes":1048596,"reloadMs":224.94087500000023},"fanoutMs":{"1":33.78295799999978,"10":78.6706669999985,"50":99.1057499999988}}}
+```
+
+**workerd — V11.**
+
+```text
+PASS: S1 independent ES256 identities
+PASS: S2 missing and malformed tokens
+PASS: S3 tampering and shared-secret algorithms
+PASS: S4 expiry audience and issuer
+PASS: S5 pinned keys survive endpoint failure
+PASS: S6 every protected route checks tokens before lookups
+PASS: S7 create route role matrix and titles
+PASS: S8 board details role matrix
+PASS: S9 ticket and join role matrix
+PASS: S10 canonical export role matrix
+PASS: S11 owner lists members grants and invitations
+PASS: S12 invitation create cancel matrix and private rows
+PASS: S13 raise matrix no-op and lowering refusals
+PASS: S14 invitation acceptance identity expiry cancellation and retries
+PASS: S15 unoffered routes return not found
+PASS: S16 refused joins disclose no board content
+PASS: S17 viewer edits are never acknowledged
+PASS: S18 saved precedes broadcast
+PASS: S19 incomplete edits wait until dependencies arrive
+PASS: S20 receipt retry is idempotent and bound to update bytes
+PASS: S21 highest board role wins
+PASS: S22 guest access and Data API rows agree
+PASS: S23 board invitations add an outsider as a guest
+PASS: S24 workspace raises close all affected boards with 4409
+PASS: S25 a board raise leaves other rooms connected
+PASS: S26 acceptance refreshes a cached viewer
+PASS: S27 a redundant effective grant leaves epoch and connection alone
+PASS: S28 failed fanout is recovered on next join
+PASS: S29 tickets are one-time short-lived and origin-bound
+PASS: S30 renewal and expiry survive hibernation
+PASS: S31 invited confirmed account signs in once without sign-ups
+PASS: S32 new rooms are empty and first open is idempotent
+PASS: S33 exact 2 MiB board persists in bounded chunks
+PASS: S34 oversized message leaves transport usable
+PASS: S35 hundred-edit and idle snapshots retain two generations
+PASS: S36 waiting count bytes deadline and hibernation
+PASS: S38 hostile transitions hidden fields history and size store nothing
+PASS: S39 hosted image edits are refused
+PASS: S40 ordinary wakes retain cached access during outage
+PASS: S41 large logical restore locks until replay and clears tickets
+PASS: S42 physical rewind respects an external fence
+PASS: S44 unreadable fence fails closed independently of Supabase
+PASS: S45 replay lowers and removes cached effective roles
+PASS: S46 access history floor enforces the inclusive replay boundary
+PASS: S47 operator authentication limits and runner-specific routes
+PASS: S48 schema is repeatable and authenticated writes are denied
+PASS: S49 workspace setup creates its owner and refuses a second run
+PASS: S50 fanout timing for 1 10 and 50 connected boards
+SUMMARY {"runner":"workerd","checks":48,"pass":48,"fail":0,"measures":{"storage":{"jsonChunks":2,"yjsChunks":2,"largestRowBytes":1048596,"reloadMs":67},"fanoutMs":{"1":18,"10":67,"50":119}}}
+```
+
+**Docker — V12.**
+
+```text
+PASS: S51 Docker image builds with the pinned digest
+PASS: S52 container passes identity join secrecy and edit checks
+PASS: S53 Docker restart preserves the board and permits another saved edit
+PASS: S54 self-hosted Supabase accepts ES256 and refuses HS256
+SUMMARY {"runner":"docker","checks":4,"pass":4,"fail":0,"measures":{}}
+```

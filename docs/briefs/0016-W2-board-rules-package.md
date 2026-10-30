@@ -1,11 +1,14 @@
 BRIEF VERSION: 0016-W2 v1 (2026-10-29)
 # 0016-W2 — Board rules move into a shared package
 
-Status: Draft. Implementation starts only after the maintainer commits this brief,
-[0001 toolchain v3](../architecture/0001-toolchain-v3.md), its
+Status: Implemented. Independently reviewed at `26c95ee` (pass) and merged into main
+on 2026-10-29 with [0001 toolchain v3](../architecture/0001-toolchain-v3.md), its
 [lock v3](../architecture/0001-dependency-lock-v3.json) and
 [inventory v3](../architecture/0001-dependency-inventory-v3.json), and
-[0001 web modules v23](../architecture/0001-web-modules-v23.md) to main.
+[0001 web modules v23](../architecture/0001-web-modules-v23.md). Its
+[evidence summary](0016-W2-board-rules-package-evidence.md) maps each criterion to its checks.
+The implementation record below, which lists the validated revisions, was written before that
+review.
 
 ## Outcome
 

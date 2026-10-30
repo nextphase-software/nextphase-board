@@ -332,3 +332,122 @@ Retrieved 2026-10-29: [npm `file:` dependencies](https://docs.npmjs.com/cli/v11/
 and [package `exports`](https://nodejs.org/docs/latest-v26.x/api/packages.html#subpath-patterns).
 
 ## Implementation record
+
+### 2026-10-29 — Implementation of v1
+
+- Branch: `codex/0016-W2-board-rules-package`.
+- Base revision: `1c7e72d4830b77693359dfd2e95ec47aa064204c` (committed main,
+  including this v1 brief and its v3/v23 contracts).
+- Validated source/test revision: `02f13f1f24a133cfe885f9d2972ee4649296853d`,
+  `refactor(web): extract shared board rules package`. The checks below ran on the
+  identical source/configuration/test tree immediately before that commit; V14
+  checked the resulting commit. The final branch tip is reported separately in the
+  implementation handoff and adds only this implementation record.
+- Implemented items 1–10: the shared rules package, web-only adapter and drawn-item
+  type, import changes, toolchain v3 wiring and four module guard tests.
+- Added dependency: repository-owned `nextphase-board-rules` 0.1.0, Apache-2.0,
+  private `file:../../packages/board-rules` link. No third-party dependency added
+  or changed.
+
+Commands below ran from the repository root with the pinned toolchain first on
+`PATH`. `node --version` printed `v26.13.0`; `npm --version` printed `11.20.0`.
+
+| Exact command | Result |
+| --- | --- |
+| `npm --prefix apps/web install --package-lock-only --ignore-scripts --no-audit --no-fund` | Exit 0. |
+| `cmp apps/web/package-lock.json docs/architecture/0001-dependency-lock-v3.json` | Exit 0; byte-identical. |
+| `shasum -a 256 apps/web/package-lock.json` | Exit 0; `0fc6385fe7d3c24ae7cbc2c7d5d77d7de7cfd9ebca9e6ab5814721f66fd31379`. |
+| `npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund` | Exit 0; package link verified by the assertion below. |
+| `npm --prefix apps/web run check:deps` | Exit 0; no required dependency or peer problem. Optional packages for other platforms and Konva's optional native canvas providers remain uninstalled. |
+| `npm --prefix apps/web run typecheck` | Exit 0; both app and package compiler invocations ran. |
+| `node --test tests/modules.test.mjs tests/document.test.mjs tests/objects.test.mjs tests/styles.test.mjs tests/marks.test.mjs` | Exit 0; 153 passed, 0 failed. |
+| `npm --prefix apps/web test` | Exit 0; exactly 645 tests, 645 passed, 0 failed, 0 cancelled, 0 skipped, 0 todo. |
+| `npm --prefix apps/web run audit:licenses` | Exit 0; accepted lock, inventory and distributed notices verified. |
+| `npm --prefix apps/web run build` | Exit 0; application built. |
+| `npm --prefix apps/web run build:fixtures` | Exit 0; fixtures and regression bundle built; browser execution deferred. |
+| `git diff --check` | Exit 0. |
+| `git diff --name-status -M 1c7e72d4830b77693359dfd2e95ec47aa064204c..02f13f1f24a133cfe885f9d2972ee4649296853d` | Exit 0; exactly the items 1–10 allowlist: 99 change entries, 110 old/new paths when rename endpoints are expanded. No other path changed. |
+| `git diff --name-status 02f13f1f24a133cfe885f9d2972ee4649296853d..HEAD` | Final handoff check: only this brief's implementation record. |
+
+V1 link assertion (exit 0):
+
+```sh
+node --input-type=module - <<'JS'
+import assert from 'node:assert/strict';
+import { lstatSync, realpathSync } from 'node:fs';
+assert(lstatSync('apps/web/node_modules/nextphase-board-rules').isSymbolicLink());
+assert.equal(realpathSync('apps/web/node_modules/nextphase-board-rules'), realpathSync('packages/board-rules'));
+console.log('PASS: V1');
+JS
+```
+
+V5 disposable-copy command (exit 0). The copy was outside the worktree, the probe's
+`typecheck` exited 1 with `error TS2304: Cannot find name 'window'` in package
+`marks.ts`, and the temporary directory was confirmed deleted. The working tree
+was never given the probe.
+
+```sh
+python3 - <<'PY'
+from pathlib import Path
+import shutil, subprocess, tempfile
+source = Path.cwd()
+with tempfile.TemporaryDirectory(prefix='nextphase-board-v5-') as temporary:
+    copy = Path(temporary) / 'tree'
+    assert not copy.is_relative_to(source)
+    shutil.copytree(source, copy, symlinks=True, ignore=shutil.ignore_patterns('.git', '.worktrees', 'node_modules', 'dist', 'dist-fixtures', '.codebase-memory'))
+    shutil.copytree(source / 'apps/web/node_modules', copy / 'apps/web/node_modules', symlinks=True)
+    with (copy / 'packages/board-rules/src/marks.ts').open('a') as marks:
+        marks.write('\nexport const probe = () => window.innerWidth;\n')
+    result = subprocess.run(['npm', '--prefix', 'apps/web', 'run', 'typecheck'], cwd=copy, text=True, capture_output=True)
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "Cannot find name 'window'" in result.stdout + result.stderr, result.stdout + result.stderr
+    print(result.stdout.strip())
+    print('Probe typecheck exit:', result.returncode)
+assert not Path(temporary).exists()
+print('Disposable copy deleted.')
+print('PASS: V5')
+PY
+```
+
+V8 metafile assertion (exit 0):
+
+```sh
+node --input-type=module - <<'JS'
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const inputs = Object.keys(JSON.parse(readFileSync('apps/web/dist/meta.json', 'utf8')).inputs);
+const prefix = '../../packages/board-rules/src/';
+const expected = ['document.ts', 'marks.ts', 'styles.ts', ...['connector', 'image', 'registry', 'section', 'shape', 'sticky', 'stroke', 'text'].map((name) => `objects/${name}.ts`)].sort();
+assert.deepEqual(inputs.filter((name) => name.startsWith(prefix)).map((name) => name.slice(prefix.length)).sort(), expected);
+assert(!inputs.some((name) => name.includes('node_modules/nextphase-board-rules')));
+console.log('Eleven package modules are bundle inputs at their canonical source paths.');
+console.log('PASS: V8');
+JS
+```
+
+Check results (one line per authorized check):
+
+```text
+PASS: V1 — clean install and correct package symlink.
+PASS: V2 — regenerated lock byte-identical to lock v3 and its accepted SHA-256.
+PASS: V3 — dependency check exited 0.
+PASS: V4 — app and browser-free package type checks exited 0.
+PASS: V5 — disposable-copy browser-global probe failed as required; copy deleted.
+PASS: V6 — named tests passed; full suite exactly 645 tests with 0 failed.
+PASS: V7 — licence audit exited 0.
+PASS: V8 — both builds exited 0; eleven canonical package inputs, no linked node_modules inputs.
+PASS: V14 — exact items 1–10 file list; final tip adds only this implementation record.
+```
+
+V9–V13 were not run: the rename/content and test-diff checks (V9–V10), guard
+failure against the base (V11), A–J browser comparison against `29e4280` (V12),
+and browser regression harness (V13) are left to the independent review's check
+run, as instructed. Browsers cannot start in this sandbox. No browser matrix,
+Safari, accessibility, IME, performance or unrelated checks ran. Behavioural
+acceptance remains subject to that review; builds do not establish browser parity.
+
+Codebase-memory discovery and indexing were attempted first but unavailable
+because the tool required approval and this sandbox permits none; local reads
+were used instead. Mandatory public-boundary Git hooks ran normally and passed;
+no hooks were bypassed. The source commit succeeded despite a nonfatal sandbox
+denial of Git's `packed-refs.lock` creation. No push or merge was performed.

@@ -4,7 +4,7 @@ export const MESSAGE_LIMIT = 1048576;
 export const BACKUP_LIMIT = 16777216;
 export type Role = "owner" | "editor" | "viewer";
 export type Person = { id: string; email: string; expiresAt: number };
-export type Attachment = Person & { connectionId: string; epoch: number };
+export type Attachment = Person & { connectionId: string; epoch: number; role: Role };
 export interface Connection {
   attachment(): Attachment;
   attach(value: Attachment): void;

@@ -5,7 +5,8 @@ import { checkSettings } from "../../apps/server/src/settings.ts";
 const settings = checkSettings(JSON.parse(await readFile(process.env.BOARD_SETTINGS!, "utf8")));
 let fixedNow: number | null = null;
 let offset = 0, unreachable: string[] = [];
-const app = await startNode(settings, { now: () => fixedNow ?? Date.now() + offset, backupLimit: 16777216 });
+const app = await startNode(settings, { now: () => fixedNow ?? Date.now() + offset, backupLimit: 16777216,
+  deliveryIntervalMs: Number(process.env.BOARD_DELIVERY_INTERVAL_MS ?? 0) });
 const original = app.runtime.room;
 app.runtime.room = (board) => {
   const room = original(board);

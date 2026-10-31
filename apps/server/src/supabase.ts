@@ -15,7 +15,8 @@ export class Supabase implements AccessSource, BoardRows {
   async rpc<T = any>(name: string, parameters: Record<string, unknown>): Promise<T> {
     const { data, error } = await this.client.schema("nextphase_board").rpc(name, parameters);
     if (error) {
-      const statuses: Record<string, number> = { lowering_not_offered: 409, person_not_found: 404,
+      const statuses: Record<string, number> = { owner_row_immutable: 409, guest_has_grants: 409,
+        account_disabled: 403, person_not_found: 404,
         not_found: 404, invitation_email_mismatch: 403, invitation_expired: 410, invitation_used: 410,
         invitation_cancelled: 410, bad_request: 400 };
       if (statuses[error.message]) throw new RoomError(statuses[error.message], error.message);
@@ -37,11 +38,7 @@ export class Supabase implements AccessSource, BoardRows {
   role(person: string, board: string): Promise<Role | null> { return this.rpc("board_role", { person, board }); }
   changes(board: string, after: number): Promise<AccessPage> { return this.rpc("access_changes_after", { board, after }); }
   async workspaceRole(person: string, workspace: string): Promise<string | null> {
-    const member = (await this.rows("workspace_members", { workspace_id: workspace, person_id: person }))[0];
-    if (member?.role !== "guest") return member?.role ?? null;
-    const boards = await this.rows("boards", { workspace_id: workspace });
-    const granted = await this.rows("board_grants", { person_id: person });
-    return granted.some((grant) => boards.some((board) => board.id === grant.board_id)) ? "guest" : null;
+    return (await this.workspaces(person)).find((row) => row.id === workspace)?.role ?? null;
   }
   async copy(saved: Omit<SavedBoard, "editedAt"> & { editedAt: number | null }): Promise<void> {
     await this.rpc("copy_saved_board", { board: saved.boardId, title: saved.title,

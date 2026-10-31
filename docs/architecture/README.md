@@ -250,3 +250,9 @@ For 0003-W3 v1, the server uses [0003 API v2](0003-api-v2.md),
 [0003 access v2](0003-access-v2.md) and
 [0003 hosted persistence v2](0003-hosted-persistence-v2.md) in place of their v1
 contracts. The other 0003-W1 prerequisites above remain in force.
+
+For 0003-W2 v1, the server uses [0003 access v3](0003-access-v3.md),
+[0003 API v3](0003-api-v3.md), [0003 sync v2](0003-sync-v2.md) and
+[0003 identity v2](0003-identity-v2.md) in place of their earlier versions.
+Hosted persistence v2, self-host runner v1, document v11, toolchain v4 and
+web modules v24 remain in force.

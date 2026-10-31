@@ -6,7 +6,7 @@ export interface RoomClient {
   ticket(person: Person): Promise<{ ticket: string; expiresAt: number }>;
   rename(person: Person, title: string): Promise<{ id: string; title: string; revision: number }>;
   export(person: Person): Promise<string>;
-  changed(): Promise<void>;
+  changed(): Promise<number>;
   backup(): Promise<unknown>;
   restore(value: unknown): Promise<unknown>;
   restoreToTime?(bookmark: string): Promise<unknown>;

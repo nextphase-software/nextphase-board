@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import { env, SELF, evictDurableObject, runInDurableObject } from "cloudflare:test";
+import { env, SELF, evictDurableObject, runInDurableObject, createExecutionContext,
+  createScheduledController, waitOnExecutionContext } from "cloudflare:test";
+import worker from "./worker-test.ts";
 import { peer } from "./peer.ts";
 import type { Context, Driver } from "./driver-types.ts";
 import { decodeBackup, replace } from "../../packages/board-room/src/backups.ts";
@@ -23,6 +25,12 @@ export async function makeDriver(context: Context): Promise<Driver> {
       return result;
     },
     async control(value) {
+      if (value.scheduled) {
+        const execution = createExecutionContext();
+        worker.scheduled(createScheduledController({ cron: "* * * * *" }), bindings, execution);
+        await waitOnExecutionContext(execution);
+        return {};
+      }
       const control = bindings.CONTROLS.get(bindings.CONTROLS.idFromName("controls"));
       const response = await control.fetch("http://controls/", { method: "POST", body: JSON.stringify(value) });
       const result = await response.json();

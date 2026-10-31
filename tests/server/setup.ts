@@ -47,8 +47,9 @@ export default async function setup(project: any) {
   const issuer = stack.apiUrl + "/auth/v1";
   const bad = await badTokens(key, issuer, people.owner, stack.jwtSecret);
   let offline = false;
-  const rpcControls = new Map<string, { fail?: boolean; delayMs?: number }>();
-  const rpcLog: { name: string; at: number; parameters: unknown; forwardedAt?: number }[] = [];
+  const rpcControls = new Map<string, { fail?: boolean; delayMs?: number; hold?: boolean; parameters?: Record<string, unknown> }>();
+  const held: { name: string; release(): void }[] = [];
+  const rpcLog: { name: string; at: number; parameters: any; forwardedAt?: number; heldAt?: number }[] = [];
   // All server Supabase and key-endpoint calls pass through this proxy. Test
   // administration uses the stack directly, leaving its containers untouched.
   const proxy = createServer(async (req, res) => {
@@ -59,8 +60,9 @@ export default async function setup(project: any) {
       const chunks: Buffer[] = [];
       for await (const chunk of req) chunks.push(Buffer.from(chunk));
       const name = /^\/rest\/v1\/rpc\/([^?]+)/.exec(req.url ?? "")?.[1];
+      let record: typeof rpcLog[number] | undefined;
       if (name) {
-        const record = { name, at: Date.now(), parameters: chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {} };
+        record = { name, at: Date.now(), parameters: chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {} };
         rpcLog.push(record);
         const control = rpcControls.get(name);
         if (control?.delayMs) await new Promise((resolve) => setTimeout(resolve, control.delayMs));
@@ -69,7 +71,13 @@ export default async function setup(project: any) {
       }
       const response = await fetch(stack.apiUrl + req.url, { method: req.method, headers,
         ...(chunks.length ? { body: Buffer.concat(chunks) } : {}) });
-      res.writeHead(response.status, Object.fromEntries(response.headers)); res.end(Buffer.from(await response.arrayBuffer()));
+      const bytes = Buffer.from(await response.arrayBuffer());
+      const control = name ? rpcControls.get(name) : undefined;
+      if (record && control?.hold && Object.entries(control.parameters ?? {}).every(([key, value]) => record!.parameters[key] === value)) {
+        record.heldAt = Date.now();
+        await new Promise<void>((release) => held.push({ name: name!, release }));
+      }
+      res.writeHead(response.status, Object.fromEntries(response.headers)); res.end(bytes);
     } catch { res.writeHead(502); res.end(); }
   });
   await new Promise<void>((resolve) => proxy.listen(0, "0.0.0.0", resolve));
@@ -77,6 +85,21 @@ export default async function setup(project: any) {
   const contextPeople = people;
   let caseNumber = 0;
   const createdWorkspaces: string[] = [], invitedIds: string[] = [];
+  const removalPeople: { id: string }[] = [];
+  async function removalFixture() {
+    const independent: Record<string, any> = {};
+    for (const name of roles) {
+      const email = `removal-${randomUUID()}-${name}@example.test`, password = randomUUID() + randomUUID();
+      const account = await db.client.auth.admin.createUser({ email, password, email_confirm: true });
+      if (account.error || !account.data.user) throw Error("Cannot create removal identity");
+      removalPeople.push({ id: account.data.user.id });
+      const login = await auth.auth.signInWithPassword({ email, password });
+      if (login.error || !login.data.session) throw Error("Cannot sign in removal identity");
+      independent[name] = { id: account.data.user.id, email, token: login.data.session.access_token };
+      await db.rpc("remember_person", { person: account.data.user.id, email });
+    }
+    return { ...await fixture(independent), people: independent };
+  }
   async function fixture(people = contextPeople) {
     const workspace = await db.rpc<string>("bootstrap_workspace", { name: `W1 ${run} ${++caseNumber}`, owner_id: people.owner.id, owner_email: people.owner.email });
     createdWorkspaces.push(workspace);
@@ -97,9 +120,18 @@ export default async function setup(project: any) {
       switch (req.url) {
         case "/fixture": result = await fixture(); break;
         case "/lists-fixture": result = await fixture(listsPeople); break;
+        case "/removal-fixture": result = await removalFixture(); break;
+        case "/server-config": result = JSON.parse(await readFile(new URL("apps/server/wrangler.json", root), "utf8")); break;
         case "/proxy":
           if (value.offline !== undefined) offline = value.offline;
-          if (value.rpc) rpcControls.set(value.rpc, { fail: value.fail, delayMs: value.delayMs });
+          if (value.rpc) rpcControls.set(value.rpc, { fail: value.fail, delayMs: value.delayMs, hold: value.hold, parameters: value.parameters });
+          if (value.release) {
+            const control = rpcControls.get(value.release);
+            if (control) control.hold = false;
+            for (const item of held.splice(0)) {
+              if (item.name === value.release) item.release(); else held.push(item);
+            }
+          }
           if (value.clearLog) rpcLog.length = 0;
           result = rpcLog; break;
         case "/rpc":
@@ -167,7 +199,7 @@ export default async function setup(project: any) {
       DELETE FROM nextphase_board.workspace_members WHERE workspace_id='${workspace}';
       DELETE FROM nextphase_board.access_log_floor WHERE workspace_id='${workspace}';
       DELETE FROM nextphase_board.workspaces WHERE id='${workspace}'; COMMIT;`);
-    for (const person of [...Object.values(people), ...Object.values(listsPeople), ...invitedIds.map((id) => ({ id }))]) {
+    for (const person of [...Object.values(people), ...Object.values(listsPeople), ...removalPeople, ...invitedIds.map((id) => ({ id }))]) {
       await db.client.schema("nextphase_board").from("people").delete().eq("id", person.id);
       await db.client.auth.admin.deleteUser(person.id);
     }

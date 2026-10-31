@@ -38,7 +38,8 @@ docker run --rm -p 8788:8788 \
   -e BOARD_SETTINGS=/app/settings.json nextphase-board-server
 ```
 
-Only one process may use a data folder. The container's `node` user must be able
+One server (one Worker deployment or one Node process) answers for one Supabase
+dataset. Only one process may use a data folder. The container's `node` user must be able
 to read its settings and write the volume. Put the server behind HTTPS and keep
 operator routes behind the deployment's own access control as well as their key.
 No image or Worker is published by these commands.
@@ -56,5 +57,5 @@ The Worker reads `SUPABASE_URL`, optional `SUPABASE_ISSUER`, `JWKS`,
 `wrangler.json` contains local bindings and SQLite migrations, without secrets.
 
 See the [test guide](../../tests/README.md#server-validation-0003-w1) for the
-shared server suite and the [API contract](../../docs/architecture/0003-api-v2.md)
+shared server suite and the [API contract](../../docs/architecture/0003-api-v3.md)
 for requests, refusals and operator controls.

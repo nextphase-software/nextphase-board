@@ -129,6 +129,7 @@ check(6, "every protected route checks tokens before lookups", async () => {
     ["POST", `/workspaces/${id}/invitations`], ["POST", `/boards/${id}/invitations`],
     ["DELETE", `/invitations/${id}`], ["POST", `/invitations/${id}/accept`],
     ["PUT", `/workspaces/${id}/members/${person("viewer").id}`], ["PUT", `/boards/${id}/grants/${person("viewer").id}`],
+    ["DELETE", `/workspaces/${id}/members/${person("viewer").id}`], ["DELETE", `/boards/${id}/grants/${person("viewer").id}`],
   ];
   for (const [bad, reason] of [["malformed", "token_malformed"], ["tampered", "token_signature"], ["hs256", "token_algorithm"],
     ["expired", "token_expired"], ["audience", "token_audience"], ["issuer", "token_issuer"]]) {
@@ -194,7 +195,7 @@ check(12, "invitation create cancel matrix and private rows", async () => {
   }
   const rows = await helper("rls", { token: person("viewer").token, table: "invitations" }); assert.deepEqual(rows.data, []);
 });
-check(13, "raise matrix no-op and lowering refusals", async () => {
+check(13, "change a member and a grant with removal and no-op", async () => {
   const f = await fixture();
   const paths = [`/workspaces/${f.workspace}/members/${person("viewer").id}`, `/boards/${f.a}/grants/${person("viewer").id}`, `/boards/${f.b}/grants/${person("viewer").id}`];
   for (const path of paths) for (let n = 1; n < names.length; n++) {
@@ -202,11 +203,11 @@ check(13, "raise matrix no-op and lowering refusals", async () => {
     await refused(await request(path, names[n], "PUT", { role: "editor" }), absent ? 404 : 403, absent ? "not_found" : "role_too_low", absent ? undefined : "owner");
   }
   for (const path of paths) {
-    await success(path, "owner", "PUT", { role: "editor" });
+    assert.equal((await success(path, "owner", "PUT", { role: "editor" }) as any).removal, "done");
     const before = (await helper("rows", { table: "access_changes", filters: { workspace_id: f.workspace } })).length;
-    await success(path, "owner", "PUT", { role: "editor" });
+    assert.equal((await success(path, "owner", "PUT", { role: "editor" }) as any).removal, "done");
     assert.equal((await helper("rows", { table: "access_changes", filters: { workspace_id: f.workspace } })).length, before);
-    await refused(await request(path, "owner", "PUT", { role: "viewer" }), 409, "lowering_not_offered");
+    assert.equal((await success(path, "owner", "PUT", { role: "viewer" }) as any).removal, "done");
   }
 });
 check(14, "invitation acceptance identity expiry cancellation and retries", async () => {
@@ -551,6 +552,15 @@ check(46, "access history floor enforces the inclusive replay boundary", async (
 });
 check(47, "operator authentication limits and runner-specific routes", async () => {
   const f = await fixture(); await join(f.a, "owner");
+  for (const action of ["disable", "enable"]) {
+    const path = `/operator/people/${person("editor").id}/${action}`;
+    for (const key of [null, "wrong"]) await refused(await driver.request(path, {
+      method: "POST", headers: key ? { "Board-Operator-Key": key } : {},
+    }), 401, "operator_key_invalid");
+    await driver.control({ noOperator: true });
+    await refused(await driver.request(path, { method: "POST", headers: { "Board-Operator-Key": context.operatorKey } }), 404, "not_found");
+    await driver.control({ noOperator: false });
+  }
   for (const key of [null, "wrong"]) await refused(await operator(f.a, "backup", undefined, key), 401, "operator_key_invalid");
   await driver.control({ noOperator: true }); await refused(await operator(f.a, "backup"), 404, "not_found");
   await driver.control({ noOperator: false });
@@ -560,12 +570,19 @@ check(47, "operator authentication limits and runner-specific routes", async () 
 check(48, "schema is repeatable and authenticated writes are denied", async () => {
   const f = await fixture();
   const catalog = await helper("sql", { sql: `SELECT count(*), bool_and(relrowsecurity) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='nextphase_board' AND relkind='r';
-    SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='nextphase_board' AND p.proname IN ('bootstrap_workspace','remember_person','create_board','write_member_role','write_board_grant','create_invitation','cancel_invitation','accept_invitation','access_changes_after','record_board_open','copy_saved_board','list_workspaces','list_boards','list_recent_boards') AND has_function_privilege('authenticated',p.oid,'execute');` });
-  assert.match(catalog, /9\|t/); assert.match(catalog, /\n0\n/);
-  for (const table of ["people", "workspaces", "workspace_members", "boards", "board_opens", "board_grants", "invitations", "access_changes", "access_log_floor"]) {
+    SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='nextphase_board' AND p.proname IN ('bootstrap_workspace','remember_person','create_board','write_member_role','write_board_grant','create_invitation','cancel_invitation','accept_invitation','access_changes_after','record_board_open','copy_saved_board','list_workspaces','list_boards','list_recent_boards','remove_member','remove_grant','disable_person','enable_person','record_access_receipt','pending_access_boards','pending_deliveries','deliver_access_change') AND has_function_privilege('authenticated',p.oid,'execute');` });
+  assert.match(catalog, /10\|t/); assert.match(catalog, /\n0\n/);
+  for (const table of ["people", "workspaces", "workspace_members", "boards", "board_opens", "board_grants", "invitations", "access_changes", "access_log_floor", "access_deliveries"]) {
     assert((await helper("rls", { token: person("owner").token, table, write: { id: crypto.randomUUID() } })).error);
   }
   for (const [rpc, parameters] of [
+    ["remove_member", { workspace: f.workspace, person: person("editor").id }],
+    ["remove_grant", { board: f.a, person: person("granted").id }],
+    ["disable_person", { person: person("editor").id }],
+    ["enable_person", { person: person("editor").id }],
+    ["record_access_receipt", { board: f.a, through: 0 }],
+    ["pending_access_boards", {}],
+    ["pending_deliveries", { person: person("editor").id, workspace: f.workspace, board: null }],
     ["record_board_open", { person: person("owner").id, board: f.a, opened_at: new Date().toISOString() }],
     ["copy_saved_board", { board: f.a, title: "Forbidden", edited_at: null, generation: 0, revision: 0 }],
     ["list_workspaces", { person: person("owner").id }],

@@ -24,8 +24,8 @@ export class EditSession {
     const refuse = (reason: string, needed?: string) => send(connection, {
       kind: "refused", requestId: message.requestId, reason, ...(needed ? { needed } : {}),
     });
-    if (grant?.role === "viewer") { refuse("role_too_low", "editor"); return; }
     if (!grant || grant.epoch !== message.epoch || grant.epoch !== connection.attachment().epoch) { refuse("epoch_changed"); return; }
+    if (grant.role === "viewer") { refuse("role_too_low", "editor"); return; }
     let update: Uint8Array;
     try { update = unbase64(message.update); } catch { refuse("invalid_update"); return; }
     const digest = await this.env.hash(update);

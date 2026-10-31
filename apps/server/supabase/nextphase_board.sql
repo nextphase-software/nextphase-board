@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS nextphase_board.people (
   id uuid PRIMARY KEY, email text NOT NULL CHECK (email = lower(email)),
   created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE nextphase_board.people ADD COLUMN IF NOT EXISTS disabled boolean NOT NULL DEFAULT false;
 CREATE TABLE IF NOT EXISTS nextphase_board.workspaces (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL UNIQUE,
   created_at timestamptz NOT NULL DEFAULT now()
@@ -57,6 +58,24 @@ CREATE TABLE IF NOT EXISTS nextphase_board.access_changes (
   person_id uuid NOT NULL REFERENCES nextphase_board.people(id), kind text NOT NULL CHECK (kind IN ('member','grant')),
   role text, created_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS nextphase_board.access_deliveries (
+  change_number bigint REFERENCES nextphase_board.access_changes(number) ON DELETE CASCADE,
+  board_id uuid REFERENCES nextphase_board.boards(id) ON DELETE CASCADE,
+  applied_at timestamptz, applied_watermark bigint, PRIMARY KEY(change_number, board_id)
+);
+CREATE INDEX IF NOT EXISTS unapplied_access_deliveries
+  ON nextphase_board.access_deliveries(board_id, change_number) WHERE applied_at IS NULL;
+CREATE OR REPLACE FUNCTION nextphase_board.deliver_access_change() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  INSERT INTO nextphase_board.access_deliveries(change_number, board_id)
+    SELECT NEW.number, b.id FROM nextphase_board.boards b
+    WHERE b.workspace_id = NEW.workspace_id AND (NEW.board_id IS NULL OR b.id = NEW.board_id);
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS deliver_access_change ON nextphase_board.access_changes;
+CREATE TRIGGER deliver_access_change AFTER INSERT ON nextphase_board.access_changes
+  FOR EACH ROW EXECUTE FUNCTION nextphase_board.deliver_access_change();
 CREATE TABLE IF NOT EXISTS nextphase_board.access_log_floor (
   workspace_id uuid PRIMARY KEY REFERENCES nextphase_board.workspaces(id), lowest_kept bigint NOT NULL DEFAULT 1
 );
@@ -66,12 +85,16 @@ LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
 $$;
 CREATE OR REPLACE FUNCTION nextphase_board.is_owner(workspace uuid) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
-  SELECT EXISTS(SELECT 1 FROM nextphase_board.workspace_members m
-    WHERE m.workspace_id = workspace AND m.person_id = auth.uid() AND m.role = 'owner')
+  -- A null workspace asks only whether the caller is enabled. Keeping this in
+  -- the existing definer avoids recursive people/member row policies.
+  SELECT EXISTS(SELECT 1 FROM nextphase_board.people p WHERE p.id = auth.uid() AND NOT p.disabled)
+    AND (workspace IS NULL OR EXISTS(SELECT 1 FROM nextphase_board.workspace_members m
+      WHERE m.workspace_id = workspace AND m.person_id = auth.uid() AND m.role = 'owner'))
 $$;
 CREATE OR REPLACE FUNCTION nextphase_board.board_role(person uuid, board uuid) RETURNS text
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
-  SELECT CASE WHEN auth.role() = 'service_role' OR person = auth.uid() THEN (
+  SELECT CASE WHEN (auth.role() = 'service_role' OR person = auth.uid())
+    AND EXISTS(SELECT 1 FROM nextphase_board.people p WHERE p.id = person AND NOT p.disabled) THEN (
     SELECT role FROM (
       SELECT m.role FROM nextphase_board.boards b JOIN nextphase_board.workspace_members m ON m.workspace_id = b.workspace_id
       WHERE b.id = board AND m.person_id = person AND m.role <> 'guest'
@@ -113,7 +136,7 @@ BEGIN
   SELECT m.role INTO old_role FROM nextphase_board.workspace_members m WHERE m.workspace_id = workspace AND m.person_id = person;
   IF old_role IS NULL THEN RAISE EXCEPTION 'person_not_found'; END IF;
   IF role NOT IN ('editor','viewer','guest') THEN RAISE EXCEPTION 'bad_request'; END IF;
-  IF nextphase_board.role_rank(role) < nextphase_board.role_rank(old_role) THEN RAISE EXCEPTION 'lowering_not_offered'; END IF;
+  IF old_role = 'owner' THEN RAISE EXCEPTION 'owner_row_immutable'; END IF;
   IF role = old_role THEN RETURN role; END IF;
   UPDATE nextphase_board.workspace_members m SET role = write_member_role.role WHERE m.workspace_id = workspace AND m.person_id = person;
   INSERT INTO nextphase_board.access_changes(workspace_id,person_id,kind,role) VALUES(workspace,person,'member',role);
@@ -128,7 +151,10 @@ BEGIN
   IF NOT EXISTS(SELECT 1 FROM nextphase_board.people p WHERE p.id = person) THEN RAISE EXCEPTION 'person_not_found'; END IF;
   IF role NOT IN ('editor','viewer') THEN RAISE EXCEPTION 'bad_request'; END IF;
   SELECT g.role INTO old_role FROM nextphase_board.board_grants g WHERE g.board_id = board AND g.person_id = person;
-  IF nextphase_board.role_rank(role) < nextphase_board.role_rank(old_role) THEN RAISE EXCEPTION 'lowering_not_offered'; END IF;
+  IF EXISTS(SELECT 1 FROM nextphase_board.workspace_members m
+    WHERE m.workspace_id = workspace AND m.person_id = person AND m.role = 'owner') THEN
+    RAISE EXCEPTION 'owner_row_immutable';
+  END IF;
   IF old_role = role THEN RETURN role; END IF;
   IF NOT EXISTS(SELECT 1 FROM nextphase_board.workspace_members m WHERE m.workspace_id = workspace AND m.person_id = person) THEN
     INSERT INTO nextphase_board.workspace_members VALUES(workspace,person,'guest');
@@ -138,6 +164,91 @@ BEGIN
   INSERT INTO nextphase_board.access_changes(workspace_id,board_id,person_id,kind,role) VALUES(workspace,board,person,'grant',role);
   RETURN role;
 END $$;
+CREATE OR REPLACE FUNCTION nextphase_board.remove_member(workspace uuid, person uuid) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE old_role text; has_grants boolean; new_role text;
+BEGIN
+  PERFORM 1 FROM nextphase_board.workspaces w WHERE w.id = workspace FOR UPDATE;
+  SELECT m.role INTO old_role FROM nextphase_board.workspace_members m
+    WHERE m.workspace_id = workspace AND m.person_id = person;
+  IF old_role IS NULL THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF old_role = 'owner' THEN RAISE EXCEPTION 'owner_row_immutable'; END IF;
+  SELECT EXISTS(SELECT 1 FROM nextphase_board.board_grants g JOIN nextphase_board.boards b ON b.id = g.board_id
+    WHERE b.workspace_id = workspace AND g.person_id = person) INTO has_grants;
+  IF old_role = 'guest' AND has_grants THEN RAISE EXCEPTION 'guest_has_grants'; END IF;
+  IF has_grants THEN
+    new_role := 'guest';
+    UPDATE nextphase_board.workspace_members m SET role = new_role
+      WHERE m.workspace_id = workspace AND m.person_id = person;
+  ELSE
+    DELETE FROM nextphase_board.workspace_members m WHERE m.workspace_id = workspace AND m.person_id = person;
+  END IF;
+  INSERT INTO nextphase_board.access_changes(workspace_id,person_id,kind,role) VALUES(workspace,person,'member',new_role);
+END $$;
+CREATE OR REPLACE FUNCTION nextphase_board.remove_grant(board uuid, person uuid) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE workspace uuid;
+BEGIN
+  SELECT b.workspace_id INTO workspace FROM nextphase_board.boards b WHERE b.id = board;
+  PERFORM 1 FROM nextphase_board.workspaces w WHERE w.id = workspace FOR UPDATE;
+  IF EXISTS(SELECT 1 FROM nextphase_board.workspace_members m
+    WHERE m.workspace_id = workspace AND m.person_id = person AND m.role = 'owner') THEN
+    RAISE EXCEPTION 'owner_row_immutable';
+  END IF;
+  DELETE FROM nextphase_board.board_grants g WHERE g.board_id = board AND g.person_id = person;
+  IF NOT FOUND THEN RAISE EXCEPTION 'not_found'; END IF;
+  INSERT INTO nextphase_board.access_changes(workspace_id,board_id,person_id,kind,role) VALUES(workspace,board,person,'grant',NULL);
+  IF NOT EXISTS(SELECT 1 FROM nextphase_board.board_grants g JOIN nextphase_board.boards b ON b.id = g.board_id
+    WHERE b.workspace_id = workspace AND g.person_id = person) THEN
+    DELETE FROM nextphase_board.workspace_members m
+      WHERE m.workspace_id = workspace AND m.person_id = person AND m.role = 'guest';
+    IF FOUND THEN
+      INSERT INTO nextphase_board.access_changes(workspace_id,person_id,kind,role) VALUES(workspace,person,'member',NULL);
+    END IF;
+  END IF;
+END $$;
+CREATE OR REPLACE FUNCTION nextphase_board.disable_person(person uuid) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  PERFORM 1 FROM nextphase_board.workspaces w ORDER BY w.id FOR UPDATE;
+  UPDATE nextphase_board.people p SET disabled = true WHERE p.id = person AND NOT p.disabled;
+  IF NOT FOUND THEN
+    IF NOT EXISTS(SELECT 1 FROM nextphase_board.people p WHERE p.id = person) THEN RAISE EXCEPTION 'person_not_found'; END IF;
+    RETURN;
+  END IF;
+  INSERT INTO nextphase_board.access_changes(workspace_id,person_id,kind,role)
+    SELECT m.workspace_id, person, 'member', NULL FROM nextphase_board.workspace_members m WHERE m.person_id = person;
+END $$;
+CREATE OR REPLACE FUNCTION nextphase_board.enable_person(person uuid) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  PERFORM 1 FROM nextphase_board.workspaces w ORDER BY w.id FOR UPDATE;
+  UPDATE nextphase_board.people p SET disabled = false WHERE p.id = person AND p.disabled;
+  IF NOT FOUND THEN
+    IF NOT EXISTS(SELECT 1 FROM nextphase_board.people p WHERE p.id = person) THEN RAISE EXCEPTION 'person_not_found'; END IF;
+    RETURN;
+  END IF;
+  INSERT INTO nextphase_board.access_changes(workspace_id,person_id,kind,role)
+    SELECT m.workspace_id, person, 'member', m.role FROM nextphase_board.workspace_members m WHERE m.person_id = person;
+END $$;
+CREATE OR REPLACE FUNCTION nextphase_board.record_access_receipt(board uuid, through bigint) RETURNS void
+LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$
+  UPDATE nextphase_board.access_deliveries d SET applied_at = now(), applied_watermark = through
+    WHERE d.board_id = board AND d.change_number <= through AND d.applied_at IS NULL
+$$;
+CREATE OR REPLACE FUNCTION nextphase_board.pending_access_boards() RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT coalesce(jsonb_agg(p.board_id ORDER BY p.board_id), '[]'::jsonb)
+    FROM (SELECT DISTINCT d.board_id FROM nextphase_board.access_deliveries d WHERE d.applied_at IS NULL) p
+$$;
+CREATE OR REPLACE FUNCTION nextphase_board.pending_deliveries(person uuid, workspace uuid, board uuid) RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT coalesce(jsonb_agg(jsonb_build_object('changeNumber', d.change_number, 'boardId', d.board_id)
+    ORDER BY d.change_number, d.board_id), '[]'::jsonb)
+  FROM nextphase_board.access_deliveries d JOIN nextphase_board.access_changes c ON c.number = d.change_number
+  WHERE d.applied_at IS NULL AND c.person_id = person
+    AND (workspace IS NULL OR c.workspace_id = workspace) AND (board IS NULL OR d.board_id = board)
+$$;
 CREATE OR REPLACE FUNCTION nextphase_board.create_invitation(workspace uuid, board uuid, email text, role text, "by" uuid)
 RETURNS nextphase_board.invitations LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE result nextphase_board.invitations;
@@ -166,6 +277,9 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'not_found'; END IF;
   PERFORM 1 FROM nextphase_board.workspaces w WHERE w.id = offer.workspace_id FOR UPDATE;
   SELECT * INTO offer FROM nextphase_board.invitations i WHERE i.id = invitation FOR UPDATE;
+  IF EXISTS(SELECT 1 FROM nextphase_board.people p WHERE p.id = person AND p.disabled) THEN
+    RAISE EXCEPTION 'account_disabled';
+  END IF;
   IF lower(email) <> offer.email THEN RAISE EXCEPTION 'invitation_email_mismatch'; END IF;
   result := jsonb_build_object('workspaceId',offer.workspace_id,'boardId',offer.board_id,'role',offer.role);
   IF offer.accepted_by = person THEN RETURN result; END IF;
@@ -181,7 +295,7 @@ BEGIN
   ELSIF offer.board_id IS NULL AND nextphase_board.role_rank(offer.role) > nextphase_board.role_rank(old_role) THEN
     PERFORM nextphase_board.write_member_role(offer.workspace_id,person,offer.role);
   END IF;
-  IF offer.board_id IS NOT NULL THEN
+  IF offer.board_id IS NOT NULL AND old_role <> 'owner' THEN
     SELECT g.role INTO old_role FROM nextphase_board.board_grants g WHERE g.board_id = offer.board_id AND g.person_id = person;
     IF nextphase_board.role_rank(offer.role) > nextphase_board.role_rank(old_role) THEN
       PERFORM nextphase_board.write_board_grant(offer.board_id,person,offer.role);
@@ -218,7 +332,8 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT coalesce(jsonb_agg(jsonb_build_object('id', w.id, 'name', w.name, 'role', m.role)
     ORDER BY w.name COLLATE "C", w.id), '[]'::jsonb)
   FROM nextphase_board.workspaces w JOIN nextphase_board.workspace_members m ON m.workspace_id = w.id
-  WHERE m.person_id = person AND (m.role <> 'guest' OR EXISTS (
+  WHERE m.person_id = person AND EXISTS(SELECT 1 FROM nextphase_board.people p WHERE p.id = person AND NOT p.disabled)
+    AND (m.role <> 'guest' OR EXISTS (
     SELECT 1 FROM nextphase_board.boards b WHERE b.workspace_id = w.id
       AND nextphase_board.board_role(person, b.id) IS NOT NULL))
 $$;
@@ -267,23 +382,23 @@ $$;
 
 -- Repeated runs replace policies without widening privileges.
 DO $$ DECLARE t text; BEGIN
-  FOREACH t IN ARRAY ARRAY['people','workspaces','workspace_members','boards','board_opens','board_grants','invitations','access_changes','access_log_floor'] LOOP
+  FOREACH t IN ARRAY ARRAY['people','workspaces','workspace_members','boards','board_opens','board_grants','invitations','access_changes','access_log_floor','access_deliveries'] LOOP
     EXECUTE format('ALTER TABLE nextphase_board.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS read_own ON nextphase_board.%I', t);
   END LOOP;
 END $$;
-CREATE POLICY read_own ON nextphase_board.board_opens FOR SELECT TO authenticated USING (person_id = auth.uid());
+CREATE POLICY read_own ON nextphase_board.board_opens FOR SELECT TO authenticated USING (nextphase_board.is_owner(NULL) AND person_id = auth.uid());
 CREATE POLICY read_own ON nextphase_board.boards FOR SELECT TO authenticated
   USING (nextphase_board.board_role(auth.uid(),id) IS NOT NULL);
 CREATE POLICY read_own ON nextphase_board.workspaces FOR SELECT TO authenticated USING (
-  EXISTS(SELECT 1 FROM nextphase_board.workspace_members m WHERE m.workspace_id = id AND m.person_id = auth.uid()));
+  nextphase_board.is_owner(NULL) AND EXISTS(SELECT 1 FROM nextphase_board.workspace_members m WHERE m.workspace_id = id AND m.person_id = auth.uid()));
 CREATE POLICY read_own ON nextphase_board.workspace_members FOR SELECT TO authenticated
-  USING (person_id = auth.uid() OR nextphase_board.is_owner(workspace_id));
-CREATE POLICY read_own ON nextphase_board.board_grants FOR SELECT TO authenticated USING (
-  person_id = auth.uid() OR EXISTS(SELECT 1 FROM nextphase_board.boards b WHERE b.id = board_id AND nextphase_board.is_owner(b.workspace_id)));
+  USING (nextphase_board.is_owner(NULL) AND (person_id = auth.uid() OR nextphase_board.is_owner(workspace_id)));
+CREATE POLICY read_own ON nextphase_board.board_grants FOR SELECT TO authenticated USING (nextphase_board.is_owner(NULL) AND (
+  person_id = auth.uid() OR EXISTS(SELECT 1 FROM nextphase_board.boards b WHERE b.id = board_id AND nextphase_board.is_owner(b.workspace_id))));
 CREATE POLICY read_own ON nextphase_board.invitations FOR SELECT TO authenticated USING (nextphase_board.is_owner(workspace_id));
-CREATE POLICY read_own ON nextphase_board.people FOR SELECT TO authenticated USING (
-  id = auth.uid() OR EXISTS(SELECT 1 FROM nextphase_board.workspace_members m WHERE m.person_id = id AND nextphase_board.is_owner(m.workspace_id)));
+CREATE POLICY read_own ON nextphase_board.people FOR SELECT TO authenticated USING (nextphase_board.is_owner(NULL) AND (
+  id = auth.uid() OR EXISTS(SELECT 1 FROM nextphase_board.workspace_members m WHERE m.person_id = id AND nextphase_board.is_owner(m.workspace_id))));
 REVOKE ALL ON ALL TABLES IN SCHEMA nextphase_board FROM PUBLIC, anon, authenticated;
 GRANT USAGE ON SCHEMA nextphase_board TO authenticated, service_role;
 GRANT SELECT ON ALL TABLES IN SCHEMA nextphase_board TO authenticated;

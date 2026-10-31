@@ -127,3 +127,13 @@ copy decisions in `npm test`. `tests/server/lists.test.ts` adds S55–S76 to bot
 server commands, using independent identities, an injected clock and named RPC
 failures/delays. It prints `SUMMARY-LISTS` and is silent for the Docker target.
 S70 runs only on Node; V12 belongs to the independent review check run.
+
+## Access removal checks (0003-W2)
+
+`tests/removal.test.mjs` covers delivery concurrency, receipts, scoped removal
+status and atomic room steps in `npm test`. `tests/server/removal.test.ts` adds
+S77–S93 to both server commands with fresh identities for each check. It prints
+`SUMMARY-REMOVAL` and is silent for the Docker target. The proxy can hold a
+computed RPC reply until released to exercise the lookup/removal race.
+Run Node and workerd sequentially against one dataset. V12 is left to the
+independent review check run; hosted timing remains a separate maintainer step.

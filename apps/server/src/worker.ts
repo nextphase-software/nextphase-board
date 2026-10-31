@@ -2,6 +2,7 @@
 import { createApp } from "./app.ts";
 import { WorkerRoom } from "./worker-room.ts";
 import { workerRuntime, type WorkerEnv } from "./worker-runtime.ts";
+import { deliver } from "./delivery.ts";
 export class BoardRoom extends WorkerRoom {}
 export class RestoreFence {
   state: DurableObjectState;
@@ -17,4 +18,9 @@ export class RestoreFence {
     return Response.json({ generation: row?.generation ?? 0 });
   }
 }
-export default { fetch(request: Request, env: WorkerEnv) { return createApp(workerRuntime(env)).fetch(request); } };
+export default {
+  fetch(request: Request, env: WorkerEnv) { return createApp(workerRuntime(env)).fetch(request); },
+  scheduled(_controller: ScheduledController, env: WorkerEnv, context: ExecutionContext) {
+    context.waitUntil(deliver(workerRuntime(env)));
+  },
+};

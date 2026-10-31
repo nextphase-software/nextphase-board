@@ -4,7 +4,7 @@ import { Adapter } from "nextphase-board-sync/document-adapter.ts";
 import { readBoard } from "nextphase-board-sync/codec.ts";
 import { canonical, type BoardV10 } from "nextphase-board-rules/document.ts";
 import { Copies } from "./copies.ts";
-import { Access } from "./access.ts";
+import { Access, closeCode } from "./access.ts";
 import { backup, decodeBackup, replace } from "./backups.ts";
 import { EditSession } from "./edit-session.ts";
 import type { RoomEnvironment } from "./interfaces.ts";
@@ -90,15 +90,16 @@ export class Room {
       if (details) setMeta(this.env.storage, "last_edit_at", Date.parse(details.createdAt));
     } catch { /* A legacy room can still serve cached access during an outage. */ }
   }
-  async refresh() {
+  async refresh(strict = false) {
     await this.load();
     await this.creationTime();
     try { this.generation = await this.env.fence(); }
-    catch { this.access.locked = true; return; }
+    catch { this.access.locked = true; if (strict) throw new RoomError(503, "room_locked"); return; }
     if (this.generation > meta(this.env.storage, "restore_generation") || meta(this.env.storage, "restore_pending")) {
       this.access.locked = true;
     }
-    try { await this.access.replay(this.boardId, this.generation); } catch { /* A restore remains locked until replay succeeds. */ }
+    try { await this.access.replay(this.boardId, this.generation); }
+    catch (error) { if (strict) throw error; /* A restore remains locked until replay succeeds. */ }
     this.saved();
   }
   ticket(person: Person) {
@@ -141,7 +142,7 @@ export class Room {
       } finally { candidate.destroy(); }
       let reply: Record<string, any> = {};
       const requestId = this.env.randomId();
-      const attachment: Attachment = { ...person, epoch: grant.epoch, connectionId: this.env.randomId() };
+      const attachment: Attachment = { ...person, role: grant.role, epoch: grant.epoch, connectionId: this.env.randomId() };
       const connection: Connection = { attachment: () => attachment, attach: () => {}, close: () => {},
         send: (text) => { reply = JSON.parse(text); } };
       const message = { requestId, epoch: grant.epoch, update: base64(update) };
@@ -161,7 +162,7 @@ export class Room {
       await this.refresh();
       const grant = await this.access.lookup(person.id, this.boardId);
       if (person.expiresAt <= this.env.now()) throw new RoomError(401, "ticket_invalid");
-      return { ...person, epoch: grant.epoch, connectionId: this.env.randomId() };
+      return { ...person, role: grant.role, epoch: grant.epoch, connectionId: this.env.randomId() };
     });
   }
   connected(connection: Connection) {
@@ -169,8 +170,8 @@ export class Room {
       await this.load();
       const attachment = connection.attachment();
       if (attachment.expiresAt <= this.env.now()) { connection.close(4401); return; }
-      const grant = await this.access.lookup(attachment.id, this.boardId);
-      if (attachment.epoch !== grant.epoch) { connection.close(4409); return; }
+      const grant = this.access.get(attachment.id);
+      if (!grant || attachment.epoch !== grant.epoch) { connection.close(closeCode(grant?.role ?? null, attachment.role)); return; }
       send(connection, { kind: "joined", role: grant.role, epoch: grant.epoch,
         revision: meta(this.env.storage, "revision"), update: base64(Y.encodeStateAsUpdate(this.doc)) });
       await this.schedule();
@@ -183,7 +184,17 @@ export class Room {
       return canonical(this.board);
     });
   }
-  changed() { return this.ordered(async () => { await this.refresh(); }); }
+  changed() {
+    return this.ordered(async () => {
+      // Delivery must not initialize a board that nobody has opened.
+      if (!meta(this.env.storage, "storage_version")) {
+        return (await this.env.access.changes(this.boardId, 0)).latest;
+      }
+      await this.refresh(true);
+      if (this.access.locked) throw new RoomError(503, this.access.reason);
+      return meta(this.env.storage, "watermark");
+    });
+  }
   message(connection: Connection, text: string) {
     return this.ordered(async () => {
       await this.load();

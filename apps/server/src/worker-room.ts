@@ -63,7 +63,7 @@ export class WorkerRoom {
         case "/ticket": result = await room.ticket(value); break;
         case "/rename": result = await room.rename(value.person, value.title); break;
         case "/export": result = await room.export(value); break;
-        case "/changed": await room.changed(); result = null; break;
+        case "/changed": result = await room.changed(); break;
         case "/backup": result = await room.backup(); break;
         case "/restore": result = await room.restore(value); break;
         case "/restore-to-time": {

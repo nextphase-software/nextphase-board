@@ -3,6 +3,9 @@ import type { AccessSource } from "./interfaces.ts";
 import { rank, RoomError, type Connection, type Role } from "./protocol.ts";
 import { meta, setMeta, type Storage } from "./storage.ts";
 export type Grant = { role: Role; epoch: number; changeNumber: number };
+export function closeCode(current: Role | null, joined: Role | null): number {
+  return rank(current) > rank(joined) ? 4409 : 4403;
+}
 export class Access {
   storage: Storage;
   source: AccessSource;
@@ -43,15 +46,30 @@ export class Access {
       });
     }
     this.storage.transaction(() => {
-      for (const update of updates) this.apply(update.person, update.role, update.number);
+      for (const update of updates) {
+        this.apply(update.person, update.role, update.number);
+        if (rank(update.role) < rank(update.old?.role ?? null)) {
+          for (const connection of this.connections()) if (connection.attachment().id === update.person) {
+            this.storage.exec("DELETE FROM waiting WHERE connection_id = ?", connection.attachment().connectionId);
+          }
+        }
+      }
+      // This also repairs a close interrupted after a previous room step committed.
+      for (const connection of this.connections()) {
+        const attachment = connection.attachment(), grant = this.get(attachment.id);
+        if (!grant || grant.epoch !== attachment.epoch) {
+          this.storage.exec("DELETE FROM waiting WHERE connection_id = ?", attachment.connectionId);
+        }
+      }
       setMeta(this.storage, "watermark", page.latest);
       setMeta(this.storage, "restore_generation", generation);
       setMeta(this.storage, "restore_pending", 0);
     });
-    for (const update of updates) {
-      if (update.old?.role === update.role) continue;
-      const code = rank(update.role) > rank(update.old?.role ?? null) ? 4409 : 4403;
-      for (const connection of this.connections()) if (connection.attachment().id === update.person) connection.close(code);
+    for (const connection of this.connections()) {
+      const attachment = connection.attachment(), grant = this.get(attachment.id);
+      if (!grant || grant.epoch !== attachment.epoch) {
+        connection.close(closeCode(grant?.role ?? null, attachment.role ?? null));
+      }
     }
     this.locked = false;
     this.reason = "room_locked";

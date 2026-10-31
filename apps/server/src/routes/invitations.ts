@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { RoomError } from "nextphase-board-room/protocol.ts";
-import { fanout } from "../fanout.ts";
+import { deliver } from "../delivery.ts";
 import { invitationDetails } from "../supabase.ts";
 import type { Runtime } from "../runtime.ts";
 import { authorize, body, id, role, shape, type ServerApp } from "./common.ts";
@@ -31,7 +31,7 @@ export function invitations(app: ServerApp, runtime: Runtime) {
   app.post("/invitations/:invitation/accept", async (c) => {
     const invitation = id(c, "invitation"), person = c.get("person");
     const result = await runtime.db.rpc("accept_invitation", { invitation, person: person.id, email: person.email });
-    await fanout(runtime, result.workspaceId, result.boardId);
+    await deliver(runtime);
     return c.json(result);
   });
 }

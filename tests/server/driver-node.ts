@@ -22,10 +22,12 @@ export async function makeDriver(context: Context): Promise<Driver> {
     allowedOrigin: context.origin, operatorKey: context.operatorKey, port: 0, dataDir };
   let child: ReturnType<typeof fork> | undefined, url = "", sequence = 0, container = "";
   let image = "", volume = "";
+  let deliveryIntervalMs = 0;
   const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
   async function start() {
     await writeFile(settingsFile, JSON.stringify(settings), { mode: 0o600 });
-    child = fork(resolve(root, "tests/server/node-test.ts"), [], { env: { ...process.env, BOARD_SETTINGS: settingsFile },
+    child = fork(resolve(root, "tests/server/node-test.ts"), [], { env: { ...process.env, BOARD_SETTINGS: settingsFile,
+      BOARD_DELIVERY_INTERVAL_MS: String(deliveryIntervalMs) },
       stdio: ["ignore", "pipe", "pipe", "ipc"] });
     let errors = "";
     child.stderr?.on("data", (value) => { errors += value; });
@@ -99,7 +101,11 @@ export async function makeDriver(context: Context): Promise<Driver> {
         if (value.restart) { execFileSync("docker", ["restart", container], { stdio: "pipe" }); await ready(); }
         return {};
       }
-      if (value.restart) { await stop(); await start(); return {}; }
+      if (value.restart || value.deliveryIntervalMs !== undefined) {
+        await stop();
+        if (value.deliveryIntervalMs !== undefined) deliveryIntervalMs = Number(value.deliveryIntervalMs);
+        await start(); return {};
+      }
       if (value.noOperator !== undefined) { await stop(); settings.operatorKey = value.noOperator ? undefined as any : context.operatorKey; await start(); return {}; }
       if (value.fenceUnreadable !== undefined) { await chmod(resolve(dataDir, "restore-fences.sqlite"), value.fenceUnreadable ? 0 : 0o600); return {}; }
       return ipc(value);

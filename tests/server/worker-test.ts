@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { BoardRoom as ProductionRoom, RestoreFence } from "../../apps/server/src/worker.ts";
+import worker, { BoardRoom as ProductionRoom, RestoreFence } from "../../apps/server/src/worker.ts";
 import { createApp } from "../../apps/server/src/app.ts";
 import { Auth } from "../../apps/server/src/auth.ts";
 import { workerRuntime, type WorkerEnv } from "../../apps/server/src/worker-runtime.ts";
@@ -32,11 +32,20 @@ export class BoardRoom extends ProductionRoom {
     environment.verify = (token) => auth.verify(token);
     return environment;
   }
-  async fetch(request: Request) { await this.refreshControls(); if (this.room) this.room.env.backupLimit = this.current.backupLimit ?? 16777216; return super.fetch(request); }
+  async fetch(request: Request) {
+    await this.refreshControls();
+    if (new URL(request.url).pathname === "/changed") {
+      const { board } = await request.clone().json() as { board: string };
+      if (this.current.unreachable?.includes(board)) return Response.json({ error: { reason: "service_unavailable" } }, { status: 503 });
+    }
+    if (this.room) this.room.env.backupLimit = this.current.backupLimit ?? 16777216;
+    return super.fetch(request);
+  }
   async webSocketMessage(socket: WebSocket, message: string | ArrayBuffer) { await this.refreshControls(); return super.webSocketMessage(socket, message); }
   async alarm() { await this.refreshControls(); return super.alarm(); }
 }
 export default {
+  scheduled: worker.scheduled,
   async fetch(request: Request, env: TestEnv) {
     const state = await controls(env);
     const base = workerRuntime(env);

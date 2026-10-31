@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { RoomError } from "nextphase-board-room/protocol.ts";
+import { deliver, removal } from "../delivery.ts";
 import type { Runtime } from "../runtime.ts";
 import { body, id, shape, type ServerApp } from "./common.ts";
 export function operators(app: ServerApp, runtime: Runtime) {
@@ -9,6 +10,14 @@ export function operators(app: ServerApp, runtime: Runtime) {
     await next();
   });
   app.post("/operator/boards/:board/backup", async (c) => c.json(await runtime.room(id(c, "board")).backup()));
+  for (const action of ["disable", "enable"] as const) {
+    app.post(`/operator/people/:person/${action}`, async (c) => {
+      const person = id(c, "person");
+      await runtime.db.rpc(action + "_person", { person });
+      await deliver(runtime);
+      return c.json({ personId: person, disabled: action === "disable", removal: await removal(runtime, person) });
+    });
+  }
   app.post("/operator/boards/:board/restore", async (c) => c.json(await runtime.room(id(c, "board")).restore(await body(c, 16777216))));
   app.post("/operator/boards/:board/restore-to-time", async (c) => {
     const room = runtime.room(id(c, "board"));

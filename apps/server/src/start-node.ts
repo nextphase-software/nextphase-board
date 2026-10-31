@@ -13,8 +13,10 @@ import { Auth } from "./auth.ts";
 import { Supabase } from "./supabase.ts";
 import type { Settings } from "./settings.ts";
 import type { Runtime } from "./runtime.ts";
+import { deliver } from "./delivery.ts";
 export type NodeOptions = {
   now?: () => number; db?: Supabase; auth?: Auth; backupLimit?: number;
+  deliveryIntervalMs?: number;
   fence?: { read(board: string): Promise<number>; raise(board: string): Promise<number> };
 };
 export async function startNode(settings: Settings, options: NodeOptions = {}) {
@@ -100,6 +102,9 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
     },
   };
   const app = createApp(runtime);
+  const interval = options.deliveryIntervalMs ?? 60000;
+  const deliveryTimer = interval > 0 ? setInterval(() => background.run(deliver(runtime)), interval) : undefined;
+  deliveryTimer?.unref();
   const server = serve({ fetch: app.fetch, port: settings.port ?? 8788, hostname: "0.0.0.0" });
   const sockets = new WebSocketServer({ noServer: true, maxPayload: 1048576 + 65536 });
   server.on("upgrade", async (incoming, socket, head) => {
@@ -139,6 +144,9 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
   return { server, rooms, runtime, fences,
     port: (server.address() as { port: number }).port,
     async close() {
+      clearInterval(deliveryTimer);
+      // Drain an in-flight delivery before closing room storage.
+      while (tasks.size) await Promise.allSettled([...tasks]);
       for (const entry of rooms.values()) {
         clearTimeout(entry.timer);
         for (const connection of entry.connections) connection.close(1001);

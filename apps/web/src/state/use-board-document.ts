@@ -5,12 +5,15 @@ import { Adapter } from "nextphase-board-sync/document-adapter.ts";
 import { defaultConnectorStyle, type ConnectorStyle, defaultPaint, hasText, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
 import { emptyHistory, record, type History } from "../history";
 
+import type { HostedBoard } from "../team/hosted-board";
+
 type Input = {
+  hosted?: HostedBoard;
   readOnly: boolean;
   setStatus: Dispatch<SetStateAction<string>>;
 };
 
-export function useBoardDocument({ readOnly, setStatus }: Input) {
+export function useBoardDocument({ readOnly, setStatus, hosted }: Input) {
   const [board, setBoard] = useState<Board>(empty),
     [title, setTitle] = useState(""),
     [drafts, setDrafts] = useState<Record<string, string>>({}),
@@ -20,7 +23,7 @@ export function useBoardDocument({ readOnly, setStatus }: Input) {
   const shapeSession = { paint: shapePaint, update: (paint: ShapePaint) => { shapePaint.current = paint; } };
   const model = useRef(board),
     historyRef = useRef<History>(history),
-    textSession = useRef<{ before: Board; id: string } | null>(null),
+    textSession = useRef<{ before: Board; id: string; group?: string } | null>(null),
     revision = useRef(0),
     adapter = useRef<Adapter | null>(null);
   if (!adapter.current) adapter.current = new Adapter();
@@ -35,12 +38,12 @@ export function useBoardDocument({ readOnly, setStatus }: Input) {
   function beginTextSession(item: Item | undefined) {
     if (!item || !hasText(item) || readOnly || textSession.current?.id === item.id) return;
     finishTextSession();
-    textSession.current = { before: model.current, id: item.id };
+    textSession.current = { before: model.current, id: item.id, ...(hosted ? { group: crypto.randomUUID() } : {}) };
   }
   function finishTextSession() {
     const session = textSession.current;
     textSession.current = null;
-    if (session) updateHistory(record(historyRef.current, session.before, model.current));
+    if (session && !hosted) updateHistory(record(historyRef.current, session.before, model.current));
   }
   function commit(input: SavedBoard, recordObject = false, orderIds?: readonly string[]) {
     const next = upgrade(input);
@@ -50,6 +53,7 @@ export function useBoardDocument({ readOnly, setStatus }: Input) {
       finishTextSession();
       updateHistory(record(historyRef.current, model.current, next, orderIds));
     }
+    if (hosted && hosted.edit(next, textSession.current?.group) !== true) return;
     model.current = next;
     adapter.current!.set(next);
     revision.current++;

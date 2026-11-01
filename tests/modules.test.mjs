@@ -37,13 +37,15 @@ function rulesImportProblems(content, file) {
   });
 }
 
-function webImportProblems(content) {
+function webImportProblems(content, file = "") {
   return specifiers(content).filter((specifier) =>
     /(?:^|\/)packages\//.test(specifier) ||
     /(?:^|\/)server(?:\/|$)/.test(specifier) ||
     specifier.startsWith("nextphase-board-room") ||
     specifier === "nextphase-board-rules/transition.ts" ||
-    specifier.startsWith("nextphase-board-sync") && specifier !== "nextphase-board-sync/document-adapter.ts" ||
+    specifier.startsWith("@supabase/") && !(specifier === "@supabase/auth-js" && file === "team/auth.ts") ||
+    specifier.startsWith("nextphase-board-sync") && specifier !== "nextphase-board-sync/document-adapter.ts" &&
+      !(specifier === "nextphase-board-sync/session.ts" && file === "team/hosted-board.ts") ||
     specifier.startsWith("nextphase-board-rules/") && !rulesParts.includes(specifier.slice("nextphase-board-rules/".length)));
 }
 
@@ -71,7 +73,7 @@ test("the web app keeps no copy and imports by name", () => {
   let namesPackage = false;
   for (const name of files(source)) {
     const content = readFileSync(new URL(name, source), "utf8");
-    assert.deepEqual(webImportProblems(content), [], name);
+    assert.deepEqual(webImportProblems(content, name), [], name);
     namesPackage ||= specifiers(content).some((specifier) => specifier.startsWith("nextphase-board-rules/"));
   }
   assert(namesPackage, "The web app must import the board rules package");
@@ -224,7 +226,7 @@ test("screen and scene guard detects equality and inequality in both operand ord
   }
 });
 
-test("state contains exactly the twenty hooks named by 0001-W17 v1 through 0001-W25 v1", () => {
+test("state contains exactly the twenty-one hooks named through web modules v25", () => {
   assert.deepEqual(files(new URL("state/", source)).sort(), [
     "use-board-document.ts",
     "use-canvas-input.ts",
@@ -234,6 +236,7 @@ test("state contains exactly the twenty hooks named by 0001-W17 v1 through 0001-
     "use-editor-placement.ts",
     "use-geometry-edits.ts",
     "use-gesture-state.ts",
+    "use-hosted-board.ts",
     "use-images.ts",
     "use-messages.ts",
     "use-object-layouts.ts",
@@ -521,4 +524,42 @@ test("production runners contain none of the test driver names", () => {
     const content = readFileSync(new URL("../apps/server/src/" + name, import.meta.url), "utf8");
     assert.doesNotMatch(content, /driver-node|driver-workerd|node-test|worker-test|BOARD_TEST|\bfault\b|\binjectedClock\b/);
   }
+});
+
+
+test("team modules and imports follow web modules v25", () => {
+  const team = new URL("team/", source);
+  const names = files(team).sort();
+  assert.deepEqual(names, ["api.ts", "auth.ts", "config.ts", "dialog.tsx", "hosted-board.ts", "links.ts",
+    "notices.ts", "pages.tsx", "roles.ts", "share-dialog.tsx", "sign-in.tsx", "team-app.tsx"]);
+  for (const name of names) {
+    const content = readFileSync(new URL(name, team), "utf8");
+    assert.equal(content.split("\n")[0], "// SPDX-License-Identifier: Apache-2.0", name);
+    if (["links.ts", "roles.ts", "notices.ts"].includes(name)) {
+      assert.doesNotMatch(content, /from ["'](?:react|.\/auth)/, name);
+    }
+  }
+  for (const name of files(source).filter((name) => !name.startsWith("team/"))) {
+    const content = readFileSync(new URL(name, source), "utf8");
+    for (const declaration of content.matchAll(/\bimport\s+(?:(type)\s+)?[^;]*?from\s*["']([^"']+)["']/g)) {
+      if (/\/team\//.test(declaration[2])) assert.equal(declaration[1], "type", name);
+    }
+    if (name !== "main.tsx") assert.doesNotMatch(content, /import\(["'][^"']*\/team\//, name);
+  }
+  const main = readFileSync(new URL("main.tsx", source), "utf8");
+  assert.match(main, /if \(BOARD_TEAM_FEATURES\)\s*\{\s*void import\(["'].\/team\/team-app(?:\.tsx)?["']\)/);
+  for (const module of ["nextphase-board-sync/session.ts", "@supabase/auth-js"]) {
+    const content = `import { value } from "${module}";`;
+    const allowed = module.startsWith("@") ? "team/auth.ts" : "team/hosted-board.ts";
+    assert.deepEqual(webImportProblems(content, allowed), []);
+    for (const name of ["App.tsx", "state/use-hosted-board.ts", "team/config.ts"]) {
+      assert(webImportProblems(content, name).length, name + module);
+    }
+  }
+});
+
+test("the hosted board hook holds exactly one passive effect", () => {
+  const content = readFileSync(new URL("state/use-hosted-board.ts", source), "utf8");
+  assert.equal((content.match(/\buseEffect\s*\(/g) ?? []).length, 1);
+  assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });

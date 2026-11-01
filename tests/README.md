@@ -151,3 +151,12 @@ fresh independent identities per check and held transport queues for determinist
 interleavings. It prints `SUMMARY-SHARED` and is silent for the Docker target.
 Run Node and workerd sequentially. V11 (fresh-base negative control) and V12
 (A–J web comparison) belong to the independent review check run.
+
+## Web team features (0003-W4)
+
+`npm test` also runs `tests/team.test.mjs` (switch settings, links, role sources,
+invitation expiry, save precedence, join outcomes, renewal and exact messages) and
+`tests/grouped-edits.test.mjs` (group boundaries, guarded text undo/redo, the step
+cap and unchanged edit wire bytes). Both use the production modules directly,
+without a browser or Supabase stack. The brief records V1–V8; the independent
+review's check run owns V9–V12, including W4-S1–S29 and the team-off A–J comparison.

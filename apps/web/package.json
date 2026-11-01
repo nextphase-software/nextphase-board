@@ -19,6 +19,7 @@
     "serve:fixtures": "node ../../scripts/serve-web.mjs --fixtures"
   },
   "dependencies": {
+    "@supabase/auth-js": "2.118.0",
     "konva": "10.9.0",
     "nextphase-board-rules": "0.1.0",
     "nextphase-board-sync": "0.1.0",

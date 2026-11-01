@@ -4,7 +4,10 @@ import { count, validText, type Board as SavedBoard, type BoardV10 as Board } fr
 import type { BoardEntry } from "../board-catalog";
 import { BoardsList } from "./boards-list";
 
+import type { TeamParts } from "../team/team-app";
+
 type Props = {
+  team?: TeamParts;
   setComposing: Dispatch<SetStateAction<boolean>>;
   commit: (input: SavedBoard, recordObject?: boolean, orderIds?: readonly string[]) => void;
   model: RefObject<Board>;
@@ -28,10 +31,11 @@ type Props = {
 
 export function BoardPanel({
   setComposing, commit, model, title, readOnly, busy, setTitle, setStatus, composing, reopen,
-  setPanel, boardButton, boardFiles
+  setPanel, boardButton, boardFiles, team
 }: Props) {
   return (
     <section className="details floating" ref={boardFiles.panelRef}>
+      {team?.account}
       <label htmlFor="title">Board name</label>
       <input
         id="title"
@@ -43,7 +47,7 @@ export function BoardPanel({
           }
         }}
         value={title}
-        readOnly={readOnly || busy || boardFiles.opening}
+        readOnly={!!team?.hosted || readOnly || busy || boardFiles.opening}
         onChange={(e) => {
           const value = e.target.value;
           setTitle(value);
@@ -56,10 +60,10 @@ export function BoardPanel({
       <small>{count(title)} / 120 · nonblank name required</small>
       <div className="board-file-commands">
         <button onClick={boardFiles.saveCopy} disabled={boardFiles.invalid || busy || composing || boardFiles.opening}>Save a copy to file</button>
-        <button ref={boardFiles.fileButton} onClick={() => boardFiles.fileInput.current?.click()}
-          disabled={busy || composing || boardFiles.opening}>Open board file…</button>
+        {!team?.hosted && <button ref={boardFiles.fileButton} onClick={() => boardFiles.fileInput.current?.click()}
+          disabled={busy || composing || boardFiles.opening}>Open board file…</button>}
       </div>
-      <input hidden ref={boardFiles.fileInput} type="file" accept=".nextboard,.json" onChange={(e) => {
+      {!team?.hosted && <><input hidden ref={boardFiles.fileInput} type="file" accept=".nextboard,.json" onChange={(e) => {
         const file = e.currentTarget.files?.[0]; e.currentTarget.value = "";
         if (file) boardFiles.openFile(file);
       }} />
@@ -67,7 +71,7 @@ export function BoardPanel({
       <BoardsList {...boardFiles} busy={busy} composing={composing} />
       <p>
         Boards are kept only in this browser profile, and browser storage is not a backup. Save a copy to file to keep one.
-      </p>
+      </p></>}
       <button
         disabled={composing || busy}
         onClick={() => {

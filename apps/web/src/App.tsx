@@ -38,7 +38,9 @@ import { ZoomControls } from "./ui/zoom-controls";
 import { InformationControls } from "./ui/information-controls";
 import { BoardQuestion } from "./ui/board-question";
 import { NavigationPanel } from "./ui/navigation-panel";
-export function App() {
+import type { TeamParts } from "./team/team-app";
+import { useHostedBoard } from "./state/use-hosted-board";
+export function App({ team }: { team?: TeamParts } = {}) {
   const { readOnly, setReadOnly, status, setStatus } = useSessionStatus();
   const {
     selectionBox, setSelectionBox, tool, setTool, busy: gestureBusy, setBusy, spacePan, setSpacePan,
@@ -50,7 +52,7 @@ export function App() {
     connectorStyle, shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,
     model, historyRef, textSession, revision, adapter,
     updateHistory, clearHistory, beginTextSession, finishTextSession, commit, load,
-  } = useBoardDocument({ readOnly, setStatus });
+  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted });
   const {
     strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,
     selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats, richText,
@@ -58,7 +60,7 @@ export function App() {
   const { invalidObjectText, invalidFields, invalid, pending } = useValidity({
     board, drafts, title, composing, busy: gestureBusy,
   });
-  const images = useImages({ board, model, selected, readOnly, busy: gestureBusy, composing, invalidObjectText, pending,
+  const images = useImages({ board, model, selected, readOnly: readOnly || !!team?.hosted, busy: gestureBusy, composing, invalidObjectText, pending,
     commit, finishTextSession, select, setTool, setPanel: (value) => setPanel(value), setInline, setComposing, setMessage, scene,
     getView: () => view, getStore: () => store.current, isAlive: () => alive.current, barVisible: () => size.w >= 768 && contextFits || panel === "Objects" });
   const busy = images.busy; const {
@@ -78,7 +80,7 @@ export function App() {
   }
   const { store, snapshots, alive, adopt, save, reopen, boardFiles, boardQuestion } = useStorageSession({
     readOnly, setReadOnly, setStatus, setMessage, load, clearHistory, model,
-    revision, adapter, select, setInline, setView, invalid, busy, composing, pending, title,
+    revision, adapter, select, setInline, setView, invalid, busy, composing, pending, title, hosted: team?.hosted,
   });
   const size = useSceneSize(scene);
   const pos = (o: { x: number; y: number }) => screenPoint(o, view, size);
@@ -111,7 +113,7 @@ export function App() {
     showNotice, editingState, arrangementMembers,
   } = useCommandReasons({
     readOnly, composing, busy, tool, invalidObjectText, invalid, textSession, model,
-    history, selected, visibleMessage, snapshots, displayedObjects,
+    history, selected, visibleMessage, snapshots, displayedObjects, hosted: team?.hosted,
   });
   const {
     connectorPopup, shapePopup, contextWidth, contextLeft, contextTop, contextFits, swatchOpen, arrangeOpen,
@@ -125,13 +127,14 @@ export function App() {
     tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
-    arrangementMembers, lineCount, editor, selector, setPanel, setTool,
+    arrangementMembers, lineCount, editor, selector, setPanel, setTool, hosted: team?.hosted,
   });
   const { pageKeyDown } = usePageKeys({
     chooseImages: images.chooseImages,
     command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
     setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
   });
+  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, setBoard, setDrafts, setReadOnly, setTool, setInline, paste: () => clipboardCommand("Paste"), composing });
   const nativeEditor = <ContentField
     editor={editor} inline={inline} text={text} readOnly={readOnly} busy={busy} item={item}
     selectedId={selectedId} composing={composing} beginTextSession={beginTextSession}
@@ -141,14 +144,11 @@ export function App() {
   />;
   return (
     <main
-      style={{
-        "--notice-top": layout.notice + "px",
-        "--panel-top": layout.panel + "px",
-      } as React.CSSProperties}
+      style={{ "--notice-top": layout.notice + "px", "--panel-top": layout.panel + "px" } as React.CSSProperties}
       onKeyDown={pageKeyDown} onKeyDownCapture={images.guardGesture}
     >
       <div
-        ref={scene} onPointerDownCapture={images.guardGesture} onPaste={images.paste(() => clipboardCommand("Paste"))} onDragOver={images.dragOver} onDrop={images.drop}
+        ref={scene} onPointerDownCapture={images.guardGesture} onPaste={hostedPaste ?? images.paste(() => clipboardCommand("Paste"))} onDragOver={images.dragOver} onDrop={images.drop}
         className={"scene" + (spacePan ? busy ? " grabbing" : " grab" : "")}
         style={{
           cursor: drag.current?.corner ? (drag.current.corner === "nw" || drag.current.corner === "se"
@@ -179,25 +179,25 @@ export function App() {
         <GrowButton available={growAvailable} grow={shapeCommands.grow} style={resolvedItem ? { left: pos(resolvedItem).left + resolvedItem.width * view.z / 2, top: pos(resolvedItem).top + resolvedItem.height * view.z } : undefined} />
         <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} />
       </div>
-      <ImageNames board={board} /><FileBar
+      <ImageNames board={board} /><FileBar team={team}
         boardButton={boardButton} composing={composing} busy={busy} toggle={toggle} panel={panel}
         title={title} objectsButton={objectsButton} undoReason={undoReason} redoReason={redoReason}
         command={command}
       />
-      <SaveArea
+      <SaveArea team={team}
         latestAcknowledgement={latestAcknowledgement} status={status} invalid={invalid} save={save}
         readOnly={readOnly} composing={composing} busy={busy}
       />
       <span id="undo-reason" className="sr-only">{undoReason}</span>
       <span id="redo-reason" className="sr-only">{redoReason}</span>
       <span id="selection-reason" className="sr-only">{selectionReason}</span>{duplicateReason !== selectionReason && <span id="duplicate-reason" className="sr-only">{duplicateReason}</span>}
-      <Notice
+      {team?.hosted ? team.banner : <Notice
         showNotice={showNotice} visibleMessage={visibleMessage} invalidFields={invalidFields}
         busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen}
         composing={composing} adopt={adopt} setReadOnly={setReadOnly} setMessage={setMessage}
-      />
+      />}
       {panel === "Board" && (
-        <BoardPanel
+        <BoardPanel team={team}
           setComposing={setComposing} commit={commit} model={model} title={title} readOnly={readOnly}
           busy={busy} setTitle={setTitle} setStatus={setStatus} composing={composing} reopen={reopen}
           setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles}
@@ -240,7 +240,7 @@ export function App() {
         />
       )}
       <ShapesPanel tool={tool} setTool={setTool} scene={scene} disabled={busy || composing || readOnly} />
-      <Palette
+      <Palette team={team}
         imagePicker={images.picker} drawing={drawing} tool={tool} busy={busy} composing={composing} readOnly={readOnly} setTool={setTool}
         setInline={setInline} scene={scene} loadTemplates={loadTemplates} panel={panel} toggle={toggle} templatesButton={templatesButton} firstTemplateButton={firstTemplateButton} addActivity={addActivity} templatePreviews={templatePreviews}
       />

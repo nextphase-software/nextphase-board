@@ -2,7 +2,10 @@
 import type { RefObject } from "react";
 import { Icon } from "../icons";
 
+import type { TeamParts } from "../team/team-app";
+
 type Props = {
+  team?: TeamParts;
   latestAcknowledgement: RefObject<string>;
   status: string;
   invalid: boolean;
@@ -13,21 +16,22 @@ type Props = {
 };
 
 export function SaveArea({
-  latestAcknowledgement, status, invalid, save, readOnly, composing, busy
+  latestAcknowledgement, status, invalid, save, readOnly, composing, busy, team
 }: Props) {
   return (
     <section className="actions floating" aria-describedby={latestAcknowledgement.current ? "save-acknowledgement" : undefined}>
-      <span className="save-status" role="status">
-        <Icon name="status" />{status}{invalid ? " · Invalid draft" : ""}
+      <span className={"save-status" + (team?.hosted?.status === "Offline — view only" ? " team-amber" : "")} role="status">
+        <Icon name="status" />{team?.hosted?.status ?? status}{invalid && !team?.hosted ? " · Invalid draft" : ""}
       </span>
       <span id="save-acknowledgement" className="sr-only">{latestAcknowledgement.current}</span>
-      <button
+      {!team?.hosted && <button
         className={status === "Save failed" ? "error" : status === "Unsaved" ? "primary" : ""}
         onClick={save}
         disabled={readOnly || invalid || composing || busy}
       >
         {status === "Save failed" ? "Retry save" : "Save"}
-      </button>
+      </button>}
+      {team?.saveControl}
     </section>
   );
 }

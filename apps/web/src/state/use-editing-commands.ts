@@ -18,7 +18,10 @@ import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCo
 import { changeStrokeWeight, changeStrokeColor, changeOrdinaryColor } from "../strokes";
 import { copiedSet, copiedSetReason, cascadeCount, connectReason, createConnector, changeConnectorStyle, reconnect } from "../connectors";
 
+import type { HostedBoard } from "../team/hosted-board";
+
 type Input = {
+  hosted?: HostedBoard;
   tool: string;
   connectorStyle: RefObject<ConnectorStyle>;
   shapeSession: { update: (paint: ShapePaint) => void };
@@ -56,7 +59,7 @@ export function useEditingCommands({
   tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
   setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
   displayedObjects, commandReason, selectionReason, clipboardState, editingState,
-  arrangementMembers, lineCount, editor, selector, setPanel, setTool,
+  arrangementMembers, lineCount, editor, selector, setPanel, setTool, hosted,
 }: Input) {
   const [objectClipboard, setObjectClipboard] = useState<Snapshot | null>(null);
   const [templatePreviews, setTemplatePreviews] = useState<Record<string, Preview>>({});
@@ -141,6 +144,11 @@ export function useEditingCommands({
       setMessage(copiedSetReason(model.current.objects, selected)); return;
     }
     finishTextSession();
+    if (hosted && (name === "Undo" || name === "Redo")) {
+      hosted.inverse(name === "Undo" ? "undo" : "redo");
+      setDrafts({}); setInline(false);
+      return;
+    }
     try {
       const deleting = name === "Delete" || name === "Cut";
       const acted = name === "Cut" || name === "Duplicate" ? copiedSet(model.current.objects, selected) : selected;

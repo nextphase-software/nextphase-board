@@ -2,7 +2,10 @@
 import type { RefObject } from "react";
 import { Icon } from "../icons";
 
+import type { TeamParts } from "../team/team-app";
+
 type Props = {
+  team?: TeamParts;
   boardButton: RefObject<HTMLButtonElement | null>;
   composing: boolean;
   busy: boolean;
@@ -17,7 +20,7 @@ type Props = {
 
 export function FileBar({
   boardButton, composing, busy, toggle, panel, title, objectsButton, undoReason, redoReason,
-  command
+  command, team
 }: Props) {
   return (
     <section className="file floating">
@@ -31,7 +34,7 @@ export function FileBar({
         <span className="board-title">{title || "Untitled board"}</span>
         <Icon name="chevron" />
       </button>
-      <small>Local</small>
+      <small>{team?.hosted?.snapshot.workspace ?? "Local"}</small>
       <span className="divider" aria-hidden="true" />
       <button
         className="icon-button"

@@ -10,7 +10,10 @@ import type { View } from "../view";
 import { boardPictures, readPictures, pictureBytes, PICTURE_LIMIT, tabPictures, type Pictures } from "../image-assets.ts";
 import { decodePicture } from "../images.ts";
 
+import type { HostedBoard } from "../team/hosted-board";
+
 type Input = {
+  hosted?: HostedBoard;
   readOnly: boolean;
   title: string;
   setReadOnly: Dispatch<SetStateAction<boolean>>;
@@ -35,7 +38,7 @@ const OPEN_KEY = "nextphase-board/open/v1";
 
 export function useStorageSession({
   readOnly, setReadOnly, setStatus, setMessage, load, clearHistory, model,
-  revision, adapter, select, setInline, setView, invalid, busy, composing, pending, title,
+  revision, adapter, select, setInline, setView, invalid, busy, composing, pending, title, hosted,
 }: Input) {
   const [snapshots, setSnapshots] = useState<{ board: SavedBoard; revision: number }[]>([]);
   const [entries, setEntries] = useState<BoardEntry[]>([]), [heldLocks, setHeldLocks] = useState<string[]>([]);
@@ -104,7 +107,7 @@ export function useStorageSession({
     panelOpen.current = !!node;
     if (timer.current) clearInterval(timer.current);
     timer.current = null;
-    if (node) {
+    if (node && !hosted) {
       void actions.current.refresh();
       timer.current = setInterval(() => { void actions.current.lockStatus(); }, 1000);
     }
@@ -160,6 +163,7 @@ export function useStorageSession({
   }
   useEffect(() => {
     alive.current = true;
+    if (hosted) { setOpening(false); return () => { alive.current = false; adapter.current?.destroy(); }; }
     let choice = new URL(location.href).searchParams.get("board");
     if (!isBoardKey(choice)) {
       try { choice = sessionStorage.getItem(OPEN_KEY); } catch {}

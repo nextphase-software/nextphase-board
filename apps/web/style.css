@@ -679,3 +679,42 @@ small {
 @media (max-width:479.98px) {
   .palette { max-width: calc(100% - 24px); overflow-x: auto; flex-wrap: nowrap; }
 }
+
+/* Team surfaces are scoped so an off build keeps the local board's layout. */
+.team-page { display: grid; place-items: center; background: #fafafa; min-height: 100dvh; padding: 24px; overflow: auto; }
+.team-card, .team-dialog { background: white; color: #29272e; border: 1px solid #e9e7ed; border-radius: 12px; padding: 24px; }
+.team-card { width: min(400px, calc(100vw - 24px)); }
+.team-dialog { width: min(400px, calc(100vw - 24px)); max-height: calc(100dvh - 100px); overflow: auto; }
+.team-dialog::backdrop { background: #29272e66; }
+.team-card h1, .team-dialog h1 { font-size: 20px; margin: 12px 0; }
+.team-card p, .team-dialog p { line-height: 1.5; }
+.team-dialog h2 { margin: 20px 0 12px; }
+.team-close { float: right; }
+.team-submit { width: 100%; margin-top: 16px; }
+.team-digits { display: flex; gap: 8px; }
+.team-digits input { min-width: 0; text-align: center; font-size: 24px; padding: 10px 0; }
+.team-dialog [role=alert], .team-card [role=alert] { color: #a32940; }
+.team-ending { width: min(420px, calc(100vw - 24px)); }
+.team-share { position: fixed; inset: 70px 12px auto auto; margin: 0; width: min(480px, calc(100vw - 24px)); padding: 20px; }
+.team-share header { gap: 8px; }
+.team-share header h1 { flex: 1; font-size: 18px; }
+.team-invite { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.team-invite > span { position: relative; flex: 1; min-width: 0; }
+.team-invite select { position: absolute; width: 100px; right: 4px; top: 4px; padding: 7px; border: 0; }
+.team-invite input:not(:placeholder-shown) { padding-right: 108px; }
+.team-person, .team-workspace { display: flex; align-items: center; gap: 10px; padding: 10px 0; width: 100%; text-align: left; }
+.team-person > span:nth-child(2), .team-workspace > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.team-person small, .team-workspace small { display: block; margin-top: 4px; }
+.team-avatar { display: grid; place-items: center; border-radius: 50%; width: 32px; height: 32px; flex-shrink: 0; background: #f3f0f8; }
+.team-workspace { border: 0; }
+.team-role { position: relative; flex-shrink: 0; }
+.team-role [role=menu] { position: absolute; right: 0; top: 100%; width: 156px; padding: 6px; background: white; border: 1px solid #e9e7ed; border-radius: 8px; box-shadow: 0 2px 8px #29202e20; z-index: 1; }
+.team-role [role=menu] button { width: 100%; text-align: left; border: 0; }
+.team-role .team-remove { color: #a32940; }
+.team-account { display: grid; gap: 8px; overflow-wrap: anywhere; }
+.team-banner, .team-toast { position: absolute; left: 50%; transform: translateX(-50%); z-index: 4; border-radius: 10px; padding: 10px 14px; background: #f3f0f8; border: 1px solid #e1dce8; width: max-content; max-width: calc(100% - 24px); }
+.team-banner { top: 76px; }
+.team-toast { position: fixed; bottom: 86px; }
+.team-amber { color: #936000; background: #fff5da; }
+@media (max-width:1099.98px) { .team-banner { top: 128px; } }
+@media (max-width:767.98px) { .team-share { top: 128px; } .team-toast { bottom: 148px; } }

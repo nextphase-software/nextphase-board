@@ -267,3 +267,18 @@ For 0004-W1 v1, these six contracts are in force for the server:
 - [0003 hosted persistence v3](0003-hosted-persistence-v3.md): canonical saved updates and storage version 2.
 
 Self-host runner v1, document v11, toolchain v4 and web modules v24 remain in force.
+
+For 0003-W4 v1, the web app uses these five contracts:
+
+- [0003 hosted storage v1](0003-hosted-storage-v1.md): team switch, sign-in, hosted boards and saving.
+- [0001 interaction v25](0001-interaction-v25.md): sign-in, Share, access messages and hosted controls.
+- [0001 web modules v25](0001-web-modules-v25.md): twelve team modules and the hosted board hook.
+- [0003 sync v4](0003-sync-v4.md): client-only grouped edits, with the room unchanged.
+- [0001 toolchain v5](0001-toolchain-v5.md), [lock v5](0001-dependency-lock-v5.json),
+  [inventory v5](0001-dependency-inventory-v5.json) and [runtime notices v3](0001-runtime-notices-v3.txt):
+  the exact Auth JS dependency, declaration check and optional web bundle.
+
+[Identity v3](0003-identity-v3.md), [access v4](0003-access-v4.md), [API v4](0003-api-v4.md),
+[hosted persistence v3](0003-hosted-persistence-v3.md), [self-host runner v1](0003-self-host-runner-v1.md),
+[presence v1](0004-presence-v1.md), [document v11](0001-document-v11.md) and
+[storage v3](0001-storage-v3.md) remain in force. No server, room or saved format changes.

@@ -69,7 +69,8 @@ function remapObject(object: ItemV10, ids: Map<string, { id: string; generation:
 export class SharedUndo {
   past: Step[] = [];
   future: Step[] = [];
-  clear() { this.past = []; this.future = []; }
+  private group?: string;
+  clear() { this.past = []; this.future = []; this.group = undefined; }
   observe(before: State, after: State, own: boolean) {
     for (const step of [...this.past, ...this.future]) for (const entry of step) {
       if (!entry.live) continue;
@@ -84,10 +85,23 @@ export class SharedUndo {
       }
     }
   }
-  record(before: State, after: State, direction?: "undo" | "redo") {
+  record(before: State, after: State, direction?: "undo" | "redo", group?: string) {
     this.observe(before, after, true);
     const step = stepBetween(before, after);
     if (!step.length) return;
+    const previous = this.past.at(-1);
+    const unitOnly = !step.some((entry) => entry.key === "object");
+    if (!direction && group && group === this.group && previous && unitOnly) {
+      // Keep the first before-value and never revive a guard killed by a peer.
+      for (const entry of step) {
+        const old = previous.find((value) => value.id === entry.id && value.key === entry.key);
+        if (old) { old.after = entry.after; old.guard = entry.guard; }
+        else previous.push(entry);
+      }
+      this.future = [];
+      return;
+    }
+    this.group = !direction && unitOnly && group ? group : undefined;
     if (direction === "undo") this.future.push(step);
     else {
       this.past.push(step); this.past = this.past.slice(-100);
@@ -95,6 +109,7 @@ export class SharedUndo {
     }
   }
   take(state: State, direction: "undo" | "redo"): BoardV10 | string {
+    this.group = undefined;
     const step = (direction === "undo" ? this.past : this.future).pop();
     if (!step) return "nothing_to_undo";
     const eligible = step.filter((entry) => entry.live && (entry.key === "object"

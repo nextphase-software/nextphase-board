@@ -37,3 +37,7 @@ email_sent = 1000
 sign_in_sign_ups = 1000
 token_refresh = 1000
 token_verifications = 1000
+
+[auth.email.template.magic_link]
+subject = "Your NextPhase Board sign-in code"
+content_path = "./supabase/templates/magic-link.html"

@@ -167,14 +167,14 @@ export class BoardSession<T = unknown> {
     this.report(message);
   }
   private blocked() { return !this.joined ? "join_required" : this.role === "viewer" ? "role_too_low" : null; }
-  edit(board: BoardV10): string {
+  edit(board: BoardV10, group?: string): string {
     const blocked = this.blocked(); if (blocked) return blocked;
-    return this.write(board);
+    return this.write(board, undefined, group);
   }
-  private write(board: BoardV10, direction?: "undo" | "redo") {
+  private write(board: BoardV10, direction?: "undo" | "redo", group?: string) {
     const before = capture(this.doc), vector = Y.encodeStateVector(this.doc);
     this.adapter.set(board);
-    this.history.record(before, capture(this.doc), direction);
+    this.history.record(before, capture(this.doc), direction, group);
     return this.sendEdit(Y.encodeStateAsUpdate(this.doc, vector));
   }
   private sendEdit(update: Uint8Array) {

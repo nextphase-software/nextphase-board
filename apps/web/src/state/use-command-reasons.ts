@@ -8,7 +8,10 @@ import { editingCommandReason } from "../commands";
 
 import { copiedSetReason } from "../connectors";
 
+import type { HostedBoard } from "../team/hosted-board";
+
 type Input = {
+  hosted?: HostedBoard;
   readOnly: boolean;
   composing: boolean;
   busy: boolean;
@@ -25,7 +28,7 @@ type Input = {
 };
 
 export function useCommandReasons({
-  readOnly, composing, busy, tool, invalidObjectText, invalid, textSession, model,
+  readOnly, composing, busy, tool, invalidObjectText, invalid, textSession, model, hosted,
   history, selected, visibleMessage, snapshots, displayedObjects,
 }: Input) {
   const commandReason = editingCommandReason({ readOnly, composing, pointerGesture: busy, invalidObjectText });
@@ -33,8 +36,8 @@ export function useCommandReasons({
   const sessionChanged = !!session &&
     JSON.stringify(session.before.objects.find((o) => o.id === session.id)) !==
       JSON.stringify(model.current.objects.find((o) => o.id === session.id));
-  const undoReason = commandReason || (!history.past.length && !sessionChanged ? "Nothing to undo." : "");
-  const redoReason = commandReason || (sessionChanged || !history.future.length ? "Nothing to redo." : "");
+  const undoReason = commandReason || (hosted ? hosted.undoReason : !history.past.length && !sessionChanged ? "Nothing to undo." : "");
+  const redoReason = commandReason || (hosted ? hosted.redoReason : sessionChanged || !history.future.length ? "Nothing to redo." : "");
   const selectionReason = commandReason || (!selected.size ? "Select an object to duplicate or delete." : "");
   const duplicateReason = selectionReason || copiedSetReason(model.current.objects, selected);
   const clipboardState = { readOnly, composing, pointerGesture: busy, invalidObjectText };

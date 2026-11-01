@@ -8,10 +8,11 @@ import { resolve } from "node:path";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const read = (path) => readFile(resolve(root, path), "utf8");
 const json = async (path) => JSON.parse(await read(path));
-assert.equal(await read("package-lock.json"), await read("docs/architecture/0001-dependency-lock-v4.json"),
+assert.equal(await read("package-lock.json"), await read("docs/architecture/0001-dependency-lock-v5.json"),
   "Dependency lock differs from accepted contract");
-const inventory = await json("docs/architecture/0001-dependency-inventory-v4.json");
+const inventory = await json("docs/architecture/0001-dependency-inventory-v5.json");
 const webNotices = await read("docs/architecture/0001-runtime-notices-v1.txt");
+const teamNotices = await read("docs/architecture/0001-runtime-notices-v3.txt");
 const runtimeNotices = await read("docs/architecture/0001-runtime-notices-v2.txt");
 const trim = (text) => text.replace(/(?:\n[ \t]*)+$/, "");
 
@@ -51,7 +52,8 @@ export async function checkBundle(meta, out) {
   // Older builds used the app folder as their working directory. New builds
   // record paths relative to the workspace root.
   packages(meta, "web");
-  assert.equal(await readFile(resolve(out, "THIRD_PARTY_NOTICES.txt"), "utf8"), webNotices,
+  assert.equal(await readFile(resolve(out, "THIRD_PARTY_NOTICES.txt"), "utf8"),
+    Object.keys(meta.inputs).some((input) => input.includes("node_modules/@supabase/auth-js/")) ? teamNotices : webNotices,
     "Distributed web notices differ");
 }
 

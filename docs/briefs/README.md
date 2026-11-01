@@ -250,8 +250,8 @@ app does not change, following the [0003 access v3](../architecture/0003-access-
 [API v3](../architecture/0003-api-v3.md), [sync v2](../architecture/0003-sync-v2.md) and
 [identity v2](../architecture/0003-identity-v2.md) contracts, is implemented and merged into main.
 
-[0004-W1 v1 — Edit together with participant presence](0004-W1-edit-together-with-participant-presence.md)
-is a draft: everyone connected to a hosted board sees who else is there, with a label, role and
+[0004-W1 v1 — Edit together with participant presence](0004-W1-edit-together-with-participant-presence.md),
+in which everyone connected to a hosted board sees who else is there, with a label, role and
 colour the room stamps and each connection's cursor, selection and view; presence is never stored
 and expires after 30 seconds; text typed by two people in one note merges by character, the last
 saved value wins for every other property, a delete beats a concurrent change, and the room
@@ -260,7 +260,21 @@ steps; and a shared client speaks the room protocol with no screen. Nothing chan
 following the new [0004 presence v1](../architecture/0004-presence-v1.md) contract and the
 [0003 sync v3](../architecture/0003-sync-v3.md), [API v4](../architecture/0003-api-v4.md),
 [identity v3](../architecture/0003-identity-v3.md), [access v4](../architecture/0003-access-v4.md)
-and [hosted persistence v3](../architecture/0003-hosted-persistence-v3.md) contracts.
+and [hosted persistence v3](../architecture/0003-hosted-persistence-v3.md) contracts, is implemented and
+merged into main.
+
+[0003-W4 v1 — Sign in, share and see access in the web app](0003-W4-sign-in-share-and-see-access.md)
+is a draft: with team features switched on at build time (off by default), a person signs in
+with a 6-digit code emailed by Supabase Auth, opens a hosted board by its link (a signed-out
+person is asked to sign in first), edits as an owner or editor or only views as a viewer, and
+sees the hosted save states and a plain message for every refusal; the workspace owner invites
+people by link, sees who has access and where each role comes from, changes and removes roles
+and cancels invitations from a Share dialog. With team features off nothing changes, following
+the new [0003 hosted storage v1](../architecture/0003-hosted-storage-v1.md) contract and
+[interaction v25](../architecture/0001-interaction-v25.md),
+[web modules v25](../architecture/0001-web-modules-v25.md),
+[0003 sync v4](../architecture/0003-sync-v4.md) and
+[toolchain v5](../architecture/0001-toolchain-v5.md).
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

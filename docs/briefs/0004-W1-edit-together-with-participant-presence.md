@@ -1,7 +1,9 @@
 BRIEF VERSION: 0004-W1 v1 (2026-10-31)
 # 0004-W1 — Edit together with participant presence
 
-Status: Draft. Contracts: [0004 presence v1](../architecture/0004-presence-v1.md) (new),
+Status: Implemented. Independently reviewed at `4b92783` (pass) and merged into main on
+2026-10-31 ([evidence summary](0004-W1-edit-together-with-participant-presence-evidence.md)).
+Contracts: [0004 presence v1](../architecture/0004-presence-v1.md) (new),
 [0003 sync v3](../architecture/0003-sync-v3.md), [0003 API v4](../architecture/0003-api-v4.md),
 [0003 identity v3](../architecture/0003-identity-v3.md),
 [0003 access v4](../architecture/0003-access-v4.md) and

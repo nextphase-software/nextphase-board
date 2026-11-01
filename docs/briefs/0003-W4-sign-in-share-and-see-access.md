@@ -271,4 +271,123 @@ and [MDN: CSP `connect-src`](https://developer.mozilla.org/en-US/docs/Web/HTTP/H
 
 ## Implementation record
 
-Not started.
+Implemented 2026-11-01 on `codex/0003-W4-sign-in-share-and-see-access`.
+
+- Base: committed main `095beed9b5ab26e96720ae4477b7ee726d916ad2`.
+- Validated source/test revision: `24e4a261437d724ce546c7d942ace4a205e7387d`
+  (`feat(web): add sign-in and hosted board sharing`). The checks below ran on
+  the exact source/test tree committed at that revision; the worktree was clean
+  after the commit. This record is a subsequent documentation-only commit; its
+  branch tip is reported separately in the implementation handoff.
+- Scope: items 1–7 only. The server, room, rules, adapter, codec, schema and saved
+  formats are unchanged. `App.tsx` has exactly 262 newlines. Existing CSS is an
+  unchanged prefix, with the team rules appended. Exactly twelve team modules
+  and twenty-one state hooks are present.
+- Added direct dependency: `@supabase/auth-js` 2.118.0, MIT, in the web manifest
+  only. Its existing lock dependency `tslib` 2.8.1 is 0BSD. No package versions or
+  package entries were added to the lock. Builds and notice checks use the
+  committed lock v5, inventory v5 and runtime notices v3.
+
+Commands and results (repository root; the pinned Node toolchain was first on
+PATH for every shell command). `node --version` printed `v26.13.0` and
+`npm --version` printed `11.20.0`.
+
+The base web build was made with `npm run build` before editing build or source
+files, and copied into a system temporary directory. All temporary receipts and
+copies of web builds stayed outside tracked paths. In the commands below,
+`W4_TMP` denotes that temporary directory, containing `base`, `off` and `on` copies.
+
+Dependency recipe, then a fresh install:
+
+```sh
+npm install -w nextphase-board-web --save-exact @supabase/auth-js@2.118.0 --ignore-scripts --no-audit --no-fund
+cmp package-lock.json docs/architecture/0001-dependency-lock-v5.json
+npm ci --ignore-scripts --no-audit --no-fund
+npm run typecheck
+```
+
+All exited 0. Before any application source changes, changing only the web
+`skipLibCheck` option made typecheck pass for all five members. Inline Node
+assertions compared each manifest against the base: only the exact dependency
+line differs in the web manifest; every other manifest is byte-identical.
+
+Focused development check:
+
+```sh
+node --test tests/team.test.mjs tests/grouped-edits.test.mjs tests/modules.test.mjs
+```
+
+The first focused run had one failure in the new message test's key-count
+assertion (`52 !== 53`), with 58 passes and no existing-test failure. It was
+corrected to assert the explicit message keys. The later focused run passed all
+60 tests. Group coverage includes the first before-value of a unit introduced
+later in the group, as well as the brief's required cases.
+
+Final validation commands (all exited 0):
+
+```sh
+node --version
+npm --version
+cmp package-lock.json docs/architecture/0001-dependency-lock-v5.json
+npm ci --ignore-scripts --no-audit --no-fund
+npm run typecheck
+npm test
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+npm run audit:licenses
+BOARD_TEAM_FEATURES=on npm run build:fixtures
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+npm run audit:licenses
+npm run build:server
+npm run audit:licenses
+git diff --check
+git diff --name-status 095beed9b5ab26e96720ae4477b7ee726d916ad2..24e4a261437d724ce546c7d942ace4a205e7387d
+```
+
+The off build was copied aside before the on build. Byte comparisons used:
+
+```sh
+cmp apps/web/dist/index.html "$W4_TMP/base/index.html"
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt "$W4_TMP/base/THIRD_PARTY_NOTICES.txt"
+```
+
+These comparisons were made while `dist` held the off build. Additional
+`node --input-type=module` assertions checked the saved off/on copies: off
+metadata has no Supabase or team input; off JavaScript contains none of the
+three configured values; on HTML equals off HTML with only the specified
+`connect-src` substitution; on notices equal committed runtime notices v3;
+fixture metadata has no team or Supabase input even with the switch on.
+
+Build refusals were exercised with `spawnSync('npm', ['run', 'build'], ...)`,
+using the on-build environment shown above and, in turn, deleting each of
+`BOARD_SUPABASE_URL`, `BOARD_SUPABASE_ANON_KEY` and `BOARD_SERVER_URL`, then
+setting each URL in turn to `http://localhost/path`. Every child exited nonzero,
+its output named the offending variable, and the previously built JavaScript
+was unchanged. Pure unit tests also cover all the malformed URL cases in item 6.
+
+Inline Node assertions compared every existing base unit test other than
+`tests/modules.test.mjs` byte for byte with `git show <base>:<file>`; all were
+unchanged. Only the permitted module guards were updated. The two named unit
+test files are the only new tests. The final unit result is **748 passed,
+0 failed, 0 skipped**. The committed diff lists 40 files, all within items 1–7;
+no forbidden source path changed. Both public-boundary hook checks passed on
+the source commit. Git also reported a sandbox permission warning creating
+`packed-refs.lock`; the commit succeeded and its revision and clean worktree
+were verified. No hook was bypassed.
+
+PASS: V1 — exact lock v5 and manifest delta verified.
+PASS: V2 — fresh npm ci exited 0.
+PASS: V3 — typecheck passed for all five workspaces.
+PASS: V4 — 748 unit tests passed; permitted guards only; base tests unchanged.
+PASS: V5 — off build, base byte comparisons, bundle isolation and license audit passed.
+PASS: V6 — fixture/on builds, CSP, v3 notices and invalid-setting refusals passed.
+PASS: V7 — Node/Worker build and unchanged v2 server notice audit passed.
+PASS: V8 — exact base-to-validated diff contains only item 1–7 files.
+
+V9–V12 are **not run** and remain for the independent review's check run:
+W4-S1–S29, the fresh-base-stack negative control (including the new units
+against base production code), the team-off network check, and the team-off
+A–J comparison. No browser was launched; no Supabase start, stop or status
+command, Docker operation, server suite, hosted-project action, deployment,
+merge or push was run. No browser or acceptance pass is inferred from the unit
+and build checks. Graph discovery tools were unavailable under the session's
+approval policy, so code discovery used file reads after the graph calls failed.

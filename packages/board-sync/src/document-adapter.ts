@@ -8,9 +8,9 @@ export class Adapter {
     const b = upgrade(input);
     this.doc.transact(() => {
       const board = this.doc.getMap("board");
-      board.set("schemaVersion", b.schemaVersion);
-      board.set("boardId", b.boardId);
-      board.set("title", b.title);
+      for (const key of ["schemaVersion", "boardId", "title"] as const) {
+        if (board.get(key) !== b[key]) board.set(key, b[key]);
+      }
       const objects = this.doc.getMap<Y.Map<unknown>>("objects");
       const live = new Set(b.objects.map((o) => o.id));
       for (const id of objects.keys()) if (!live.has(id)) objects.delete(id);
@@ -35,8 +35,18 @@ export class Adapter {
             m.set("text", text);
           }
           if (text.toString() !== o.text) {
-            text.delete(0, text.length);
-            text.insert(0, o.text);
+            const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+            const old = [...segmenter.segment(text.toString())].map((part) => part.segment);
+            const next = [...segmenter.segment(o.text)].map((part) => part.segment);
+            let start = 0, end = 0;
+            while (start < old.length && start < next.length && old[start] === next[start]) start++;
+            while (end < old.length - start && end < next.length - start &&
+              old[old.length - 1 - end] === next[next.length - 1 - end]) end++;
+            const offset = old.slice(0, start).join("").length;
+            const removed = old.slice(start, old.length - end).join("").length;
+            if (removed) text.delete(offset, removed);
+            const inserted = next.slice(start, next.length - end).join("");
+            if (inserted) text.insert(offset, inserted);
           }
           const style = styleOf(o);
           if (JSON.stringify(m.get("style")) !== JSON.stringify(style)) {

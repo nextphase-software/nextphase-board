@@ -57,5 +57,5 @@ The Worker reads `SUPABASE_URL`, optional `SUPABASE_ISSUER`, `JWKS`,
 `wrangler.json` contains local bindings and SQLite migrations, without secrets.
 
 See the [test guide](../../tests/README.md#server-validation-0003-w1) for the
-shared server suite and the [API contract](../../docs/architecture/0003-api-v3.md)
+shared server suite and the [API contract](../../docs/architecture/0003-api-v4.md)
 for requests, refusals and operator controls.

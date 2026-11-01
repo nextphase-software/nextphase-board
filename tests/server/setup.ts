@@ -86,10 +86,10 @@ export default async function setup(project: any) {
   let caseNumber = 0;
   const createdWorkspaces: string[] = [], invitedIds: string[] = [];
   const removalPeople: { id: string }[] = [];
-  async function removalFixture() {
+  async function removalFixture(group = "removal") {
     const independent: Record<string, any> = {};
     for (const name of roles) {
-      const email = `removal-${randomUUID()}-${name}@example.test`, password = randomUUID() + randomUUID();
+      const email = `${group}-${randomUUID()}-${name}@example.test`, password = randomUUID() + randomUUID();
       const account = await db.client.auth.admin.createUser({ email, password, email_confirm: true });
       if (account.error || !account.data.user) throw Error("Cannot create removal identity");
       removalPeople.push({ id: account.data.user.id });
@@ -97,6 +97,13 @@ export default async function setup(project: any) {
       if (login.error || !login.data.session) throw Error("Cannot sign in removal identity");
       independent[name] = { id: account.data.user.id, email, token: login.data.session.access_token };
       await db.rpc("remember_person", { person: account.data.user.id, email });
+    }
+    if (group === "shared") {
+      // Both A and B are workspace editors; C keeps the viewer role.
+      const result = await fixture(independent);
+      await db.rpc("write_member_role", { workspace: result.workspace, person: independent.granted.id, role: "editor" });
+      await db.rpc("remove_grant", { board: result.a, person: independent.granted.id });
+      return { ...result, people: independent };
     }
     return { ...await fixture(independent), people: independent };
   }
@@ -121,6 +128,7 @@ export default async function setup(project: any) {
         case "/fixture": result = await fixture(); break;
         case "/lists-fixture": result = await fixture(listsPeople); break;
         case "/removal-fixture": result = await removalFixture(); break;
+        case "/shared-fixture": result = await removalFixture("shared"); break;
         case "/server-config": result = JSON.parse(await readFile(new URL("apps/server/wrangler.json", root), "utf8")); break;
         case "/proxy":
           if (value.offline !== undefined) offline = value.offline;

@@ -256,3 +256,14 @@ For 0003-W2 v1, the server uses [0003 access v3](0003-access-v3.md),
 [0003 identity v2](0003-identity-v2.md) in place of their earlier versions.
 Hosted persistence v2, self-host runner v1, document v11, toolchain v4 and
 web modules v24 remain in force.
+
+For 0004-W1 v1, these six contracts are in force for the server:
+
+- [0004 presence v1](0004-presence-v1.md): stamped, bounded connection presence.
+- [0003 sync v3](0003-sync-v3.md): shared edits, repairs and per-connection undo.
+- [0003 API v4](0003-api-v4.md): label and room-capacity refusals.
+- [0003 identity v3](0003-identity-v3.md): verified labels captured at ticket issue.
+- [0003 access v4](0003-access-v4.md): presence visibility and unchanged permissions.
+- [0003 hosted persistence v3](0003-hosted-persistence-v3.md): canonical saved updates and storage version 2.
+
+Self-host runner v1, document v11, toolchain v4 and web modules v24 remain in force.

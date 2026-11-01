@@ -137,3 +137,17 @@ S77–S93 to both server commands with fresh identities for each check. It print
 computed RPC reply until released to exercise the lookup/removal race.
 Run Node and workerd sequentially against one dataset. V12 is left to the
 independent review check run; hosted timing remains a separate maintainer step.
+
+## Shared editing and presence checks (0004-W1)
+
+`tests/presence.test.mjs` covers presence validation, bounds, attachment size,
+labels, storage migration, join holds and departure ordering. The new
+`tests/shared-editing.test.mjs` covers grapheme writes, conflict ordering,
+repairs, guarded undo and the shared client's injected transport and clock.
+Both run with `npm test` without Supabase.
+
+`tests/server/shared.test.ts` adds S94–S115 to both server commands, using
+fresh independent identities per check and held transport queues for deterministic
+interleavings. It prints `SUMMARY-SHARED` and is silent for the Docker target.
+Run Node and workerd sequentially. V11 (fresh-base negative control) and V12
+(A–J web comparison) belong to the independent review check run.

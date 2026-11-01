@@ -7,6 +7,7 @@ import { evaluate } from "./edits.ts";
 import { snapshot } from "./snapshots.ts";
 import { meta, setMeta } from "./storage.ts";
 import { base64, bytes, send, unbase64, type Connection } from "./protocol.ts";
+import { endPresence } from "./presence.ts";
 type Edit = { requestId: string; epoch: number; update: string };
 type LiveBoard = { doc: Y.Doc; board: BoardV10; saved(): void };
 
@@ -32,7 +33,8 @@ export class EditSession {
     const receipt = this.env.storage.all("SELECT * FROM receipts WHERE person_id = ? AND request_id = ?", connection.attachment().id, message.requestId)[0];
     if (receipt) {
       if (receipt.digest !== digest) refuse("request_id_reused");
-      else send(connection, { kind: "saved", requestId: message.requestId, revision: Number(receipt.revision) });
+      else send(connection, { kind: "saved", requestId: message.requestId, revision: Number(receipt.revision),
+        update: base64(Y.encodeStateAsUpdate(this.host.doc)) });
       return;
     }
     const samePerson = new Set(this.env.connections()
@@ -67,11 +69,11 @@ export class EditSession {
     const revision = meta(this.env.storage, "revision") + 1;
     try {
       this.env.storage.transaction(() => {
-        this.env.storage.exec('INSERT INTO edits VALUES (?, ?, ?, ?)', revision, connection.attachment().id, requestId, update);
+        this.env.storage.exec('INSERT INTO edits VALUES (?, ?, ?, ?)', revision, connection.attachment().id, requestId, result.update);
         this.env.storage.exec('INSERT INTO receipts VALUES (?, ?, ?, ?)', connection.attachment().id, requestId, digest, revision);
         setMeta(this.env.storage, "revision", revision);
         setMeta(this.env.storage, "last_edit_at", this.env.now());
-        for (const object of result.board.objects) this.env.storage.exec(
+        for (const object of result.identifiers) this.env.storage.exec(
           "INSERT OR IGNORE INTO identifiers VALUES (?, ?, ?)", object.id, object.generation, revision);
         if (revision % 100 === 0) snapshot(this.env.storage, result.doc, result.board, revision);
       });
@@ -79,9 +81,9 @@ export class EditSession {
     this.host.doc.destroy();
     this.host.doc = result.doc;
     this.host.board = result.board;
-    send(connection, { kind: "saved", requestId, revision });
+    send(connection, { kind: "saved", requestId, revision, ...(result.changed ? { update: base64(result.update) } : {}) });
     for (const other of this.env.connections()) if (other.attachment().connectionId !== connection.attachment().connectionId) {
-      send(other, { kind: "update", revision, update: base64(update) });
+      send(other, { kind: "update", revision, update: base64(result.update) });
     }
     this.host.saved();
     return "saved";
@@ -95,6 +97,7 @@ export class EditSession {
         if (!connection) { this.env.storage.exec("DELETE FROM waiting WHERE connection_id = ?", row.connection_id); continue; }
         if (connection.attachment().expiresAt <= this.env.now()) {
           this.env.storage.exec("DELETE FROM waiting WHERE connection_id = ?", row.connection_id);
+          endPresence(connection, this.env.connections());
           connection.close(4401);
           continue;
         }

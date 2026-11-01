@@ -6,14 +6,16 @@ let observed = 0;
 export function peer(socket: any): Peer {
   const messages: Message[] = [], consumed = new Set<Message>();
   let closed: number | null = null;
+  let handlers: { message(text: string): void; close(code: number): void } | undefined;
   const waiters = new Set<() => void>();
   const notify = () => { for (const waiter of [...waiters]) waiter(); };
   socket.addEventListener("message", (event: any) => { const message = JSON.parse(String(event.data));
     Object.defineProperty(message, "observed", { value: ++observed });
-    messages.push(message); notify(); });
-  socket.addEventListener("close", (event: any) => { closed = event.code; notify(); });
+    messages.push(message); handlers?.message(String(event.data)); notify(); });
+  socket.addEventListener("close", (event: any) => { closed = event.code; handlers?.close(event.code); notify(); });
   socket.addEventListener("error", () => {});
   return {
+    listen(value) { handlers = value; for (const message of messages) value.message(JSON.stringify(message)); if (closed !== null) value.close(closed); },
     messages, get closed() { return closed; },
     send(value) { socket.send(typeof value === "string" ? value : JSON.stringify(value)); },
     async next(kind) {

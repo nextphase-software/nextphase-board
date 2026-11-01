@@ -12,12 +12,14 @@ import { base64, bytes, MESSAGE_LIMIT, rank, RoomError, send, type Attachment, t
 import { loadDocument, newestSnapshot, snapshot } from "./snapshots.ts";
 import { initialize, meta, setMeta } from "./storage.ts";
 import { consumeTicket, issueTicket } from "./tickets.ts";
+import { Presences, currentAttachment, endPresence } from "./presence.ts";
 
 export class Room {
   boardId: string;
   env: RoomEnvironment;
   access: Access;
   edits: EditSession;
+  presence: Presences;
   doc = new Y.Doc();
   board!: BoardV10;
   initialized = false;
@@ -30,6 +32,7 @@ export class Room {
     initialize(env.storage);
     this.access = new Access(env.storage, env.access, env.connections);
     this.edits = new EditSession(env, this.access, this);
+    this.presence = new Presences(env, boardId);
     if (env.rows && env.background) this.copies = new Copies(env.storage, env.rows, env.now,
       () => this.ordered(() => this.schedule()));
   }
@@ -41,6 +44,8 @@ export class Room {
     return result;
   }
   async load() {
+    this.closeLegacy();
+    initialize(this.env.storage);
     if (this.initialized) return;
     const { storage, access } = this.env;
     if (!meta(storage, "storage_version")) {
@@ -54,7 +59,7 @@ export class Room {
       const board: BoardV10 = { schemaVersion: 10, boardId: this.boardId, title: details.title, objects: [], retiredGenerations: [] };
       adapter.set(board);
       storage.transaction(() => {
-        setMeta(storage, "storage_version", 1);
+        setMeta(storage, "storage_version", 2);
         storage.exec("INSERT INTO meta VALUES ('board_id', ?)", this.boardId);
         setMeta(storage, "last_edit_at", Date.parse(details.createdAt));
         setMeta(storage, "revision", 0);
@@ -75,13 +80,27 @@ export class Room {
       this.generation = await this.env.fence();
       this.access.locked = this.generation > meta(storage, "restore_generation") || !!meta(storage, "restore_pending");
       if (this.access.locked) {
-        for (const connection of this.env.connections()) connection.close(4423);
+        this.closeAll(4423);
         storage.exec("DELETE FROM tickets");
         storage.exec("DELETE FROM waiting");
       }
     } catch { this.access.locked = true; return; }
     try { await this.access.replay(this.boardId, this.generation); } catch { /* Ordinary wakes use their stored copy. */ }
     this.saved();
+  }
+  private closeLegacy() {
+    for (const peer of this.env.connections()) if (!currentAttachment(peer.attachment())) this.close(peer, 1012);
+  }
+  private close(connection: Connection, code: number) {
+    if (code !== 1012) endPresence(connection, this.env.connections());
+    this.env.storage.exec("DELETE FROM waiting WHERE connection_id = ?", connection.attachment().connectionId);
+    connection.close(code);
+  }
+  private closeAll(code: number) {
+    const peers = this.env.connections();
+    // All departures must reach every socket before any close starts.
+    for (const peer of peers) endPresence(peer, peers);
+    for (const peer of peers) this.close(peer, code);
   }
   private async creationTime() {
     if (this.env.storage.all("SELECT value FROM meta WHERE key = 'last_edit_at'").length) return;
@@ -162,18 +181,25 @@ export class Room {
       await this.refresh();
       const grant = await this.access.lookup(person.id, this.boardId);
       if (person.expiresAt <= this.env.now()) throw new RoomError(401, "ticket_invalid");
-      return { ...person, role: grant.role, epoch: grant.epoch, connectionId: this.env.randomId() };
+      const attachment = await this.presence.reserve(person, grant.role, grant.epoch);
+      await this.schedule();
+      return attachment;
     });
   }
   connected(connection: Connection) {
     return this.ordered(async () => {
       await this.load();
       const attachment = connection.attachment();
-      if (attachment.expiresAt <= this.env.now()) { connection.close(4401); return; }
+      if (!currentAttachment(attachment)) { this.close(connection, 1012); return; }
+      if (!this.presence.open(connection)) return;
+      await this.expire();
+      if (attachment.expiresAt <= this.env.now()) return;
       const grant = this.access.get(attachment.id);
-      if (!grant || attachment.epoch !== grant.epoch) { connection.close(closeCode(grant?.role ?? null, attachment.role)); return; }
+      if (!grant || attachment.epoch !== grant.epoch) { this.close(connection, closeCode(grant?.role ?? null, attachment.role)); return; }
       send(connection, { kind: "joined", role: grant.role, epoch: grant.epoch,
-        revision: meta(this.env.storage, "revision"), update: base64(Y.encodeStateAsUpdate(this.doc)) });
+        revision: meta(this.env.storage, "revision"), update: base64(Y.encodeStateAsUpdate(this.doc)),
+        self: connection.attachment().presence, present: this.presence.list(attachment.connectionId) });
+      this.presence.relay(connection);
       await this.schedule();
     });
   }
@@ -201,7 +227,7 @@ export class Room {
       if (!this.env.connections().some((peer) => peer.attachment().connectionId === connection.attachment().connectionId)) return;
       await this.expire();
       if (connection.attachment().expiresAt <= this.env.now()) return;
-      if (this.access.locked) { connection.close(4423); return; }
+      if (this.access.locked) { this.close(connection, 4423); return; }
       if (bytes(text).length > MESSAGE_LIMIT) { send(connection, { kind: "refused", reason: "message_too_large" }); return; }
       let message;
       try { message = JSON.parse(text); } catch { send(connection, { kind: "refused", reason: "bad_message" }); return; }
@@ -209,9 +235,14 @@ export class Room {
         try {
           const person = await this.env.verify(message.token);
           if (connection.attachment().expiresAt <= this.env.now() || person.id !== connection.attachment().id || person.expiresAt <= this.env.now()) throw Error();
-          connection.attach({ ...connection.attachment(), ...person });
+          connection.attach({ ...connection.attachment(), expiresAt: person.expiresAt });
           send(connection, { kind: "renewed", expiresAt: person.expiresAt });
-        } catch { connection.close(4401); }
+        } catch { this.close(connection, 4401); }
+        await this.schedule();
+        return;
+      }
+      if (message?.kind === "presence") {
+        await this.presence.receive(connection, message, bytes(text).length);
         await this.schedule();
         return;
       }
@@ -227,14 +258,17 @@ export class Room {
     for (const connection of this.env.connections()) {
       if (connection.attachment().expiresAt <= this.env.now()) {
         this.env.storage.exec("DELETE FROM waiting WHERE connection_id = ?", connection.attachment().connectionId);
-        connection.close(4401);
+        this.close(connection, 4401);
       } else if (this.env.storage.all("SELECT sequence FROM waiting WHERE connection_id = ? AND deadline <= ?",
         connection.attachment().connectionId, this.env.now()).length) this.edits.resync(connection, "waiting_timeout");
     }
+    this.presence.expire();
     this.env.storage.exec("DELETE FROM tickets WHERE expires_at <= ?", this.env.now());
   }
   private async schedule() {
     const deadlines = this.env.connections().map((connection) => connection.attachment().expiresAt);
+    deadlines.push(...this.presence.deadlines());
+    for (const peer of this.env.connections()) if (peer.attachment().presence) deadlines.push(peer.attachment().presenceAt! + 30000);
     const waiting = this.env.storage.all("SELECT MIN(deadline) AS at FROM waiting")[0]?.at;
     if (waiting !== null && waiting !== undefined) deadlines.push(Number(waiting));
     const ticket = this.env.storage.all("SELECT MIN(expires_at) AS at FROM tickets")[0]?.at;
@@ -249,6 +283,7 @@ export class Room {
   closed(connection: Connection) {
     return this.ordered(async () => {
       await this.load();
+      endPresence(connection, this.env.connections());
       this.env.storage.exec("DELETE FROM waiting WHERE connection_id = ?", connection.attachment().connectionId);
       if (!this.env.connections().length) this.env.storage.transaction(() => snapshot(this.env.storage, this.doc, this.board, meta(this.env.storage, "revision")));
       await this.schedule();
@@ -272,7 +307,7 @@ export class Room {
       const envelope = decodeBackup(value, this.boardId);
       const generation = await this.env.raiseFence();
       this.copies?.suspend();
-      for (const connection of this.env.connections()) connection.close(4423);
+      this.closeAll(4423);
       replace(this.env, envelope);
       setMeta(this.env.storage, "restore_pending", 1);
       this.initialized = false;
@@ -284,7 +319,7 @@ export class Room {
     return this.ordered(async () => {
       const generation = await this.env.raiseFence();
       this.copies?.suspend();
-      for (const connection of this.env.connections()) connection.close(4423);
+      this.closeAll(4423);
       this.env.storage.exec("DELETE FROM tickets");
       this.env.storage.exec("DELETE FROM waiting");
       setMeta(this.env.storage, "restore_pending", 1);

@@ -15,7 +15,7 @@ export const tables: Record<string, string[]> = {
   snapshot_chunks: ["snapshot_revision", "kind", "chunk_index", "bytes"],
   grants: ["person_id", "role", "epoch", "change_number"],
   identifiers: ["object_id", "generation", "first_revision"],
-  tickets: ["digest", "person_id", "token_expires_at", "expires_at"],
+  tickets: ["digest", "person_id", "token_expires_at", "expires_at", "label"],
 };
 export const binaryColumns: Record<string, string> = { edits: "update", waiting: "update", snapshot_chunks: "bytes" };
 export function initialize(storage: Storage) {
@@ -30,6 +30,13 @@ export function initialize(storage: Storage) {
     'CREATE TABLE IF NOT EXISTS tickets (digest TEXT PRIMARY KEY, person_id TEXT NOT NULL, token_expires_at INTEGER NOT NULL, expires_at INTEGER NOT NULL)',
   ];
   for (const sql of statements) storage.exec(sql);
+  storage.transaction(() => {
+    if (!storage.all("PRAGMA table_info(tickets)").some((column) => column.name === "label")) {
+      storage.exec("ALTER TABLE tickets ADD COLUMN label TEXT NOT NULL DEFAULT ''");
+      storage.exec("DELETE FROM tickets");
+    }
+    if (meta(storage, "storage_version") === 1) setMeta(storage, "storage_version", 2);
+  });
 }
 export function meta(storage: Storage, key: string): number {
   return Number(storage.all("SELECT value FROM meta WHERE key = ?", key)[0]?.value ?? 0);

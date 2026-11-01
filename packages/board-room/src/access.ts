@@ -2,6 +2,7 @@
 import type { AccessSource } from "./interfaces.ts";
 import { rank, RoomError, type Connection, type Role } from "./protocol.ts";
 import { meta, setMeta, type Storage } from "./storage.ts";
+import { endPresence } from "./presence.ts";
 export type Grant = { role: Role; epoch: number; changeNumber: number };
 export function closeCode(current: Role | null, joined: Role | null): number {
   return rank(current) > rank(joined) ? 4409 : 4403;
@@ -68,6 +69,7 @@ export class Access {
     for (const connection of this.connections()) {
       const attachment = connection.attachment(), grant = this.get(attachment.id);
       if (!grant || grant.epoch !== attachment.epoch) {
+        endPresence(connection, this.connections());
         connection.close(closeCode(grant?.role ?? null, attachment.role ?? null));
       }
     }

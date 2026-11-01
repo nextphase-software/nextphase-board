@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import { fromBase64, toBase64 } from "lib0/buffer";
+import type { Presence } from "nextphase-board-sync/session.ts";
 export const MESSAGE_LIMIT = 1048576;
 export const BACKUP_LIMIT = 16777216;
 export type Role = "owner" | "editor" | "viewer";
 export type Person = { id: string; email: string; expiresAt: number };
-export type Attachment = Person & { connectionId: string; epoch: number; role: Role };
+// Optional fields permit detecting attachments written by the previous server.
+export type Attachment = Omit<Person, "email"> & { email?: string; connectionId: string; epoch: number; role: Role;
+  label?: string; ordinal?: number; presence?: Presence | null; presenceAt?: number; presenceTimes?: number[] };
 export interface Connection {
   attachment(): Attachment;
   attach(value: Attachment): void;

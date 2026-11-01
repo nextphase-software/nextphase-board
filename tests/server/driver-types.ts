@@ -5,6 +5,7 @@ export interface Peer {
   closed: number | null;
   send(value: unknown): void;
   next(kind: string): Promise<Message>;
+  listen(handlers: { message(text: string): void; close(code: number): void }): void;
   close(): Promise<void>;
 }
 export type Context = {

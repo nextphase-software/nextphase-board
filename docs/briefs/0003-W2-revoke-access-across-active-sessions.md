@@ -1,8 +1,9 @@
 BRIEF VERSION: 0003-W2 v1 (2026-10-30)
 # 0003-W2 — Revoke access across active sessions
 
-Status: Draft. Implementation starts only after the maintainer commits this brief and its
-contracts to main: [0003 access v3](../architecture/0003-access-v3.md),
+Status: Implemented. Independently reviewed at `e98dc39` (pass) and merged into main on
+2026-10-31 ([evidence summary](0003-W2-revoke-access-across-active-sessions-evidence.md)) with its
+contracts: [0003 access v3](../architecture/0003-access-v3.md),
 [0003 API v3](../architecture/0003-api-v3.md), [0003 sync v2](../architecture/0003-sync-v2.md)
 and [0003 identity v2](../architecture/0003-identity-v2.md). Unchanged and still in force:
 [0003 hosted persistence v2](../architecture/0003-hosted-persistence-v2.md),

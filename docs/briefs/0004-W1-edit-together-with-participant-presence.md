@@ -302,3 +302,394 @@ sides),
 this milestone does not use) and
 [Intl.Segmenter on MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Segmenter)
 (grapheme clusters).
+
+## Implementation record (2026-10-31)
+
+Base revision: `9c06551ad0aa27a0cee03c0c027f9a9dff6db88d`.
+Branch: `codex/0004-W1-edit-together-with-participant-presence`.
+Worktree: `.worktrees/codex-0004-W1`. The worktree was clean at entry.
+
+Validated source/test revision: `3d41733b28b0f8dfe93cfe3b1475186356cc2eb0`
+(`feat(sync): add participant presence and shared editing`). All 24 files of that commit
+match the source/test snapshot used for the validation below. Its SHA-256 manifest is
+recorded at the end; the manifest's SHA-256 is
+`150b29dbeb0ac9e66c3a224a072ad8552a83949df3ef972c2d1733df7ab113cd`.
+This implementation record is a separate documentation commit after the validated revision;
+the final branch tip is reported separately at handoff. No push, merge or publication was made.
+
+**Planner ruling applied.** The initial stop on `apps/web/dist/meta.json` was resolved by
+the maintainer's planner ruling: this ignored esbuild metafile records the bundle's inputs
+and output sizes, and its change is part of the expected `app.js` change. V5 compares only
+`index.html`, the CSS and `THIRD_PARTY_NOTICES.txt`; all three are byte-identical to the
+base build. No web source or build script changed. The metafile's only changed source input
+is `packages/board-sync/src/document-adapter.ts` (2,875 to 3,711 source bytes); the bundled
+application changes from 841,801 to 842,178 bytes. No metadata was removed or rewritten.
+No source/test file changed between the recorded Node/unit validation and the resumed
+workerd run; the recorded file hashes were verified again before and after committing.
+
+**Work completed.** Grapheme-preserving adapter writes; room-stamped presence and bounds;
+join reservations; departure/expiry handling; label capture and storage-version migration;
+save-order property promotion, repairs, canonical saved updates and retry replies;
+injected-clock shared sessions and per-connection guarded undo; the two unit files and
+S94–S115 through BoardSession transports with queues in each direction; independent test
+identities; and the specified documentation links. No dependency was added or changed.
+No manifest, lock, Supabase schema, backup format, document format, web source or production
+runner file changed. Existing S check bodies and base unit tests are unchanged. No unrelated
+work was present or changed. The prototype's report and contract notes were read for context;
+no prototype source or patch was imported. Graph discovery/index calls required approval
+that this environment could not grant, so source discovery used file reads as fallback.
+
+**Commands and results.** Every shell command put the maintainer-provided pinned toolchain
+bin directory first on PATH. `node --version` printed `v26.13.0`; `npm --version` printed
+`11.20.0`, including on resume. `BOARD_TEST_STACK` was set to the maintainer-provided external
+stack settings file for each server command; its machine-specific value is omitted under
+AGENTS.md's public-source rule. Node finished with exit 0 and completed cleanup before
+workerd was started. Temporary builds, raw logs and comparisons used system temporary
+folders, with no temporary files added to the repository.
+
+```text
+PASS: V1 byte-compare package-lock.json and every package.json to git show 9c06551:<path>: all 7 identical, verified again on resume
+PASS: V2 npm ci --ignore-scripts --no-audit --no-fund: exit 0, 118 packages installed by the implementer
+PASS: V3 npm run typecheck: exit 0, all five workspace members
+PASS: V4 npm test: exit 0, 726 passed, 0 failed; 678 unchanged base tests and 48 new tests in the two required unit files
+PASS: V5 npm run build and npm run build:fixtures: exit 0; index.html, style.css and THIRD_PARTY_NOTICES.txt byte-identical to the base build
+PASS: V6 npm run build:server and npm run audit:licenses: exit 0; node.mjs, worker.mjs and both notices files written and verified
+PASS: V7 WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH="$scratch/wrangler.log" npx wrangler deploy --dry-run --outdir "$scratch/out" -c apps/server/wrangler.json: exit 0, uploads nothing
+PASS: V8 npm run test:server:node: exit 0, 111 passed, all four summaries have fail 0
+PASS: V9 npm run test:server:workerd: exit 0, 108 applicable checks passed, all four summaries have fail 0; S37, S43 and S70 are Node only
+PASS: V10 git diff --name-status 9c06551..3d41733b28b0f8dfe93cfe3b1475186356cc2eb0: only the 24 implementation files of items 1–5
+```
+
+The base artifact comparison used `git archive 9c06551`, extraction into a system temporary
+folder, then `npm ci --ignore-scripts --no-audit --no-fund` and `npm run build` there (both
+exit 0), followed by byte comparisons of the generated files. V1 and V5 byte comparisons
+were repeated on resume without rerunning application tests or builds, since the tested
+source/test files had not changed. `git diff --check` and `git diff --cached --check` pass.
+The largest-presence unit assertion passes with 250 IDs, a 256-byte label, maximal numeric
+attachment fields and ten rate timestamps, both before and after renewal; serialized
+attachment size is within 16,384 bytes and no renewal email is retained.
+
+The implementation was committed with
+`git commit -m "feat(sync): add participant presence and shared editing"` (exit 0).
+Both PUBLIC BOUNDARY hook checks passed. Git also printed a nonfatal permission warning
+for `packed-refs.lock`; the branch reference, resulting commit and all 24 committed file
+hashes were verified afterwards. No hook was disabled or bypassed.
+
+Development diagnostics before the final checks included `npm run typecheck` (pass),
+`npm test` before adding the new unit files (678 passed), focused runs of
+`node --test tests/presence.test.mjs`,
+`node --test tests/shared-editing.test.mjs tests/presence.test.mjs` and
+`node --test tests/shared-editing.test.mjs`. Initial new-unit failures exposed invalid
+synthetic fixture values, an incorrect fixed-key expectation and lazy Yjs root types;
+these were corrected before the final 726-test pass. The first full Node run had all
+89 base checks pass and four new-check failures (S96, S98, S99, S115): an initial-presence
+barrier was missing, Node fetch rejected a test Upgrade header, the shared fixture retained
+a redundant direct grant, and an untracked raw edit refusal was treated as an unmatched
+no-request-ID refusal. These were corrected before the final 111-check pass below.
+No existing check needed changing. The workerd run printed network-loss diagnostics during
+injected outage/eviction coverage; it exited 0 with every applicable S check passing.
+
+**Exclusions.** V11, the negative control on a fresh base stack, and V12, the A–J comparison,
+are left to the independent review check run. No browser was launched. No Supabase CLI
+command, Docker runner, hosted deployment, load/latency campaign or unrelated acceptance
+sweep ran. The already-running stack and all its containers, volumes and networks were
+left running and unchanged by infrastructure commands. Both drivers completed their own
+cleanup. No dependency was added; pinned versions and licensing remain as in toolchain v4.
+This handoff does not authorize a merge or another milestone.
+
+### Final Node server evidence
+
+```text
+PASS: S94 stamped join and relayed presence never disclose account identity
+PASS: S95 presence changes neither revision nor exported board
+PASS: S96 presence rejects forged fields and preserves server stamps
+PASS: S97 presence bounds and sliding window survive hibernation
+PASS: S98 fifty connections consume tickets before refusing the next upgrade
+PASS: S99 normal and forced departures carry left and the declared close code
+PASS: S100 expiry leaves editing open and only accepted presence renews the deadline
+PASS: S101 hibernation retains stamps and the latest presence
+PASS: S102 viewer raw and local edit undo redo cannot write
+PASS: S103 concurrent text keeps both insertions in every save order
+PASS: S104 separate objects and property units keep both edits
+PASS: S105 later saved geometry and title beat Yjs client ordering
+PASS: S106 delete dominates concurrent text and undo restores a new incarnation
+PASS: S107 repairs are saved with the room update only when changed
+PASS: S108 invalid text merge refuses then rejoins and drops unsaved work
+PASS: S109 receipt retry returns the whole board and rejects reused IDs
+PASS: S110 undo redo geometry preserves another writer's text
+PASS: S111 partial undo and redo skip another writer's later geometry
+PASS: S112 delete undo restores fresh linked IDs and redo preserves the present
+PASS: S113 a later equal-valued assignment kills the first writer's guard
+PASS: S114 undo add preserves an object another writer edited
+PASS: S115 viewer edit forged presence and unknown kind never update a board
+SUMMARY-SHARED {"runner":"node","checks":22,"pass":22,"fail":0,"measures":{}}
+PASS: S1 independent ES256 identities
+PASS: S2 missing and malformed tokens
+PASS: S3 tampering and shared-secret algorithms
+PASS: S4 expiry audience and issuer
+PASS: S5 pinned keys survive endpoint failure
+PASS: S6 every protected route checks tokens before lookups
+PASS: S7 create route role matrix and titles
+PASS: S8 board details role matrix
+PASS: S9 ticket and join role matrix
+PASS: S10 canonical export role matrix
+PASS: S11 owner lists members grants and invitations
+PASS: S12 invitation create cancel matrix and private rows
+PASS: S13 change a member and a grant with removal and no-op
+PASS: S14 invitation acceptance identity expiry cancellation and retries
+PASS: S15 unoffered routes return not found
+PASS: S16 refused joins disclose no board content
+PASS: S17 viewer edits are never acknowledged
+PASS: S18 saved precedes broadcast
+PASS: S19 incomplete edits wait until dependencies arrive
+PASS: S20 receipt retry is idempotent and bound to update bytes
+PASS: S21 highest board role wins
+PASS: S22 guest access and Data API rows agree
+PASS: S23 board invitations add an outsider as a guest
+PASS: S24 workspace raises close all affected boards with 4409
+PASS: S25 a board raise leaves other rooms connected
+PASS: S26 acceptance refreshes a cached viewer
+PASS: S27 a redundant effective grant leaves epoch and connection alone
+PASS: S28 failed fanout is recovered on next join
+PASS: S29 tickets are one-time short-lived and origin-bound
+PASS: S30 renewal and expiry survive hibernation
+PASS: S31 invited confirmed account signs in once without sign-ups
+PASS: S32 new rooms are empty and first open is idempotent
+PASS: S33 exact 2 MiB board persists in bounded chunks
+PASS: S34 oversized message leaves transport usable
+PASS: S35 hundred-edit and idle snapshots retain two generations
+PASS: S36 waiting count bytes deadline and hibernation
+PASS: S37 Node restart drops waits and clients resend
+PASS: S38 hostile transitions hidden fields history and size store nothing
+PASS: S39 hosted image edits are refused
+PASS: S40 ordinary wakes retain cached access during outage
+PASS: S41 large logical restore locks until replay and clears tickets
+PASS: S42 physical rewind respects an external fence
+PASS: S43 copied Node volume requires replay after marking
+PASS: S44 unreadable fence fails closed independently of Supabase
+PASS: S45 replay lowers and removes cached effective roles
+PASS: S46 access history floor enforces the inclusive replay boundary
+PASS: S47 operator authentication limits and runner-specific routes
+PASS: S48 schema is repeatable and authenticated writes are denied
+PASS: S49 workspace setup creates its owner and refuses a second run
+PASS: S50 fanout timing for 1 10 and 50 connected boards
+SUMMARY {"runner":"node","checks":50,"pass":50,"fail":0,"measures":{"storage":{"jsonChunks":2,"yjsChunks":2,"largestRowBytes":1048596,"reloadMs":183.4867919999997},"fanoutMs":{"1":107.46333400000003,"10":23.443916999996873,"50":141.22091699999874}}}
+PASS: S55 workspace discovery follows workspace roles and granted boards
+PASS: S56 board lists apply roles hide missing access and expose exact fields
+PASS: S57 recent boards include only opened accessible boards newest first
+PASS: S58 creation supports Untitled validates bodies and preserves role refusals
+PASS: S59 rename role matrix title rules and document size limit
+PASS: S60 new routes authenticate every invalid token before looking up resources
+PASS: S61 rename saves once broadcasts exports and reaches every list
+PASS: S62 ordinary title edits reach board details and both lists
+PASS: S63 refused edits copy nothing and ordinary NUL titles keep their document
+PASS: S64 edited times throttle idle flush and failed copies retry after sixty seconds
+PASS: S65 copy failure cannot refuse or undo edits and recovery catches up
+PASS: S66 slow copies leave ten save acknowledgements below two hundred milliseconds
+PASS: S67 saved row writes compare generation before revision and accept equal pairs
+PASS: S68 logical restore rewinds name and edit time and fences delayed copies
+PASS: S69 point in time rewind reconciles names with an external fence
+PASS: S70 marked Node volume raises above row generation and stays locked offline
+PASS: S71 locked rename hides boards from outsiders and stores no edit
+PASS: S72 opens reorder tie by descending ID survive failure and cap at fifty
+PASS: S73 removing the last guest grant removes board and workspace discovery
+PASS: S74 all six sort directions page 250 tied boards exactly once
+PASS: S75 cursor shape context and unknown sort directions are refused
+PASS: S76 title order folds ASCII then compares original bytes and reverses exactly
+SUMMARY-LISTS {"runner":"node","checks":22,"pass":22,"fail":0,"measures":{"ackMsWhileCopySlow":0.6347500000001673}}
+PASS: S77 lowering roles authorization owner protection and no-op
+PASS: S78 removing workspace access preserves direct grants and removes empty guests
+PASS: S79 grant removal keeps the highest role and lists omit completed removals
+PASS: S80 active edits stop at the room step and saved edits match export
+PASS: S81 removal deletes waiting edits before another editor supplies their dependency
+PASS: S82 lowering closes 4403 and raising closes 4409 with the new join role
+PASS: S83 removing a redundant grant preserves the epoch connection and edits
+PASS: S84 removed editors and viewers cannot reuse tickets reconnect export or discover boards
+PASS: S85 a held role lookup computed before removal cannot return stale access
+PASS: S86 failed delivery leaves a pending removed row until a retry closes its room
+PASS: S87 lost receipts remain pending and retry does not advance the epoch twice
+PASS: S88 restart after a room step preserves the copy while retry records its receipt
+PASS: S89 an older backup cannot restore removed access or unused tickets
+PASS: S90 the retry host completes pending delivery without an HTTP access write
+PASS: S91 disable removes all board access while tokens still verify and RLS reads vanish
+PASS: S92 enable restores the retained workspace role and grants
+PASS: S93 workspace removal closes every connection within two seconds at 1 10 and 50 boards
+SUMMARY-REMOVAL {"runner":"node","checks":17,"pass":17,"fail":0,"measures":{"closeMs":16.170874999999796,"removalMs":{"1":12.552749999998923,"10":23.25920800000131,"50":59.0500409999986}}}
+```
+
+### Final workerd server evidence
+
+```text
+PASS: S1 independent ES256 identities
+PASS: S2 missing and malformed tokens
+PASS: S3 tampering and shared-secret algorithms
+PASS: S4 expiry audience and issuer
+PASS: S5 pinned keys survive endpoint failure
+PASS: S6 every protected route checks tokens before lookups
+PASS: S7 create route role matrix and titles
+PASS: S8 board details role matrix
+PASS: S9 ticket and join role matrix
+PASS: S10 canonical export role matrix
+PASS: S11 owner lists members grants and invitations
+PASS: S12 invitation create cancel matrix and private rows
+PASS: S13 change a member and a grant with removal and no-op
+PASS: S14 invitation acceptance identity expiry cancellation and retries
+PASS: S15 unoffered routes return not found
+PASS: S16 refused joins disclose no board content
+PASS: S17 viewer edits are never acknowledged
+PASS: S18 saved precedes broadcast
+PASS: S19 incomplete edits wait until dependencies arrive
+PASS: S20 receipt retry is idempotent and bound to update bytes
+PASS: S21 highest board role wins
+PASS: S22 guest access and Data API rows agree
+PASS: S23 board invitations add an outsider as a guest
+PASS: S24 workspace raises close all affected boards with 4409
+PASS: S25 a board raise leaves other rooms connected
+PASS: S26 acceptance refreshes a cached viewer
+PASS: S27 a redundant effective grant leaves epoch and connection alone
+PASS: S28 failed fanout is recovered on next join
+PASS: S29 tickets are one-time short-lived and origin-bound
+PASS: S30 renewal and expiry survive hibernation
+PASS: S31 invited confirmed account signs in once without sign-ups
+PASS: S32 new rooms are empty and first open is idempotent
+PASS: S33 exact 2 MiB board persists in bounded chunks
+PASS: S34 oversized message leaves transport usable
+PASS: S35 hundred-edit and idle snapshots retain two generations
+PASS: S36 waiting count bytes deadline and hibernation
+PASS: S38 hostile transitions hidden fields history and size store nothing
+PASS: S39 hosted image edits are refused
+PASS: S40 ordinary wakes retain cached access during outage
+PASS: S41 large logical restore locks until replay and clears tickets
+PASS: S42 physical rewind respects an external fence
+PASS: S44 unreadable fence fails closed independently of Supabase
+PASS: S45 replay lowers and removes cached effective roles
+PASS: S46 access history floor enforces the inclusive replay boundary
+PASS: S47 operator authentication limits and runner-specific routes
+PASS: S48 schema is repeatable and authenticated writes are denied
+PASS: S49 workspace setup creates its owner and refuses a second run
+PASS: S50 fanout timing for 1 10 and 50 connected boards
+SUMMARY {"runner":"workerd","checks":48,"pass":48,"fail":0,"measures":{"storage":{"jsonChunks":2,"yjsChunks":2,"largestRowBytes":1048596,"reloadMs":58},"fanoutMs":{"1":50,"10":34,"50":94}}}
+PASS: S55 workspace discovery follows workspace roles and granted boards
+PASS: S56 board lists apply roles hide missing access and expose exact fields
+PASS: S57 recent boards include only opened accessible boards newest first
+PASS: S58 creation supports Untitled validates bodies and preserves role refusals
+PASS: S59 rename role matrix title rules and document size limit
+PASS: S60 new routes authenticate every invalid token before looking up resources
+PASS: S61 rename saves once broadcasts exports and reaches every list
+PASS: S62 ordinary title edits reach board details and both lists
+PASS: S63 refused edits copy nothing and ordinary NUL titles keep their document
+PASS: S64 edited times throttle idle flush and failed copies retry after sixty seconds
+PASS: S65 copy failure cannot refuse or undo edits and recovery catches up
+PASS: S66 slow copies leave ten save acknowledgements below two hundred milliseconds
+PASS: S67 saved row writes compare generation before revision and accept equal pairs
+PASS: S68 logical restore rewinds name and edit time and fences delayed copies
+PASS: S69 point in time rewind reconciles names with an external fence
+PASS: S71 locked rename hides boards from outsiders and stores no edit
+PASS: S72 opens reorder tie by descending ID survive failure and cap at fifty
+PASS: S73 removing the last guest grant removes board and workspace discovery
+PASS: S74 all six sort directions page 250 tied boards exactly once
+PASS: S75 cursor shape context and unknown sort directions are refused
+PASS: S76 title order folds ASCII then compares original bytes and reverses exactly
+SUMMARY-LISTS {"runner":"workerd","checks":21,"pass":21,"fail":0,"measures":{"ackMsWhileCopySlow":2}}
+PASS: S94 stamped join and relayed presence never disclose account identity
+PASS: S95 presence changes neither revision nor exported board
+PASS: S96 presence rejects forged fields and preserves server stamps
+PASS: S97 presence bounds and sliding window survive hibernation
+PASS: S98 fifty connections consume tickets before refusing the next upgrade
+PASS: S99 normal and forced departures carry left and the declared close code
+PASS: S100 expiry leaves editing open and only accepted presence renews the deadline
+PASS: S101 hibernation retains stamps and the latest presence
+PASS: S102 viewer raw and local edit undo redo cannot write
+PASS: S103 concurrent text keeps both insertions in every save order
+PASS: S104 separate objects and property units keep both edits
+PASS: S105 later saved geometry and title beat Yjs client ordering
+PASS: S106 delete dominates concurrent text and undo restores a new incarnation
+PASS: S107 repairs are saved with the room update only when changed
+PASS: S108 invalid text merge refuses then rejoins and drops unsaved work
+PASS: S109 receipt retry returns the whole board and rejects reused IDs
+PASS: S110 undo redo geometry preserves another writer's text
+PASS: S111 partial undo and redo skip another writer's later geometry
+PASS: S112 delete undo restores fresh linked IDs and redo preserves the present
+PASS: S113 a later equal-valued assignment kills the first writer's guard
+PASS: S114 undo add preserves an object another writer edited
+PASS: S115 viewer edit forged presence and unknown kind never update a board
+SUMMARY-SHARED {"runner":"workerd","checks":22,"pass":22,"fail":0,"measures":{}}
+PASS: S77 lowering roles authorization owner protection and no-op
+PASS: S78 removing workspace access preserves direct grants and removes empty guests
+PASS: S79 grant removal keeps the highest role and lists omit completed removals
+PASS: S80 active edits stop at the room step and saved edits match export
+PASS: S81 removal deletes waiting edits before another editor supplies their dependency
+PASS: S82 lowering closes 4403 and raising closes 4409 with the new join role
+PASS: S83 removing a redundant grant preserves the epoch connection and edits
+PASS: S84 removed editors and viewers cannot reuse tickets reconnect export or discover boards
+PASS: S85 a held role lookup computed before removal cannot return stale access
+PASS: S86 failed delivery leaves a pending removed row until a retry closes its room
+PASS: S87 lost receipts remain pending and retry does not advance the epoch twice
+PASS: S88 restart after a room step preserves the copy while retry records its receipt
+PASS: S89 an older backup cannot restore removed access or unused tickets
+PASS: S90 the retry host completes pending delivery without an HTTP access write
+PASS: S91 disable removes all board access while tokens still verify and RLS reads vanish
+PASS: S92 enable restores the retained workspace role and grants
+PASS: S93 workspace removal closes every connection within two seconds at 1 10 and 50 boards
+SUMMARY-REMOVAL {"runner":"workerd","checks":17,"pass":17,"fail":0,"measures":{"closeMs":21,"removalMs":{"1":14,"10":34,"50":113}}}
+```
+
+### Validated file scope
+
+```text
+M	apps/server/README.md
+M	docs/architecture/README.md
+M	packages/board-room/src/access.ts
+A	packages/board-room/src/conflicts.ts
+M	packages/board-room/src/edit-session.ts
+M	packages/board-room/src/edits.ts
+A	packages/board-room/src/presence.ts
+M	packages/board-room/src/protocol.ts
+A	packages/board-room/src/repair.ts
+M	packages/board-room/src/room.ts
+M	packages/board-room/src/storage.ts
+M	packages/board-room/src/tickets.ts
+M	packages/board-sync/src/document-adapter.ts
+A	packages/board-sync/src/session.ts
+A	packages/board-sync/src/undo.ts
+M	tests/README.md
+A	tests/presence.test.mjs
+M	tests/server/driver-types.ts
+M	tests/server/peer.ts
+M	tests/server/setup.ts
+A	tests/server/shared.test.ts
+A	tests/shared-editing.test.mjs
+M	vitest.node.config.ts
+M	vitest.workerd.config.ts
+```
+
+### Validated source/test manifest
+
+SHA-256 followed by repository-relative path; the separate implementation-record commit is excluded:
+
+```text
+076862eb416a6005d8ae41472ff4993d5dd552163e7dc359da56f516511b5c51  apps/server/README.md
+2b09848eb859b61a58e14c73ece93216f7726cb00b7fa0716f7f625cbe759f44  docs/architecture/README.md
+29e36c736c9df81ec205e4231b2f47dd2ef20e7676de9a1437669d3b4ad478a7  packages/board-room/src/access.ts
+49c40f7bbbb31030ff1237cdf0943ac48cce658c311fa9f3782a260800fe38a1  packages/board-room/src/conflicts.ts
+a3bd66183608a2a5c8768bb375315121327930b1f522c19f94cdd4324a8a9cc0  packages/board-room/src/edit-session.ts
+94f7069d307ea8bfb2691e9c6d186fa8f69a2ba8a7f70b9d04259333e1d33d48  packages/board-room/src/edits.ts
+c45d18cdaaf167e62fec37dc2b176c84398c9c4aa2d53d5610e4a6cdb47d12e2  packages/board-room/src/presence.ts
+67a86a22480c9cc87e2d37e04fe0e22faca9348425e57664091666b6bd1483c0  packages/board-room/src/protocol.ts
+1157289cf770d872ec956622b33d49d90a42b071bcb4223ac43f4ef9e2ea41b2  packages/board-room/src/repair.ts
+2a443a8d0c11233649317aaed6b47da56425fd03d2c0845fdd966d4b0d38085f  packages/board-room/src/room.ts
+10bacd81edd50e9158241a179f55ead0ba157cb6fec6014c86249eb0706cc73e  packages/board-room/src/storage.ts
+eceda7e848d29c9683f93c8805d187902addc05b0ce1bb27f969f9daa1e291eb  packages/board-room/src/tickets.ts
+d377c3bf17863bf33bad173ae28402922ffac6375539bef7900f235fcd3e1177  packages/board-sync/src/document-adapter.ts
+6483ce97948792e78e4afeaa26c974c13f25622733a6161b981ce9508537fc7e  packages/board-sync/src/session.ts
+cd30466486ba469b955347341b85b94663968de0ac06d31f9a26198a98a58c12  packages/board-sync/src/undo.ts
+78fb3b3296a2a89ee4bb010689d7ff6554ff7266fefa3fce2bcd32d84574b5e5  tests/README.md
+23c9a4450cb273e048bd6347db06ddd3d18e8edc9858a192f1bd9bb495524151  tests/presence.test.mjs
+d2c980db8f736d3a631722b5b49b6e9bdd1792754728794922c8081cb60bd0fd  tests/server/driver-types.ts
+721dd667385783b20c5022ea2ab7927e77c5e72d034ea79c2ff78b167f4006ea  tests/server/peer.ts
+4b6071694cd6c922e9d2c9803354a870e3717ef12d0914023ed0166eaee6376a  tests/server/setup.ts
+7e50631df24e62f6f1f37b68bc072cc785025b0f307f27cf2850671d56948913  tests/server/shared.test.ts
+6da4f221092c4f7f170b1c1900d0d20b20f71174057910c82b019ba67a80bd8b  tests/shared-editing.test.mjs
+5df3e21b2587d2db9dde156f5e7bdf804b7f25a66c8113dad4f0be9ee69e0e84  vitest.node.config.ts
+11f02c0f0a79dd9566682859935bd085fe9e3df844dba01d79c1be35b30ea4fc  vitest.workerd.config.ts
+```

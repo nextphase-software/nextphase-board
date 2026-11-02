@@ -609,3 +609,5 @@ was started. No server integration suite, hosted project, deployment, real
 person, browser matrix, physical-input run, screen-reader session, accessibility
 audit or performance/load campaign was used. These deferred checks are not
 reported as passes.
+
+- Ring-offset follow-up (2026-11-02): made the followed avatar's existing 1-pixel stylesheet offset explicit inline in `people.tsx` (`outlineOffset: 1`), with no other source change; validated revision `7c42a362f7eb9f4ddded8bfd947f883bc12e2e9d`; PASS: V2 (`npm ci --ignore-scripts --no-audit --no-fund`, exit 0); PASS: V3 (`npm run typecheck`, all five members, exit 0); PASS: V4 (`npm test`, 761 passed, 0 failed); PASS: V8 (`git diff --name-status 705a7da4c6c5fc05bf5d25c16f73e4eca318d902..7c42a362f7eb9f4ddded8bfd947f883bc12e2e9d`, only approved files; `git diff --name-only b3476134ba7bbe2c6eb63004d06602778c2db984..7c42a362f7eb9f4ddded8bfd947f883bc12e2e9d`, only `apps/web/src/team/people.tsx`); V1 and V5–V7 were not rerun, V9–V13 remain deferred to review; no push.

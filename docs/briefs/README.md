@@ -264,7 +264,7 @@ and [hosted persistence v3](../architecture/0003-hosted-persistence-v3.md) contr
 merged into main.
 
 [0003-W4 v1 — Sign in, share and see access in the web app](0003-W4-sign-in-share-and-see-access.md)
-is a draft: with team features switched on at build time (off by default), a person signs in
+in which, with team features switched on at build time (off by default), a person signs in
 with a 6-digit code emailed by Supabase Auth, opens a hosted board by its link (a signed-out
 person is asked to sign in first), edits as an owner or editor or only views as a viewer, and
 sees the hosted save states and a plain message for every refusal; the workspace owner invites
@@ -274,7 +274,18 @@ the new [0003 hosted storage v1](../architecture/0003-hosted-storage-v1.md) cont
 [interaction v25](../architecture/0001-interaction-v25.md),
 [web modules v25](../architecture/0001-web-modules-v25.md),
 [0003 sync v4](../architecture/0003-sync-v4.md) and
-[toolchain v5](../architecture/0001-toolchain-v5.md).
+[toolchain v5](../architecture/0001-toolchain-v5.md), is implemented and merged into main.
+
+[0004-W3 v1 — See who is on a board and where they are](0004-W3-see-who-is-on-a-board-and-where-they-are.md)
+is a draft: on a hosted board, everyone sees an avatar per person before the save status (at
+most three, then "+N") with a people menu, and each other connection's cursor, name pill and
+selection outline in its colour; clicking a person follows their view until you stop, move the
+view yourself or they leave; **Show other people's cursors** (⌥⌘\ / Ctrl+Alt+\) hides cursors
+for you only and is remembered on the device. Presence never changes the board or the save
+state. It uses [interaction v26](../architecture/0001-interaction-v26.md),
+[web modules v26](../architecture/0001-web-modules-v26.md) and
+[0003 hosted storage v2](../architecture/0003-hosted-storage-v2.md), with no server, room,
+shared-client or dependency change.
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

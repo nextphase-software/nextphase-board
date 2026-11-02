@@ -1,7 +1,9 @@
 BRIEF VERSION: 0003-W4 v1 (2026-11-01)
 # 0003-W4 — Sign in, share and see access in the web app
 
-Status: Draft. Contracts: [0003 hosted storage v1](../architecture/0003-hosted-storage-v1.md)
+Status: Implemented. Independently reviewed at `b96a356` (pass) and merged into main on
+2026-11-01 ([evidence summary](0003-W4-sign-in-share-and-see-access-evidence.md)).
+Contracts: [0003 hosted storage v1](../architecture/0003-hosted-storage-v1.md)
 (new), [0001 interaction v25](../architecture/0001-interaction-v25.md),
 [0001 web modules v25](../architecture/0001-web-modules-v25.md),
 [0003 sync v4](../architecture/0003-sync-v4.md) and

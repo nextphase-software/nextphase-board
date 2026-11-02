@@ -283,7 +283,8 @@ For 0003-W4 v1, the web app uses these five contracts:
 [presence v1](0004-presence-v1.md), [document v11](0001-document-v11.md) and
 [storage v3](0001-storage-v3.md) remain in force. No server, room or saved format changes.
 
-For 0004-W3 v1, the web app uses [0001 interaction v26](0001-interaction-v26.md),
+For 0004-W3 v2, the web app uses [0001 interaction v27](0001-interaction-v27.md)
+(the approved presence look), [0001 interaction v26](0001-interaction-v26.md),
 [0001 web modules v26](0001-web-modules-v26.md) and
 [0003 hosted storage v2](0003-hosted-storage-v2.md) for the people group, cursors,
 selections, following and the device's cursor switch.

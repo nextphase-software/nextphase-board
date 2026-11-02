@@ -293,7 +293,7 @@ results (V1–V8), files changed, and what was not run.
   are byte-identical to the base; the lock also matches lock v5.
 - Discovery: codebase-memory `list_projects` and `index_repository` both returned
   `MCP tool call requires approval, but approval policy is never`. Per the
-  maintainer's explicit continuation instruction, direct reads and searches
+  planner's explicit continuation instruction, direct reads and searches
   (`cat`, `sed`, `rg`) replaced unavailable graph discovery. No graph result was
   claimed. The public brief and contracts governed the implementation.
 

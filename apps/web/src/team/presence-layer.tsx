@@ -27,12 +27,16 @@ export function PresenceLayer(props: Props) {
         const selected = objects.filter((object) => other.selection.includes(object.id));
         const rectangles = selected.filter(hasRectangle);
         const box = boundingBox(rectangles.length ? rectangles : selected);
+        const outline = box && screenPoint(box, view, size);
         const cursor = other.cursor && (showCursors || followed?.connection === other.connection) ? other.cursor : null;
         return <div className="presence-connection" key={other.connection}>
-          {box && <div className="presence-outline" style={{ ...screenPoint(box, view, size),
+          {box && outline && <div className="presence-outline" style={{ left: outline.left - 2, top: outline.top - 2,
             width: box.width * view.z, height: box.height * view.z, borderColor: other.colour }} />}
           {cursor && <div className="presence-cursor" style={{ ...screenPoint(cursor, view, size), color: other.colour }}>
-            <svg width="20" height="24" viewBox="0 0 20 24"><path d="M1 1 L18 15 L10 16 L6 23 Z" fill="currentColor" stroke="white" strokeWidth="1.5" /></svg>
+            <svg width="18" height="20" viewBox="0 0 18 20">
+              <path d="M1.5 1.5 L1.5 16 L5.6 12.4 L8.4 18.4 L11 17.2 L8.3 11.3 L14 11.1 Z"
+                fill={other.colour} stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" />
+            </svg>
             <span style={{ background: other.colour }}>{pillWords(other)}</span>
           </div>}
         </div>;
@@ -40,7 +44,7 @@ export function PresenceLayer(props: Props) {
       {followed && <div className="presence-frame" style={{ borderColor: followed.colour }} />}
     </div>
     {followed && <div className="presence-follow-banner" style={{ background: followed.colour }}>
-      <span>Following {followed.label} ·</span><button onClick={hosted.stopFollowing}>Stop following</button>
+      <span>Following {followed.label}</span><button onClick={hosted.stopFollowing}>Stop following</button>
     </div>}
   </>;
 }

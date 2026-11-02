@@ -170,5 +170,5 @@ selection limits, outgoing coordinate clamps, follow choice and fit, silent
 presence refusals and the stored cursor-switch key. Module guards enforce the
 fifteen team modules, twenty-two hooks and sole presence-hook import.
 The implementer runs V1–V8; the review check run owns V9–V13, including
-W3-S1–S35, the fresh-base negative control, team-off network behaviour, the A–J
-comparison and W4-S1–S29. Unrun browser checks are not acceptance evidence.
+W3-S1–S36 (including the interaction v27 design check), the fresh-base negative
+control, team-off network behaviour, the A–J comparison and W4-S1–S29. Unrun browser checks are not acceptance evidence.

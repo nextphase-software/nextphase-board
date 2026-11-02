@@ -252,3 +252,154 @@ and [MDN: ARIA `menuitemcheckbox` role](https://developer.mozilla.org/en-US/docs
 
 To be completed by the implementer: branch, base, validated source/test revision, commands and
 results (V1–V8), files changed, and what was not run.
+
+
+### Implementation handoff (2026-11-02)
+
+- Branch: `codex/0004-W3-see-who-is-on-a-board`.
+- Base (committed main): `3b00e7378840e6d045998315e11d23fe90217f0f`.
+- Validated source/test revision: `7b45a40e330b6978c6eaeb5718afbf04ae2e59d0`.
+  Checks ran against the source/test tree committed at this revision;
+  `git diff --exit-code 7b45a40e330b6978c6eaeb5718afbf04ae2e59d0`
+  subsequently confirmed identical tracked bytes and exited 0. This appended record
+  is a separate documentation commit; the final branch tip is reported separately
+  in the handoff. No merge, push or publication was performed.
+- Toolchain: `node --version` printed `v26.13.0`; `npm --version` printed `11.20.0`.
+  Every shell command put the supplied pinned toolchain's bin directory first on
+  `PATH`. No dependencies were added or changed. The six manifests and root lock
+  are byte-identical to the base; the lock also matches lock v5.
+- Discovery: codebase-memory `list_projects` and `index_repository` both returned
+  `MCP tool call requires approval, but approval policy is never`. Per the
+  maintainer's explicit continuation instruction, direct reads and searches
+  (`cat`, `sed`, `rg`) replaced unavailable graph discovery. No graph result was
+  claimed. The public brief and contracts governed the implementation.
+
+The implementation adds the pure rules, people group/menu, cursor/selection layer
+and presence hook named in items 1–3. Hosted presence has its own snapshot and
+subscription; `present`/`left` never publish the board, and identifiable presence
+refusals notify neither subscription. Outgoing numbers are clamped before sending.
+Follow uses receipt order among currently active connections, pins the chosen
+connection, and fits through the separate follow setter. The cursor preference
+uses only the contracted key, with memory fallback on storage errors. The menu
+keeps the shortcut available while containing other keys.
+
+`App.tsx` is 263 lines, composition only, with no presence state. Only
+`team/presence-layer.tsx` imports the presence hook. Other state hooks still have
+only `App.tsx` as an importer; outside team modules all team imports remain type
+only. CSS is append-only and its new rules match presence elements only. The
+architecture index and test guide list the new contracts and coverage.
+
+#### Commands and final results
+
+Build settings below are synthetic compilation inputs only; no server or stack
+was started and no request was sent to those addresses. `$evidence` denotes the
+system temporary directory created with `mktemp -d -t board-w3-evidence`; its
+concrete machine path is omitted. Both base builds were made at the clean base
+before source edits, with the same settings as the candidate, and copied aside:
+
+```sh
+node --version
+npm --version
+npm ci --ignore-scripts --no-audit --no-fund
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$evidence/base-off"
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$evidence/base-on"
+```
+
+Candidate commands (each successful command exited 0):
+
+```sh
+node --test --test-reporter=tap tests/web-presence.test.mjs
+npm run typecheck
+npm test
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$evidence/candidate-off"
+cmp apps/web/dist/index.html "$evidence/base-off/index.html"
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt "$evidence/base-off/THIRD_PARTY_NOTICES.txt"
+node --input-type=module <<'JS'
+import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+const inputs = Object.keys(JSON.parse(readFileSync('apps/web/dist/meta.json', 'utf8')).inputs);
+assert.deepEqual(inputs.filter((input) => input.startsWith('node_modules/@supabase/') || input.startsWith('apps/web/src/team/') || input === 'apps/web/src/state/use-presence.ts'), []);
+console.log('Off HTML/notices match base; off metadata excludes all presence/team/Auth inputs.');
+JS
+npm run audit:licenses
+npm run build:fixtures
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$evidence/candidate-on"
+cmp apps/web/dist/index.html "$evidence/base-on/index.html"
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt
+npm run audit:licenses
+npm run build:server
+npm run audit:licenses
+cmp package-lock.json docs/architecture/0001-dependency-lock-v5.json
+git diff --check
+git diff --name-status 3b00e7378840e6d045998315e11d23fe90217f0f..7b45a40e330b6978c6eaeb5718afbf04ae2e59d0
+```
+
+The byte audit ran with `python3 -` and this standard-library script:
+
+```python
+import subprocess
+from pathlib import Path
+base='3b00e7378840e6d045998315e11d23fe90217f0f'
+tracked=subprocess.check_output(['git','ls-tree','-r','--name-only',base],text=True).splitlines()
+manifests=[name for name in tracked if name.endswith('/package.json') or name in ('package.json','package-lock.json')]
+for name in manifests:
+    assert Path(name).read_bytes()==subprocess.check_output(['git','show',f'{base}:{name}']), name
+print('V1 evidence: all six package.json files and package-lock.json match the base byte for byte.')
+for name in tracked:
+    if name.startswith('tests/') and name not in ('tests/modules.test.mjs','tests/README.md'):
+        assert Path(name).read_bytes()==subprocess.check_output(['git','show',f'{base}:{name}']), name
+assert Path('apps/web/style.css').read_bytes().startswith(subprocess.check_output(['git','show',f'{base}:apps/web/style.css']))
+print('Existing tests outside the permitted guards and README are unchanged; CSS is append-only.')
+```
+
+```text
+PASS: V1 — All six package.json files and package-lock.json match the base byte for byte.
+PASS: V2 — npm ci exited 0; installed 118 packages with the pinned toolchain.
+PASS: V3 — Typecheck exited 0 for all five workspace members.
+PASS: V4 — 761 tests passed, 0 failed; 13 new presence tests. Only the named module guards changed among existing tests.
+PASS: V5 — Off build and license audit exited 0; HTML/notices match base; metadata excludes Supabase, team modules and the presence hook.
+PASS: V6 — Fixture and on builds and license audit exited 0; on HTML matches base and notices match runtime notices v3.
+PASS: V7 — Node/Worker server builds and license audit exited 0.
+PASS: V8 — Base-to-validated diff contains only the 14 implementation files in items 1–5; this record adds only the brief itself.
+```
+
+Before the final successful runs, the first typecheck exposed TS2559 at the
+presence-refusal call; passing its explicitly named fields resolved it. The first
+full unit run passed 760/761 tests and failed the existing team-import guard:
+`use-presence.ts` imported pure team rules by value. Moving those calls behind
+`HostedBoard` resolved that failure without weakening the guard. Typecheck and the
+full suite were then rerun successfully. The focused presence run passed 13/13.
+No other existing test needed a change. The only new test file is
+`tests/web-presence.test.mjs`, and each test dynamically imports the pure module
+inside its own callback.
+
+Source/test commit used `git commit -m "feat(web): show board people cursors and following"`.
+Both public-boundary hook checks printed PASS. Git additionally printed a
+nonfatal `packed-refs.lock` permission warning; the commit succeeded, the branch
+ref resolved to the validated revision, and the worktree was clean. No hook was
+bypassed and no stash was used.
+
+Changed implementation files: `apps/web/src/team/presence.ts`, `hosted-board.ts`,
+`people.tsx`, `presence-layer.tsx`, `team-app.tsx`; `apps/web/src/state/use-presence.ts`,
+`use-viewport.ts`; `apps/web/src/ui/save-area.tsx`; `apps/web/src/App.tsx`;
+`apps/web/style.css`; `tests/web-presence.test.mjs`, `tests/modules.test.mjs`,
+`tests/README.md`; and `docs/architecture/README.md`. This record changes only this
+brief. No server, package, Supabase, manifest, lock, saved format or dependency
+changed. Ignored build metadata is not counted as a changed file.
+
+#### Deferred to the independent review check run
+
+V9–V13 were not run: W3-S1–S35; the negative control on a fresh base stack
+(including each new unit test failing by name there); the team-off network check;
+the team-off A–J comparison with no new masks; and W4-S1–S29, including the
+specified isolated fresh-stack retry if a check fails. These are the review's
+checks, not claimed passes. No browser was launched, no Supabase CLI command or
+stack was run, and no Docker, operating-system input, server integration suite,
+deployment, hosted project or real-person data was used. No additional browser
+matrix, accessibility audit, load/performance campaign, physical input or
+screen-reader session was run. Implementation is handed off for exact-commit
+review, not merged or accepted.

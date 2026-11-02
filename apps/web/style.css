@@ -781,6 +781,8 @@ small {
   border: 0;
   background: none;
 }
+.presence-people button.presence-chevron:hover:not(:disabled):not([aria-disabled=true]) { background: transparent; }
+.presence-people button.presence-overflow:hover:not(:disabled):not([aria-disabled=true]) { background: #ece9f2; }
 .presence-menu {
   position: fixed;
   width: min(316px, calc(100vw - 24px));

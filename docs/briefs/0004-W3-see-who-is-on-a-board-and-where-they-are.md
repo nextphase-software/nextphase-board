@@ -1,7 +1,9 @@
-BRIEF VERSION: 0004-W3 v1 (2026-11-02)
+BRIEF VERSION: 0004-W3 v2 (2026-11-02)
 # 0004-W3 — See who is on a board and where they are
 
-Status: Draft. Contracts: [0001 interaction v26](../architecture/0001-interaction-v26.md),
+Status: Draft. Version 2 adds the approved look (interaction v27) and check W3-S36; see "Changes in
+v2". Contracts: [0001 interaction v27](../architecture/0001-interaction-v27.md) (v26's rules plus the
+look), [0001 interaction v26](../architecture/0001-interaction-v26.md),
 [0001 web modules v26](../architecture/0001-web-modules-v26.md) and
 [0003 hosted storage v2](../architecture/0003-hosted-storage-v2.md) (new versions). Unchanged and
 still in force: [0004 presence v1](../architecture/0004-presence-v1.md),
@@ -43,8 +45,9 @@ added.
 
 - [Contributor guidance](../../CONTRIBUTING.md), [agent instructions](../../AGENTS.md) and
   [engineering standards](../../DESIGN.md).
-- The three new contract versions above: they define every behaviour this brief asks for.
-  Interaction v26 is the screens, words, keys and following; hosted storage v2 the stored switch
+- The new contract versions above: they define every behaviour this brief asks for.
+  Interaction v26 is the screens, words, keys and following, and interaction v27 their look
+  (colours, sizes, shapes, spacing, positions); hosted storage v2 the stored switch
   and the presence refusals; web modules v26 the module layout and guards. Where this brief and a
   contract seem to differ, the contract wins; report the difference.
 - [Presence v1](../architecture/0004-presence-v1.md): what the room stamps, what a connection
@@ -70,9 +73,9 @@ one job each, and comments where a reader needs the reason.
 3. **The screen**: `apps/web/src/team/people.tsx` and `presence-layer.tsx` (new);
    `apps/web/src/state/use-presence.ts` (new); `apps/web/src/state/use-viewport.ts` (the two
    setters of web modules v26); `apps/web/src/team/team-app.tsx` (the two new team parts);
-   `apps/web/src/ui/save-area.tsx` (the people group before the status); `apps/web/src/App.tsx`
-   (wiring only, within 264 lines); `apps/web/style.css` (the presence rules added at the end; no
-   existing rule changes).
+   `apps/web/src/ui/save-area.tsx` (the people group and its divider before the status);
+   `apps/web/src/App.tsx` (wiring only, within 264 lines); `apps/web/style.css` (the presence rules
+   added at the end; no existing rule changes). Every presence element has interaction v27's look.
 4. **Tests**:
    - `tests/web-presence.test.mjs` (new), run by `npm test` without Supabase or a browser. Each
      test imports `apps/web/src/team/presence.ts` inside the test with a dynamic `import()`, not
@@ -105,9 +108,10 @@ one job each, and comments where a reader needs the reason.
      hooks, the one import of `use-presence.ts`, `presence.ts` free of React and `auth.ts`, the
      264-line `App.tsx` budget); each other guard unchanged;
    - `tests/README.md` lists the new file.
-5. **Documentation**: `docs/architecture/README.md` lists, for 0004-W3 v1, the three contracts
-   and that presence v1, sync v4, toolchain v5, identity v3, access v4, API v4, hosted
-   persistence v3, self-host runner v1, document v11 and storage v3 stay in force.
+5. **Documentation**: `docs/architecture/README.md` lists, for 0004-W3 v2, interaction v27 and
+   v26, web modules v26 and hosted storage v2, and that presence v1, sync v4, toolchain v5,
+   identity v3, access v4, API v4, hosted persistence v3, self-host runner v1, document v11 and
+   storage v3 stay in force.
 
 Outside the named new controls, the existing screens' markup stays exactly as at the base: the
 reviewer's A–J comparison allows only the masks listed under validation. With team features off
@@ -137,7 +141,7 @@ order and may adjust its steps, keeping each check's meaning.
 | W3-S3 | The editor selects a sticky: the others show a 2-pixel outline in the editor's colour around the same box their own selection box would have, with no handles and no context bar |
 | W3-S4 | The people menu: rows with labels and role words (owner, can edit, can view), "(you)" on your own; Down, Up, Home, End and Enter work; Escape closes it and returns focus to the chevron |
 | W3-S5 | Tab reaches each avatar, then the chevron; each has interaction v26's accessible name |
-| W3-S6 | The owner clicks the editor's avatar: the frame and "Following <label> · Stop following" in the editor's colour, the avatar's ring, and the editor's cursor |
+| W3-S6 | The owner clicks the editor's avatar: the frame and the banner "Following <label>" with its Stop following button in the editor's colour, the avatar's ring, and the editor's cursor |
 | W3-S7 | At 1280 × 800 the owner's view matches the fit rule as the editor's view moves |
 | W3-S8 | At 900 × 700, following a 1280 × 800 window, the zoom is 0.703125 and the centres match |
 | W3-S9 | Following stops on Escape |
@@ -167,6 +171,7 @@ order and may adjust its steps, keeping each check's meaning.
 | W3-S33 | Following stops when Zoom out is activated from the keyboard |
 | W3-S34 | Following stops when a Navigation panel pan button is activated from the keyboard |
 | W3-S35 | The editor zooms out to 50% at 1280 × 800 (a 2560 × 1600 view); the owner follows from 900 × 700: the owner's zoom is 50% and the view the owner sends is smaller than the editor's |
+| W3-S36 | The look matches every value in interaction v27, sections "Stacking", "The people group", "The people menu", "Cursors and outlines" and "Following". At 1280 × 800, in four set-ups (owner, editor and viewer present with the editor's sticky selected and pointer over the board; the people menu opened from the chevron with its second row focused; the owner following the editor; seven people present), and at 320 × 800 with the people menu open (its width 296 and its right edge 12 pixels from the window's), the check reads each element's computed style, SVG attributes and bounding rectangle and asserts each stated value: lengths, offsets and positions to within 0.5 pixel; colours, shadows, font weights and sizes, `z-index`, `display` and alignment exactly as computed; text exactly; SVG `width`, `height`, `viewBox`, path `d`, stroke colour and stroke width exactly. It prints each asserted value with its result |
 
 ## Numbered acceptance criteria
 
@@ -176,8 +181,8 @@ order and may adjust its steps, keeping each check's meaning.
 
 | Criterion | Evidence that shows it |
 | --- | --- |
-| 0004-W3-AC01 | W3-S1–S3, S22–S24, S28, S29, S31; the grouping, avatar, pill and cut tests in `tests/web-presence.test.mjs` |
-| 0004-W3-AC02 | W3-S6–S23, S32–S35; the follow choice and fit tests in `tests/web-presence.test.mjs` |
+| 0004-W3-AC01 | W3-S1–S3, S22–S24, S28, S29, S31, S36; the grouping, avatar, pill and cut tests in `tests/web-presence.test.mjs` |
+| 0004-W3-AC02 | W3-S6–S23, S32–S36; the follow choice and fit tests in `tests/web-presence.test.mjs` |
 | 0004-W3-AC03 | W3-S4, S5, S25–S27, S30; V5, V11, V12, V13; the refusal and key tests in `tests/web-presence.test.mjs`; `tests/modules.test.mjs` |
 
 ## Validation commands and expected evidence
@@ -211,8 +216,8 @@ ignores in a build's output (for example esbuild's `meta.json`) never count as a
 | V6 | `build:fixtures` exits 0; the on build exits 0, its `index.html` is byte-identical to the base's on build, and its notices are runtime notices v3 byte for byte; `audit:licenses` exits 0 |
 | V7 | `build:server` exits 0 and `audit:licenses` exits 0 |
 | V8 | `git diff --name-status <base>..<validated>` shows only files of items 1 to 5 |
-| V9 | W3-S1–S29 and W3-S31–S35 pass on the candidate's team-on build; W3-S30 passes on its team-off build |
-| V10 | The new checks fail on the base (REC-019): on a fresh local stack started from a checkout of the base (never a stack the candidate used), with the base's team-on build served the same way, every one of W3-S1–S29 and W3-S31–S35 fails, and `tests/web-presence.test.mjs` run against the base fails each of its tests by name. W3-S30 checks that a team-off build sends nothing, which the base already meets, so it passes on both. A check that fails because a control, module or message it asserts is missing counts as failing |
+| V9 | W3-S1–S29 and W3-S31–S36 pass on the candidate's team-on build; W3-S30 passes on its team-off build |
+| V10 | The new checks fail on the base (REC-019): on a fresh local stack started from a checkout of the base (never a stack the candidate used), with the base's team-on build served the same way, every one of W3-S1–S29 and W3-S31–S36 fails, and `tests/web-presence.test.mjs` run against the base fails each of its tests by name. W3-S30 checks that a team-off build sends nothing, which the base already meets, so it passes on both. A check that fails because a control, module or message it asserts is missing counts as failing |
 | V11 | With team features off, opening the page and a board link (`#/b/<board>`) requests only the page's own files, opens no WebSocket and shows no presence element (W3-S30) |
 | V12 | The A–J comparison of the off build against the base's build shows no difference at any checkpoint (markup, focus, canvas drawing and saved records), where the only normalization is the one the comparison already makes for every run: a local board's "saved today 14:05"-style time text is compared as one placeholder, since two runs minutes apart differ by the clock alone. No other mask |
 | V13 | The 0003-W4 brief's checks W4-S1–S29 pass on the candidate's team-on build, set up as that brief says. A check that fails is run once more on its own on a fresh stack; both results are reported |
@@ -240,6 +245,24 @@ or touchpad run, Windows run or screen-reader session unless the maintainer asks
 - A refusal the room cannot tie to presence (`message_too_large` over 1 MiB): telling it apart
   would change the shared client and the room's messages; the page never sends one.
 - Presence on local boards, dark mode, recovery after a disconnect.
+
+## Changes in v2
+
+Version 1 was implemented as written; its review found that the screens did not match the approved
+presence design, because v1 gave the screens' structure and words but not their look. Version 2:
+
+- adds [interaction v27](../architecture/0001-interaction-v27.md), which keeps every v26 rule and
+  states the look: the people group's overlapping avatars, +N pill, chevron and divider; the dark
+  people menu; the cursor arrow, the rounded name pill and the outline's position; the follow frame
+  and banner with its Stop following button;
+- drops the "·" after the label in the following banner, as the approved design shows (W3-S6's
+  words follow);
+- adds check W3-S36 for those values, and the divider to item 3;
+- changes nothing else: every other v1 behaviour, check and boundary stands.
+
+An implementation of v1 continues on its branch: it adds the look and the divider, re-runs V1–V8,
+and appends a v2 section to the implementation record. Every statement in the record names who
+gave an instruction as the record's evidence shows it.
 
 ## Public references with retrieval dates
 

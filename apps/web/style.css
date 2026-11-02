@@ -718,3 +718,103 @@ small {
 .team-amber { color: #936000; background: #fff5da; }
 @media (max-width:1099.98px) { .team-banner { top: 128px; } }
 @media (max-width:767.98px) { .team-share { top: 128px; } .team-toast { bottom: 148px; } }
+
+/* Hosted board presence (0004-W3). Local boards match none of these rules. */
+.actions:has(.presence-people) { max-width: calc(100% - 24px); }
+.presence-people { position: relative; }
+.presence-people ul {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.presence-people .presence-avatar {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 2px solid white;
+  border-radius: 50%;
+  color: white;
+  outline-offset: 1px;
+}
+.presence-people .presence-chevron { min-width: 24px; padding: 4px; border: 0; }
+.presence-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  width: min(380px, calc(100vw - 24px));
+  max-height: calc(100dvh - 160px);
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid #e9e7ed;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 2px 8px #29202e20;
+  z-index: 6;
+}
+.presence-menu button { width: 100%; border: 0; text-align: left; }
+.presence-person, .presence-cursor-switch { display: flex; align-items: center; gap: 10px; }
+.presence-dot {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: white;
+}
+.presence-person-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.presence-person-label small { display: block; margin-top: 4px; }
+.presence-follow-word { visibility: hidden; }
+.presence-person:hover .presence-follow-word, .presence-person:focus .presence-follow-word { visibility: visible; }
+.presence-menu [role=separator] { height: 1px; background: #e8e7ed; margin: 6px 0; }
+.presence-cursor-switch > span:first-child { width: 14px; flex-shrink: 0; }
+.presence-cursor-switch > span:nth-child(2) { flex: 1; }
+.presence-cursor-switch small { white-space: nowrap; }
+.presence-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 2; }
+.presence-outline { position: absolute; border: 2px solid; }
+.presence-cursor { position: absolute; display: flex; align-items: flex-start; gap: 2px; }
+.presence-cursor span {
+  color: white;
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin-top: 16px;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.presence-frame { position: absolute; inset: 0; border: 3px solid; }
+.presence-follow-banner {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  color: white;
+  z-index: 4;
+}
+.presence-follow-banner > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.presence-follow-banner button { flex-shrink: 0; border: 0; background: transparent; color: white; padding: 4px; }
+@media (min-width: 1100px) {
+  main:has(.presence-people) .file { max-width: calc(50% - 220px); }
+  .presence-follow-banner { max-width: min(400px, calc(100% - 24px)); }
+}
+@media (min-width: 768px) and (max-width: 1099.98px) {
+  main:has(.presence-people) .file { max-width: calc(100% - 440px); }
+}
+@media (max-width: 1099.98px) {
+  .presence-follow-banner { top: 70px; }
+  main:has(.presence-follow-banner) > .team-banner { top: 132px; }
+}
+@media (max-width: 767.98px) {
+  .presence-follow-banner { top: 126px; }
+  main:has(.presence-follow-banner) > .team-banner { top: 188px; }
+}

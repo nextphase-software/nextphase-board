@@ -70,7 +70,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     board, selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,
   });
   const layout = usePanelLayout(scene);
-  const { view, setView, trackPointer, inlineSurface } = useViewport({ scene, inline, drag, pending });
+  const { view, setView, setFollowView, trackPointer, inlineSurface } = useViewport({ scene, inline, drag, pending, ownViewChange: team?.hosted?.stopFollowing });
   function select(value: string | Iterable<string>) {
     finishTextSession();
     setInline(false);
@@ -179,6 +179,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
         <GrowButton available={growAvailable} grow={shapeCommands.grow} style={resolvedItem ? { left: pos(resolvedItem).left + resolvedItem.width * view.z / 2, top: pos(resolvedItem).top + resolvedItem.height * view.z } : undefined} />
         <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} />
       </div>
+      {team?.presenceLayer && team.hosted && <team.presenceLayer hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}
       <ImageNames board={board} /><FileBar team={team}
         boardButton={boardButton} composing={composing} busy={busy} toggle={toggle} panel={panel}
         title={title} objectsButton={objectsButton} undoReason={undoReason} redoReason={redoReason}

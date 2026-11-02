@@ -148,7 +148,7 @@ test("screen parts contain exactly the twenty-seven screen modules named through
 test("App.tsx stays within its extracted composition line budget", () => {
   const app = readFileSync(new URL("App.tsx", source), "utf8");
   const lines = (app.match(/\n/g) ?? []).length;
-  assert(lines <= 262, `App.tsx has ${lines} newlines; budget is 262`);
+  assert(lines <= 264, `App.tsx has ${lines} newlines; budget is 264`);
 });
 
 test("screen parts hold no React state or context and import React only for types", () => {
@@ -226,7 +226,7 @@ test("screen and scene guard detects equality and inequality in both operand ord
   }
 });
 
-test("state contains exactly the twenty-one hooks named through web modules v25", () => {
+test("state contains exactly the twenty-two hooks named through web modules v26", () => {
   assert.deepEqual(files(new URL("state/", source)).sort(), [
     "use-board-document.ts",
     "use-canvas-input.ts",
@@ -242,6 +242,7 @@ test("state contains exactly the twenty-one hooks named through web modules v25"
     "use-object-layouts.ts",
     "use-page-keys.ts",
     "use-panel-layout.ts",
+    "use-presence.ts",
     "use-scene-size.ts",
     "use-selection.ts",
     "use-session-status.ts",
@@ -266,14 +267,18 @@ test("state hooks keep the licence header and never depend on App or screen part
   }
 });
 
-test("only App.tsx imports or re-exports state", () => {
-  for (const name of files(source).filter((name) => name !== "App.tsx")) {
+test("state imports follow the single presence-layer exception", () => {
+  const presenceImports = [];
+  for (const name of files(source)) {
     const content = readFileSync(new URL(name, source), "utf8");
     const declarations = content.matchAll(/\b(?:import|export)\s+(?:[^;]*?\s+from\s*)?["']([^"']+)["']/g);
     for (const declaration of declarations) {
-      assert.doesNotMatch(declaration[1], /(?:^|\/)state\//, name);
+      if (/(?:^|\/)state\/use-presence(?:\.ts)?$/.test(declaration[1])) {
+        presenceImports.push(name);
+      } else if (name !== "App.tsx") assert.doesNotMatch(declaration[1], /(?:^|\/)state\//, name);
     }
   }
+  assert.deepEqual(presenceImports, ["team/presence-layer.tsx"]);
 });
 
 test("context bar position is a rules module without React imports", () => {
@@ -527,15 +532,15 @@ test("production runners contain none of the test driver names", () => {
 });
 
 
-test("team modules and imports follow web modules v25", () => {
+test("team modules and imports follow web modules v26", () => {
   const team = new URL("team/", source);
   const names = files(team).sort();
   assert.deepEqual(names, ["api.ts", "auth.ts", "config.ts", "dialog.tsx", "hosted-board.ts", "links.ts",
-    "notices.ts", "pages.tsx", "roles.ts", "share-dialog.tsx", "sign-in.tsx", "team-app.tsx"]);
+    "notices.ts", "pages.tsx", "people.tsx", "presence-layer.tsx", "presence.ts", "roles.ts", "share-dialog.tsx", "sign-in.tsx", "team-app.tsx"]);
   for (const name of names) {
     const content = readFileSync(new URL(name, team), "utf8");
     assert.equal(content.split("\n")[0], "// SPDX-License-Identifier: Apache-2.0", name);
-    if (["links.ts", "roles.ts", "notices.ts"].includes(name)) {
+    if (["links.ts", "roles.ts", "notices.ts", "presence.ts"].includes(name)) {
       assert.doesNotMatch(content, /from ["'](?:react|.\/auth)/, name);
     }
   }

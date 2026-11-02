@@ -160,3 +160,15 @@ invitation expiry, save precedence, join outcomes, renewal and exact messages) a
 cap and unchanged edit wire bytes). Both use the production modules directly,
 without a browser or Supabase stack. The brief records V1–V8; the independent
 review's check run owns V9–V12, including W4-S1–S29 and the team-off A–J comparison.
+
+## Web presence (0004-W3)
+
+`tests/web-presence.test.mjs` runs with `npm test` without a browser or Supabase.
+Each test dynamically imports the pure presence rules inside the test. Coverage
+includes grouping and first-connection promotion, avatar overflow, pill words,
+selection limits, outgoing coordinate clamps, follow choice and fit, silent
+presence refusals and the stored cursor-switch key. Module guards enforce the
+fifteen team modules, twenty-two hooks and sole presence-hook import.
+The implementer runs V1–V8; the review check run owns V9–V13, including
+W3-S1–S35, the fresh-base negative control, team-off network behaviour, the A–J
+comparison and W4-S1–S29. Unrun browser checks are not acceptance evidence.

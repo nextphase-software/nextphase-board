@@ -1,18 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import type { Drag } from "../gesture";
 import { gestureScale, panView, wheelDelta, wheelZoomFactor, zoomView, type View } from "../view";
 
 type Input = {
   scene: RefObject<HTMLDivElement | null>;
   inline: boolean;
+  ownViewChange?: () => void;
   drag: RefObject<Drag | null>;
   pending: RefObject<{ invalid: boolean; composing: boolean; busy: boolean }>;
 };
 
-export function useViewport({ scene, inline, drag, pending }: Input) {
+export function useViewport({ scene, inline, drag, pending, ownViewChange }: Input) {
   const inlineSurface = useRef<HTMLElement>(null);
-  const [view, setView] = useState<View>({ x: 0, y: 0, z: 1 });
+  const [view, setFollowView] = useState<View>({ x: 0, y: 0, z: 1 });
+  const ownChange = useRef(ownViewChange);
+  ownChange.current = ownViewChange;
+  const setView: Dispatch<SetStateAction<View>> = useCallback((next) => {
+    ownChange.current?.();
+    setFollowView(next);
+  }, []);
   const lastPointer = useRef<{ x: number; y: number } | null>(null),
     previousScale = useRef(1);
   useEffect(() => {
@@ -38,6 +45,7 @@ export function useViewport({ scene, inline, drag, pending }: Input) {
     const gesture = (event: Event) => {
       event.preventDefault();
       const type = event.type as "gesturestart" | "gesturechange" | "gestureend";
+      if ((type === "gesturestart" || type === "gesturechange") && !drag.current && !pending.current.composing) ownChange.current?.();
       const next = gestureScale(previousScale.current, type, (event as Event & { scale?: number }).scale);
       previousScale.current = next.previous;
       // Consume scale even while blocked so the next delta cannot jump.
@@ -62,5 +70,5 @@ export function useViewport({ scene, inline, drag, pending }: Input) {
     const r = scene.current!.getBoundingClientRect();
     lastPointer.current = { x: e.clientX - r.left, y: e.clientY - r.top };
   }
-  return { view, setView, trackPointer, inlineSurface };
+  return { view, setView, setFollowView, trackPointer, inlineSurface };
 }

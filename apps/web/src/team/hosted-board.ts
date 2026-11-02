@@ -5,6 +5,8 @@ import { api, ApiError } from "./api";
 import { auth, type AuthSession } from "./auth";
 import { socketOrigin } from "./config";
 import type { TeamLink } from "./links";
+import { chooseFollow, fitFollow, isPresenceRefusal, presenceToSend, SHOW_CURSORS_KEY, type Presence, type PresenceInput } from "./presence";
+import type { View } from "../view";
 import { attemptOutcome, isSpecialClose, renewalDelay, retryDelay, saveState, words,
   type AttemptEvent, type Outcome } from "./notices";
 
@@ -14,7 +16,50 @@ export type HostedSnapshot = {
   board?: BoardV10; role?: Role; connected: boolean; workspace: string; workspaceId: string;
   outcome: Outcome | null; toast: string; toastId: number; generation: number;
 };
+export type PresenceSnapshot = {
+  self?: Presence; others: Presence[]; followed: string | null; showCursors: boolean;
+};
 export class HostedBoard {
+  private presenceListeners = new Set<() => void>();
+  private received = new Map<string, number>();
+  private receiveOrder = 0;
+  presence: PresenceSnapshot = { others: [], followed: null, showCursors: true };
+  subscribePresence = (listener: () => void) => {
+    this.presenceListeners.add(listener);
+    return () => { this.presenceListeners.delete(listener); };
+  };
+  getPresence = () => this.presence;
+  private publishPresence(change: Partial<PresenceSnapshot>) {
+    this.presence = { ...this.presence, ...change };
+    for (const listener of this.presenceListeners) listener();
+  }
+  private clearPresence() {
+    this.received.clear();
+    this.publishPresence({ self: undefined, others: [], followed: null });
+  }
+  setPresence(input: PresenceInput) {
+    if (this.snapshot.connected && !this.stopped && !this.ended) this.session?.setPresence(input);
+  }
+  sendPresence(cursor: PresenceInput["cursor"], selection: Iterable<string>, view: View,
+    size: { w: number; h: number }, active: boolean) {
+    this.setPresence(presenceToSend(cursor, selection, view, size, active));
+  }
+  followView(size: { w: number; h: number }) {
+    const followed = this.presence.others.find((other) => other.connection === this.presence.followed);
+    return followed ? fitFollow(followed.view, size) : undefined;
+  }
+  follow(person: string) {
+    const connection = chooseFollow(this.presence.others.filter((other) => other.person === person), this.received);
+    if (connection) this.publishPresence({ followed: connection.connection });
+  }
+  stopFollowing = () => {
+    if (this.presence.followed) this.publishPresence({ followed: null });
+  };
+  toggleCursors = () => {
+    const showCursors = !this.presence.showCursors;
+    this.publishPresence({ showCursors });
+    try { localStorage.setItem(SHOW_CURSORS_KEY, String(showCursors)); } catch { /* Keep the tab's choice in memory. */ }
+  };
   private session?: BoardSession<string>;
   private attempt?: Attempt;
   private retry?: ReturnType<typeof setTimeout>;
@@ -34,6 +79,8 @@ export class HostedBoard {
   boardId = "";
   constructor(link: TeamLink, local: () => void) {
     this.link = link;
+    try { this.presence.showCursors = localStorage.getItem(SHOW_CURSORS_KEY) !== "false"; }
+    catch { /* Unavailable storage defaults to showing cursors. */ }
     this.local = local;
     if (link.kind === "board") this.boardId = link.board;
   }
@@ -64,6 +111,7 @@ export class HostedBoard {
         this.finish(attempt, { kind: "failure", reason: "no_answer" });
       }, 15000) };
     this.attempt = attempt;
+    this.clearPresence();
     this.publish({ connected: false });
     return attempt;
   }
@@ -152,6 +200,7 @@ export class HostedBoard {
     // the snapshot is published. It never sends them again on the next join.
     this.session?.close();
     attempt.socket?.close(1000);
+    this.clearPresence();
     this.publish({ connected: false, outcome });
     if (!outcome.retry) { this.ended = true; return; }
     const delay = outcome.retry === "now" ? 0 : retryDelay(this.failures++);
@@ -174,14 +223,27 @@ export class HostedBoard {
     }
   }
   private joined(session: BoardSession<string>) {
+    this.received.clear();
+    for (const connection of session.present.keys()) this.received.set(connection, ++this.receiveOrder);
+    this.publishPresence({ self: session.self, others: [...session.present.values()], followed: null });
     this.publish({ board: session.board, role: session.role, connected: true, outcome: null,
       generation: this.snapshot.generation + 1 });
     this.updateSession(this.token ?? null);
   }
   private changed(session: BoardSession<string>, event: SessionEvent) {
     if (this.stopped || this.ended || session !== this.session) return;
+    if (event.kind === "present" || event.kind === "left") {
+      const connection = String(event.connection);
+      if (event.kind === "present") this.received.set(connection, ++this.receiveOrder);
+      else this.received.delete(connection);
+      this.publishPresence({ others: [...session.present.values()],
+        followed: event.kind === "left" && this.presence.followed === connection ? null : this.presence.followed });
+      return;
+    }
+    if (event.kind === "refused" && isPresenceRefusal({ reason: event.reason, requestId: event.requestId })) return;
     if (event.kind === "joined") this.joined(session);
     else if (event.kind === "refused") {
+      this.clearPresence();
       this.publish({ connected: false, toast: words.refusedEdit(String(event.reason)) });
     } else if (event.kind === "join_failed") {
       if (this.attempt && !this.attempt.outcome && !this.attempt.socket) {
@@ -246,10 +308,12 @@ export class HostedBoard {
     this.session?.close(); this.attempt?.socket?.close(1000);
     if (this.attempt) { this.attempt.cancelled = true; clearTimeout(this.attempt.timer); }
     clearTimeout(this.retry); clearTimeout(this.renewal);
+    this.clearPresence();
     this.publish({ connected: false, outcome: { name, retry: false } });
     this.ended = true;
   }
   stop() {
+    this.clearPresence();
     this.stopped = true;
     if (this.attempt) { this.attempt.cancelled = true; clearTimeout(this.attempt.timer); }
     clearTimeout(this.retry); clearTimeout(this.renewal);

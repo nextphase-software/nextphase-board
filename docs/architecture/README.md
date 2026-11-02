@@ -282,3 +282,15 @@ For 0003-W4 v1, the web app uses these five contracts:
 [hosted persistence v3](0003-hosted-persistence-v3.md), [self-host runner v1](0003-self-host-runner-v1.md),
 [presence v1](0004-presence-v1.md), [document v11](0001-document-v11.md) and
 [storage v3](0001-storage-v3.md) remain in force. No server, room or saved format changes.
+
+For 0004-W3 v1, the web app uses [0001 interaction v26](0001-interaction-v26.md),
+[0001 web modules v26](0001-web-modules-v26.md) and
+[0003 hosted storage v2](0003-hosted-storage-v2.md) for the people group, cursors,
+selections, following and the device's cursor switch.
+[Presence v1](0004-presence-v1.md), [sync v4](0003-sync-v4.md),
+[toolchain v5](0001-toolchain-v5.md) with [lock v5](0001-dependency-lock-v5.json),
+[inventory v5](0001-dependency-inventory-v5.json) and [runtime notices v3](0001-runtime-notices-v3.txt),
+[identity v3](0003-identity-v3.md), [access v4](0003-access-v4.md), [API v4](0003-api-v4.md),
+[hosted persistence v3](0003-hosted-persistence-v3.md), [self-host runner v1](0003-self-host-runner-v1.md),
+[document v11](0001-document-v11.md) and [storage v3](0001-storage-v3.md) remain in force.
+No server, room, shared client, dependency or saved format changes.

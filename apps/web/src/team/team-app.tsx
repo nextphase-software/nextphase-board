@@ -3,13 +3,18 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { App } from "../App";
 import { auth, type AuthSession } from "./auth";
 import { HostedBoard } from "./hosted-board";
+import { People } from "./people";
+import { PresenceLayer } from "./presence-layer";
 import { parseLink, type TeamLink } from "./links";
 import { words } from "./notices";
 import { SignIn } from "./sign-in";
 import { ShareDialog } from "./share-dialog";
 import { EndBoardDialog, TeamPage } from "./pages";
 
-export type TeamParts = { hosted?: HostedBoard; saveControl?: ReactNode; account?: ReactNode; banner?: ReactNode };
+export type TeamParts = {
+  hosted?: HostedBoard; saveControl?: ReactNode; account?: ReactNode; banner?: ReactNode;
+  people?: ReactNode; presenceLayer?: typeof PresenceLayer;
+};
 export function TeamApp() {
   const [fragment, setFragment] = useState(location.hash);
   const [session, setSession] = useState<AuthSession | null>(null), [ready, setReady] = useState(false);
@@ -82,7 +87,7 @@ function HostedRoute({ link, session, active, account, close, signInAgain, resta
   if (!board || !snapshot?.board || replacesBoard) return <TeamPage outcome={outcome} close={close} signIn={signInAgain} />;
   const banner = !snapshot.connected ? outcome?.name === "restoring" ? words.restoring : words.reconnecting
     : snapshot.role === "viewer" ? words.viewOnly(snapshot.workspace) : "";
-  return <><App team={{ hosted: board, account,
+  return <><App team={{ hosted: board, account, people: <People hosted={board} />, presenceLayer: PresenceLayer,
     saveControl: <button className="primary" onClick={() => setShare(true)}>Share</button>,
     banner: banner ? <div className={"team-banner" + (!snapshot.connected ? " team-amber" : "")} role="status">{banner}</div> : undefined }} />
     {toast && <div className="team-toast" role="status">{toast}</div>}

@@ -43,7 +43,8 @@ export function People({ hosted }: { hosted: HostedBoard }) {
       {shown.map((person) => {
         const { first, own } = person;
         return <li key={person.person}><button className="presence-avatar"
-          style={{ background: first.colour, outline: followed?.person === person.person ? `2px solid ${followed.colour}` : undefined }}
+          style={{ background: first.colour, outline: followed?.person === person.person ? `2px solid ${followed.colour}` : undefined,
+            outlineOffset: followed?.person === person.person ? 1 : undefined }}
           title={first.label + (own ? " (you)" : "")}
           aria-label={own ? `${first.label} (you), ${roleWords(first.role)}. Open people menu`
             : `Follow ${first.label}, ${roleWords(first.role)}`}

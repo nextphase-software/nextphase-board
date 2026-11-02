@@ -276,13 +276,14 @@ the new [0003 hosted storage v1](../architecture/0003-hosted-storage-v1.md) cont
 [0003 sync v4](../architecture/0003-sync-v4.md) and
 [toolchain v5](../architecture/0001-toolchain-v5.md), is implemented and merged into main.
 
-[0004-W3 v1 — See who is on a board and where they are](0004-W3-see-who-is-on-a-board-and-where-they-are.md)
+[0004-W3 v2 — See who is on a board and where they are](0004-W3-see-who-is-on-a-board-and-where-they-are.md)
 is a draft: on a hosted board, everyone sees an avatar per person before the save status (at
 most three, then "+N") with a people menu, and each other connection's cursor, name pill and
 selection outline in its colour; clicking a person follows their view until you stop, move the
 view yourself or they leave; **Show other people's cursors** (⌥⌘\ / Ctrl+Alt+\) hides cursors
 for you only and is remembered on the device. Presence never changes the board or the save
-state. It uses [interaction v26](../architecture/0001-interaction-v26.md),
+state. It uses [interaction v26](../architecture/0001-interaction-v26.md) with its look in
+[interaction v27](../architecture/0001-interaction-v27.md),
 [web modules v26](../architecture/0001-web-modules-v26.md) and
 [0003 hosted storage v2](../architecture/0003-hosted-storage-v2.md), with no server, room,
 shared-client or dependency change.

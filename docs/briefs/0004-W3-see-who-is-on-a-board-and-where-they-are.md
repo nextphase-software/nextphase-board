@@ -426,3 +426,186 @@ deployment, hosted project or real-person data was used. No additional browser
 matrix, accessibility audit, load/performance campaign, physical input or
 screen-reader session was run. Implementation is handed off for exact-commit
 review, not merged or accepted.
+
+
+### Version 2 — Fix round 1 (2026-11-02)
+
+- Branch: `codex/0004-W3-see-who-is-on-a-board`.
+- Version 2 prerequisite base on committed main:
+  `705a7da4c6c5fc05bf5d25c16f73e4eca318d902` (brief v2 and interaction v27).
+- Starting branch tip: merge `9b32c835b6bdbec6c17fe7967607f4c433a790cf`,
+  which brought that main revision into the v1 implementation branch.
+- Validated source/test revision: `8abdbbe5b977aebed5d6cc7af698366995c1c419`.
+  The final typecheck and 761-test run completed on that commit. The record-only
+  commit follows separately, and its branch tip is reported in the handoff.
+- Toolchain: `node --version` returned `v26.13.0`; `npm --version` returned
+  `11.20.0`. Every shell command put the supplied pinned toolchain bin first on
+  `PATH`. No dependency, manifest, lock or saved format changed.
+- Discovery: codebase-memory `list_projects` again returned
+  `MCP tool call requires approval, but approval policy is never`. Direct reads
+  and searches continued under the planner's instruction. The v1 Discovery
+  attribution has been corrected from maintainer to planner (m1).
+
+Read-only design preparation included reading the approved mock-up note,
+opening and inspecting all four approved screens (together, people, following,
+overflow), and reading their drawing generator. These references were not copied
+into the repository. Public interaction v27 supplied the implementation values.
+Its banner words take precedence over any older caption describing a separator.
+
+F1: the save panel's existing `.divider` is explicitly rendered after the people
+node and before the status, with `aria-hidden="true"`; its original 1 × 20 CSS
+pixel rule is unchanged. F2: avatars are 28 × 28 with white 2-pixel borders and
+6-pixel overlap, the follow ring is 2 pixels, overflow is a pill, and the bare
+chevron uses the prescribed SVG. The menu has v27's dark colours, row/dot/type
+values, spacing, shadow, width and offsets, including the 12-pixel narrow-window
+right inset. The cursor arrow and pill use the prescribed path, sizes, offsets,
+rounded corners and shadow. Selection outline left/top are each shifted by
+−2 CSS pixels while keeping the selection rectangle's width/height. The layer,
+frame and banner use layer 5; the menu uses layer 6. The following banner reads
+`Following <label>` with no separator and has the darker Stop following button.
+
+The menu is portalled outside the save panel's stacking context so layer 6 can
+sit above presence without raising that whole panel. Outside presses and focus
+leaving still close it; Escape still returns focus to the opener. Tab resumes
+from the menu's logical place after the chevron, rather than from the portal at
+the end of the document. Its existing menu navigation, Follow actions and cursor
+shortcut remain in place. Browser confirmation is deferred, not claimed here.
+
+Only `people.tsx`, `presence-layer.tsx`, `save-area.tsx`, the existing appended
+presence CSS block, the architecture index, test guide and this brief changed
+in this round. The architecture index names v2 and interaction v27; the test
+guide includes W3-S36. No unit test asserted the old following-banner words, so
+no test source needed changing. `App.tsx` remains 263 lines. Presence rules,
+hosted-board state/subscriptions, the presence hook, viewport setters, team-app
+wiring and module guards are byte-identical to the round's starting revision.
+All source and tests under the protected server/package/Supabase trees are
+unchanged. The stylesheet from prerequisite main is an unchanged byte prefix.
+
+#### Commands and results
+
+`$board_w3_evidence` below is the system temporary directory created by
+`mktemp -d -t board-w3-v2-evidence`; its concrete machine path is omitted.
+All build copies, archived source and logs were kept in that directory.
+The settings are synthetic compilation inputs; nothing was sent to their URLs.
+
+From the implementation worktree:
+
+```sh
+node --version
+npm --version
+npm ci --ignore-scripts --no-audit --no-fund
+mkdir "$board_w3_evidence/base-source"
+git archive 705a7da4c6c5fc05bf5d25c16f73e4eca318d902 | tar -x -C "$board_w3_evidence/base-source"
+cp -R node_modules "$board_w3_evidence/base-source/node_modules"
+```
+
+In the archived prerequisite main source (`cd "$board_w3_evidence/base-source"`):
+
+```sh
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$board_w3_evidence/main-off"
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$board_w3_evidence/main-on"
+```
+
+Back in the implementation worktree, the final candidate commands were:
+
+```sh
+npm run typecheck
+npm test > "$board_w3_evidence/unit-final.log" 2>&1
+tail -n 12 "$board_w3_evidence/unit-final.log"
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$board_w3_evidence/candidate-off-final"
+cmp apps/web/dist/index.html "$board_w3_evidence/main-off/index.html"
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt "$board_w3_evidence/main-off/THIRD_PARTY_NOTICES.txt"
+node --input-type=module <<'JS'
+import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+const inputs = Object.keys(JSON.parse(readFileSync('apps/web/dist/meta.json', 'utf8')).inputs);
+assert.deepEqual(inputs.filter((input) => input.startsWith('node_modules/@supabase/') || input.startsWith('apps/web/src/team/') || input === 'apps/web/src/state/use-presence.ts'), []);
+console.log('Off metadata excludes Supabase, team modules and the presence hook.');
+JS
+npm run audit:licenses
+npm run build:fixtures
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$board_w3_evidence/candidate-on-final"
+cmp apps/web/dist/index.html "$board_w3_evidence/main-on/index.html"
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt
+npm run audit:licenses
+npm run build:server
+npm run audit:licenses
+cmp package-lock.json docs/architecture/0001-dependency-lock-v5.json
+git diff --check
+git diff --name-status 705a7da4c6c5fc05bf5d25c16f73e4eca318d902..8abdbbe5b977aebed5d6cc7af698366995c1c419
+```
+
+The final byte/scope audit used `python3 -` with the following script, before
+appending this record; all assertions passed and the clean-tree check exited 0:
+
+```python
+import subprocess
+from pathlib import Path
+base='705a7da4c6c5fc05bf5d25c16f73e4eca318d902'
+round_base='9b32c835b6bdbec6c17fe7967607f4c433a790cf'
+validated='8abdbbe5b977aebed5d6cc7af698366995c1c419'
+allowed={
+ 'apps/web/src/team/presence.ts','apps/web/src/team/hosted-board.ts',
+ 'apps/web/src/team/people.tsx','apps/web/src/team/presence-layer.tsx',
+ 'apps/web/src/state/use-presence.ts','apps/web/src/state/use-viewport.ts',
+ 'apps/web/src/team/team-app.tsx','apps/web/src/ui/save-area.tsx',
+ 'apps/web/src/App.tsx','apps/web/style.css','tests/web-presence.test.mjs',
+ 'tests/modules.test.mjs','tests/README.md','docs/architecture/README.md',
+ 'docs/briefs/0004-W3-see-who-is-on-a-board-and-where-they-are.md',
+}
+changed=set(subprocess.check_output(['git','diff','--name-only',f'{base}..{validated}'],text=True).splitlines())
+assert changed <= allowed, changed-allowed
+tracked=subprocess.check_output(['git','ls-tree','-r','--name-only',base],text=True).splitlines()
+for name in tracked:
+    protected=name.endswith('/package.json') or name in ('package.json','package-lock.json') or name.startswith(('apps/server/','packages/','supabase/'))
+    if protected or name.startswith('tests/') and name not in ('tests/modules.test.mjs','tests/README.md'):
+        assert Path(name).read_bytes()==subprocess.check_output(['git','show',f'{base}:{name}']), name
+assert Path('apps/web/style.css').read_bytes().startswith(subprocess.check_output(['git','show',f'{base}:apps/web/style.css']))
+assert len(Path('apps/web/src/App.tsx').read_text().splitlines())==263
+for name in ('apps/web/src/App.tsx','apps/web/src/state/use-presence.ts','apps/web/src/state/use-viewport.ts','apps/web/src/team/hosted-board.ts','apps/web/src/team/presence.ts','apps/web/src/team/team-app.tsx','tests/web-presence.test.mjs','tests/modules.test.mjs'):
+    assert Path(name).read_bytes()==subprocess.check_output(['git','show',f'{round_base}:{name}']), name
+subprocess.run(['git','diff','--exit-code',validated],check=True)
+print('PASS: V1 — manifests and lock match committed main.')
+print('PASS: V8 — only brief items 1–5 changed; protected trees, base CSS prefix and module boundaries are preserved.')
+```
+
+```text
+PASS: V1 — Six package.json files and package-lock.json match prerequisite main byte for byte; lock v5 also matches.
+PASS: V2 — npm ci exited 0 and installed 118 packages without dependency changes.
+PASS: V3 — Typecheck exited 0 for all five workspace members at the validated revision.
+PASS: V4 — 761 tests passed, 0 failed, including all 13 presence tests; no test source changed this round.
+PASS: V5 — Final off build, metadata assertions, HTML/notices comparisons and license audit exited 0.
+PASS: V6 — Final fixture and on builds, base on-HTML comparison, runtime notices v3 comparison and license audit exited 0.
+PASS: V7 — Node and Worker server builds and license audit exited 0; no server suite was run.
+PASS: V8 — Main-to-validated diff lists only items 1–5; all protected trees, unchanged base CSS bytes and module boundaries are preserved.
+```
+
+Setup note: the first archived-main build tried a symlink to the installed
+`node_modules`; its bundle inventory check rejected paths resolving outside the
+archive as `Unreviewed bundle input`. The temporary symlink was removed with
+`unlink` and replaced by the copied, already installed dependencies shown above.
+Both archived-main builds then passed normally; no guard or hook was bypassed.
+The starting merge also built successfully in both modes before edits. Candidate
+checks passed; the web builds were repeated after the final focused-row styling
+adjustment, and typecheck/unit tests were repeated on the committed revision.
+
+The fix commit used
+`git commit -m "fix(web): match approved board presence design"`.
+Both public-boundary hooks printed PASS. Git again printed a nonfatal
+`packed-refs.lock` permission warning; the commit succeeded and resolved to the
+validated revision. No stash, push, merge, publication or hook bypass occurred
+in this fix round. No dependency was added.
+
+V9–V13 remain unrun and assigned to the independent review check run, including
+W3-S36's computed styles/SVG/rectangle assertions and candidate-versus-approved
+screens, all W3-S1–S35 behaviour checks, the fresh-base negative control, team-off
+network check, team-off A–J comparison and W4-S1–S29 with its specified isolated
+retry if needed. No browser, Supabase CLI/stack, Docker or operating-system input
+was started. No server integration suite, hosted project, deployment, real
+person, browser matrix, physical-input run, screen-reader session, accessibility
+audit or performance/load campaign was used. These deferred checks are not
+reported as passes.

@@ -381,4 +381,147 @@ Retrieved 2026-11-02:
 
 ## Implementation record
 
-Not yet implemented.
+### Implementation handoff — 2026-11-03
+
+- Brief implemented: **0004-W2 v1 only**, with sync v5, hosted storage v4 and
+  interaction v29 and the unchanged prerequisites listed above.
+- Branch: `codex/0004-W2-recover-shared-edits-after-interruption`.
+- Base revision: `bee6dd38fdc06ae158cde3d63a3d079fb0aea084` (committed main).
+- Validated source/test revision: `8431816e30df1ae2c16b9a5137a85da4d986ea39`.
+  All final source/test checks below describe this revision. This record is a
+  later documentation-only commit; the final branch tip is reported separately
+  in the handoff. No merge or push was performed.
+- Dependencies added: **none**. Every manifest and the lock are unchanged.
+- Discovery: the graph inventory call returned `MCP tool call requires approval,
+  but approval policy is never`. Graph tools were unavailable; direct file
+  reads and `rg`/`sed` were used instead.
+
+Implementation keeps one session for the open board, retains unanswered requests,
+ends old attempts before accepting another event, resends in order, and fences
+recovery against restores and access changes. Every rejoin clears shared undo/redo
+and takes a fresh Yjs client ID. The web app counts edit groups, keeps losses by
+reason until a later deliberate edit is saved, and guards leaving while changes
+wait. It clears selection on rejoin and adds the notice column, amended uncertainty
+words, recovered toast, native leave question and both `:focus` rings. The notice's
+button explicitly overrides the shared 40-pixel minimum with 28 pixels.
+
+No unresolved brief/contract disagreement was found. For S120's answer-lost phase,
+a receipt replay is not another save: the other editor's later saved property
+remains the winner, as sync v4's receipt rule requires. Losses use hosted storage
+v4's “may not have been saved” / “Not confirmed”; a saved not-kept request leaves
+the save state alone. Sync v5 makes Undo unavailable after recovery.
+
+```text
+PASS: V1 every package.json and package-lock.json byte-identical to the base
+PASS: V2 npm ci exited 0
+PASS: V3 typecheck exited 0 for all five members
+PASS: V4 npm test — 833 passed, 0 failed, 0 skipped
+PASS: V5 off build, base byte comparisons, excluded inputs and license audit
+PASS: V6 fixture/on builds, base HTML/runtime-notices-v3 comparisons and audit
+PASS: V7 server build, license audit and Worker dry run
+PASS: V8 committed source/test diff contains only the 18 permitted files
+```
+
+Commands and results (Node `v26.13.0`, npm `11.20.0`, with the pinned binaries
+first on PATH for every command). `$W2_TMP` below denotes the one system-temporary
+directory used for logs, scratch TypeScript inputs, copied builds and dry-run
+output; its expanded machine-specific name is intentionally omitted.
+
+1. `node --version` and `npm --version`: `v26.13.0` and `11.20.0`.
+2. `npm ci --ignore-scripts --no-audit --no-fund`: exit 0, 118 packages installed.
+3. Before source changes, the following captured both base builds, each exit 0:
+
+   ```sh
+   BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+   cp -R apps/web/dist "$W2_TMP/base-off"
+   BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+   cp -R apps/web/dist "$W2_TMP/base-on"
+   ```
+
+4. Final `npm run typecheck`: exit 0; web, server, board-rules, board-room and
+   board-sync all passed. Final `npm test`: exit 0, 833/833 passed. The only new
+   unit test file is `tests/recovery.test.mjs`. Existing unit assertions changed
+   only in the permitted save-precedence test and words-key list; the other two
+   permitted files have only the joined fixture field and client-ID alignment.
+5. V1's byte check used the base tree's manifest list and compared every file's
+   bytes with `git show` (exit 0):
+
+   ```python
+   from pathlib import Path
+   import subprocess
+   base = "bee6dd38fdc06ae158cde3d63a3d079fb0aea084"
+   files = subprocess.check_output(["git", "ls-tree", "-r", "--name-only", base], text=True).splitlines()
+   for file in files:
+       if Path(file).name in ["package.json", "package-lock.json"]:
+           assert Path(file).read_bytes() == subprocess.check_output(["git", "show", base + ":" + file]), file
+   ```
+
+6. Final off-build commands, all exit 0:
+
+   ```sh
+   BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+   cp -R apps/web/dist/. "$W2_TMP/candidate-off/"
+   cmp apps/web/dist/index.html "$W2_TMP/base-off/index.html"
+   cmp apps/web/dist/THIRD_PARTY_NOTICES.txt "$W2_TMP/base-off/THIRD_PARTY_NOTICES.txt"
+   node --input-type=module -e 'import {readFileSync} from "node:fs"; import assert from "node:assert/strict"; const meta=JSON.parse(readFileSync("apps/web/dist/meta.json")); assert(!Object.keys(meta.inputs).some(path=>path.startsWith("node_modules/@supabase/")||path.startsWith("apps/web/src/team/")));'
+   npm run audit:licenses
+   ```
+
+7. Final fixture/on-build commands, all exit 0:
+
+   ```sh
+   npm run build:fixtures
+   BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+   cp -R apps/web/dist/. "$W2_TMP/candidate-on/"
+   cmp apps/web/dist/index.html "$W2_TMP/base-on/index.html"
+   cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt
+   npm run audit:licenses
+   ```
+
+8. Final server-artifact commands, all exit 0:
+
+   ```sh
+   npm run build:server
+   npm run audit:licenses
+   XDG_CONFIG_HOME="$W2_TMP/config" WRANGLER_LOG_PATH="$W2_TMP/wrangler-logs" WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir "$W2_TMP/worker-dry-run" -c apps/server/wrangler.json
+   ```
+
+   Wrangler 4.156.0 reported `--dry-run: exiting now.`; no deployment occurred.
+9. `git diff --name-status bee6dd38fdc06ae158cde3d63a3d079fb0aea084..8431816e30df1ae2c16b9a5137a85da4d986ea39`:
+   exit 0, only the 18 files of items 1–5. `git diff --check`: exit 0.
+   A direct byte-prefix check also confirms that all base CSS and all server
+   checks through S115 are unchanged, with additions only at their ends.
+   `wc -l apps/web/src/App.tsx`: **264**. The full unit suite's module guards
+   passed without adding a team module or a state hook. Ignored build outputs,
+   including `meta.json`, are not counted as changed files.
+
+S116–S120 are appended after S115 and use the unchanged `check()` registration,
+so both runners and `SUMMARY-SHARED` include them. **They were not run.** A strict
+scratch entry containing exactly these additions, importing the real production
+session/document and driver types and declaring the unchanged harness signatures,
+passed `./node_modules/.bin/tsc --noEmit -p "$W2_TMP/server-additions.tsconfig.json"`
+(exit 0). This checks the added checks, not the runtime server suite.
+
+A supplemental standalone strict check of the whole existing server test file
+(`./node_modules/.bin/tsc --noEmit -p "$W2_TMP/server-checks.tsconfig.json"`) found
+pre-existing errors in Vitest `inject` typing, circular `Client` inference and
+unnarrowed `ItemV10` properties. The same check against the base copy
+(`./node_modules/.bin/tsc --noEmit -p "$W2_TMP/server-base.tsconfig.json"`) reproduced
+those errors. Existing server checks and their harness were preserved; workspace
+V3 excludes this test file and passed normally. Initial development checks also
+caught a temporary stop-method reference and the old Offline precedence
+expectation; both were corrected before the validated revision and final checks.
+
+Both mandatory public-boundary hook checks reported `PUBLIC BOUNDARY: PASS` on
+the source commit. Git also printed a `packed-refs.lock` permission warning;
+the commit succeeded, its branch tip was read back and its committed diff was
+verified. No hook was bypassed.
+
+**Review checks deliberately not run:** V9 (W2-S1–S21); V10 (fresh-base negative
+control, including recovery units); V11 (server suite S116–S120 and existing
+checks on both runners); V12 (A–J); V13 (amended 0003-W4 checks); V14 (0004-W3
+checks). They remain the review's check run. No browser, Supabase CLI stack,
+Docker, operating-system input, hosted project or additional acceptance sweep was
+used. No dependency, saved format, access rule, API route or file in `apps/server/`
+changed. The room's only change is `joined.restoreGeneration`. The implementation
+record itself is the sole later file change.

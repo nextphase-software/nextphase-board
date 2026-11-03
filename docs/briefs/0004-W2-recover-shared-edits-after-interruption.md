@@ -1,7 +1,9 @@
 BRIEF VERSION: 0004-W2 v1 (2026-11-03)
 # 0004-W2 — Recover shared edits after interruption
 
-Status: Draft. Contracts: [0003 sync v5](../architecture/0003-sync-v5.md),
+Status: Implemented. Independently reviewed at `2361eeb` (pass) and merged into main on
+2026-11-03 ([evidence summary](0004-W2-recover-shared-edits-after-interruption-evidence.md)).
+Contracts: [0003 sync v5](../architecture/0003-sync-v5.md),
 [0003 hosted storage v4](../architecture/0003-hosted-storage-v4.md) and
 [0001 interaction v29](../architecture/0001-interaction-v29.md) (new versions). Unchanged and
 still in force: [0001 web modules v27](../architecture/0001-web-modules-v27.md),

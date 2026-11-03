@@ -301,7 +301,7 @@ closing a hosted board return to Home. It uses
 shared-client or dependency change, is implemented and merged into main.
 
 [0004-W2 v1 — Recover shared edits after interruption](0004-W2-recover-shared-edits-after-interruption.md)
-is a draft: when a hosted board's connection drops, the edits the room had not answered stay in
+in which, when a hosted board's connection drops, the edits the room had not answered stay in
 the open tab, which is view only and says how many changes wait; on rejoin the shared client sends
 them again in order under their own request IDs, and the room saves each once. After a restore, an
 access change or removal, a sign-out or a sign-in that could not be renewed, nothing is sent again
@@ -309,7 +309,7 @@ and the tab says how many changes may not have been saved and why. Leaving the b
 wait asks first. It uses [0003 sync v5](../architecture/0003-sync-v5.md) (`joined` gains
 `restoreGeneration`), [0003 hosted storage v4](../architecture/0003-hosted-storage-v4.md) and
 [interaction v29](../architecture/0001-interaction-v29.md), with no access, API, storage format or
-dependency change.
+dependency change, is implemented and merged into main.
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

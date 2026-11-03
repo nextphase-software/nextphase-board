@@ -106,7 +106,9 @@ export class HostedBoard {
   subscribe(listener: () => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
   private publish(change: Partial<HostedSnapshot> = {}) {
     if (this.stopped) return;
-    if (this.session) this.losses = updateLossRecord(this.losses, this.session.requests);
+    if (this.session) {
+      this.losses = updateLossRecord(this.losses, this.session.requests, undefined, this.recoveringIds);
+    }
     this.snapshot = { ...this.snapshot, ...change,
       toastId: this.snapshot.toastId + (change.toast === undefined ? 0 : 1) };
     for (const listener of this.listeners) listener();

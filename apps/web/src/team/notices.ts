@@ -125,12 +125,17 @@ export function emptyLossRecord(): LossRecord {
 }
 // Sequence numbers order creation and loss events, rather than clock timestamps
 // that could tie. Remember observed losses after clearing so they cannot return.
-export function updateLossRecord(previous: LossRecord, requests: ReadonlyMap<string, ChangeRequest>, deliberateId?: string): LossRecord {
+export function updateLossRecord(previous: LossRecord, requests: ReadonlyMap<string, ChangeRequest>,
+  deliberateId?: string, recoveringIds: Iterable<string> = []): LossRecord {
+  const recovering = new Set(recoveringIds);
   const record = { ...previous, observed: new Map(previous.observed), losses: new Map(previous.losses),
     dismissed: new Set(previous.dismissed) };
   for (const [id, request] of requests) {
     const observed = { ...(record.observed.get(id) ?? { created: ++record.sequence, deliberate: false, loss: "" }) };
     if (id === deliberateId) observed.deliberate = true;
+    // A replay's saved answer cannot clear losses, even if its first send was
+    // a deliberate edit after the loss. Keep that exclusion after recovery ends.
+    if (recovering.has(id)) observed.deliberate = false;
     const loss = (request.state === "refused" ? "refused" : request.state === "dropped" && request.reason !== "session_ended"
       ? `dropped:${request.reason}` : "") + (request.notKept ? ":not_kept" : "");
     if (loss && loss !== observed.loss) {

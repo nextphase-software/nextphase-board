@@ -429,3 +429,74 @@ test("1013 and invalid_label retry only on a rejoin with waiting work and the fi
     assert.strictEqual(attemptOutcome(first, event, true, 2), first);
   }
 });
+
+for (const reason of ["board_restored", "access_changed"]) {
+  test(`F1 recovery preserves the ${reason} notice until a further edit saves on its first send`, async () => {
+    const sync = await import("../packages/board-sync/src/session.ts");
+    const { emptyLossRecord, updateLossRecord, isOutstanding, changeCounts, lossNotices, saveState } =
+      await import("../apps/web/src/team/notices.ts");
+    const f = await fixture(sync);
+    let record = emptyLossRecord(), recoveringIds = [];
+    const observe = (id) => { record = updateLossRecord(record, f.session.requests, id, recoveringIds); };
+    f.session.subscribe((event) => {
+      if (event.kind === "joined") {
+        recoveringIds = [...f.session.requests].filter(([, request]) => isOutstanding(request)).map(([id]) => id);
+      }
+      observe();
+      if (event.kind === "recovered") recoveringIds = [];
+    });
+    try {
+      const lost = change(f, "Unconfirmed edit"); observe(lost);
+      f.wires[0].handlers.close(1006);
+      await f.rejoin(reason === "board_restored" ? { restoreGeneration: 1 } : { epoch: 3 });
+      assert.equal(f.session.requests.get(lost).reason, reason);
+      const notice = lossNotices(record);
+      assert.equal(notice.length, 1); assert.equal(notice[0].reason, reason);
+
+      const retry = change(f, "Waiting after the loss"); observe(retry);
+      assert(record.observed.get(retry).created > record.newestLoss);
+      assert.equal(record.observed.get(retry).deliberate, true);
+      f.wires.at(-1).handlers.close(1006);
+      assert.equal(f.session.requests.get(retry).state, "waiting");
+      const wire = await f.rejoin();
+      assert.equal(wire.sent[0].requestId, retry);
+      saved(wire, retry);
+      assert.equal(f.session.requests.get(retry).state, "saved");
+      assert.equal(record.losses.size, 1);
+      assert.equal(changeCounts([], record.losses.values()).byReason[reason], 1);
+      assert.deepEqual(lossNotices(record), notice);
+      assert.equal(record.observed.get(retry).deliberate, false);
+      assert.equal(saveState(true, "editor", f.session.requests.values(), record.losses.values()), "Not confirmed");
+      observe();
+      assert.deepEqual(lossNotices(record), notice, "later observations do not restore clearing eligibility");
+
+      const fresh = change(f, "Saved on the open connection"); observe(fresh);
+      assert.equal(record.losses.size, 1, "sending a further edit is not enough");
+      saved(wire, fresh, 2);
+      assert.equal(record.losses.size, 0); assert.deepEqual(lossNotices(record), []);
+      assert.equal(saveState(true, "editor", f.session.requests.values(), record.losses.values()), "Saved");
+    } finally { f.finish(); }
+  });
+}
+test("F1 a recovered not-kept request keeps its own notice", async () => {
+  const sync = await import("../packages/board-sync/src/session.ts");
+  const { emptyLossRecord, updateLossRecord, lossNotices, saveState } = await import("../apps/web/src/team/notices.ts");
+  const f = await fixture(sync);
+  try {
+    const object = f.session.board.objects[0];
+    const id = f.session.edit({ ...f.session.board, objects: [{ ...object, x: 10 }] });
+    let record = updateLossRecord(emptyLossRecord(), f.session.requests, id);
+    f.wires[0].handlers.close(1006);
+    record = updateLossRecord(record, f.session.requests);
+    f.seed.set({ ...f.session.board, objects: [], retiredGenerations: [object.generation] });
+    const wire = await f.rejoin();
+    assert.equal(f.session.requests.get(id).notKept, true);
+    record = updateLossRecord(record, f.session.requests, undefined, [id]);
+    const notice = lossNotices(record);
+    assert.equal(notice[0].reason, "not_kept");
+    saved(wire, id);
+    record = updateLossRecord(record, f.session.requests);
+    assert.deepEqual(lossNotices(record), notice);
+    assert.equal(saveState(true, "editor", f.session.requests.values(), record.losses.values()), "Saved");
+  } finally { f.finish(); }
+});

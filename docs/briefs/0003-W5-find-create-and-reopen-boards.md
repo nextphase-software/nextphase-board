@@ -1,7 +1,9 @@
 BRIEF VERSION: 0003-W5 v1 (2026-11-02)
 # 0003-W5 — Find, create and reopen boards in the web app
 
-Status: Draft. Contracts: [0001 interaction v28](../architecture/0001-interaction-v28.md),
+Status: Implemented. Independently reviewed at `d4f27ed` (pass) and merged into main on
+2026-11-02 ([evidence summary](0003-W5-find-create-and-reopen-boards-evidence.md)).
+Contracts: [0001 interaction v28](../architecture/0001-interaction-v28.md),
 [0001 web modules v27](../architecture/0001-web-modules-v27.md) and
 [0003 hosted storage v3](../architecture/0003-hosted-storage-v3.md) (new versions). Unchanged and
 still in force: [0001 interaction v27](../architecture/0001-interaction-v27.md) (through v28),

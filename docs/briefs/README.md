@@ -289,7 +289,7 @@ state. It uses [interaction v26](../architecture/0001-interaction-v26.md) with i
 shared-client or dependency change, is implemented and merged into main.
 
 [0003-W5 v1 — Find, create and reopen boards in the web app](0003-W5-find-create-and-reopen-boards.md)
-is a draft: with team features on, a signed-in person's Home at `#/files` shows their recent
+in which, with team features on, a signed-in person's Home at `#/files` shows their recent
 boards and one page per workspace as a grid of cards (name, last edited, their role), sorted by
 name, date created or last modified; owners and editors create "Untitled" boards that open at
 once, and rename boards from a card's menu or from the open board's name field; a card opens its
@@ -298,7 +298,7 @@ closing a hosted board return to Home. It uses
 [interaction v28](../architecture/0001-interaction-v28.md),
 [web modules v27](../architecture/0001-web-modules-v27.md) and
 [0003 hosted storage v3](../architecture/0003-hosted-storage-v3.md), with no server, room,
-shared-client or dependency change.
+shared-client or dependency change, is implemented and merged into main.
 
 Each brief is a complete contributor-facing contract. Use this structure:
 

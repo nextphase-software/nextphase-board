@@ -180,7 +180,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
         <GrowButton available={growAvailable} grow={shapeCommands.grow} style={resolvedItem ? { left: pos(resolvedItem).left + resolvedItem.width * view.z / 2, top: pos(resolvedItem).top + resolvedItem.height * view.z } : undefined} />
         <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} />
       </div>
-      {team?.presenceLayer && team.hosted && <team.presenceLayer hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}
+      {team?.commentsLayer && team.hosted && <team.commentsLayer hosted={team.hosted} board={board} objects={displayedObjects} view={view} size={size} tool={tool} setTool={setTool} setView={setView} scene={scene} select={select} setInline={setInline} />}{team?.presenceLayer && team.hosted && <team.presenceLayer hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}
       <ImageNames board={board} /><FileBar team={team}
         boardButton={boardButton} composing={composing} busy={busy} toggle={toggle} panel={panel}
         title={title} objectsButton={objectsButton} undoReason={undoReason} redoReason={redoReason}

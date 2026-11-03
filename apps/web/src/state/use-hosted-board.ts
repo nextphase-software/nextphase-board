@@ -21,7 +21,7 @@ export function useHostedBoard({ hosted, model, load, setBoard, setTitle, setRea
         model.current = board; setBoard(board); setDrafts({});
       }
       setReadOnly(!hosted.canEdit);
-      if (!hosted.canEdit) { setTool("Select"); setInline(false); }
+      if (!hosted.canEdit) { setTool((tool) => tool === "Comment" ? tool : "Select"); setInline(false); }
     };
     changed();
     return hosted.subscribe(changed);

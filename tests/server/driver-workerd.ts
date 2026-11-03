@@ -25,6 +25,23 @@ export async function makeDriver(context: Context): Promise<Driver> {
       return result;
     },
     async control(value) {
+      if (value.board && value.legacyStorage !== undefined) {
+        const stub = roomStub(String(value.board));
+        await runInDurableObject<DurableObject, void>(stub, async (instance: any) => {
+          const room = await instance.getRoom(String(value.board)), storage = room.env.storage;
+          await room.ordered(async () => {
+            storage.transaction(() => {
+              for (const table of ["threads", "comments", "comment_ids", "comment_counts"]) storage.exec(`DROP TABLE IF EXISTS "${table}"`);
+              if (storage.all("PRAGMA table_info(receipts)").some((column: any) => column.name === "kind")) storage.exec("ALTER TABLE receipts DROP COLUMN kind");
+              storage.exec("DELETE FROM meta WHERE key IN ('storage_version', 'comment_sequence')");
+              if (value.legacyStorage) storage.exec("INSERT INTO meta VALUES ('storage_version', ?)", Number(value.legacyStorage));
+            });
+            room.initialized = false;
+          });
+        });
+        await evictDurableObject(stub);
+        return {};
+      }
       if (value.scheduled) {
         const execution = createExecutionContext();
         worker.scheduled(createScheduledController({ cron: "* * * * *" }), bindings, execution);

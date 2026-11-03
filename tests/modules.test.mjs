@@ -45,7 +45,8 @@ function webImportProblems(content, file = "") {
     specifier === "nextphase-board-rules/transition.ts" ||
     specifier.startsWith("@supabase/") && !(specifier === "@supabase/auth-js" && file === "team/auth.ts") ||
     specifier.startsWith("nextphase-board-sync") && specifier !== "nextphase-board-sync/document-adapter.ts" &&
-      !(specifier === "nextphase-board-sync/session.ts" && file === "team/hosted-board.ts") ||
+      !(specifier === "nextphase-board-sync/session.ts" && file === "team/hosted-board.ts") &&
+      !(specifier === "nextphase-board-sync/comments.ts" && file === "team/comments/rules.ts") ||
     specifier.startsWith("nextphase-board-rules/") && !rulesParts.includes(specifier.slice("nextphase-board-rules/".length)));
 }
 
@@ -532,16 +533,17 @@ test("production runners contain none of the test driver names", () => {
 });
 
 
-test("team modules and imports follow web modules v27", () => {
+test("team modules and imports follow web modules v28", () => {
   const team = new URL("team/", source);
   const names = files(team).sort();
-  assert.deepEqual(names, ["api.ts", "auth.ts", "config.ts", "dialog.tsx", "home-card.tsx", "home-lists.ts",
+  assert.deepEqual(names, ["api.ts", "auth.ts", "comments/card.tsx", "comments/icons.tsx", "comments/layer.tsx",
+    "comments/panel.tsx", "comments/rules.ts", "comments/tool.tsx", "config.ts", "dialog.tsx", "home-card.tsx", "home-lists.ts",
     "home-menu.tsx", "home-rules.ts", "home.tsx", "hosted-board.ts", "links.ts",
     "notices.ts", "pages.tsx", "people.tsx", "presence-layer.tsx", "presence.ts", "roles.ts", "share-dialog.tsx", "sign-in.tsx", "team-app.tsx"]);
   for (const name of names) {
     const content = readFileSync(new URL(name, team), "utf8");
     assert.equal(content.split("\n")[0], "// SPDX-License-Identifier: Apache-2.0", name);
-    if (["home-rules.ts", "links.ts", "roles.ts", "notices.ts", "presence.ts"].includes(name)) {
+    if (["comments/rules.ts", "home-rules.ts", "links.ts", "roles.ts", "notices.ts", "presence.ts"].includes(name)) {
       assert.doesNotMatch(content, /from ["'](?:react|.\/auth)/, name);
     }
   }
@@ -554,9 +556,9 @@ test("team modules and imports follow web modules v27", () => {
   }
   const main = readFileSync(new URL("main.tsx", source), "utf8");
   assert.match(main, /if \(BOARD_TEAM_FEATURES\)\s*\{\s*void import\(["'].\/team\/team-app(?:\.tsx)?["']\)/);
-  for (const module of ["nextphase-board-sync/session.ts", "@supabase/auth-js"]) {
+  for (const module of ["nextphase-board-sync/session.ts", "nextphase-board-sync/comments.ts", "@supabase/auth-js"]) {
     const content = `import { value } from "${module}";`;
-    const allowed = module.startsWith("@") ? "team/auth.ts" : "team/hosted-board.ts";
+    const allowed = module.startsWith("@") ? "team/auth.ts" : module.endsWith("comments.ts") ? "team/comments/rules.ts" : "team/hosted-board.ts";
     assert.deepEqual(webImportProblems(content, allowed), []);
     for (const name of ["App.tsx", "state/use-hosted-board.ts", "team/config.ts"]) {
       assert(webImportProblems(content, name).length, name + module);

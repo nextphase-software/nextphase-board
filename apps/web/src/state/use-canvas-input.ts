@@ -103,7 +103,7 @@ export function useCanvasInput({
     setSelectionBox(null);
     drag.current = null;
     setBusy(false);
-    if (!d?.temporary && !d?.drawing) setTool("Select");
+    if (!d?.temporary && !d?.drawing) setTool((tool) => tool === "Comment" ? tool : "Select");
     releaseCapture(d?.pointerId);
     setBoard({ ...model.current });
   }
@@ -413,7 +413,7 @@ export function useCanvasInput({
     releaseCapture(d.pointerId);
   }
   function doubleClick(e: React.MouseEvent<HTMLDivElement>) {
-    if (spacePanRef.current || composing || busy || isDrawingTool(tool)) return;
+    if (spacePanRef.current || composing || busy || isDrawingTool(tool) || tool === "Comment") return;
     const p = point(e);
     const hit = hitObject(displayedObjects, p, view.z);
     if (!hit) return;

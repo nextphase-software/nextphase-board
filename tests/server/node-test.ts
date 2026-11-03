@@ -25,6 +25,15 @@ process.on("message", async (message: any) => {
       // Resolve the room through the same lazy factory as production.
       original(value.board);
       const entry = app.rooms.get(value.board)!;
+      if (value.legacyStorage !== undefined) {
+        entry.storage.transaction(() => {
+          for (const table of ["threads", "comments", "comment_ids", "comment_counts"]) entry.storage.exec(`DROP TABLE IF EXISTS "${table}"`);
+          if (entry.storage.all("PRAGMA table_info(receipts)").some((column) => column.name === "kind")) entry.storage.exec("ALTER TABLE receipts DROP COLUMN kind");
+          entry.storage.exec("DELETE FROM meta WHERE key IN ('storage_version', 'comment_sequence')");
+          if (value.legacyStorage) entry.storage.exec("INSERT INTO meta VALUES ('storage_version', ?)", value.legacyStorage);
+        });
+        entry.room.initialized = false;
+      }
       if (value.rows) result = entry.storage.all(`SELECT * FROM "${value.rows}"`).map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v instanceof Uint8Array ? { bytes: v.byteLength } : v])));
       if (value.raiseFence) result = await entry.room.lock();
       if (value.fileSnapshot) entry.storage.exec("VACUUM INTO ?", value.fileSnapshot);

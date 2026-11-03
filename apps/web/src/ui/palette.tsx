@@ -64,6 +64,7 @@ export function Palette({
         <Icon name="Templates" /><span className="tooltip">Templates</span>
       </button>}
       {!team?.hosted && <ImageButton picker={imagePicker} />}
+      {team?.commentTool && <team.commentTool tool={tool} setTool={setTool} scene={scene} disabled={busy || composing} />}
     </nav>
     <DrawingBar tool={tool} drawing={drawing} disabled={readOnly || busy || composing} arm={arm} />
     {panel === "Templates" && <TemplatesPanel close={() => toggle("Templates")} addActivity={addActivity}

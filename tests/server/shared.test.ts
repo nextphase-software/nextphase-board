@@ -536,3 +536,304 @@ check(120, "delete last-saved units and character merges survive all three drop 
     }
   }
 });
+
+// Comment checks use the same held transports and fixed room clock as shared edits.
+type DiscussionClient = { session: BoardSession; peer: Peer; peers: Peer[]; out: string[]; incoming: string[];
+  events: { kind: string; [key: string]: unknown }[]; holdOut(hold?: boolean): void; holdIn(hold?: boolean): void;
+  releaseOut(): void; releaseIn(): void; raw(value: unknown): void };
+async function discussionJoin(name = "editor"): Promise<DiscussionClient> { return join(name); }
+async function discussionAll(): Promise<readonly [DiscussionClient, DiscussionClient, DiscussionClient]> { return all(); }
+type CommentOperation = import("../../packages/board-sync/src/comments.ts").CommentOperation;
+const boardAnchor = (x = 20, y = 30) => ({ objectId: null, u: 0, v: 0, x, y });
+const startComment = (text = "Pick the launch date"): Extract<CommentOperation, { action: "start" }> => ({
+  action: "start", threadId: crypto.randomUUID(), commentId: crypto.randomUUID(), anchor: boardAnchor(), text,
+});
+async function commentsReady(client: DiscussionClient) { await until(() => client.session.commentsReady, Boolean); }
+async function commentResult(client: DiscussionClient, operation: CommentOperation, reason?: string) {
+  await commentsReady(client);
+  const id = client.session.comment(operation);
+  assert(client.session.commentRequests.has(id), id);
+  await until(() => client.session.commentRequests.get(id)?.state, (state) => state === "saved" || state === "refused");
+  const result = client.session.commentRequests.get(id)!;
+  assert.equal(result.state, reason ? "refused" : "saved", JSON.stringify(result));
+  if (reason) assert.equal(result.reason, reason);
+  return { id, sequence: result.sequence! };
+}
+async function rawComment(client: DiscussionClient, operation: unknown, reason: string, epoch = client.session.epoch, requestId: string = crypto.randomUUID()) {
+  client.raw({ kind: "comment", epoch, requestId, operation });
+  await until(() => client.peer.messages.find((message) => message.kind === "comment_refused" && message.requestId === requestId), Boolean);
+  assert.equal(client.peer.messages.find((message) => message.kind === "comment_refused" && message.requestId === requestId)!.reason, reason);
+  assert(!(await driver.rows(f.a, "receipts")).some((row) => row.request_id === requestId));
+}
+async function commentsEqual(people: readonly DiscussionClient[]) {
+  const rows = await driver.rows(f.a, "threads");
+  await until(() => people.every((person) => person.session.commentsReady && person.session.threads.size === rows.length), Boolean);
+  const expected = JSON.stringify([...people[0].session.threads.values()].sort((a, b) => a.sequence - b.sequence));
+  await until(() => people.every((person) => JSON.stringify([...person.session.threads.values()].sort((a, b) => a.sequence - b.sequence)) === expected), Boolean);
+}
+const operatorHeaders = () => ({ "Board-Operator-Key": context.operatorKey, "Content-Type": "application/json" });
+async function backupComments() {
+  const response = await driver.request(`/operator/boards/${f.a}/backup`, { method: "POST", headers: operatorHeaders() });
+  assert.equal(response.status, 200); return response.json() as Promise<any>;
+}
+async function restoreComments(envelope: unknown, status = 200) {
+  const response = await driver.request(`/operator/boards/${f.a}/restore`, {
+    method: "POST", headers: operatorHeaders(), body: JSON.stringify(envelope),
+  });
+  assert.equal(response.status, status, await response.clone().text());
+  return response.json();
+}
+async function longCommentTokens() {
+  const now = Date.now();
+  for (const person of Object.values(f.people)) {
+    person.token = await helper("token", { person, options: { now, exp: Math.floor(now / 1000) + 172800 } });
+  }
+}
+check(121, "storage version 3 migrates old layouts and operator backups without losing edits", async () => {
+  const a = await discussionJoin(); await commentsReady(a); await seed(a);
+  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 3);
+  const before = await exported(), edits = await driver.rows(f.a, "edits"), receipts = await driver.rows(f.a, "receipts");
+  const legacy = await backupComments();
+  legacy.tables.meta.find((row: any) => row.key === "storage_version").value = 2;
+  for (const table of ["threads", "comments", "comment_ids", "comment_counts"]) delete legacy.tables[table];
+  legacy.tables.receipts.forEach((row: any) => { delete row.kind; });
+  await a.peer.close();
+  for (const version of [2, 0, 1]) {
+    await driver.control({ board: f.a, legacyStorage: version }); await driver.wake(f.a);
+    const reopened = await discussionJoin(); await commentsReady(reopened);
+    assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 3);
+    assert.equal(await exported(), before); assert.deepEqual(await driver.rows(f.a, "edits"), edits);
+    assert.deepEqual(await driver.rows(f.a, "receipts"), receipts);
+    assert((await driver.rows(f.a, "receipts")).every((row) => row.kind === "edit"));
+    await reopened.peer.close();
+  }
+  const once = await driver.rows(f.a, "meta"); await driver.wake(f.a); await ticket();
+  assert.deepEqual(await driver.rows(f.a, "meta"), once);
+  await restoreComments(legacy); const restored = await discussionJoin(); await commentsReady(restored);
+  assert.equal(await exported(), before); assert.equal(restored.session.threads.size, 0);
+  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 3);
+});
+check(122, "every comment action broadcasts once before its answer and leaves board edits alone", async () => {
+  const [a, b, c] = await discussionAll(); await Promise.all([a, b, c].map(commentsReady)); await seed(a); await equal([a, b, c]);
+  const revision = a.session.revision, edits = await driver.rows(f.a, "edits"), last = (await driver.rows(f.a, "meta")).find((row) => row.key === "last_edit_at");
+  const history = a.session.history.past.length, start = startComment(), replyId = crypto.randomUUID();
+  const operations: CommentOperation[] = [start, { action: "reply", threadId: start.threadId, commentId: replyId, text: "Reply" },
+    { action: "edit", threadId: start.threadId, commentId: start.commentId, text: "Edited" }, { action: "resolve", threadId: start.threadId },
+    { action: "reopen", threadId: start.threadId }, { action: "move", threadId: start.threadId, anchor: boardAnchor(40, 50) },
+    { action: "delete_comment", threadId: start.threadId, commentId: replyId }, { action: "delete_thread", threadId: start.threadId }];
+  let first = "";
+  for (const [index, operation] of operations.entries()) {
+    const { id, sequence } = await commentResult(a, operation); if (!index) first = id;
+    assert.equal(sequence, index + 1);
+    for (const client of [a, b, c]) {
+      await until(() => client.peer.messages.filter((message) => message.kind === "comment_changed" && message.sequence === sequence).length, (count) => count === 1);
+      assert.equal(client.peer.messages.find((message) => message.kind === "comment_changed" && message.sequence === sequence)!.by, a.session.self!.label);
+    }
+    assert(a.peer.messages.findIndex((message) => message.kind === "comment_changed" && message.sequence === sequence) <
+      a.peer.messages.findIndex((message) => message.kind === "comment_saved" && message.requestId === id));
+  }
+  assert.equal(a.session.revision, revision); assert.deepEqual(await driver.rows(f.a, "edits"), edits);
+  assert.deepEqual((await driver.rows(f.a, "meta")).find((row) => row.key === "last_edit_at"), last); assert.equal(a.session.history.past.length, history);
+  const receipts = await driver.rows(f.a, "receipts"), sequence = (await driver.rows(f.a, "meta")).find((row) => row.key === "comment_sequence");
+  a.raw(a.session.commentRequests.get(first)!.text);
+  await until(() => a.peer.messages.filter((message) => message.kind === "comment_saved" && message.requestId === first).length, (count) => count === 2);
+  assert.equal(a.peer.messages.filter((message) => message.kind === "comment_saved" && message.requestId === first).at(-1)!.sequence, 1);
+  await until(() => a.peer.messages.filter((message) => message.kind === "comments_snapshot" && message.done).length, (count) => count === 2);
+  assert.deepEqual(await driver.rows(f.a, "receipts"), receipts); assert.deepEqual((await driver.rows(f.a, "meta")).find((row) => row.key === "comment_sequence"), sequence);
+});
+check(123, "viewers comment while only authors can edit delete or move discussion", async () => {
+  const [a, b, c] = await discussionAll(), owner = await discussionJoin("owner"), start = startComment();
+  await commentResult(c, start);
+  await commentResult(c, { action: "reply", threadId: start.threadId, commentId: crypto.randomUUID(), text: "Viewer reply" });
+  await commentResult(c, { action: "resolve", threadId: start.threadId }); await commentResult(c, { action: "reopen", threadId: start.threadId });
+  const before = await exported(); c.raw({ kind: "edit", epoch: c.session.epoch, requestId: "viewer-comment-check", update: "AAA=" });
+  assert.equal((await c.peer.next("refused")).reason, "role_too_low"); assert.equal(await exported(), before);
+  const own = startComment(); await commentResult(a, own);
+  for (const person of [b, owner]) for (const operation of [
+    { action: "edit", threadId: own.threadId, commentId: own.commentId, text: "Forbidden" },
+    { action: "delete_comment", threadId: own.threadId, commentId: own.commentId },
+    { action: "delete_thread", threadId: own.threadId }, { action: "move", threadId: own.threadId, anchor: boardAnchor() },
+  ] as CommentOperation[]) await commentResult(person, operation, "not_author");
+  for (const person of [b, c]) await commentResult(person, { action: "reply", threadId: own.threadId, commentId: crypto.randomUUID(), text: "Kept until author deletes" });
+  await commentResult(a, { action: "delete_comment", threadId: own.threadId, commentId: own.commentId });
+  await commentsEqual([a, b, c, owner]); assert(!a.session.threads.has(own.threadId));
+  assert(!(await driver.rows(f.a, "comments")).some((row) => row.thread_id === own.threadId));
+});
+check(124, "simultaneous replies and resolve reopen converge in saved order", async () => {
+  const [a, b, c] = await discussionAll(), start = startComment(); await commentResult(a, start); await commentsEqual([a, b, c]);
+  a.holdOut(); b.holdOut();
+  const ids = [a.session.comment({ action: "reply", threadId: start.threadId, commentId: crypto.randomUUID(), text: "A" }),
+    b.session.comment({ action: "reply", threadId: start.threadId, commentId: crypto.randomUUID(), text: "B" })];
+  a.releaseOut(); b.releaseOut();
+  await until(() => [a, b].every((client, index) => client.session.commentRequests.get(ids[index])?.state === "saved"), Boolean);
+  await commentsEqual([a, b, c]); assert.equal(a.session.threads.get(start.threadId)!.comments.length, 3);
+  a.holdOut(); b.holdOut(); const resolve = a.session.comment({ action: "resolve", threadId: start.threadId }), reopen = b.session.comment({ action: "reopen", threadId: start.threadId });
+  b.releaseOut(); a.releaseOut();
+  await until(() => a.session.commentRequests.get(resolve)?.state === "saved" && b.session.commentRequests.get(reopen)?.state === "saved", Boolean);
+  await commentsEqual([a, b, c]); assert.equal(a.session.threads.get(start.threadId)!.resolved, a.session.commentRequests.get(resolve)!.sequence! > b.session.commentRequests.get(reopen)!.sequence!);
+  await commentResult(a, { action: "resolve", threadId: start.threadId });
+  await commentResult(b, { action: "reply", threadId: start.threadId, commentId: crypto.randomUUID(), text: "Reopens" });
+  await commentsEqual([a, b, c]); assert.equal(c.session.threads.get(start.threadId)!.resolved, false);
+});
+check(125, "deleted-thread and deleted-comment refusals preserve outstanding edit requests", async () => {
+  const [a, b, c] = await discussionAll(), start = startComment(); await commentResult(b, start); await commentsEqual([a, b, c]);
+  const reply = crypto.randomUUID(); await commentResult(b, { action: "reply", threadId: start.threadId, commentId: reply, text: "Soon gone" });
+  await commentResult(b, { action: "delete_comment", threadId: start.threadId, commentId: reply });
+  a.holdOut(); const editId = a.session.edit({ ...a.session.board, title: "Still waiting" });
+  const requests = JSON.stringify([...a.session.requests]), joins = a.peers.length;
+  await rawComment(a, { action: "edit", threadId: start.threadId, commentId: reply, text: "Kept" }, "comment_deleted");
+  await commentResult(b, { action: "delete_thread", threadId: start.threadId });
+  await rawComment(a, { action: "reply", threadId: start.threadId, commentId: crypto.randomUUID(), text: "Kept" }, "thread_deleted");
+  assert.equal(JSON.stringify([...a.session.requests]), requests); assert.equal(a.session.requests.get(editId)!.state, "sent"); assert.equal(a.peers.length, joins);
+});
+check(126, "old epochs refuse new and retried comments and removed people receive no snapshot", async () => {
+  const [a, b, c] = await discussionAll(), start = startComment(); const saved = await commentResult(b, start), oldEpoch = b.session.epoch;
+  await success(`/workspaces/${f.workspace}/members/${f.people.granted.id}`, "owner", "PUT", { role: "viewer" }); await closeCode(b, 4403);
+  await success(`/workspaces/${f.workspace}/members/${f.people.granted.id}`, "owner", "PUT", { role: "editor" });
+  const retry = await discussionJoin("granted"); await commentsReady(retry); assert.notEqual(retry.session.epoch, oldEpoch);
+  await rawComment(retry, startComment(), "epoch_changed", oldEpoch);
+  const before = await driver.rows(f.a, "receipts");
+  retry.raw({ kind: "comment", epoch: oldEpoch, requestId: saved.id, operation: start });
+  assert.equal((await retry.peer.next("comment_refused")).reason, "epoch_changed"); assert.deepEqual(await driver.rows(f.a, "receipts"), before);
+  await success(`/workspaces/${f.workspace}/members/${f.people.granted.id}`, "owner", "DELETE"); await closeCode(retry, 4403);
+  for (const name of ["granted", "outsider"]) {
+    const response = await request(`/boards/${f.a}/join-tickets`, name, "POST"); assert.equal(response.status, 404);
+  }
+  await commentsEqual([a, c]);
+});
+check(127, "snapshots are contiguous ordered durable and restored with counts and anchors", async () => {
+  const a = await discussionJoin(), first = startComment(), second = startComment("Second"); await commentResult(a, first); await commentResult(a, second);
+  await commentResult(a, { action: "resolve", threadId: first.threadId });
+  const envelope = await backupComments(); await driver.wake(f.a);
+  const b = await discussionJoin("granted"); await commentsReady(b);
+  const messages = b.peer.messages, done = messages.findIndex((message) => message.kind === "comments_snapshot" && message.done);
+  assert.equal(messages[0].kind, "joined"); assert.equal(messages[1].reset, true); assert.equal(messages[1].sequence, 3);
+  const rows = messages.slice(2, done); assert.equal(rows.length, 4);
+  assert(rows.slice(0, 2).every((row) => row.thread && row.sequence === undefined)); assert(rows.slice(2).every((row) => row.comment && row.sequence === undefined));
+  assert.deepEqual(rows.slice(0, 2).map((row) => row.thread.sequence), [1, 2]);
+  const later = startComment("After backup"); await commentResult(b, later); await restoreComments(envelope);
+  const restored = await discussionJoin(); await commentsReady(restored); assert.equal(restored.session.threads.size, 2); assert(!restored.session.threads.has(later.threadId));
+  assert.equal(restored.session.threads.get(first.threadId)!.resolved, true);
+  for (const table of ["threads", "comments", "comment_ids", "comment_counts", "receipts"]) {
+    assert.deepEqual(await driver.rows(f.a, table), envelope.tables[table]);
+  }
+});
+check(128, "anchors move in edit transactions and deletion detaches once without undo reattachment", async () => {
+  const [a, b, c] = await discussionAll(); await seed(b); await equal([a, b, c]);
+  const object = b.session.board.objects[0], start = { ...startComment(), anchor: { objectId: object.id, u: .25, v: .75, x: 0, y: 0 } };
+  await commentResult(a, start); await commentsEqual([a, b, c]);
+  const counts = [a, b, c].map((client) => client.peer.messages.filter((message) => message.kind === "comment_changed").length);
+  await edit(b, (board) => patch(board, { x: 50, y: 60, width: 400, height: 200, text: "New label" })); await equal([a, b, c]);
+  const moved = JSON.parse((await driver.rows(f.a, "threads"))[0].anchor); assert.equal(moved.x, 150); assert.equal(moved.y, 210);
+  [a, b, c].forEach((client, index) => assert.equal(client.peer.messages.filter((message) => message.kind === "comment_changed").length, counts[index]));
+  const deletion = await edit(b, (board) => remove(board, [object.id])); await equal([a, b, c]);
+  await until(() => [a, b, c].every((client) => client.session.threads.get(start.threadId)?.anchor.detached), Boolean);
+  for (const [index, client] of [a, b, c].entries()) {
+    const frames = client.peer.messages.filter((message) => message.kind === "comment_changed").slice(counts[index]); assert.equal(frames.length, 1); assert.equal(frames[0].sequence, undefined);
+    const anchor = frames[0].thread.anchor; assert.equal(anchor.x, 150); assert.equal(anchor.y, 210); assert.equal(anchor.objectLabel, "New label"); assert.equal(anchor.objectType, "sticky");
+    const editFrame = client.peer.messages.findIndex((message) => client === b ? message.kind === "saved" && message.requestId === deletion : message.kind === "update" && message.revision === b.session.revision);
+    assert(client.peer.messages.indexOf(frames[0]) > editFrame);
+  }
+  await saved(b, b.session.undo()); await equal([a, b, c]); assert.notEqual(b.session.board.objects[0].id, object.id);
+  await commentResult(a, { action: "move", threadId: start.threadId, anchor: { objectId: b.session.board.objects[0].id, u: .5, v: .5, x: 700, y: 800 } });
+  assert.equal(JSON.parse((await driver.rows(f.a, "threads"))[0].anchor).detached, true);
+  await commentResult(a, { action: "reopen", threadId: start.threadId });
+  await rawComment(a, { ...startComment(), anchor: start.anchor }, "anchor_deleted");
+  // Undoing an addition and deleting a section with its member use the same edit transaction.
+  for (const section of [false, true]) {
+    await edit(b, (board) => add(board, "sticky", 500, 500)); await equal([a, b, c]);
+    const added = b.session.board.objects.at(-1)!;
+    let sectionId = "";
+    if (section) {
+      await edit(b, (board) => add(board, "section", 400, 400)); sectionId = b.session.board.objects.at(-1)!.id;
+      await edit(b, (board) => patch(board, { section: sectionId }, board.objects.findIndex((object) => object.id === added.id)));
+      await equal([a, b, c]);
+    }
+    const attached = { ...startComment(), anchor: { objectId: added.id, u: .5, v: .5, x: 0, y: 0 } }; await commentResult(a, attached);
+    if (section) await edit(b, (board) => remove(board, [sectionId, added.id])); else await saved(b, b.session.undo());
+    await until(() => a.session.threads.get(attached.threadId)?.anchor.detached, Boolean);
+  }
+});
+check(129, "text enforces Unicode code points controls and exact whitespace preservation", async () => {
+  const a = await discussionJoin();
+  await rawComment(a, startComment(" \t\n"), "empty_text"); await rawComment(a, startComment("a".repeat(4000) + "😀"), "too_long");
+  await rawComment(a, startComment("bad\u0001"), "bad_message");
+  const astral = startComment("a".repeat(3999) + "😀"); await commentResult(a, astral);
+  const spaced = startComment("  Line one\n\tLine two\n"); await commentResult(a, spaced);
+  assert.equal((await driver.rows(f.a, "comments")).find((row) => row.id === spaced.commentId).text, spaced.text);
+});
+check(130, "comments bypass waiting edits and receipts cannot cross request kinds", async () => {
+  const a = await discussionJoin(); await commentsReady(a); a.holdOut();
+  const first = a.session.edit({ ...a.session.board, title: "Dependency" }), second = a.session.edit({ ...a.session.board, title: "Waiting" });
+  a.raw(a.out[1]); await until(() => a.session.requests.get(second)?.state, (state) => state === "received");
+  const start = startComment(), requestId = crypto.randomUUID();
+  a.raw({ kind: "comment", epoch: a.session.epoch, requestId, operation: start });
+  await until(() => a.peer.messages.find((message) => message.kind === "comment_saved" && message.requestId === requestId), Boolean);
+  assert.equal((await driver.rows(f.a, "waiting")).length, 1); a.releaseOut(); await saved(a, first); await saved(a, second);
+  await rawComment(a, startComment(), "request_id_reused", a.session.epoch, first);
+  a.raw({ kind: "edit", epoch: a.session.epoch, requestId, update: a.session.requests.get(first)!.update });
+  assert.equal((await a.peer.next("refused")).reason, "request_id_reused");
+});
+check(131, "hourly counts span connections and prune old hours; connection windows count only saves", async () => {
+  await longCommentTokens();
+  const a = await discussionJoin(), other = await discussionJoin(), now = Date.now(), hour = Math.floor(now / 3600000) * 3600000;
+  await driver.control({ fixedNow: hour + 1000 });
+  for (let index = 0; index < 100; index++) {
+    if (index % 10 === 0) await driver.control({ fixedNow: hour + 1000 + index * 200 });
+    await commentResult(index % 2 ? other : a, startComment(String(index)));
+  }
+  const before = await driver.rows(f.a, "comment_counts"); await rawComment(a, startComment("101"), "rate_limited");
+  assert.deepEqual(await driver.rows(f.a, "comment_counts"), before);
+  await driver.control({ fixedNow: hour + 3600000 + 1000 });
+  const next = await discussionJoin(); await commentResult(next, startComment("Next hour"));
+  assert((await driver.rows(f.a, "comment_counts")).every((row) => row.hour === Math.floor((hour + 3600000) / 3600000)));
+  const threadId = [...next.session.threads.keys()][0];
+  for (let index = 0; index < 600; index++) {
+    await driver.control({ fixedNow: hour + 3600000 + 2000 + index * 110 });
+    await commentResult(next, { action: index % 2 ? "resolve" : "reopen", threadId });
+  }
+  await rawComment(next, { action: "resolve", threadId }, "rate_limited");
+  // Another person has a fresh hourly count and isolates the connection window.
+  const b = await discussionJoin("granted"); await driver.control({ fixedNow: hour + 3600000 + 70000 });
+  for (let index = 0; index < 10; index++) await commentResult(b, startComment());
+  await rawComment(b, startComment(), "rate_limited");
+  const bCounts = await driver.rows(f.a, "comment_counts");
+  await rawComment(b, { ...startComment(), text: "" }, "empty_text"); assert.deepEqual(await driver.rows(f.a, "comment_counts"), bCounts);
+});
+check(132, "malformed comment shapes and anchors follow refusal order without receipts", async () => {
+  const a = await discussionJoin(), good = startComment();
+  for (const operation of [{ ...good, action: "unknown" }, { ...good, threadId: undefined }, { ...good, threadId: good.threadId.toUpperCase() },
+    { ...good, text: 3 }, { ...good, anchor: null }]) await rawComment(a, operation, "bad_message");
+  for (const anchor of [{ ...good.anchor, u: 1.1 }, { ...good.anchor, x: 1000001 }, { ...good.anchor, y: "1" }, { ...good.anchor, objectId: "bad" }]) {
+    await rawComment(a, { ...good, anchor }, "bad_anchor");
+  }
+  await rawComment(a, { ...good, text: "", anchor: { ...good.anchor, u: 2 } }, "empty_text");
+  await commentResult(a, good); await rawComment(a, { ...good, anchor: { ...good.anchor, u: 2 } }, "identifier_reused");
+});
+check(133, "board comment limits bound the backup and reject mixed envelope shapes", async () => {
+  await longCommentTokens();
+  const [a, b, c] = await discussionAll(); await seed(a, "Launch", 3); await equal([a, b, c]);
+  const people = [a, b, c], threads: string[] = []; let now = Date.now(), bytes = 0;
+  // Every comment is escaped to twice its byte size; distribute posts across hours and people.
+  for (let index = 0; index < 2000; index++) {
+    now += index % 90 === 0 ? 3600000 : 110;
+    await driver.control({ fixedNow: now });
+    const client = people[index % 3];
+    const length = index < 304 ? 2098 : 2097; // exactly 4,194,304 UTF-8 bytes across 2,000 rows
+    const text = ('"\n'.repeat(Math.ceil(length / 2))).slice(0, length); bytes += length;
+    const operation = index < 200 ? startComment(text) : { action: "reply" as const, threadId: threads[index % 200], commentId: crypto.randomUUID(), text };
+    if (operation.action === "start") threads.push(operation.threadId);
+    await commentResult(client, operation);
+  }
+  assert.equal(bytes, 4194304);
+  await rawComment(a, startComment("One more"), "comment_limit");
+  const own = [...a.session.threads.values()].flatMap((thread) => thread.comments).find((comment) => comment.person === a.session.self!.person)!;
+  await rawComment(a, { action: "edit", threadId: own.threadId, commentId: own.id, text: own.text + "x" }, "comment_limit");
+  const envelope = await backupComments(), size = new TextEncoder().encode(JSON.stringify(envelope)).length;
+  measures.commentBackupBytes = size; console.log("MEASURE-S133 " + JSON.stringify({ bytes: size })); assert(size < 16777216);
+  const missing = structuredClone(envelope); delete missing.tables.comments; await restoreComments(missing, 400);
+  const mixed = structuredClone(envelope); mixed.tables.meta.find((row: any) => row.key === "storage_version").value = 2;
+  for (const row of mixed.tables.receipts) delete row.kind;
+  for (const table of ["comments", "comment_ids", "comment_counts"]) delete mixed.tables[table];
+  await restoreComments(mixed, 400);
+});

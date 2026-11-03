@@ -4,6 +4,7 @@ import { type BoardV10 } from "nextphase-board-rules/document.ts";
 import { Adapter } from "./document-adapter.ts";
 import { readBoard } from "./codec.ts";
 import { capture, SharedUndo } from "./undo.ts";
+import { normalizeText, textProblem, type CommentOperation, type CommentRequest, type CommentThread } from "./comments.ts";
 
 export type Role = "owner" | "editor" | "viewer";
 export type PresenceInput = { cursor: { x: number; y: number } | null; selection: string[];
@@ -71,6 +72,9 @@ export class BoardSession<T = unknown> {
   readonly options: SessionOptions<T>;
   readonly requests = new Map<string, Request>();
   readonly present = new Map<string, Presence>();
+  readonly threads = new Map<string, CommentThread>();
+  readonly commentRequests = new Map<string, CommentRequest>();
+  commentsReady = false;
   readonly history = new SharedUndo();
   private adapter = new Adapter();
   private transport?: Transport;
@@ -126,6 +130,11 @@ export class BoardSession<T = unknown> {
       if (request.state === "sent" || request.state === "received") request.state = "waiting";
       this.cancelDeadline(id);
     }
+    for (const [id, request] of this.commentRequests) {
+      if (request.state === "sent") { request.state = "unconfirmed"; request.reason = "connection_lost"; }
+      this.cancelDeadline(id);
+    }
+    this.commentsReady = false;
     this.timers(); this.present.clear();
     const reject = this.rejectJoin; this.rejectJoin = undefined;
     reject?.(Error("Connection attempt ended"));
@@ -172,9 +181,15 @@ export class BoardSession<T = unknown> {
     void this.reconnect().catch((error) => this.report({ kind: "join_failed", reason: String(error) }));
   }
   private apply(message: any) {
+    if (message.kind.startsWith("comment")) {
+      this.applyComment(message);
+      this.report(message);
+      return;
+    }
     const request = this.requests.get(message.requestId);
     if (["saved", "received", "refused"].includes(message.kind) && request && !outstanding(request)) return;
     if (message.kind === "joined") {
+      this.threads.clear(); this.commentsReady = false;
       const rejoined = this.accepted;
       if (rejoined) {
         this.history.clear();
@@ -252,6 +267,56 @@ export class BoardSession<T = unknown> {
       this.sendEdit(Y.encodeStateAsUpdate(this.doc, decode(message.stateVector)), undefined, touched);
     }
     this.report(message);
+  }
+  private applyComment(message: any) {
+    if (message.kind === "comments_snapshot") {
+      if (message.reset) { this.threads.clear(); this.commentsReady = false; }
+      if (message.done) this.commentsReady = true;
+    } else if (message.kind === "comment_changed") {
+      if (message.thread === null) this.threads.delete(message.threadId);
+      else {
+        const current = this.threads.get(message.threadId);
+        if (message.thread) this.threads.set(message.threadId, { ...message.thread, comments: current?.comments ?? [] });
+        const thread = this.threads.get(message.threadId);
+        if (thread && Object.hasOwn(message, "comment")) {
+          thread.comments = thread.comments.filter((comment) => comment.id !== message.commentId);
+          if (message.comment) thread.comments.push(message.comment);
+          thread.comments.sort((a, b) => a.sequence - b.sequence);
+        }
+      }
+    } else if (message.kind === "comment_saved" || message.kind === "comment_refused") {
+      const request = this.commentRequests.get(message.requestId);
+      if (request && request.state !== "saved" && request.state !== "refused") {
+        request.state = message.kind === "comment_saved" ? "saved" : "refused";
+        request.reason = message.reason; request.sequence = message.sequence;
+        this.cancelDeadline(message.requestId);
+      }
+    }
+  }
+  comment(operation: CommentOperation): string {
+    if (!this.joined || !this.commentsReady) return "join_required";
+    if ("text" in operation) {
+      operation = { ...operation, text: normalizeText(operation.text) };
+      const problem = textProblem(operation.text);
+      if (problem) return problem;
+    }
+    const requestId = crypto.randomUUID();
+    const text = JSON.stringify({ kind: "comment", epoch: this.epoch, requestId, operation });
+    this.commentRequests.set(requestId, { state: "sent", text, epoch: this.epoch, restoreGeneration: this.restoreGeneration });
+    this.deadline(requestId);
+    this.send(text);
+    this.report({ kind: "comment_request", requestId });
+    return requestId;
+  }
+  retryComment(requestId: string): string {
+    if (!this.joined || !this.commentsReady) return "join_required";
+    const request = this.commentRequests.get(requestId);
+    if (!request || request.state !== "unconfirmed") return "not_retryable";
+    if (request.epoch !== this.epoch || request.restoreGeneration !== this.restoreGeneration) return "access_changed";
+    request.state = "sent"; delete request.reason;
+    this.deadline(requestId); this.send(request.text);
+    this.report({ kind: "comment_request", requestId });
+    return requestId;
   }
   private blocked() { return !this.joined || this.recovering ? "join_required" : this.role === "viewer" ? "role_too_low" : null; }
   edit(board: BoardV10, group?: string): string {

@@ -5,6 +5,8 @@ import { auth, type AuthSession } from "./auth";
 import { HostedBoard } from "./hosted-board";
 import { People } from "./people";
 import { PresenceLayer } from "./presence-layer";
+import { CommentTool } from "./comments/tool";
+import { CommentsLayer } from "./comments/layer";
 import { parseLink, type TeamLink } from "./links";
 import { words } from "./notices";
 import { SignIn } from "./sign-in";
@@ -17,6 +19,7 @@ export type TeamParts = {
   hosted?: HostedBoard; saveControl?: ReactNode; account?: ReactNode; banner?: ReactNode;
   people?: ReactNode; presenceLayer?: typeof PresenceLayer; backToFiles?: () => void;
   nameSent?: (title: string) => void;
+  commentTool?: typeof CommentTool; commentsLayer?: typeof CommentsLayer;
 };
 export function TeamApp() {
   const [fragment, setFragment] = useState(location.hash);
@@ -138,7 +141,7 @@ function HostedRoute({ link, session, active, account, close, signInAgain, resta
     ? outcome?.name === "restoring" ? words.restoring : waiting ? words.reconnectingWaiting(waiting) : words.reconnecting
     : snapshot.role === "viewer" ? words.viewOnly(snapshot.workspace) : "";
   const notices = board.notices;
-  return <><App team={{ hosted: board, account, backToFiles: session ? close : undefined, people: <People hosted={board} />, presenceLayer: PresenceLayer,
+  return <><App team={{ hosted: board, account, backToFiles: session ? close : undefined, people: <People hosted={board} />, presenceLayer: PresenceLayer, commentTool: CommentTool, commentsLayer: CommentsLayer,
     nameSent: (title) => { sentTitles.current.add(title); },
     saveControl: <button className="primary" onClick={() => setShare(true)}>Share</button>,
     banner: notices.length || banner ? <div className="team-notice-column">

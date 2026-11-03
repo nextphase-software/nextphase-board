@@ -20,6 +20,20 @@ still run normally; never bypass them.
 sort words, creation and rename permissions, held names and menu placement. It runs
 with `npm test` without Supabase or a browser.
 
+`comments.test.mjs` covers 0005-W1's shared anchor, detach, Unicode text, author colour,
+filter, screen-word and placement rules, comment request lifecycle and storage-version-3
+migration. It runs with `npm test` without Supabase or a browser. Each test imports its
+subject dynamically, so the missing feature fails each test by name on the base.
+
+`tests/server/shared.test.ts` adds S121–S133 on both runners for comment migration,
+actions, permissions, ordering, deletion, epochs, snapshots/restores, anchors, text,
+waiting edits, receipts, rate limits, malformed messages and board/backup capacity.
+Its existing `SUMMARY-SHARED` counts these checks. The two test drivers expose
+`legacyStorage` only to make S121's old layouts; production runners are unchanged.
+These server checks require the local stack and belong to the review's V11 run.
+The 0005-W1 browser scenario, base negative control, A–J comparison and amended
+0004-W2 checks belong to the review's V9–V13 run; they are not unit-test results.
+
 The commands and matrix below are a catalog, not a default execution checklist.
 Run a broader set only when explicitly requested. Use the exact Node/npm versions
 in the toolchain contract. From the repository root:

@@ -7,6 +7,8 @@ import { evaluate } from "./edits.ts";
 import { snapshot } from "./snapshots.ts";
 import { meta, setMeta } from "./storage.ts";
 import { base64, bytes, send, unbase64, type Connection } from "./protocol.ts";
+import { keepAnchors } from "./comments.ts";
+import type { Thread } from "nextphase-board-sync/comments.ts";
 import { endPresence } from "./presence.ts";
 type Edit = { requestId: string; epoch: number; update: string };
 type LiveBoard = { doc: Y.Doc; board: BoardV10; saved(): void };
@@ -32,7 +34,7 @@ export class EditSession {
     const digest = await this.env.hash(update);
     const receipt = this.env.storage.all("SELECT * FROM receipts WHERE person_id = ? AND request_id = ?", connection.attachment().id, message.requestId)[0];
     if (receipt) {
-      if (receipt.digest !== digest) refuse("request_id_reused");
+      if (receipt.kind !== "edit" || receipt.digest !== digest) refuse("request_id_reused");
       else send(connection, { kind: "saved", requestId: message.requestId, revision: Number(receipt.revision),
         update: base64(Y.encodeStateAsUpdate(this.host.doc)) });
       return;
@@ -67,10 +69,12 @@ export class EditSession {
     if (result.kind === "waiting") return "waiting";
     if (result.kind === "refused") { send(connection, { kind: "refused", requestId, reason: result.reason }); return "refused"; }
     const revision = meta(this.env.storage, "revision") + 1;
+    let detached: Thread[] = [];
     try {
       this.env.storage.transaction(() => {
         this.env.storage.exec('INSERT INTO edits VALUES (?, ?, ?, ?)', revision, connection.attachment().id, requestId, result.update);
-        this.env.storage.exec('INSERT INTO receipts VALUES (?, ?, ?, ?)', connection.attachment().id, requestId, digest, revision);
+        this.env.storage.exec("INSERT INTO receipts VALUES (?, ?, ?, ?, 'edit')", connection.attachment().id, requestId, digest, revision);
+        detached = keepAnchors(this.env, this.host.board, result.board);
         setMeta(this.env.storage, "revision", revision);
         setMeta(this.env.storage, "last_edit_at", this.env.now());
         for (const object of result.identifiers) this.env.storage.exec(
@@ -84,6 +88,9 @@ export class EditSession {
     send(connection, { kind: "saved", requestId, revision, ...(result.changed ? { update: base64(result.update) } : {}) });
     for (const other of this.env.connections()) if (other.attachment().connectionId !== connection.attachment().connectionId) {
       send(other, { kind: "update", revision, update: base64(result.update) });
+    }
+    for (const thread of detached) for (const peer of this.env.connections()) {
+      send(peer, { kind: "comment_changed", threadId: thread.id, thread });
     }
     this.host.saved();
     return "saved";

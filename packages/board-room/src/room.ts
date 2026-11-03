@@ -6,6 +6,7 @@ import { canonical, type BoardV10 } from "nextphase-board-rules/document.ts";
 import { Copies } from "./copies.ts";
 import { Access, closeCode } from "./access.ts";
 import { backup, decodeBackup, replace } from "./backups.ts";
+import { Comments } from "./comments.ts";
 import { EditSession } from "./edit-session.ts";
 import type { RoomEnvironment } from "./interfaces.ts";
 import { base64, bytes, MESSAGE_LIMIT, rank, RoomError, send, type Attachment, type Connection, type Person } from "./protocol.ts";
@@ -20,6 +21,7 @@ export class Room {
   access: Access;
   edits: EditSession;
   presence: Presences;
+  comments: Comments;
   doc = new Y.Doc();
   board!: BoardV10;
   initialized = false;
@@ -33,6 +35,7 @@ export class Room {
     this.access = new Access(env.storage, env.access, env.connections);
     this.edits = new EditSession(env, this.access, this);
     this.presence = new Presences(env, boardId);
+    this.comments = new Comments(env, this.access, this);
     if (env.rows && env.background) this.copies = new Copies(env.storage, env.rows, env.now,
       () => this.ordered(() => this.schedule()));
   }
@@ -59,7 +62,7 @@ export class Room {
       const board: BoardV10 = { schemaVersion: 10, boardId: this.boardId, title: details.title, objects: [], retiredGenerations: [] };
       adapter.set(board);
       storage.transaction(() => {
-        setMeta(storage, "storage_version", 2);
+        setMeta(storage, "storage_version", 3);
         storage.exec("INSERT INTO meta VALUES ('board_id', ?)", this.boardId);
         setMeta(storage, "last_edit_at", Date.parse(details.createdAt));
         setMeta(storage, "revision", 0);
@@ -200,6 +203,7 @@ export class Room {
         restoreGeneration: meta(this.env.storage, "restore_generation"),
         revision: meta(this.env.storage, "revision"), update: base64(Y.encodeStateAsUpdate(this.doc)),
         self: connection.attachment().presence, present: this.presence.list(attachment.connectionId) });
+      this.comments.snapshot(connection);
       this.presence.relay(connection);
       await this.schedule();
     });
@@ -245,6 +249,10 @@ export class Room {
       if (message?.kind === "presence") {
         await this.presence.receive(connection, message, bytes(text).length);
         await this.schedule();
+        return;
+      }
+      if (message?.kind === "comment") {
+        await this.comments.handle(connection, message);
         return;
       }
       if (message?.kind !== "edit" || typeof message.requestId !== "string" || !message.requestId.length ||

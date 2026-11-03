@@ -123,10 +123,10 @@ for (const created of [true, false]) test(`base storage migration is atomic and 
     initialize(storage);
     assert(storage.all("PRAGMA table_info(tickets)").some((c) => c.name === "label"));
     assert.deepEqual(storage.all("SELECT * FROM tickets"), []);
-    assert.equal(meta(storage, "storage_version"), created ? 2 : 0);
+    assert.equal(meta(storage, "storage_version"), created ? 3 : 0);
     storage.exec("INSERT INTO tickets VALUES ('new', 'person', 1, 1, 'label')"); initialize(storage);
     assert.equal(storage.all("SELECT * FROM tickets").length, 1);
-    assert.equal(meta(storage, "storage_version"), created ? 2 : 0);
+    assert.equal(meta(storage, "storage_version"), created ? 3 : 0);
   } finally { storage.close(); }
 });
 

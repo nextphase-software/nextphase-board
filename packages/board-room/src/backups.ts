@@ -22,14 +22,21 @@ export function decodeBackup(value: unknown, board: string): Envelope {
   const envelope = value as Envelope;
   if (!envelope || envelope.format !== "nextphase-board-room-backup" || envelope.version !== 1 ||
     envelope.boardId !== board || typeof envelope.createdAt !== "string" || !envelope.tables ||
-    Object.keys(envelope.tables).sort().join() !== [...names].sort().join()) throw new RoomError(400, "bad_request");
+    !Array.isArray(envelope.tables.meta)) throw new RoomError(400, "bad_request");
+  const version = envelope.tables.meta.find((row) => row && row.key === "storage_version")?.value;
+  const legacy = version === 1 || version === 2;
+  const accepted = legacy ? names.filter((name) => !["threads", "comments", "comment_ids", "comment_counts"].includes(name)) : names;
+  if ((!legacy && version !== 3) || Object.keys(envelope.tables).sort().join() !== [...accepted].sort().join()) {
+    throw new RoomError(400, "bad_request");
+  }
   const decoded = { ...envelope, tables: {} as Record<string, Row[]> };
   try {
-    for (const name of names) {
+    for (const name of accepted) {
       if (!Array.isArray(envelope.tables[name])) throw Error();
       decoded.tables[name] = envelope.tables[name].map((row) => {
-        if (!row || Object.keys(row).sort().join() !== [...tables[name]].sort().join()) throw Error();
-        const result = { ...row };
+        const columns = legacy && name === "receipts" ? tables[name].filter((key) => key !== "kind") : tables[name];
+        if (!row || Object.keys(row).sort().join() !== [...columns].sort().join()) throw Error();
+        const result: Row = { ...row, ...(legacy && name === "receipts" ? { kind: "edit" } : {}) };
         for (const [key, value] of Object.entries(result)) {
           if (key === binaryColumns[name]) result[key] = unbase64(value);
           else if (value !== null && typeof value !== "number" && typeof value !== "string") throw Error();
@@ -43,6 +50,6 @@ export function decodeBackup(value: unknown, board: string): Envelope {
 export function replace(env: RoomEnvironment, envelope: Envelope) {
   env.storage.transaction(() => {
     for (const name of Object.keys(tables)) env.storage.exec(`DELETE FROM "${name}"`);
-    for (const name of names) for (const row of envelope.tables[name]) insert(env.storage, name, row);
+    for (const name of names) for (const row of envelope.tables[name] ?? []) insert(env.storage, name, row);
   });
 }

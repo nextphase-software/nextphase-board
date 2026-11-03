@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { BoardSession, type Transport, type Role, type SessionEvent } from "nextphase-board-sync/session.ts";
 import type { BoardV10 } from "nextphase-board-rules/document.ts";
+import type { CommentOperation } from "./comments/rules";
 import { api, ApiError } from "./api";
 import { auth, type AuthSession } from "./auth";
 import { socketOrigin } from "./config";
@@ -21,6 +22,25 @@ export type PresenceSnapshot = {
   self?: Presence; others: Presence[]; followed: string | null; showCursors: boolean;
 };
 export class HostedBoard {
+  private commentListeners = new Set<(event?: SessionEvent) => void>();
+  subscribeComments = (listener: (event?: SessionEvent) => void) => {
+    this.commentListeners.add(listener);
+    return () => { this.commentListeners.delete(listener); };
+  };
+  private publishComments(event?: SessionEvent) {
+    for (const listener of this.commentListeners) listener(event);
+  }
+  get comments() {
+    return { threads: this.session?.threads, requests: this.session?.commentRequests,
+      ready: this.snapshot.connected && !!this.session?.commentsReady && !this.ended && !this.stopped,
+      person: this.session?.self?.person ?? "", label: this.session?.self?.label ?? "" };
+  }
+  comment(operation: CommentOperation) {
+    return this.comments.ready ? this.session!.comment(operation) : "join_required";
+  }
+  retryComment(requestId: string) {
+    return this.comments.ready ? this.session!.retryComment(requestId) : "join_required";
+  }
   private presenceListeners = new Set<() => void>();
   private received = new Map<string, number>();
   private receiveOrder = 0;
@@ -112,6 +132,7 @@ export class HostedBoard {
     this.snapshot = { ...this.snapshot, ...change,
       toastId: this.snapshot.toastId + (change.toast === undefined ? 0 : 1) };
     for (const listener of this.listeners) listener();
+    this.publishComments();
   }
   toast(message: string) { this.publish({ toast: message }); }
   start() { window.addEventListener("offline", this.offline); void this.connect(); }
@@ -255,6 +276,7 @@ export class HostedBoard {
   }
   private changed(session: BoardSession<string>, event: SessionEvent) {
     if (this.stopped || this.ended || session !== this.session) return;
+    if (event.kind.startsWith("comment")) { this.publishComments(event); return; }
     if (event.kind === "present" || event.kind === "left") {
       const connection = String(event.connection);
       if (event.kind === "present") this.received.set(connection, ++this.receiveOrder);

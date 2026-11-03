@@ -525,3 +525,143 @@ Docker, operating-system input, hosted project or additional acceptance sweep wa
 used. No dependency, saved format, access rule, API route or file in `apps/server/`
 changed. The room's only change is `joined.restoreGeneration`. The implementation
 record itself is the sole later file change.
+
+### Fix round 1 — 2026-11-03
+
+**Finding F1 (Major, contract).** Review of candidate
+`6d28084881075aa6be397dc4467a97bf22ed738d` (validated source/tests
+`8431816e30df1ae2c16b9a5137a85da4d986ea39`) found that a request created
+as a deliberate edit after a loss retained its clearing eligibility when resent
+in recovery. Its `saved` answer could therefore remove the loss and its notice.
+Hosted storage v4's "Counting changes" forbids recovery saves from clearing the
+loss record; the reported browser scenario was W2-S19.
+
+**Change.** `hosted-board.ts` now gives `updateLossRecord` the recovery request IDs
+it already tracks. The pure rule revokes those requests' deliberate status before
+checking whether any saved request can clear losses, and retains that exclusion
+after recovery finishes. Creation order against the newest loss, per-reason counts,
+Dismiss and clearing when the board is left are unchanged. A further deliberate
+edit saved on its first send can still clear the record. No screen markup, styles,
+words, session protocol, dependency or saved format changed.
+
+Three tests were appended to `tests/recovery.test.mjs`, each dynamically importing
+its production modules. The restored and access-changed cases drive a real shared
+session through a fenced loss, a subsequent deliberate edit, interruption, resend
+and save; the loss count, notice and Not confirmed state remain. A further edit's
+first-send save clears them. The third case preserves a recovered not-kept
+request's own notice and Saved state. No existing test was edited.
+
+- Branch: `codex/0004-W2-recover-shared-edits-after-interruption`.
+- Original committed-main base: `bee6dd38fdc06ae158cde3d63a3d079fb0aea084`.
+- Fix parent: `6d28084881075aa6be397dc4467a97bf22ed738d`.
+- New validated source/test revision: `403113f9a1ab1d7937240a72a18651401344e219`.
+- Final branch tip: reported separately in the handoff after this record-only
+  commit. Its source/tests are the validated revision above.
+- Added dependencies: none. No contract disagreement or scope exception was needed.
+
+```text
+PASS: V1 every package.json and package-lock.json byte-identical to bee6dd3
+PASS: V2 npm ci exited 0
+PASS: V3 typecheck exited 0 for all five members
+PASS: V4 npm test — 836 passed, 0 failed, 0 skipped
+PASS: V5 off build, fresh-base byte comparisons, excluded inputs and license audit
+PASS: V6 fixture/on builds, fresh-base HTML/runtime-notices-v3 comparisons and audit
+PASS: V7 server build, license audit and Worker dry run
+PASS: V8 three-file fix; cumulative diff is items 1–5 plus the prior implementation record
+```
+
+Exact validation commands and results follow. The pinned binaries were first on
+PATH throughout; `node --version` printed `v26.13.0`, `npm --version` printed
+`11.20.0`. `$W2_TMP` denotes this round's system-temporary directory; all logs,
+base sources, copied builds and dry-run output stayed there.
+
+```sh
+npm ci --ignore-scripts --no-audit --no-fund
+node --test --test-reporter=tap --test-name-pattern=F1 tests/recovery.test.mjs
+npm run typecheck
+npm test
+```
+
+The install exited 0 (118 packages). The focused command, run before the fix with
+the new cases added, reported 2 failures and 1 pass; after the fix it exited 0,
+3 passed and 0 failed. The workspace typecheck exited 0 for web, server,
+board-rules, board-room and board-sync. The full unit command exited 0,
+836 passed, 0 failed and 0 skipped.
+
+V1's byte comparison was rerun with `python3` using:
+
+```python
+from pathlib import Path
+import subprocess
+base = "bee6dd38fdc06ae158cde3d63a3d079fb0aea084"
+for file in subprocess.check_output(["git", "ls-tree", "-r", "--name-only", base], text=True).splitlines():
+    if Path(file).name in ["package.json", "package-lock.json"]:
+        assert Path(file).read_bytes() == subprocess.check_output(["git", "show", base + ":" + file]), file
+```
+
+It exited 0. A separate byte/prefix assertion compared every test file with the
+fix parent: only new trailing cases in `tests/recovery.test.mjs` differed.
+`App.tsx` stayed at 264 lines. No team module or state hook was added.
+
+Fresh base-build inputs were extracted from the original committed base:
+
+```sh
+mkdir "$W2_TMP/base"
+git archive bee6dd38fdc06ae158cde3d63a3d079fb0aea084 | tar -x -C "$W2_TMP/base"
+```
+
+In that temporary base directory, the following all exited 0 (the install added
+118 packages); no base tests or stack were run:
+
+```sh
+npm ci --ignore-scripts --no-audit --no-fund
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$W2_TMP/base-off"
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$W2_TMP/base-on"
+```
+
+Back in the milestone worktree, all these commands exited 0:
+
+```sh
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$W2_TMP/candidate-off"
+cmp apps/web/dist/index.html "$W2_TMP/base-off/index.html"
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt "$W2_TMP/base-off/THIRD_PARTY_NOTICES.txt"
+node --input-type=module -e 'import {readFileSync} from "node:fs"; import assert from "node:assert/strict"; const meta=JSON.parse(readFileSync("apps/web/dist/meta.json")); assert(!Object.keys(meta.inputs).some(path=>path.startsWith("node_modules/@supabase/")||path.startsWith("apps/web/src/team/")));'
+npm run audit:licenses
+npm run build:fixtures
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$W2_TMP/candidate-on"
+cmp apps/web/dist/index.html "$W2_TMP/base-on/index.html"
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt
+npm run audit:licenses
+npm run build:server
+npm run audit:licenses
+XDG_CONFIG_HOME="$W2_TMP/config" WRANGLER_LOG_PATH="$W2_TMP/wrangler-logs" WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir "$W2_TMP/worker-dry-run" -c apps/server/wrangler.json
+git diff --check
+git diff --name-status 6d28084881075aa6be397dc4467a97bf22ed738d..403113f9a1ab1d7937240a72a18651401344e219
+git diff --name-status bee6dd38fdc06ae158cde3d63a3d079fb0aea084..403113f9a1ab1d7937240a72a18651401344e219
+```
+
+The fix-only committed diff lists exactly `apps/web/src/team/notices.ts`,
+`apps/web/src/team/hosted-board.ts` and `tests/recovery.test.mjs`. The cumulative
+diff lists the 18 files allowed by items 1–5 and the previous implementation
+record; an assertion confirmed that nothing before this brief's implementation
+record changed. Ignored build outputs do not count as changed files. The audits
+verified the accepted lock, runtime inventory and complete notices. Wrangler
+4.156.0 printed `--dry-run: exiting now.`; no deployment occurred.
+
+Graph inventory was attempted first and again returned `MCP tool call requires
+approval, but approval policy is never`; direct reads and search were used. The
+approved design and its amendment and all five reference images were reread and
+viewed before editing. Public-boundary hooks passed normally on the fix commit.
+Git printed the same `packed-refs.lock` permission warning as before, but the
+commit succeeded and its tip and diff were verified. No hook was bypassed.
+
+**Not run:** V9–V14 remain for the review's check run: W2-S1–S21 (including
+W2-S19), the fresh-base negative control, server suites on both runners, A–J,
+amended 0003-W4 checks and 0004-W3 checks. S116–S120 are unchanged and were not
+run this round. No browser, Supabase CLI, Docker or operating-system input was
+used. No merge or push was performed. Only this appended implementation record
+changes after the validated source/test revision.

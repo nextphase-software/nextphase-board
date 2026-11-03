@@ -321,3 +321,18 @@ its restore/access fences, grouped change counts, notices and guarded leaving.
 [hosted persistence v3](0003-hosted-persistence-v3.md),
 [self-host runner v1](0003-self-host-runner-v1.md), [document v11](0001-document-v11.md)
 and [storage v3](0001-storage-v3.md) stay in force. No dependency or saved format changes.
+
+For 0005-W1 v1, [0005 comments v1](0005-comments-v1.md) (new), [0003 sync v6](0003-sync-v6.md),
+[0003 access v5](0003-access-v5.md), [0003 hosted persistence v4](0003-hosted-persistence-v4.md),
+[0003 hosted storage v5](0003-hosted-storage-v5.md), [0001 interaction v30](0001-interaction-v30.md)
+and [0001 web modules v28](0001-web-modules-v28.md) govern comments on hosted boards: threads
+beside the board in the room's own database (storage version 3), anchors that follow objects and
+stay detached when an object is deleted, viewers commenting, author-only edit and delete, resolve,
+the comments panel, and the view-only toolbar's Comment tool.
+[Presence v1](0004-presence-v1.md), [toolchain v5](0001-toolchain-v5.md) with
+[lock v5](0001-dependency-lock-v5.json), [inventory v5](0001-dependency-inventory-v5.json) and
+[runtime notices v3](0001-runtime-notices-v3.txt), [identity v3](0003-identity-v3.md),
+[API v4](0003-api-v4.md), [self-host runner v1](0003-self-host-runner-v1.md),
+[document v11](0001-document-v11.md), [board file v2](0006-board-file-v2.md) and
+[storage v3](0001-storage-v3.md) stay in force. No dependency, board document, board file or
+export format changes.

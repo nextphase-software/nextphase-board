@@ -72,18 +72,23 @@ test("save states use the full precedence order; received and sent are never Sav
     [true, "viewer", [], "View only"], [true, "editor", ["saved"], "Saved"], [true, "owner", [], "Saved"],
   ];
   for (const [connected, role, states, expected] of rows) assert.equal(saveState(connected, role, requests(...states)), expected);
-  // All ten precedence pairs, not just adjacent rows.
+  // Not saved precedes both Offline states. An unanswered request changes
+  // Offline — view only to Offline — N changes waiting.
   const cases = [
-    { connected: false, role: "editor", states: [], label: "Offline — view only" },
     { connected: true, role: "editor", states: ["dropped"], label: "Not saved" },
+    { connected: false, role: "editor", states: ["waiting"], label: "Offline — 1 change waiting" },
+    { connected: false, role: "editor", states: [], label: "Offline — view only" },
     { connected: true, role: "editor", states: ["received"], label: "Saving…" },
     { connected: true, role: "viewer", states: [], label: "View only" },
     { connected: true, role: "editor", states: ["saved"], label: "Saved" },
   ];
   cases.forEach((higher, index) => cases.slice(index + 1).forEach((lower) => {
+    const states = [...higher.states, ...lower.states];
+    const expected = higher.label.startsWith("Offline") && states.some((state) => ["sent", "received", "waiting"].includes(state))
+      ? "Offline — 1 change waiting" : higher.label;
     assert.equal(saveState(higher.connected && lower.connected,
       higher.role === "viewer" || lower.role === "viewer" ? "viewer" : "editor",
-      requests(...higher.states, ...lower.states)), higher.label);
+      requests(...states).map((request) => ({ ...request, group: "one-change" }))), expected);
   }));
 });
 test("close codes, failed joins, retries and one outcome per attempt", () => {
@@ -179,7 +184,8 @@ test("hosted and Auth messages match their contracts character for character", (
   assert.deepEqual(Object.keys(words).sort(), [...Object.keys(expected),
     "accessRemoved", "viewOnly", "ownerOnly", "refusedEdit", "refusal", "codeHelper", "resendWait",
     "workspaceTitle", "workspaceHelper", "workspaceInvite", "shareFooter", "grantSource", "invited",
-    "invitationCopied", "accountFailed", "signedInAs"].sort());
+    "invitationCopied", "accountFailed", "signedInAs", "offlineWaiting", "reconnectingWaiting", "notConfirmed",
+    "recovered", "boardRestored", "accessChanged", "notKept", "lossSentence", "leaveTitle", "leaveBody", "leaveAnyway", "stay", "dismiss"].sort());
   assert.equal(words.resendPrompt + words.resendCode + ".", "No email? Check spam, or resend the code.");
   assert.equal(authError({ code: "otp_disabled" }, false), expected.noAccount);
   assert.equal(authError({ code: "otp_expired" }, true), expected.wrongCode);

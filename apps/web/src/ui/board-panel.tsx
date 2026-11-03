@@ -39,7 +39,7 @@ export function BoardPanel({
   return (
     <section className="details floating" ref={boardFiles.panelRef}>
       {team?.backToFiles && <button className="back-to-files" onClick={(event) => {
-        if (team.hosted) team.backToFiles!();
+        if (team.hosted) { setPanel(""); team.backToFiles!(); }
         else boardFiles.leaveBoard("Recents", team.backToFiles!, event.currentTarget);
       }}><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75"
         strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg>Back to files</button>}

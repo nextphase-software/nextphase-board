@@ -8,7 +8,8 @@ import type { TeamLink } from "./links";
 import { chooseFollow, fitFollow, isPresenceRefusal, presenceToSend, SHOW_CURSORS_KEY, type Presence, type PresenceInput } from "./presence";
 import type { View } from "../view";
 import { attemptOutcome, isSpecialClose, renewalDelay, retryDelay, saveState, words,
-  type AttemptEvent, type Outcome } from "./notices";
+  changeCounts, countChanges, dismissNotice, emptyLossRecord, isOutstanding, lossNotices, updateLossRecord,
+  type AttemptEvent, type NoticeReason, type Outcome } from "./notices";
 
 type Attempt = { outcome: Outcome | null; joined: boolean; cancelled: boolean; timer: ReturnType<typeof setTimeout>;
   socket?: WebSocket; acceptance: boolean };
@@ -67,7 +68,8 @@ export class HostedBoard {
   private stopped = false;
   private ended = false;
   private failures = 0;
-  private notSaved = false;
+  private losses = emptyLossRecord();
+  private recoveringIds: string[] = [];
   private heldExpiry = 0;
   private token?: AuthSession;
   private accepted = false;
@@ -84,24 +86,38 @@ export class HostedBoard {
     this.local = local;
     if (link.kind === "board") this.boardId = link.board;
   }
-  get canEdit() { return this.snapshot.connected && this.snapshot.role !== "viewer" && !this.ended; }
+  get canEdit() { return this.snapshot.connected && !this.session?.recovering && this.snapshot.role !== "viewer" && !this.ended; }
+  get counts() { return changeCounts(this.session?.requests.values() ?? [], this.losses.losses.values()); }
+  get notices() { return lossNotices(this.losses); }
+  get endingCount() {
+    const name = this.snapshot.outcome?.name;
+    const reason = name === "accessRemoved" || name === "disabled" ? "access_removed"
+      : name === "signedOut" ? "signed_out" : "sign_in_expired";
+    return this.counts.byReason[reason];
+  }
+  dismiss(reason: NoticeReason) {
+    this.losses = dismissNotice(this.losses, reason); this.publish();
+  }
   get status() {
-    const requests = [...this.session?.requests.values() ?? []];
-    if (this.notSaved) requests.push({ state: "dropped", update: "" });
-    return saveState(this.snapshot.connected, this.snapshot.role, requests);
+    return saveState(this.snapshot.connected, this.snapshot.role, this.session?.requests.values() ?? [], this.losses.losses.values());
   }
   get undoReason() { return this.session?.history.past.length ? "" : "Nothing to undo."; }
   get redoReason() { return this.session?.history.future.length ? "" : "Nothing to redo."; }
   subscribe(listener: () => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
   private publish(change: Partial<HostedSnapshot> = {}) {
     if (this.stopped) return;
-    if ([...this.session?.requests.values() ?? []].some((request) => ["refused", "dropped"].includes(request.state))) this.notSaved = true;
+    if (this.session) this.losses = updateLossRecord(this.losses, this.session.requests);
     this.snapshot = { ...this.snapshot, ...change,
       toastId: this.snapshot.toastId + (change.toast === undefined ? 0 : 1) };
     for (const listener of this.listeners) listener();
   }
   toast(message: string) { this.publish({ toast: message }); }
-  start() { void this.connect(); }
+  start() { window.addEventListener("offline", this.offline); void this.connect(); }
+  private offline = () => {
+    if (this.snapshot.connected && this.attempt && !this.stopped && !this.ended) {
+      this.session?.interrupt(); this.finish(this.attempt, { kind: "close", code: 1006 });
+    }
+  };
   private current(attempt: Attempt) { return !this.stopped && !this.ended && !attempt.cancelled && !attempt.outcome && this.attempt === attempt; }
   private beginAttempt() {
     if (this.attempt) { this.attempt.cancelled = true; clearTimeout(this.attempt.timer); }
@@ -192,23 +208,27 @@ export class HostedBoard {
   }
   private finish(attempt: Attempt, event: AttemptEvent) {
     if (!this.current(attempt) || attempt.outcome) return;
-    const outcome = attemptOutcome(attempt.outcome, event, !!this.snapshot.board);
+    const outcome = attemptOutcome(attempt.outcome, event, !!this.snapshot.board, this.counts.waiting);
     attempt.outcome = outcome;
     clearTimeout(attempt.timer);
     clearTimeout(this.renewal);
-    // Closing the shared client marks unacknowledged requests as dropped before
-    // the snapshot is published. It never sends them again on the next join.
-    this.session?.close();
+    if (outcome.retry) this.session?.interrupt();
+    else {
+      this.ended = true;
+      const reason = outcome.name === "expired" ? "sign_in_expired" : "access_removed";
+      this.session?.discard(reason);
+    }
     attempt.socket?.close(1000);
     this.clearPresence();
     this.publish({ connected: false, outcome });
-    if (!outcome.retry) { this.ended = true; return; }
+    if (!outcome.retry) return;
     const delay = outcome.retry === "now" ? 0 : retryDelay(this.failures++);
     this.retry = setTimeout(() => { void this.connect(); }, delay);
   }
   private async connect() {
     if (this.stopped || this.ended) return;
     try {
+      if (this.session) { await this.session.reconnect(); return; }
       const session = await BoardSession.join({
         ticket: () => this.ticket(), open: (ticket) => this.open(ticket),
         clock: { now: Date.now, after: (ms, run) => { const timer = setTimeout(run, ms); return () => clearTimeout(timer); } },
@@ -223,6 +243,7 @@ export class HostedBoard {
     }
   }
   private joined(session: BoardSession<string>) {
+    this.recoveringIds = [...session.requests].filter(([, request]) => isOutstanding(request)).map(([id]) => id);
     this.received.clear();
     for (const connection of session.present.keys()) this.received.set(connection, ++this.receiveOrder);
     this.publishPresence({ self: session.self, others: [...session.present.values()], followed: null });
@@ -249,7 +270,15 @@ export class HostedBoard {
       if (this.attempt && !this.attempt.outcome && !this.attempt.socket) {
         this.finish(this.attempt, { kind: "failure", reason: "join_failed" });
       }
-    } else if (event.kind !== "close") this.publish({ board: session.board });
+    } else if (event.kind === "close") {
+      if (this.attempt && (this.attempt.joined || isSpecialClose(Number(event.code)))) {
+        this.finish(this.attempt, { kind: "close", code: Number(event.code) });
+      }
+    } else if (event.kind === "recovered") {
+      const requests = this.recoveringIds.map((id) => session.requests.get(id)!);
+      this.publish({ board: session.board, toast: words.recovered(countChanges(requests)) });
+      this.recoveringIds = [];
+    } else this.publish({ board: session.board });
   }
   edit(board: BoardV10, group?: string) {
     if (!this.canEdit || !this.session || JSON.stringify(board) === JSON.stringify(this.session.board)) return false;
@@ -264,17 +293,9 @@ export class HostedBoard {
         ? direction === "undo" ? words.undoChanged : words.redoChanged : "");
   }
   private deliberate(run: () => string): boolean | string {
-    const old = this.notSaved;
-    const requests = this.session!.requests;
-    const failures = [...requests].filter(([, request]) => ["refused", "dropped"].includes(request.state));
-    for (const [id] of failures) requests.delete(id);
-    this.notSaved = false;
     const result = run();
-    if (!requests.has(result)) {
-      this.notSaved = old;
-      for (const [id, request] of failures) requests.set(id, request);
-      return result;
-    }
+    if (!this.session!.requests.has(result)) return result;
+    this.losses = updateLossRecord(this.losses, this.session!.requests, result);
     this.publish({ board: this.session!.board });
     return true;
   }
@@ -292,12 +313,15 @@ export class HostedBoard {
     if (remaining <= 0) return;
     this.renewal = setTimeout(() => {
       void (async () => {
-        const { data } = await auth.getSession();
-        if ((data.session?.expires_at ?? 0) > this.heldExpiry) this.updateSession(data.session);
-        else {
-          const refreshed = await auth.refreshSession();
-          this.updateSession(refreshed.data.session);
-        }
+        try {
+          const { data } = await auth.getSession();
+          if ((data.session?.expires_at ?? 0) > this.heldExpiry) this.updateSession(data.session);
+          else {
+            const refreshed = await auth.refreshSession();
+            if (refreshed.error || !refreshed.data.session) this.expire();
+            else this.updateSession(refreshed.data.session);
+          }
+        } catch { this.expire(); }
       })();
     }, renewalDelay(remaining));
   }
@@ -305,14 +329,16 @@ export class HostedBoard {
   signedOut() { this.end("signedOut"); }
   private end(name: "expired" | "signedOut") {
     if (this.ended || this.stopped) return;
-    this.session?.close(); this.attempt?.socket?.close(1000);
+    this.ended = true;
+    this.session?.discard(name === "expired" ? "sign_in_expired" : "signed_out"); this.attempt?.socket?.close(1000);
     if (this.attempt) { this.attempt.cancelled = true; clearTimeout(this.attempt.timer); }
     clearTimeout(this.retry); clearTimeout(this.renewal);
     this.clearPresence();
     this.publish({ connected: false, outcome: { name, retry: false } });
-    this.ended = true;
   }
   stop() {
+    window.removeEventListener("offline", this.offline);
+    this.losses = emptyLossRecord();
     this.clearPresence();
     this.stopped = true;
     if (this.attempt) { this.attempt.cancelled = true; clearTimeout(this.attempt.timer); }

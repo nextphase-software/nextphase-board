@@ -8,14 +8,14 @@ type Input = { hosted?: HostedBoard; model: RefObject<BoardV10>; load: (board: B
   setTitle: Dispatch<SetStateAction<string>>;
   setDrafts: Dispatch<SetStateAction<Record<string, string>>>;
   setTool: Dispatch<SetStateAction<string>>; setInline: Dispatch<SetStateAction<boolean>>;
-  paste: () => void; composing: boolean };
-export function useHostedBoard({ hosted, model, load, setBoard, setTitle, setReadOnly, setDrafts, setTool, setInline, paste, composing }: Input) {
+  select: (value: string) => void; paste: () => void; composing: boolean };
+export function useHostedBoard({ hosted, model, load, setBoard, setTitle, setReadOnly, setDrafts, setTool, setInline, select, paste, composing }: Input) {
   useEffect(() => {
     if (!hosted) return;
     let generation = -1;
     const changed = () => {
       const { board, generation: nextGeneration } = hosted.snapshot;
-      if (board && generation !== nextGeneration) { load(board); generation = nextGeneration; }
+      if (board && generation !== nextGeneration) { load(board); select(""); generation = nextGeneration; }
       else if (board && JSON.stringify(board) !== JSON.stringify(model.current)) {
         if (board.title !== model.current.title) setTitle(board.title);
         model.current = board; setBoard(board); setDrafts({});

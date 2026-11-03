@@ -100,6 +100,7 @@ test("the group never reaches the wire: edit bytes are identical", async (contex
     // Both connections receive the same seed bytes and use the same client ID.
     right.wires[0].message({ kind: "joined", role: "editor", epoch: 1, revision: 0,
       update: encode(Y.encodeStateAsUpdate(left.seed.doc)), self: {}, present: [] });
+    right.session.doc.clientID = left.session.doc.clientID;
     context.mock.method(crypto, "randomUUID", () => "11111111-1111-4111-8111-111111111111");
     left.session.edit(text(left.session.board, "Same"), "typing");
     right.session.edit(text(right.session.board, "Same"));

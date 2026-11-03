@@ -176,3 +176,22 @@ fifteen team modules, twenty-two hooks and sole presence-hook import.
 The implementer runs V1–V8; the review check run owns V9–V13, including
 W3-S1–S36 (including the interaction v27 design check), the fresh-base negative
 control, team-off network behaviour, the A–J comparison and W4-S1–S29. Unrun browser checks are not acceptance evidence.
+
+## Shared-edit recovery (0004-W2)
+
+`tests/recovery.test.mjs` runs with `npm test` without a browser or Supabase.
+It dynamically imports the production modules inside each test, with a fixed
+clock and driven transport for drops, ordered replay, restore/access fences,
+deadlines, final requests, discard/close, undo reset and fresh client IDs. Pure
+notice rules cover grouped counts, loss records, save-state precedence, exact
+singular/plural messages and retry outcomes.
+
+`tests/server/shared.test.ts` adds S116–S120 after S115 on both runners and
+includes them in `SUMMARY-SHARED`: restore generations, lost saved answers and
+receipt replay, stale epochs, 80 serially recovered edits, and deterministic
+three-phase delete/property/text interleavings. They require the local stack;
+typechecking these additions does not count as running the server suite.
+
+The implementer records V1–V8. The review's check run owns V9–V14: W2-S1–S21,
+the fresh-base negative control, both server runners, A–J, the amended 0003-W4
+checks and the 0004-W3 checks. No browser or Supabase stack is needed for V1–V8.

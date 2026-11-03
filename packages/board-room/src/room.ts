@@ -197,6 +197,7 @@ export class Room {
       const grant = this.access.get(attachment.id);
       if (!grant || attachment.epoch !== grant.epoch) { this.close(connection, closeCode(grant?.role ?? null, attachment.role)); return; }
       send(connection, { kind: "joined", role: grant.role, epoch: grant.epoch,
+        restoreGeneration: meta(this.env.storage, "restore_generation"),
         revision: meta(this.env.storage, "revision"), update: base64(Y.encodeStateAsUpdate(this.doc)),
         self: connection.attachment().presence, present: this.presence.list(attachment.connectionId) });
       this.presence.relay(connection);

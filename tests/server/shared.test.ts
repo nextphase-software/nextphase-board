@@ -406,3 +406,133 @@ check(115, "viewer edit forged presence and unknown kind never update a board", 
   assert.equal(await exported(), before); assert.equal((await join()).session.revision, revision);
   for (const p of [a, b]) assert(!p.peer.messages.some((m) => m.kind === "update"));
 });
+
+check(116, "joined restore generation fences a waiting edit across a restore", async () => {
+  const a = await join();
+  assert.equal(a.peer.messages[0].restoreGeneration, 0);
+  await driver.wake(f.a);
+  await a.session.reconnect();
+  assert.equal(a.peer.messages[0].restoreGeneration, 0);
+  const headers = { "Board-Operator-Key": context.operatorKey, "Content-Type": "application/json" };
+  const backup = await driver.request(`/operator/boards/${f.a}/backup`, { method: "POST", headers }).then((reply) => reply.json());
+  a.holdOut();
+  const id = a.session.edit(add(a.session.board, "sticky", 0, 0)), object = a.session.board.objects[0].id;
+  assert.equal((await driver.request(`/operator/boards/${f.a}/restore`, {
+    method: "POST", headers, body: JSON.stringify(backup),
+  })).status, 200);
+  await closeCode(a, 4423);
+  assert.equal(a.session.requests.get(id)?.state, "waiting");
+  a.out.length = 0; a.holdOut(false);
+  await a.session.reconnect();
+  assert.notEqual(a.peer.messages[0].restoreGeneration, 0);
+  assert.equal(a.session.requests.get(id)?.state, "dropped");
+  assert.equal(a.session.requests.get(id)?.reason, "board_restored");
+  assert(!a.session.board.objects.some((item) => item.id === object));
+  assert(!JSON.parse(await exported()).objects.some((item: { id: string }) => item.id === object));
+  assert(!(await driver.rows(f.a, "receipts")).some((row) => row.request_id === id));
+});
+
+check(117, "a saved edit with its answer lost recovers through its receipt once", async () => {
+  const [a, b, c] = await all(), revision = a.session.revision;
+  a.holdIn();
+  const id = a.session.edit(add(a.session.board, "sticky", 0, 0));
+  const update = a.session.requests.get(id)!.update;
+  await until(() => a.peer.messages.find((message) => message.kind === "saved" && message.requestId === id), Boolean);
+  await a.peer.close();
+  await until(() => a.session.requests.get(id)?.state, (state) => state === "waiting");
+  a.incoming.length = 0; a.holdIn(false); a.holdOut();
+  await a.session.reconnect();
+  assert.equal(a.out.length, 1);
+  assert.deepEqual(JSON.parse(a.out[0]), { kind: "edit", epoch: a.session.epoch, requestId: id, update });
+  a.releaseOut();
+  const reply = await saved(a, id);
+  assert.equal(reply.revision, revision + 1); assert.equal(typeof reply.update, "string");
+  assert.equal((await equal([a, b, c])).objects.length, 1);
+  assert.equal(a.session.revision, revision + 1);
+  assert.equal((await driver.rows(f.a, "receipts")).filter((row) => row.request_id === id).length, 1);
+  assert.equal((await driver.rows(f.a, "edits")).length, 1);
+});
+
+check(118, "an edit retried with an old epoch is refused without storing anything", async () => {
+  const [a, b, c] = await all();
+  a.holdOut();
+  const epoch = a.session.epoch, id = a.session.edit(add(a.session.board, "sticky", 0, 0));
+  const update = a.session.requests.get(id)!.update;
+  await success(`/workspaces/${f.workspace}/members/${f.people.editor.id}`, "owner", "PUT", { role: "viewer" });
+  await closeCode(a, 4403);
+  await success(`/workspaces/${f.workspace}/members/${f.people.editor.id}`, "owner", "PUT", { role: "editor" });
+  const retry = await join("editor");
+  assert.notEqual(retry.session.epoch, epoch);
+  const before = await exported(), receipts = await driver.rows(f.a, "receipts"), edits = await driver.rows(f.a, "edits");
+  retry.raw({ kind: "edit", epoch, requestId: id, update });
+  assert.equal((await retry.peer.next("refused")).reason, "epoch_changed");
+  assert.equal(await exported(), before);
+  assert.deepEqual(await driver.rows(f.a, "receipts"), receipts);
+  assert.deepEqual(await driver.rows(f.a, "edits"), edits);
+  await equal([retry, b, c]);
+});
+
+check(119, "eighty interrupted edits recover serially without a room waiting queue", async () => {
+  const [a, b, c] = await all(), revision = a.session.revision;
+  a.holdOut();
+  const ids = Array.from({ length: 80 }, (_, index) => a.session.edit({ ...a.session.board, title: `Edit ${index + 1}` }));
+  const originals = a.out.splice(0);
+  await a.peer.close();
+  await until(() => ids.every((id) => a.session.requests.get(id)?.state === "waiting"), Boolean);
+  await a.session.reconnect();
+  for (const [index, id] of ids.entries()) {
+    assert.equal(a.out.length, 1, "only the next request may be sent");
+    assert.equal(a.out[0], originals[index], "request ID and update bytes are unchanged");
+    a.raw(a.out.shift()!);
+    assert.equal((await saved(a, id)).revision, revision + index + 1);
+  }
+  assert.equal(a.out.length, 0);
+  assert(!a.peer.messages.some((message) => message.kind === "resync"));
+  assert.equal((await driver.rows(f.a, "waiting")).length, 0);
+  assert.deepEqual(a.peer.messages.filter((message) => message.kind === "saved").map((message) => message.requestId), ids);
+  assert.equal((await equal([a, b, c])).title, "Edit 80");
+  assert.equal(a.session.recovering, false);
+});
+
+check(120, "delete last-saved units and character merges survive all three drop phases", async () => {
+  const [a, b, c] = await all();
+  for (const phase of ["before_received", "after_received", "answer_lost"]) {
+    for (const scenario of ["delete", "geometry", "text"]) {
+      await edit(b, (board) => remove(board, board.objects.map((object) => object.id)));
+      await seed(b); await equal([a, b, c]);
+      const old = a.session.board.objects[0];
+      a.holdOut();
+      // The second update depends on this first, withheld client clock. Sending
+      // only the second makes the room acknowledge it as received, not saved.
+      const dependency = a.session.edit({ ...a.session.board, title: `${phase} ${scenario}` });
+      const id = a.session.edit(patch(a.session.board, scenario === "text" ? { text: "Xabcd" } : { x: 10 }));
+      if (phase === "after_received") {
+        a.raw(a.out[1]);
+        await until(() => a.session.requests.get(id)?.state, (state) => state === "received");
+      } else if (phase === "answer_lost") {
+        a.holdIn(); a.releaseOut();
+        await until(() => a.peer.messages.find((message) => message.kind === "saved" && message.requestId === id), Boolean);
+        await until(() => (b.session.board.objects[0] as { text: string }).text, (text) => scenario !== "text" || text === "Xabcd");
+      }
+      await a.peer.close();
+      await until(() => a.session.requests.get(id)?.state, (state) => state === "waiting");
+      if (scenario === "delete") await edit(b, (board) => remove(board, [old.id]));
+      else if (scenario === "geometry") await edit(b, (board) => patch(board, { x: 20 }));
+      else await edit(b, (board) => patch(board, { text: (board.objects[0] as { text: string }).text + "Y" }));
+      const lastRevision = b.session.revision;
+      a.out.length = 0; a.incoming.length = 0; a.holdIn(false); a.holdOut(false);
+      await a.session.reconnect(); await saved(a, dependency); await saved(a, id);
+      const board = await equal([a, b, c]);
+      if (scenario === "delete") {
+        assert(!board.objects.some((object) => object.id === old.id));
+        assert.equal(a.session.requests.get(id)?.notKept, true);
+      } else if (scenario === "geometry") {
+        // An answered receipt is not a new save: B remains last in answer_lost.
+        assert.equal((board.objects[0] as { x: number }).x, phase === "answer_lost" ? 20 : 10);
+      } else assert.equal((board.objects[0] as { text: string }).text, "XabcdY");
+      assert.equal(a.session.revision, lastRevision + (phase === "answer_lost" ? 0 : 2));
+      assert.equal(a.session.requests.get(id)?.state, "saved");
+      assert.equal((await driver.rows(f.a, "waiting")).length, 0);
+    }
+  }
+});

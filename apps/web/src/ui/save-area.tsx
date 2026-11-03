@@ -21,7 +21,7 @@ export function SaveArea({
   return (
     <section className="actions floating" aria-describedby={latestAcknowledgement.current ? "save-acknowledgement" : undefined}>
       {team?.people && <>{team.people}<span className="divider" aria-hidden="true" /></>}
-      <span className={"save-status" + (team?.hosted?.status === "Offline — view only" ? " team-amber" : "")} role="status">
+      <span className={"save-status" + (team?.hosted?.status.startsWith("Offline —") ? " team-amber" : "")} role="status">
         <Icon name="status" />{team?.hosted?.status ?? status}{invalid && !team?.hosted ? " · Invalid draft" : ""}
       </span>
       <span id="save-acknowledgement" className="sr-only">{latestAcknowledgement.current}</span>

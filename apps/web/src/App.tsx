@@ -134,7 +134,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
     setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
   });
-  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, paste: () => clipboardCommand("Paste"), composing });
+  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand("Paste"), composing });
   const nativeEditor = <ContentField
     editor={editor} inline={inline} text={text} readOnly={readOnly} busy={busy} item={item}
     selectedId={selectedId} composing={composing} beginTextSession={beginTextSession}
@@ -147,6 +147,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
       style={{ "--notice-top": layout.notice + "px", "--panel-top": layout.panel + "px" } as React.CSSProperties}
       onKeyDown={pageKeyDown} onKeyDownCapture={images.guardGesture}
     >
+      {team?.hosted && team.banner}
       <div
         ref={scene} onPointerDownCapture={images.guardGesture} onPaste={hostedPaste ?? images.paste(() => clipboardCommand("Paste"))} onDragOver={images.dragOver} onDrop={images.drop}
         className={"scene" + (spacePan ? busy ? " grabbing" : " grab" : "")}
@@ -192,7 +193,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
       <span id="undo-reason" className="sr-only">{undoReason}</span>
       <span id="redo-reason" className="sr-only">{redoReason}</span>
       <span id="selection-reason" className="sr-only">{selectionReason}</span>{duplicateReason !== selectionReason && <span id="duplicate-reason" className="sr-only">{duplicateReason}</span>}
-      {team?.hosted ? team.banner : <Notice
+      {!team?.hosted && <Notice
         showNotice={showNotice} visibleMessage={visibleMessage} invalidFields={invalidFields}
         busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen}
         composing={composing} adopt={adopt} setReadOnly={setReadOnly} setMessage={setMessage}

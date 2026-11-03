@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
+const changes = (count: number) => `${count} ${count === 1 ? "change" : "changes"}`;
 export const words = {
   notFound: "This board doesn't exist, or you don't have access to it.",
   expired: "Your sign-in has expired. Sign in again to keep editing.",
   signedOut: "You signed out. Sign in again to keep working on this board.",
   accessTitle: "You no longer have access to this board",
-  accessRemoved: (workspace: string) => `The owner of ${workspace} removed your access. Edits you made after that were not saved.`,
+  accessRemoved: (workspace: string, count = 0) => count
+    ? `The owner of ${workspace} removed your access before ${changes(count)} ${count === 1 ? "was" : "were"} confirmed, so ${count === 1 ? "it" : "they"} may not have been saved.`
+    : `The owner of ${workspace} removed your access. Edits you made after that were not saved.`,
   viewOnly: (workspace: string) => `You can view this board. Ask the owner of ${workspace} if you need to edit it.`,
   restoring: "This board is being restored. It will be back shortly.",
   full: "This board has the most people it can hold (50). Try again later.",
@@ -58,6 +61,19 @@ export const words = {
   noAnswer: "No answer from the server. Check the list before trying again.",
   boardCopied: "Board link copied.",
   copyFailed: "Could not copy the link. Select and copy it below.",
+  offlineWaiting: (count: number) => `Offline — ${changes(count)} waiting`,
+  reconnectingWaiting: (count: number) => `Reconnecting… ${changes(count)} ${count === 1 ? "is" : "are"} waiting and will be saved when the board is back. You can look around until then.`,
+  notConfirmed: "Not confirmed",
+  recovered: (count: number) => count === 1 ? "Back online. Your change was saved." : "Back online. Your changes were saved.",
+  boardRestored: (count: number) => `This board was restored to an earlier version, so ${changes(count)} may not have been kept.`,
+  accessChanged: (count: number) => `Your access changed while you were offline, so ${changes(count)} may not have been saved.`,
+  notKept: (count: number) => `Someone deleted what you changed while you were offline, so ${changes(count)} ${count === 1 ? "wasn't" : "weren't"} kept.`,
+  lossSentence: (count: number) => count ? `${changes(count)} may not have been saved.` : "",
+  leaveTitle: (count: number) => `Leave before your ${count === 1 ? "change is" : "changes are"} saved?`,
+  leaveBody: (count: number, board: string) => `${changes(count)} to “${board}” ${count === 1 ? "hasn't" : "haven't"} been confirmed yet. If you leave now, ${count === 1 ? "it" : "they"} may be lost.`,
+  leaveAnyway: "Leave anyway",
+  stay: "Stay on this board",
+  dismiss: "Dismiss",
 };
 export function authError(error: { status?: number; code?: string } | null, codeStep: boolean) {
   if (error?.status === 429) return words.rateLimit;
@@ -72,13 +88,91 @@ export function shareError(error: { status: number; reason: string; needed?: str
   if (error.reason === "guest_has_grants") return words.guestGrants;
   return words.refusal(error.reason);
 }
-export type RequestState = "sent" | "received" | "saved" | "refused" | "dropped";
-export function saveState(connected: boolean, role: string | undefined, requests: Iterable<{ state: RequestState }>) {
-  const states = [...requests].map((request) => request.state);
-  if (!connected) return "Offline — view only";
-  if (states.some((state) => state === "refused" || state === "dropped")) return "Not saved";
-  if (states.some((state) => state === "sent" || state === "received")) return "Saving…";
+export type RequestState = "sent" | "received" | "waiting" | "saved" | "refused" | "dropped";
+export type ChangeRequest = { state: RequestState; group?: string; reason?: string; notKept?: boolean };
+export const lossReasons = ["board_restored", "access_changed", "access_removed", "signed_out", "sign_in_expired"] as const;
+export type LossReason = typeof lossReasons[number];
+export type NoticeReason = "board_restored" | "access_changed" | "not_kept";
+export const isOutstanding = (request: ChangeRequest) => ["sent", "received", "waiting"].includes(request.state);
+export function countChanges(requests: Iterable<ChangeRequest>) {
+  const groups = new Set<string>();
+  let count = 0;
+  for (const request of requests) {
+    if (!request.group) count++;
+    else if (!groups.has(request.group)) { groups.add(request.group); count++; }
+  }
+  return count;
+}
+export function changeCounts(requests: Iterable<ChangeRequest>, losses: Iterable<ChangeRequest> = []) {
+  const current = [...requests], lost = [...losses];
+  const byReason = Object.fromEntries(lossReasons.map((reason) => [reason,
+    countChanges(lost.filter((request) => request.state === "dropped" && request.reason === reason))])) as Record<LossReason, number>;
+  return {
+    waiting: countChanges(current.filter(isOutstanding)), byReason,
+    notConfirmed: countChanges(lost.filter((request) => request.state === "dropped" && lossReasons.includes(request.reason as LossReason))),
+    notKept: countChanges(lost.filter((request) => request.notKept)),
+    failed: lost.some((request) => request.state === "refused" || request.state === "dropped" &&
+      request.reason !== "session_ended" && !lossReasons.includes(request.reason as LossReason)),
+  };
+}
+export type LossRecord = {
+  sequence: number; newestLoss: number;
+  observed: Map<string, { created: number; deliberate: boolean; loss: string }>;
+  losses: Map<string, ChangeRequest>; dismissed: Set<NoticeReason>;
+};
+export function emptyLossRecord(): LossRecord {
+  return { sequence: 0, newestLoss: 0, observed: new Map(), losses: new Map(), dismissed: new Set() };
+}
+// Sequence numbers order creation and loss events, rather than clock timestamps
+// that could tie. Remember observed losses after clearing so they cannot return.
+export function updateLossRecord(previous: LossRecord, requests: ReadonlyMap<string, ChangeRequest>, deliberateId?: string): LossRecord {
+  const record = { ...previous, observed: new Map(previous.observed), losses: new Map(previous.losses),
+    dismissed: new Set(previous.dismissed) };
+  for (const [id, request] of requests) {
+    const observed = { ...(record.observed.get(id) ?? { created: ++record.sequence, deliberate: false, loss: "" }) };
+    if (id === deliberateId) observed.deliberate = true;
+    const loss = (request.state === "refused" ? "refused" : request.state === "dropped" && request.reason !== "session_ended"
+      ? `dropped:${request.reason}` : "") + (request.notKept ? ":not_kept" : "");
+    if (loss && loss !== observed.loss) {
+      record.newestLoss = ++record.sequence;
+      if (request.reason === "board_restored" || request.reason === "access_changed") record.dismissed.delete(request.reason);
+      if (request.notKept) record.dismissed.delete("not_kept");
+      record.losses.set(id, { ...request });
+    }
+    observed.loss = loss;
+    record.observed.set(id, observed);
+  }
+  if ([...requests].some(([id, request]) => {
+    const observed = record.observed.get(id)!;
+    return observed.deliberate && observed.created > record.newestLoss && request.state === "saved";
+  })) { record.losses.clear(); record.dismissed.clear(); }
+  return record;
+}
+export function dismissNotice(record: LossRecord, reason: NoticeReason): LossRecord {
+  return { ...record, dismissed: new Set([...record.dismissed, reason]) };
+}
+export function lossNotices(record: LossRecord) {
+  const counts = changeCounts([], record.losses.values());
+  const notices = [
+    { reason: "board_restored" as const, count: counts.byReason.board_restored, message: words.boardRestored },
+    { reason: "access_changed" as const, count: counts.byReason.access_changed, message: words.accessChanged },
+    { reason: "not_kept" as const, count: counts.notKept, message: words.notKept },
+  ];
+  return notices.filter((notice) => notice.count && !record.dismissed.has(notice.reason))
+    .map(({ reason, count, message }) => ({ reason, message: message(count) }));
+}
+export function saveState(connected: boolean, role: string | undefined, requests: Iterable<ChangeRequest>, losses?: Iterable<ChangeRequest>) {
+  const current = [...requests], counts = changeCounts(current, losses ?? current);
+  if (counts.failed) return "Not saved";
+  if (counts.notConfirmed) return words.notConfirmed;
+  if (!connected) return counts.waiting ? words.offlineWaiting(counts.waiting) : "Offline — view only";
+  if (current.some((request) => request.state === "sent" || request.state === "received")) return "Saving…";
   return role === "viewer" ? "View only" : "Saved";
+}
+export function endingMessage(name: OutcomeName, workspace: string, count: number) {
+  if (name === "accessRemoved") return words.accessRemoved(workspace, count);
+  const message = name === "signedOut" ? words.signedOut : name === "disabled" ? words.disabled : words.expired;
+  return message + (count ? " " + words.lossSentence(count) : "");
 }
 export const retryDelay = (failure: number) => Math.min(30000, 2000 * 2 ** Math.min(failure, 4));
 export const renewalDelay = (remainingSeconds: number) => {
@@ -117,7 +211,12 @@ export function failedJoin(status = 0, reason = "no_answer", reconnecting = fals
   return { name: "cantOpen", retry: "later" };
 }
 // A transport can close and then reject the same join. Only its first outcome wins.
-export function attemptOutcome(previous: Outcome | null, event: AttemptEvent, reconnecting = false): Outcome {
-  return previous ?? (event.kind === "close" ? classifyClose(event.code)
-    : failedJoin(event.status, event.reason, reconnecting, event.acceptance));
+export function attemptOutcome(previous: Outcome | null, event: AttemptEvent, reconnecting = false, waiting = 0): Outcome {
+  if (previous) return previous;
+  if (reconnecting && waiting > 0 && (event.kind === "close" && event.code === 1013 ||
+    event.kind === "failure" && event.status === 400 && event.reason === "invalid_label")) {
+    return { name: "reconnect", retry: "later" };
+  }
+  return event.kind === "close" ? classifyClose(event.code)
+    : failedJoin(event.status, event.reason, reconnecting, event.acceptance);
 }

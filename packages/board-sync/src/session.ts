@@ -13,7 +13,12 @@ export type Clock = { now(): number; after(ms: number, run: () => void): () => v
 export type Transport = { send(text: string): void; close(code: number): void;
   listen(handlers: { message(text: string): void; close(code: number): void }): void };
 export type SessionOptions<T> = { ticket(): Promise<T>; open(ticket: T): Promise<Transport>; clock: Clock; clientId?: number };
-export type Request = { state: "sent" | "received" | "saved" | "refused" | "dropped"; reason?: string; update: string; revision?: number };
+export type Request = {
+  state: "sent" | "received" | "waiting" | "saved" | "refused" | "dropped";
+  reason?: string; update: string; revision?: number; group?: string;
+  touched: { id: string; generation: string }[]; notKept?: boolean;
+};
+const outstanding = (request: Request) => ["sent", "received", "waiting"].includes(request.state);
 export type SessionEvent = { kind: string; [key: string]: unknown };
 const sizeOf = (text: string) => new TextEncoder().encode(text).length;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -73,6 +78,11 @@ export class BoardSession<T = unknown> {
   private generation = 0;
   private joined = false;
   private ended = false;
+  private accepted = false;
+  private rejectJoin?: (error: Error) => void;
+  private deadlines = new Map<string, () => void>();
+  private recovery: string[] = [];
+  recovering = false;
   private lastPresence?: PresenceInput;
   private heldPresence?: PresenceInput;
   private lastSent = -Infinity;
@@ -81,6 +91,7 @@ export class BoardSession<T = unknown> {
   role?: Role;
   self?: Presence;
   epoch = 0;
+  restoreGeneration = 0;
   revision = 0;
   get board() { return readBoard(this.adapter.doc); }
   get doc() { return this.adapter.doc; }
@@ -97,7 +108,42 @@ export class BoardSession<T = unknown> {
     this.cancelTrailing = undefined; this.cancelHeartbeat = undefined;
     this.heldPresence = undefined; this.lastPresence = undefined; this.lastSent = -Infinity;
   }
-  private drop() { for (const request of this.requests.values()) if (["sent", "received"].includes(request.state)) request.state = "dropped"; }
+  private cancelDeadline(id: string) {
+    this.deadlines.get(id)?.();
+    this.deadlines.delete(id);
+  }
+  private drop(reason: string) {
+    for (const [id, request] of this.requests) if (outstanding(request)) {
+      request.state = "dropped"; request.reason = reason; this.cancelDeadline(id);
+    }
+  }
+  private endAttempt(event?: SessionEvent) {
+    const transport = this.transport;
+    ++this.generation;
+    this.transport = undefined;
+    this.joined = false; this.recovering = false; this.recovery = [];
+    for (const [id, request] of this.requests) {
+      if (request.state === "sent" || request.state === "received") request.state = "waiting";
+      this.cancelDeadline(id);
+    }
+    this.timers(); this.present.clear();
+    const reject = this.rejectJoin; this.rejectJoin = undefined;
+    reject?.(Error("Connection attempt ended"));
+    // Invalidate the transport before closing it: close may call back immediately.
+    transport?.close(1000);
+    if (event) this.report(event);
+  }
+  interrupt() { if (!this.ended) this.endAttempt(); }
+  async reconnect() {
+    if (this.ended) return;
+    this.endAttempt();
+    await this.connect();
+  }
+  discard(reason: string) {
+    if (this.ended) return;
+    this.drop(reason); this.history.clear(); this.endAttempt();
+    this.report({ kind: "discarded", reason });
+  }
   private async connect() {
     const generation = ++this.generation;
     const ticket = await this.options.ticket();
@@ -106,42 +152,63 @@ export class BoardSession<T = unknown> {
     if (this.ended || generation !== this.generation) { transport.close(1000); return; }
     this.transport = transport;
     await new Promise<void>((resolve, reject) => {
-      let ready = false;
+      this.rejectJoin = reject;
       transport.listen({
         message: (text) => {
           if (generation !== this.generation || this.ended) return;
           const message = JSON.parse(text);
           this.apply(message);
-          if (message.kind === "joined") { ready = true; resolve(); }
+          if (message.kind === "joined") { this.rejectJoin = undefined; resolve(); }
         },
         close: (code) => {
           if (generation !== this.generation || this.ended) return;
-          this.joined = false; this.drop(); this.timers();
-          this.report({ kind: "close", code });
-          if (!ready) reject(Error("Connection closed before joined: " + code));
+          this.endAttempt({ kind: "close", code });
         },
       });
     });
   }
   private rejoin() {
-    this.joined = false; this.drop(); this.history.clear(); this.timers();
-    ++this.generation;
-    this.transport?.close(1000);
-    void this.connect().catch((error) => this.report({ kind: "join_failed", reason: String(error) }));
+    this.history.clear();
+    void this.reconnect().catch((error) => this.report({ kind: "join_failed", reason: String(error) }));
   }
   private apply(message: any) {
+    const request = this.requests.get(message.requestId);
+    if (["saved", "received", "refused"].includes(message.kind) && request && !outstanding(request)) return;
     if (message.kind === "joined") {
+      const rejoined = this.accepted;
+      if (rejoined) {
+        this.history.clear();
+        if (message.restoreGeneration !== this.restoreGeneration) this.drop("board_restored");
+        else if (message.epoch !== this.epoch || message.role === "viewer") this.drop("access_changed");
+      }
       this.adapter.destroy(); this.adapter = new Adapter();
-      if (this.options.clientId !== undefined) this.adapter.doc.clientID = this.options.clientId;
+      if (!rejoined && this.options.clientId !== undefined) this.adapter.doc.clientID = this.options.clientId;
       Y.applyUpdate(this.doc, decode(message.update));
       this.role = message.role; this.epoch = message.epoch; this.revision = message.revision; this.self = message.self;
+      this.restoreGeneration = message.restoreGeneration;
       this.present.clear(); for (const presence of message.present) this.present.set(presence.connection, presence);
-      this.joined = true;
+      this.joined = true; this.accepted = true;
+      const board = this.board;
+      this.recovery = [...this.requests].filter(([, value]) => value.state === "waiting").map(([id, value]) => {
+        if (value.touched.some((object) => !board.objects.some((current) => current.id === object.id) &&
+          board.retiredGenerations.includes(object.generation))) value.notKept = true;
+        Y.applyUpdate(this.doc, decode(value.update));
+        return id;
+      });
+      this.recovering = this.recovery.length > 0;
+      const first = this.recovery[0];
+      // Observers of joined must already see Saving, never Saved for work
+      // that is about to be resent. A listener can still interrupt this send.
+      if (first) this.requests.get(first)!.state = "sent";
+      this.report(message);
+      if (this.joined && this.recovering) this.sendRequest(first);
+      return;
     } else if (message.kind === "present") {
       const { kind: _kind, ...presence } = message;
       this.present.set(presence.connection, presence);
     } else if (message.kind === "left") this.present.delete(message.connection);
     else if (message.kind === "update" || message.kind === "saved") {
+      if (message.kind === "saved" && !request) return;
       if (message.update) {
         const before = capture(this.doc);
         Y.applyUpdate(this.doc, decode(message.update));
@@ -149,43 +216,87 @@ export class BoardSession<T = unknown> {
       }
       this.revision = Math.max(this.revision, message.revision);
       if (message.kind === "saved") {
-        const request = this.requests.get(message.requestId);
-        if (request) { request.state = "saved"; request.revision = message.revision; }
+        request!.state = "saved"; request!.revision = message.revision;
+        this.cancelDeadline(message.requestId);
+        this.report(message);
+        if (this.recovering) {
+          const next = this.recovery.find((id) => this.requests.get(id)!.state === "waiting");
+          if (next) this.sendRequest(next);
+          else {
+            const requests = this.recovery.length;
+            this.recovering = false; this.recovery = [];
+            this.report({ kind: "recovered", requests });
+          }
+        }
+        return;
       }
     } else if (message.kind === "received") {
-      const request = this.requests.get(message.requestId);
-      if (request && request.state === "sent") request.state = "received";
+      if (request && (request.state === "sent" || request.state === "received")) {
+        request.state = "received"; this.deadline(message.requestId);
+      }
     } else if (message.kind === "refused") {
-      const request = this.requests.get(message.requestId);
-      if (request) { request.state = "refused"; request.reason = message.reason; this.rejoin(); }
+      const reason = ["epoch_changed", "role_too_low"].includes(message.reason) ? "access_changed" : "refused_edit";
+      if (request) {
+        request.state = "refused"; request.reason = message.reason; this.cancelDeadline(message.requestId);
+        this.drop(reason); this.rejoin();
+      }
       else if (message.requestId === undefined &&
-        !["presence_too_large", "presence_fields", "presence_selection_limit", "bad_presence"].includes(message.reason)) this.rejoin();
+        !["presence_too_large", "presence_fields", "presence_selection_limit", "bad_presence"].includes(message.reason)) {
+        this.drop(reason); this.rejoin();
+      }
     } else if (message.kind === "resync") {
-      for (const request of this.requests.values()) if (request.state === "received") request.state = "dropped";
-      this.sendEdit(Y.encodeStateAsUpdate(this.doc, decode(message.stateVector)));
+      const touched = [...this.requests.values()].filter(outstanding).flatMap((value) => value.touched);
+      for (const [id, value] of this.requests) if (value.state === "received") {
+        value.state = "dropped"; this.cancelDeadline(id);
+      }
+      this.sendEdit(Y.encodeStateAsUpdate(this.doc, decode(message.stateVector)), undefined, touched);
     }
     this.report(message);
   }
-  private blocked() { return !this.joined ? "join_required" : this.role === "viewer" ? "role_too_low" : null; }
+  private blocked() { return !this.joined || this.recovering ? "join_required" : this.role === "viewer" ? "role_too_low" : null; }
   edit(board: BoardV10, group?: string): string {
     const blocked = this.blocked(); if (blocked) return blocked;
     return this.write(board, undefined, group);
   }
   private write(board: BoardV10, direction?: "undo" | "redo", group?: string) {
+    const previous = this.board;
     const before = capture(this.doc), vector = Y.encodeStateVector(this.doc);
     this.adapter.set(board);
     this.history.record(before, capture(this.doc), direction, group);
-    return this.sendEdit(Y.encodeStateAsUpdate(this.doc, vector));
+    const touched = board.objects.filter((object) => JSON.stringify(object) !==
+      JSON.stringify(previous.objects.find((old) => old.id === object.id)))
+      .map(({ id, generation }) => ({ id, generation }));
+    return this.sendEdit(Y.encodeStateAsUpdate(this.doc, vector), group, touched);
   }
-  private sendEdit(update: Uint8Array) {
+  private sendEdit(update: Uint8Array, group?: string, touched: Request["touched"] = []) {
     const requestId = crypto.randomUUID(), encoded = encode(update);
     const text = JSON.stringify({ kind: "edit", epoch: this.epoch, requestId, update: encoded });
-    this.requests.set(requestId, { state: "sent", update: encoded });
+    const request: Request = { state: "sent", update: encoded, touched, ...(group ? { group } : {}) };
+    this.requests.set(requestId, request);
     if (sizeOf(text) > 1048576) {
-      this.requests.set(requestId, { state: "refused", update: encoded, reason: "message_too_large" });
+      request.state = "refused"; request.reason = "message_too_large";
+      this.drop("refused_edit");
       this.rejoin(); this.report({ kind: "refused", requestId, reason: "message_too_large" });
-    } else this.transport!.send(text);
+    } else this.sendRequest(requestId);
     return requestId;
+  }
+  private deadline(id: string) {
+    this.cancelDeadline(id);
+    const generation = this.generation;
+    this.deadlines.set(id, this.options.clock.after(10000, () => {
+      if (generation === this.generation && !this.ended) {
+        this.endAttempt({ kind: "close", code: 4000, reason: "answer_deadline" });
+      }
+    }));
+  }
+  private send(text: string) {
+    try { this.transport!.send(text); return true; }
+    catch { this.endAttempt({ kind: "close", code: 1006 }); return false; }
+  }
+  private sendRequest(id: string) {
+    const request = this.requests.get(id)!;
+    request.state = "sent"; this.deadline(id);
+    this.send(JSON.stringify({ kind: "edit", epoch: this.epoch, requestId: id, update: request.update }));
   }
   private inverse(direction: "undo" | "redo") {
     const blocked = this.blocked(); if (blocked) return blocked;
@@ -209,12 +320,13 @@ export class BoardSession<T = unknown> {
     const input = this.heldPresence ?? this.lastPresence;
     if (!this.joined || !input) return;
     this.heldPresence = undefined; this.lastPresence = input; this.lastSent = this.options.clock.now();
-    this.transport!.send(JSON.stringify({ kind: "presence", ...input }));
+    if (!this.send(JSON.stringify({ kind: "presence", ...input }))) return;
     this.cancelHeartbeat?.();
     this.cancelHeartbeat = this.options.clock.after(15000, () => this.flushPresence());
   }
   close() {
-    this.ended = true; this.joined = false; this.drop(); this.timers(); ++this.generation;
-    this.transport?.close(1000); this.adapter.destroy();
+    if (this.ended) return;
+    this.drop("session_ended"); this.history.clear(); this.endAttempt();
+    this.ended = true; this.adapter.destroy();
   }
 }

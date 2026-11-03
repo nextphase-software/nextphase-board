@@ -9,7 +9,7 @@ import { parseLink, type TeamLink } from "./links";
 import { words } from "./notices";
 import { SignIn } from "./sign-in";
 import { ShareDialog } from "./share-dialog";
-import { EndBoardDialog, TeamPage } from "./pages";
+import { EndBoardDialog, LeaveBoardQuestion, TeamPage, type PendingLeave } from "./pages";
 import { Home } from "./home";
 import { holdName, type HeldNames } from "./home-rules";
 
@@ -25,8 +25,29 @@ export function TeamApp() {
   const [forceGate, setForceGate] = useState(false);
   const active = useRef<HostedBoard | null>(null), ownSignOut = useRef(false);
   const names = useRef<HeldNames>(new Map());
+  const [leave, setLeave] = useState<PendingLeave | null>(null);
+  const askLeave = (run: () => void) => {
+    if (active.current?.counts.waiting) setLeave({ opener: document.activeElement, run: () => { setLeave(null); run(); } });
+    else run();
+  };
+  const leaveHandler = useRef(askLeave);
+  leaveHandler.current = askLeave;
   useEffect(() => {
-    const change = () => { active.current?.stop(); active.current = null; setForceGate(false); setFragment(location.hash); };
+    const change = () => {
+      const board = active.current, destination = location.hash;
+      if (board?.counts.waiting) {
+        const ownLink = `#/b/${board.boardId}`;
+        if (destination === ownLink) return;
+        history.pushState(null, "", ownLink);
+        leaveHandler.current(() => { board.stop(); active.current = null; location.hash = destination; });
+        return;
+      }
+      active.current?.stop(); active.current = null; setForceGate(false); setFragment(destination);
+    };
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (active.current?.counts.waiting) { event.preventDefault(); event.returnValue = ""; }
+    };
+    window.addEventListener("beforeunload", beforeUnload);
     window.addEventListener("hashchange", change);
     const { data } = auth.onAuthStateChange((event, next) => {
       // Auth holds its lock in this callback. Session work runs after it returns.
@@ -38,7 +59,7 @@ export function TeamApp() {
         } else active.current?.updateSession(next);
       });
     });
-    return () => { window.removeEventListener("hashchange", change); data.subscription.unsubscribe(); active.current?.stop(); };
+    return () => { window.removeEventListener("beforeunload", beforeUnload); window.removeEventListener("hashchange", change); data.subscription.unsubscribe(); active.current?.stop(); };
   }, []);
   async function signOut(local = false) {
     ownSignOut.current = true;
@@ -49,9 +70,9 @@ export function TeamApp() {
     finally { ownSignOut.current = false; }
   }
   const link = parseLink(fragment);
-  const closeBoard = () => { active.current?.stop(); active.current = null; location.hash = "#/files"; };
+  const closeBoard = () => askLeave(() => { active.current?.stop(); active.current = null; location.hash = "#/files"; });
   const account = session ? <div className="team-account">{words.signedInAs(session.user.email ?? "")}
-    <button onClick={() => { void signOut(); }}>Sign out</button></div> : undefined;
+    <button onClick={() => askLeave(() => { void signOut(); })}>Sign out</button></div> : undefined;
   if (link.kind === "home") {
     if (!ready) return <main className="team-page"><span role="status">Loading boards…</span></main>;
     if (!session) return <SignIn gate home close={() => {}} />;
@@ -61,14 +82,14 @@ export function TeamApp() {
   if (link.kind !== "local") {
     if (!ready) return <TeamPage outcome={null} close={closeBoard} signIn={() => {}} />;
     return <HostedRoute key={fragment + epoch} forceGate={forceGate} link={link} session={session} active={active} account={account}
-      names={names.current} close={closeBoard} signInAgain={() => { void signOut(true); }} restart={() => { setForceGate(false); setEpoch((value) => value + 1); }} />;
+      leave={leave} stay={() => setLeave(null)} names={names.current} close={closeBoard} signInAgain={() => { void signOut(true); }} restart={() => { setForceGate(false); setEpoch((value) => value + 1); }} />;
   }
   return <><App key={fragment} team={{ account, backToFiles: session ? closeBoard : undefined, saveControl: !session
     ? <button onClick={() => setSignIn(true)}>Sign in</button> : undefined }} />
     {signIn && <SignIn close={() => setSignIn(false)} />}</>;
 }
-function HostedRoute({ link, session, active, account, close, signInAgain, restart, forceGate, names }: {
-  forceGate: boolean; link: TeamLink; session: AuthSession | null; active: React.RefObject<HostedBoard | null>;
+function HostedRoute({ link, session, active, account, close, signInAgain, restart, forceGate, names, leave, stay }: {
+  leave: PendingLeave | null; stay: () => void; forceGate: boolean; link: TeamLink; session: AuthSession | null; active: React.RefObject<HostedBoard | null>;
   account: ReactNode; close: () => void; signInAgain: () => void; restart: () => void; names: HeldNames;
 }) {
   const hosted = useRef<HostedBoard | null>(null), unsubscribe = useRef<(() => void) | undefined>(undefined);
@@ -97,6 +118,8 @@ function HostedRoute({ link, session, active, account, close, signInAgain, resta
   }, [session?.user.id]);
   useEffect(() => () => { unsubscribe.current?.(); hosted.current?.stop(); }, []);
   const board = hosted.current, snapshot = board?.snapshot;
+  const waiting = board?.counts.waiting ?? 0;
+  useEffect(() => { if (leave && !waiting) stay(); }, [leave, waiting]);
   useEffect(() => {
     setToast(snapshot?.toast ?? "");
     const timer = setTimeout(() => setToast(""), 5000);
@@ -110,15 +133,25 @@ function HostedRoute({ link, session, active, account, close, signInAgain, resta
     return <SignIn gate close={restart} notice={outcome?.name === "expired" ? words.expired : outcome?.name === "signedOut" ? words.signedOut : ""} />;
   }
   const replacesBoard = outcome && ["notFound", "cantJoin", "disabled", "full"].includes(outcome.name);
-  if (!board || !snapshot?.board || replacesBoard) return <TeamPage outcome={outcome} close={close} signIn={signInAgain} />;
-  const banner = !snapshot.connected ? outcome?.name === "restoring" ? words.restoring : words.reconnecting
+  if (!board || !snapshot?.board || replacesBoard) return <TeamPage outcome={outcome} close={close} signIn={signInAgain} count={board?.endingCount} />;
+  const banner = outcome && !outcome.retry ? "" : !snapshot.connected
+    ? outcome?.name === "restoring" ? words.restoring : waiting ? words.reconnectingWaiting(waiting) : words.reconnecting
     : snapshot.role === "viewer" ? words.viewOnly(snapshot.workspace) : "";
+  const notices = board.notices;
   return <><App team={{ hosted: board, account, backToFiles: session ? close : undefined, people: <People hosted={board} />, presenceLayer: PresenceLayer,
     nameSent: (title) => { sentTitles.current.add(title); },
     saveControl: <button className="primary" onClick={() => setShare(true)}>Share</button>,
-    banner: banner ? <div className={"team-banner" + (!snapshot.connected ? " team-amber" : "")} role="status">{banner}</div> : undefined }} />
+    banner: notices.length || banner ? <div className="team-notice-column">
+      {notices.map((notice) => <div className="team-loss-notice" role="status" key={notice.reason}>
+        <span>{notice.message}</span><button onClick={() => {
+          board.dismiss(notice.reason); document.querySelector<HTMLElement>(".scene")?.focus();
+        }}>{words.dismiss}</button>
+      </div>)}
+      {banner && <div className={"team-banner" + (!snapshot.connected ? " team-amber" : "")} role="status">{banner}</div>}
+    </div> : undefined }} />
     {toast && <div className="team-toast" role="status">{toast}</div>}
-    {share && !ending && <ShareDialog hosted={board} email={session?.user.email ?? ""} personId={session?.user.id ?? ""} close={() => setShare(false)} />}
-    {ending && <EndBoardDialog outcome={outcome} workspace={snapshot.workspace} close={close} signIn={signInAgain} />}
+    {share && !ending && !leave && <ShareDialog hosted={board} email={session?.user.email ?? ""} personId={session?.user.id ?? ""} close={() => setShare(false)} />}
+    {leave && waiting > 0 && <LeaveBoardQuestion count={waiting} boardName={snapshot.board.title} pending={leave} stay={stay} />}
+    {ending && !leave && <EndBoardDialog outcome={outcome} workspace={snapshot.workspace} close={close} signIn={signInAgain} count={board.endingCount} />}
   </>;
 }

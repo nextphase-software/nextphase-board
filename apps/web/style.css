@@ -1044,3 +1044,51 @@ small {
   .home-workspace-head { flex-wrap: wrap; }
   .home-toast { left: 50%; }
 }
+
+/* Recovery notices (0004-W2) share the hosted banner's position. */
+.team-notice-column {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  pointer-events: none;
+}
+.team-notice-column > .team-banner {
+  position: static;
+  transform: none;
+  max-width: 100%;
+  pointer-events: auto;
+}
+.team-loss-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: 100%;
+  padding: 10px 14px;
+  color: #a32940;
+  background: #fdf0f2;
+  border: 1px solid #f2cdd5;
+  border-radius: 10px;
+  pointer-events: auto;
+}
+.team-loss-notice button { min-height: 28px; padding: 2px 10px; flex-shrink: 0; }
+.team-leave button.primary:focus, .team-ending button.team-close:focus {
+  outline: 3px solid #7051cf;
+  outline-offset: 3px;
+}
+@media (max-width: 1099.98px) {
+  .team-notice-column { top: 128px; }
+  main:has(.presence-follow-banner) > .team-notice-column { top: 132px; }
+}
+@media (max-width: 767.98px) {
+  .team-loss-notice { flex-wrap: wrap; }
+  main:has(.presence-follow-banner) > .team-notice-column { top: 188px; }
+}

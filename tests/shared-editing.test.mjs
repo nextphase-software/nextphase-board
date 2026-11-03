@@ -198,7 +198,7 @@ function fakeClock() {
 }
 async function fakeSession(role = "editor") {
   const seed = adapter(board()), clock = fakeClock(), wires = []; let tickets = 0;
-  const joined = { kind: "joined", epoch: 0, role, revision: 0, update: encode(Y.encodeStateAsUpdate(seed.doc)), self: {}, present: [] };
+  const joined = { kind: "joined", restoreGeneration: 0, epoch: 0, role, revision: 0, update: encode(Y.encodeStateAsUpdate(seed.doc)), self: {}, present: [] };
   const client = await BoardSession.join({ clock, clientId: 123, ticket: async () => ++tickets,
     open: async () => { const wire = { sent: [], closes: [], send(text) { this.sent.push(JSON.parse(text)); }, close(code) { this.closes.push(code); },
       listen(handlers) { this.handlers = handlers; handlers.message(JSON.stringify(joined)); }, message(value) { this.handlers.message(JSON.stringify(value)); } }; wires.push(wire); return wire; } });

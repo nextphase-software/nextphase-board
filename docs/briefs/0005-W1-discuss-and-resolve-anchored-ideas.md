@@ -363,3 +363,152 @@ Retrieved 2026-11-03:
 ## Implementation record
 
 (Appended by the implementer.)
+
+
+### Implementation — 2026-11-03
+
+- Brief implemented: **0005-W1 v1 only**.
+- Base: `86fd7ab41d5a9ec1c243460374b13752362d1f1c` (committed main).
+- Branch: `codex/0005-W1-discuss-and-resolve-anchored-ideas`.
+- Validated source/test revision: **`ed18861c10e03bc7ef5ca8d0b36fa705823393a7`**
+  (`feat(comments): add anchored hosted discussion`). All final checks below refer to
+  this source/test tree. This record is appended in a later documentation-only commit;
+  the final branch tip is reported separately in the handoff.
+- No dependencies, manifest, lock, inventory or notice changes. No publication or push.
+- The seven new contracts and required predecessor sections were read before changes.
+  No brief/contract disagreement was found. The existing architecture index already
+  lists all seven versions and all the unchanged prerequisites, so it needed no edit.
+- Graph discovery was attempted first. The tool returned
+  `MCP tool call requires approval, but approval policy is never`.
+  Direct reads and `rg` were used instead, as this run permits.
+
+The room now stores comments separately from board edits, with positive comment
+sequences, receipt kinds, permanent ID history, pruned hourly counts, both capacity
+limits and atomic anchor maintenance. The shared client retains serialized messages
+for explicit retries and gives comment requests their own states and deadlines. The
+web app uses exactly the six comment modules, a separate comment subscription, live
+object names, saved order, author-only menus, retained text and the interaction-v30
+values. Comment frames return before hosted edit notifications; no edit recovery or
+undo rule was changed. `App.tsx` remains **264 lines**.
+
+`tests/comments.test.mjs` adds **27 dynamically imported tests**. S121–S133 are
+appended after S120 in the shared server suite; its existing summary counts them.
+Only the two specified existing unit-test changes were made: module/import guards
+and the migration's expected storage version. Both legacy-storage controls are in
+the named test drivers. The CSS and shared server checks retain the base content as
+an exact prefix. The validated diff contains **28 paths**, all within items 1–5.
+
+#### Commands and results
+
+Every shell command used the pinned Node bin directory first on PATH. `node --version`
+printed `v26.13.0`; `npm --version` printed `11.20.0`. In the commands below,
+`W1_TMP` denotes the system temporary directory created with
+`mktemp -d -t board-0005-w1`; it holds all scratch sources, logs and build copies.
+No machine-specific path is recorded here.
+
+The base builds were made before source changes, using the same settings as the
+candidate, and copied with `cp -R apps/web/dist "$W1_TMP/base-off"` and
+`cp -R apps/web/dist "$W1_TMP/base-on"` after their respective builds. Each build
+command exited 0. The final candidate commands were:
+
+```sh
+node --version
+npm --version
+npm ci --ignore-scripts --no-audit --no-fund
+# exit 0; 118 packages installed
+
+git diff --exit-code 86fd7ab -- package-lock.json ':(glob)**/package.json'
+# exit 0
+npm run typecheck
+# exit 0 for all five workspaces
+npm test
+# exit 0; 863 tests, 863 passed, 0 failed, 0 skipped
+
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cmp apps/web/dist/index.html "$W1_TMP/base-off/index.html"
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt "$W1_TMP/base-off/THIRD_PARTY_NOTICES.txt"
+node --input-type=module -e 'import {readFileSync} from "node:fs"; import assert from "node:assert/strict"; const inputs=Object.keys(JSON.parse(readFileSync("apps/web/dist/meta.json")).inputs); assert(!inputs.some(p => p.startsWith("node_modules/@supabase/") || p.startsWith("apps/web/src/team/")));'
+npm run audit:licenses
+cp -R apps/web/dist "$W1_TMP/validated-off"
+# each exit 0
+
+npm run build:fixtures
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cmp apps/web/dist/index.html "$W1_TMP/base-on/index.html"
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt
+npm run audit:licenses
+cp -R apps/web/dist "$W1_TMP/validated-on"
+# each exit 0
+
+npm run build:server
+npm run audit:licenses
+WRANGLER_LOG_PATH="$W1_TMP/wrangler-final.log" npx wrangler deploy --dry-run --outdir "$W1_TMP/validated-worker" -c apps/server/wrangler.json
+# each exit 0; Wrangler 4.156.0, dry run only
+
+git diff --check
+git diff --cached --check
+git commit -m 'feat(comments): add anchored hosted discussion'
+# exit 0; both public-boundary hooks PASS
+
+git diff --name-status 86fd7ab41d5a9ec1c243460374b13752362d1f1c..ed18861c10e03bc7ef5ca8d0b36fa705823393a7
+# exit 0; only the 28 permitted paths
+```
+
+```text
+PASS: V1 manifests and lock byte-identical to base
+PASS: V2 implementer's npm ci exited 0
+PASS: V3 all five workspaces typechecked
+PASS: V4 863 unit tests passed, 0 failed
+PASS: V5 off build, base HTML/notices comparisons, excluded inputs and license audit
+PASS: V6 fixture/on builds, base HTML comparison, runtime notices v3 and license audit
+PASS: V7 server build, Worker dry run and license audit
+PASS: V8 exact validated commit contains only item-1-to-5 paths
+```
+
+Supplemental focused checks:
+
+- `node --test --test-reporter=tap tests/comments.test.mjs` — final run: 27 passed,
+  0 failed, including real Node SQLite migration rollback and comment-store actions.
+- `node --test --test-reporter=tap tests/comments.test.mjs tests/recovery.test.mjs`
+  — 65 passed, 0 failed after removing a redundant comment reset.
+- `node --test tests/shapes.test.mjs` — 22 passed, 0 failed after the placement fix.
+- `node "$W1_TMP/check-server-additions.mjs"`, then
+  `node node_modules/typescript/bin/tsc --noEmit -p "$W1_TMP/additions.tsconfig.json"`
+  — both exit 0. The scratch generator copies S121–S133 and their new helpers
+  verbatim, with typed declarations for the existing harness, and copies the new
+  Worker control verbatim. It checks those plus the complete Node test driver with
+  strict ES2022/Bundler settings and the installed Node/Worker/test declarations.
+  This checks the additions without changing existing checks. It does **not** run
+  any server check.
+
+The normal workspace typecheck excludes server-test files. A supplemental strict
+compile of the whole existing server-test harness failed on the candidate and on
+scratch copies from the base: the old Vitest `inject<T>` calls, the circular `Client`
+return inference and the existing Worker `rows` generic are examples. Those existing
+checks were preserved; the successful focused typecheck above is not a claim that
+the entire old harness typechecks.
+
+Development failures were corrected before the validated revision: library declarations
+lack `toWellFormed`/`isWellFormed`, so the shared module uses an equivalent surrogate
+normalization; Node's strip-only loader rejects parameter properties, so the room
+uses explicit fields; and an overbroad functional-setter change made one existing
+shape-placement test fail (860/861 passed in that intermediate run). The placement
+path was restored without changing the test. Final results are the PASS lines above.
+
+Git printed a nonfatal sandbox denial while trying to create `packed-refs.lock`.
+The commit exited 0, its full hash and branch were verified, and the worktree was
+clean before this record was appended. No hook was bypassed.
+
+#### Deferred review checks and exclusions
+
+**V9–V13 were not run and remain the review's check run:** V9 is C1-S1–S23 on the
+specified builds; V10 is the fresh-base negative control (browser, unit and server);
+V11 is the complete server suite on both runners, including S121–S133 and its summary
+lines; V12 is A–J with team features off; V13 is W2-S1–S21 with the four toolbar lists
+amended. In particular, W2-S5 has no browser result from this implementation run.
+
+No browser was launched; no Supabase start, stop or status command was run; no stack
+or Docker was used; no operating-system keys or events were sent. Browser appearance,
+focus, A–J and interruption scenarios are unverified here. No hosted project,
+deployment, server suite, accessibility audit, performance campaign or broader matrix
+was run. The dry run uploaded nothing. Ignored build metadata is not a changed file.

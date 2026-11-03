@@ -288,4 +288,106 @@ and [WAI-ARIA Authoring Practices: Listbox pattern](https://www.w3.org/WAI/ARIA/
 
 ## Implementation record
 
-(Filled in by the implementer.)
+### Implementation — 2026-11-02
+
+- Base (committed main): `10a72e9913b5bf383198fbcafd2ca48830a1506d`.
+- Branch: `codex/0003-W5-find-create-and-reopen-boards`, in its milestone worktree.
+- Validated source/test revision: `f4cc11d44c1c96624e5531fb52de0701a95af66f`.
+  The later implementation-record commit changes this record only; the final branch
+  tip is reported separately in the handoff.
+- Implemented items 1–5: Home and its gate, server-ordered/paged lists, card and
+  account menus, creation, both rename paths, grouped hosted name entries, held
+  names and their release rules, and Back to files with the local unsaved-edits
+  question. The Board field reports the titles this tab actually sends so remote
+  titles seen during a pending edit do not become names it replaced.
+- Codebase-memory graph tools were unavailable under the run's approval policy.
+  Discovery used direct file reads and `rg`; no graph tool or indexing was run.
+- Added dependencies, frameworks and services: none. No manifest, lock, server,
+  package, Supabase, saved-format or existing stylesheet rule changed.
+  `App.tsx` remains composition only at 263 lines. Existing test files are unchanged
+  except the specified team inventory/pure-module guard in `tests/modules.test.mjs`
+  and the coverage note in `tests/README.md`; `home.test.mjs` is the only new test file.
+
+Commands used the supplied Node binary directory first on PATH. In this public
+command log, `$PINNED_NODE_BIN` and `$W5_EVIDENCE` stand for the supplied binary
+directory and this run's system temporary directory; machine-specific paths are
+omitted. Build copies and redirected logs stayed in that temporary directory.
+
+```sh
+export PATH="$PINNED_NODE_BIN:$PATH"
+node --version
+npm --version
+git status --short
+git branch --show-current
+git rev-parse HEAD
+npm ci --ignore-scripts --no-audit --no-fund
+mktemp -d -t board-w5-validation
+```
+
+Node printed `v26.13.0`, npm `11.20.0`; the initial worktree was clean on the named
+branch and base. Install exited 0 (118 packages). Before source edits, the two base
+builds and copies were made with:
+
+```sh
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$W5_EVIDENCE/base-off"
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$W5_EVIDENCE/base-on"
+```
+
+Both base builds exited 0. The final source validation commands were:
+
+```sh
+npm run typecheck > "$W5_EVIDENCE/typecheck.log" 2>&1
+npm test > "$W5_EVIDENCE/unit.tap" 2>&1
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist/. "$W5_EVIDENCE/candidate-off/"
+npm run audit:licenses
+npm run build:fixtures
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist/. "$W5_EVIDENCE/candidate-on/"
+npm run audit:licenses
+npm run build:server
+npm run audit:licenses
+git diff --check
+git diff --cached --check
+git diff --name-status 10a72e9913b5bf383198fbcafd2ca48830a1506d..f4cc11d44c1c96624e5531fb52de0701a95af66f
+```
+
+All exited 0. Inline `python3` checks compared bytes read with `Path.read_bytes()`
+against `git show <base>:<path>` for all seven manifests/lockfiles and every existing
+test except the two authorized test documentation/guard files. They also compared
+the copied build files, inspected `json.loads(meta.json)["inputs"]`, checked the
+18-path committed diff against items 1–5, confirmed the stylesheet has the base's
+complete byte prefix and `App.tsx` has 263 newlines, and resolved the documentation
+links. All assertions passed. Ignored build files, including `meta.json`, were
+excluded from the changed-file inventory.
+
+```text
+PASS: V1 all seven manifests/lockfiles byte-identical to the base
+PASS: V2 npm ci --ignore-scripts --no-audit --no-fund exited 0
+PASS: V3 typecheck exited 0 for all five workspaces
+PASS: V4 798 tests passed, 0 failed; only the named existing module guard changed
+PASS: V5 off build and license audit exited 0; HTML/notices equal base; no team/Auth inputs
+PASS: V6 fixture/on builds and license audit exited 0; HTML equals base; notices equal v3
+PASS: V7 server build and license audit exited 0
+PASS: V8 committed diff contains exactly the 18 authorized implementation files
+```
+
+During implementation, an initial typecheck found an insufficiently narrowed menu
+union (TS2339); it was corrected before validation. The final typecheck and unit
+results above supersede that intermediate failure. No existing test needed a fix
+outside the allowed module guard.
+
+The implementation commit ran the normal hooks: `PUBLIC BOUNDARY: PASS` twice.
+Git reported an inability to create `packed-refs.lock` under the sandbox, but
+`git commit` exited 0, and the committed revision and branch reference were verified.
+No hook was bypassed, no stash was used, and nothing was pushed or merged.
+
+V9–V14 were not run and are left to the independent review's check run: W5-S1–S45,
+the negative control on a fresh base stack (including the new unit tests against
+the base), the team-off network check, A–J, the amended 0003-W4 checks and the
+0004-W3 checks. No browser, Supabase stack/CLI, Docker, server test suite, operating
+system key/event automation, hosted project or deployment was started. Browser
+layout, focus and live connection behavior are therefore not claimed as validated
+by this implementation run. Review must use the exact validated revision above.

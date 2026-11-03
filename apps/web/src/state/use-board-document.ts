@@ -9,17 +9,19 @@ import type { HostedBoard } from "../team/hosted-board";
 
 type Input = {
   hosted?: HostedBoard;
+  nameSent?: (title: string) => void;
   readOnly: boolean;
   setStatus: Dispatch<SetStateAction<string>>;
 };
 
-export function useBoardDocument({ readOnly, setStatus, hosted }: Input) {
+export function useBoardDocument({ readOnly, setStatus, hosted, nameSent }: Input) {
   const [board, setBoard] = useState<Board>(empty),
     [title, setTitle] = useState(""),
     [drafts, setDrafts] = useState<Record<string, string>>({}),
     [history, setHistory] = useState<History>(emptyHistory);
   const connectorStyle = useRef<ConnectorStyle>(defaultConnectorStyle());
   const shapePaint = useRef(defaultPaint());
+  const nameGroup = useRef<string | undefined>(undefined);
   const shapeSession = { paint: shapePaint, update: (paint: ShapePaint) => { shapePaint.current = paint; } };
   const model = useRef(board),
     historyRef = useRef<History>(history),
@@ -32,6 +34,7 @@ export function useBoardDocument({ readOnly, setStatus, hosted }: Input) {
     setHistory(next);
   }
   function clearHistory() {
+    nameGroup.current = undefined;
     textSession.current = null;
     updateHistory(emptyHistory());
   }
@@ -45,6 +48,10 @@ export function useBoardDocument({ readOnly, setStatus, hosted }: Input) {
     textSession.current = null;
     if (session && !hosted) updateHistory(record(historyRef.current, session.before, model.current));
   }
+  function beginNameEntry() {
+    if (hosted && !readOnly) { finishTextSession(); nameGroup.current = crypto.randomUUID(); }
+  }
+  function finishNameEntry() { nameGroup.current = undefined; }
   function commit(input: SavedBoard, recordObject = false, orderIds?: readonly string[]) {
     const next = upgrade(input);
     if (readOnly) return;
@@ -53,7 +60,9 @@ export function useBoardDocument({ readOnly, setStatus, hosted }: Input) {
       finishTextSession();
       updateHistory(record(historyRef.current, model.current, next, orderIds));
     }
-    if (hosted && hosted.edit(next, textSession.current?.group) !== true) return;
+    const titleChanged = next.title !== model.current.title;
+    if (hosted && hosted.edit(next, nameGroup.current ?? textSession.current?.group) !== true) return;
+    if (hosted && titleChanged) nameSent?.(next.title);
     model.current = next;
     adapter.current!.set(next);
     revision.current++;
@@ -76,6 +85,6 @@ export function useBoardDocument({ readOnly, setStatus, hosted }: Input) {
   return {
     connectorStyle, shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,
     model, historyRef, textSession, revision, adapter,
-    updateHistory, clearHistory, beginTextSession, finishTextSession, commit, load,
+    updateHistory, clearHistory, beginTextSession, finishTextSession, beginNameEntry, finishNameEntry, commit, load,
   };
 }

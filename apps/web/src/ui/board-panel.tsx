@@ -8,6 +8,8 @@ import type { TeamParts } from "../team/team-app";
 
 type Props = {
   team?: TeamParts;
+  beginNameEntry: () => void;
+  finishNameEntry: () => void;
   setComposing: Dispatch<SetStateAction<boolean>>;
   commit: (input: SavedBoard, recordObject?: boolean, orderIds?: readonly string[]) => void;
   model: RefObject<Board>;
@@ -26,19 +28,27 @@ type Props = {
     fileInput: RefObject<HTMLInputElement | null>; fileButton: RefObject<HTMLButtonElement | null>;
     openBoard: (entry: BoardEntry, element: HTMLElement) => void;
     openFile: (file: File) => void; saveCopy: () => void;
+    leaveBoard: (name: string, run: () => void, element: HTMLElement) => void;
   };
 };
 
 export function BoardPanel({
   setComposing, commit, model, title, readOnly, busy, setTitle, setStatus, composing, reopen,
-  setPanel, boardButton, boardFiles, team
+  setPanel, boardButton, boardFiles, team, beginNameEntry, finishNameEntry
 }: Props) {
   return (
     <section className="details floating" ref={boardFiles.panelRef}>
+      {team?.backToFiles && <button className="back-to-files" onClick={(event) => {
+        if (team.hosted) team.backToFiles!();
+        else boardFiles.leaveBoard("Recents", team.backToFiles!, event.currentTarget);
+      }}><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75"
+        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg>Back to files</button>}
       {team?.account}
       <label htmlFor="title">Board name</label>
       <input
         id="title"
+        onFocus={beginNameEntry}
+        onBlur={finishNameEntry}
         onCompositionStart={() => setComposing(true)}
         onCompositionEnd={(e) => {
           setComposing(false);
@@ -47,7 +57,7 @@ export function BoardPanel({
           }
         }}
         value={title}
-        readOnly={!!team?.hosted || readOnly || busy || boardFiles.opening}
+        readOnly={readOnly || busy || boardFiles.opening}
         onChange={(e) => {
           const value = e.target.value;
           setTitle(value);

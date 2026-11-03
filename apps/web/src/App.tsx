@@ -51,8 +51,8 @@ export function App({ team }: { team?: TeamParts } = {}) {
   const {
     connectorStyle, shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,
     model, historyRef, textSession, revision, adapter,
-    updateHistory, clearHistory, beginTextSession, finishTextSession, commit, load,
-  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted });
+    updateHistory, clearHistory, beginTextSession, finishTextSession, beginNameEntry, finishNameEntry, commit, load,
+  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent });
   const {
     strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,
     selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats, richText,
@@ -134,7 +134,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
     setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
   });
-  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, setBoard, setDrafts, setReadOnly, setTool, setInline, paste: () => clipboardCommand("Paste"), composing });
+  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, paste: () => clipboardCommand("Paste"), composing });
   const nativeEditor = <ContentField
     editor={editor} inline={inline} text={text} readOnly={readOnly} busy={busy} item={item}
     selectedId={selectedId} composing={composing} beginTextSession={beginTextSession}
@@ -201,7 +201,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
         <BoardPanel team={team}
           setComposing={setComposing} commit={commit} model={model} title={title} readOnly={readOnly}
           busy={busy} setTitle={setTitle} setStatus={setStatus} composing={composing} reopen={reopen}
-          setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles}
+          setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles} beginNameEntry={beginNameEntry} finishNameEntry={finishNameEntry}
         />
       )}
       {panel === "Objects" && (

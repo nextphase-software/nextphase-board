@@ -532,15 +532,16 @@ test("production runners contain none of the test driver names", () => {
 });
 
 
-test("team modules and imports follow web modules v26", () => {
+test("team modules and imports follow web modules v27", () => {
   const team = new URL("team/", source);
   const names = files(team).sort();
-  assert.deepEqual(names, ["api.ts", "auth.ts", "config.ts", "dialog.tsx", "hosted-board.ts", "links.ts",
+  assert.deepEqual(names, ["api.ts", "auth.ts", "config.ts", "dialog.tsx", "home-card.tsx", "home-lists.ts",
+    "home-menu.tsx", "home-rules.ts", "home.tsx", "hosted-board.ts", "links.ts",
     "notices.ts", "pages.tsx", "people.tsx", "presence-layer.tsx", "presence.ts", "roles.ts", "share-dialog.tsx", "sign-in.tsx", "team-app.tsx"]);
   for (const name of names) {
     const content = readFileSync(new URL(name, team), "utf8");
     assert.equal(content.split("\n")[0], "// SPDX-License-Identifier: Apache-2.0", name);
-    if (["links.ts", "roles.ts", "notices.ts", "presence.ts"].includes(name)) {
+    if (["home-rules.ts", "links.ts", "roles.ts", "notices.ts", "presence.ts"].includes(name)) {
       assert.doesNotMatch(content, /from ["'](?:react|.\/auth)/, name);
     }
   }

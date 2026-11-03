@@ -4,7 +4,7 @@ import { auth } from "./auth";
 import { TeamDialog } from "./dialog";
 import { authError, words } from "./notices";
 
-export function SignIn({ gate = false, close, notice = "" }: { gate?: boolean; close: () => void; notice?: string }) {
+export function SignIn({ gate = false, home = false, close, notice = "" }: { gate?: boolean; home?: boolean; close: () => void; notice?: string }) {
   const [email, setEmail] = useState("");
   const [codeStep, setCodeStep] = useState(false);
   const [digits, setDigits] = useState(Array<string>(6).fill(""));
@@ -69,6 +69,6 @@ export function SignIn({ gate = false, close, notice = "" }: { gate?: boolean; c
     {error && <p role="alert">{error}</p>}
   </>;
   return gate ? <main className="team-page"><section className="team-card">
-    <b className="brand" aria-hidden="true">N</b><h1>{words.gateTitle}</h1><p>{words.gateHelper}</p>{content}
+    <b className="brand" aria-hidden="true">N</b><h1>{home ? "Sign in to see your boards" : words.gateTitle}</h1>{!home && <p>{words.gateHelper}</p>}{content}
   </section></main> : <TeamDialog title={codeStep ? words.codeTitle : words.signInTitle} className="team-sign-in" close={close}>{content}</TeamDialog>;
 }

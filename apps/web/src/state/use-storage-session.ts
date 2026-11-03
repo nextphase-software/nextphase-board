@@ -32,7 +32,8 @@ type Input = {
   composing: boolean;
   pending: RefObject<{ invalid: boolean; composing: boolean; busy: boolean }>;
 };
-type Target = { key: string; name: string } | { board: SavedBoard; name: string; pictures: Pictures };
+type Target = { key: string; name: string } | { board: SavedBoard; name: string; pictures: Pictures }
+  | { name: string; run: () => void };
 type Ownership = { release: () => void; task: Promise<void> };
 const OPEN_KEY = "nextphase-board/open/v1";
 
@@ -226,6 +227,7 @@ export function useStorageSession({
   }
   function focusBack() { requestAnimationFrame(() => returnFocus.current?.focus()); }
   async function openTarget(target: Target) {
+    if ("run" in target) { setAnswerPending(false); target.run(); return; }
     const token = epoch.current;
     pendingOpenFocus.current = null;
     operation.current = true; setOpening(true);
@@ -285,6 +287,10 @@ export function useStorageSession({
     if (operation.current || busy || composing || entry.key === currentKey.current || entry.state !== "valid") return;
     ask({ key: entry.key, name: entry.title || "Unnamed board" }, element);
   }
+  function leaveBoard(name: string, run: () => void, element: HTMLElement) {
+    if (operation.current || busy || composing) return;
+    ask({ name, run }, element);
+  }
   async function openFile(file: File) {
     if (operation.current || busy || composing) return;
     const focus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -337,7 +343,7 @@ export function useStorageSession({
   }
   return { store, snapshots, alive, adopt, save, reopen,
     boardFiles: { entries, heldLocks, boardKey: key, readOnly, opening, invalid, panelRef: panelRef.current,
-      fileInput, fileButton, openBoard, openFile, saveCopy },
+      fileInput, fileButton, openBoard, openFile, saveCopy, leaveBoard },
     boardQuestion: { question, boardName: title || "Unnamed board", answerPending,
       saveUnavailable: invalid || busy || composing || readOnly, answer, dialog: dialog.current },
   };

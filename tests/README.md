@@ -16,6 +16,10 @@ still run normally; never bypass them.
 
 ## Reference commands and coverage
 
+`home.test.mjs` covers 0003-W5's Home links, page joining, edited-time words, role and
+sort words, creation and rename permissions, held names and menu placement. It runs
+with `npm test` without Supabase or a browser.
+
 The commands and matrix below are a catalog, not a default execution checklist.
 Run a broader set only when explicitly requested. Use the exact Node/npm versions
 in the toolchain contract. From the repository root:

@@ -277,7 +277,7 @@ the new [0003 hosted storage v1](../architecture/0003-hosted-storage-v1.md) cont
 [toolchain v5](../architecture/0001-toolchain-v5.md), is implemented and merged into main.
 
 [0004-W3 v2 — See who is on a board and where they are](0004-W3-see-who-is-on-a-board-and-where-they-are.md)
-is a draft: on a hosted board, everyone sees an avatar per person before the save status (at
+in which, on a hosted board, everyone sees an avatar per person before the save status (at
 most three, then "+N") with a people menu, and each other connection's cursor, name pill and
 selection outline in its colour; clicking a person follows their view until you stop, move the
 view yourself or they leave; **Show other people's cursors** (⌥⌘\ / Ctrl+Alt+\) hides cursors
@@ -286,6 +286,18 @@ state. It uses [interaction v26](../architecture/0001-interaction-v26.md) with i
 [interaction v27](../architecture/0001-interaction-v27.md),
 [web modules v26](../architecture/0001-web-modules-v26.md) and
 [0003 hosted storage v2](../architecture/0003-hosted-storage-v2.md), with no server, room,
+shared-client or dependency change, is implemented and merged into main.
+
+[0003-W5 v1 — Find, create and reopen boards in the web app](0003-W5-find-create-and-reopen-boards.md)
+is a draft: with team features on, a signed-in person's Home at `#/files` shows their recent
+boards and one page per workspace as a grid of cards (name, last edited, their role), sorted by
+name, date created or last modified; owners and editors create "Untitled" boards that open at
+once, and rename boards from a card's menu or from the open board's name field; a card opens its
+board, in this tab or a new one, and copies its link; **Back to files** in the Board panel and
+closing a hosted board return to Home. It uses
+[interaction v28](../architecture/0001-interaction-v28.md),
+[web modules v27](../architecture/0001-web-modules-v27.md) and
+[0003 hosted storage v3](../architecture/0003-hosted-storage-v3.md), with no server, room,
 shared-client or dependency change.
 
 Each brief is a complete contributor-facing contract. Use this structure:

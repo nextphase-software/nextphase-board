@@ -1,7 +1,9 @@
 BRIEF VERSION: 0004-W3 v2 (2026-11-02)
 # 0004-W3 — See who is on a board and where they are
 
-Status: Draft. Version 2 adds the approved look (interaction v27) and check W3-S36; see "Changes in
+Status: Implemented. Independently reviewed at `6cc27c1` (pass) and merged into main on
+2026-11-02 ([evidence summary](0004-W3-see-who-is-on-a-board-and-where-they-are-evidence.md)).
+Version 2 adds the approved look (interaction v27) and check W3-S36; see "Changes in
 v2". Contracts: [0001 interaction v27](../architecture/0001-interaction-v27.md) (v26's rules plus the
 look), [0001 interaction v26](../architecture/0001-interaction-v26.md),
 [0001 web modules v26](../architecture/0001-web-modules-v26.md) and

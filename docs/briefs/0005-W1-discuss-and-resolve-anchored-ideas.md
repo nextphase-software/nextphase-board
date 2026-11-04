@@ -512,3 +512,130 @@ or Docker was used; no operating-system keys or events were sent. Browser appear
 focus, A–J and interruption scenarios are unverified here. No hosted project,
 deployment, server suite, accessibility audit, performance campaign or broader matrix
 was run. The dry run uploaded nothing. Ignored build metadata is not a changed file.
+
+
+### Fix round 1 — 2026-11-03
+
+Review v1 assessed candidate `8f0639e96b0b91a586419341c29ee10edcaf7cb5`, whose validated
+source/test revision was `ed18861c10e03bc7ef5ca8d0b36fa705823393a7`, as NEEDS WORK.
+The review reported two Major test findings; product code was not in question.
+
+| Finding | Reported failure | Fix |
+| --- | --- | --- |
+| F1 | S130 failed on both runners: after the correct `request_id_reused` refusal, `rawComment` incorrectly required the saved edit's receipt to be absent | S130 opts into an existing-edit-receipt path. Before sending, it requires that receipt's `kind` to be `edit` and captures all receipts and `comment_sequence`. After the expected refusal it requires both snapshots to be unchanged, preserving the original kind, digest and revision. Every other caller retains the original receipt-absence assertion |
+| F2 | S121 failed on workerd because `legacyStorage` evicted the room and S121's following `wake()` attempted to evict it again | The control leaves eviction to S121's existing `wake()`, so the next open constructs the room from the legacy storage and runs migration. The storage mutation and S121 assertions are unchanged |
+
+Both checks were read against this brief's S121 and S130 rows and the comments
+contract's refusal rule and sync v6's receipt rule. Neither requires a contract
+exception. The fix changes only `tests/server/shared.test.ts` (the helper and its
+S130 call) and `tests/server/driver-workerd.ts` (the legacy-storage control).
+`tests/server/node-test.ts`, every other numbered check, production files,
+dependencies, screens and approved interaction requirements are unchanged.
+
+- Branch: `codex/0005-W1-discuss-and-resolve-anchored-ideas`.
+- New validated source/test revision: **`2065d73e9537124fa02c9073eb24936ef58bc896`**
+  (`test(comments): fix refusal receipts and migration wake checks`).
+- Final branch tip: the later documentation-only commit appending this record,
+  reported separately by full hash in the handoff. It changes no validated test
+  or production source. No push or publication is authorized or performed.
+
+#### Fix round 1 commands and results
+
+The pinned Node bin directory was first on PATH for every command. Versions were
+`v26.13.0` and `11.20.0`. Below, `FIX_TMP` denotes the system temporary directory
+created for this round by `mktemp -d -t board-0005-w1-fix1`. `BASE_TMP` denotes the
+previous implementation's system temporary evidence directory, which still holds
+the original `86fd7ab` base builds and the focused typecheck generator. All new
+scratch files and build copies stay in `FIX_TMP`; no machine-specific path or
+scratch file is committed.
+
+```sh
+node --version
+npm --version
+npm ci --ignore-scripts --no-audit --no-fund
+# exit 0; 118 packages installed
+
+git diff --exit-code 86fd7ab -- package-lock.json ':(glob)**/package.json'
+# exit 0
+cp "$BASE_TMP/check-server-additions.mjs" "$FIX_TMP/check-server-additions.mjs"
+node "$FIX_TMP/check-server-additions.mjs"
+node node_modules/typescript/bin/tsc --noEmit -p "$FIX_TMP/additions.tsconfig.json"
+# each exit 0; focused strict typecheck of S121–S133 and the driver controls
+node "$FIX_TMP/check-refusal-helper.mjs"
+# exit 0; 9 isolated helper controls, no server or stack
+npm run typecheck
+# exit 0 for all five workspaces
+npm test > "$FIX_TMP/unit.tap"
+rg '^not ok|^# tests|^# pass|^# fail' "$FIX_TMP/unit.tap"
+# exit 0; 863 tests, 863 passed, 0 failed
+
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cmp apps/web/dist/index.html "$BASE_TMP/base-off/index.html"
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt "$BASE_TMP/base-off/THIRD_PARTY_NOTICES.txt"
+node --input-type=module -e 'import {readFileSync} from "node:fs"; import assert from "node:assert/strict"; const inputs=Object.keys(JSON.parse(readFileSync("apps/web/dist/meta.json")).inputs); assert(!inputs.some(p => p.startsWith("node_modules/@supabase/") || p.startsWith("apps/web/src/team/")));'
+npm run audit:licenses
+cp -R apps/web/dist "$FIX_TMP/off"
+# each exit 0
+
+npm run build:fixtures
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cmp apps/web/dist/index.html "$BASE_TMP/base-on/index.html"
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt
+npm run audit:licenses
+cp -R apps/web/dist "$FIX_TMP/on"
+# each exit 0
+
+npm run build:server
+npm run audit:licenses
+WRANGLER_LOG_PATH="$FIX_TMP/wrangler.log" npx wrangler deploy --dry-run --outdir "$FIX_TMP/worker" -c apps/server/wrangler.json
+# each exit 0; Wrangler 4.156.0, dry run only
+
+git diff --exit-code 8f0639e -- apps packages supabase package.json package-lock.json tests/server/node-test.ts
+git diff --check
+git diff --cached --check
+git commit -m 'test(comments): fix refusal receipts and migration wake checks'
+# each exit 0; both public-boundary hooks PASS
+
+git diff --name-status 8f0639e..2065d73
+git diff --name-status 86fd7ab..2065d73
+# exit 0; fix is exactly the two permitted test paths; overall milestone scope unchanged
+```
+
+```text
+PASS: V1 every manifest and package-lock.json byte-identical to the original base
+PASS: V2 npm ci exited 0
+PASS: V3 npm run typecheck exited 0 for all five workspaces
+PASS: V4 863 unit tests passed, 0 failed
+PASS: V5 off build, original base HTML/notices, excluded inputs and license audit
+PASS: V6 fixture/on builds, original base HTML, runtime notices v3 and license audit
+PASS: V7 server build, Worker dry run and license audit
+PASS: V8 validated fix changes only the two permitted test files; overall milestone scope preserved
+```
+
+The focused server typecheck uses the previous record's method: the S121–S133
+section and Worker control are copied verbatim, the unchanged harness is represented
+by typed declarations, and the complete Node test driver is included. It passed
+with the revised helper. In this checkout, `npm run typecheck` covers the five
+workspace sources but its configs exclude server-test files; the previous record's
+whole-harness typing limitation is unchanged. No config or pre-existing check was
+changed to hide it, and no server suite was executed.
+
+The temporary refusal-helper harness extracts and runs the revised helper with
+in-memory driver responses. Its nine controls accept an unchanged existing edit
+receipt and an absent fresh receipt, and require assertion failures for a newly
+stored refused receipt, a changed digest, revision or kind, a removed original
+receipt, an extra receipt, or an advanced comment sequence. These are helper
+controls, not results for S121 or S130 against either real runner.
+
+Scope inspection verified that all other numbered checks are byte-identical to
+the reviewed candidate, the Worker's existing `wake()` and other controls are
+unchanged, the Node driver is unchanged, and production files have no diff from
+that candidate. Graph discovery remained unavailable under the approval policy;
+direct reads were used. Git again printed a nonfatal `packed-refs.lock` permission
+warning, but the fix commit exited 0 and its branch and full hash were verified.
+No hooks were bypassed.
+
+**V9–V13 remain for the review's check run**, including both server runners and the
+rechecks of S121 and S130. No claim is made here that those runner checks pass.
+No browser, Supabase CLI command, Docker, stack, operating-system input, deployment,
+new dependency, production change, merge or push was used in this round.

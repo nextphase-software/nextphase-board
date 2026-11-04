@@ -559,11 +559,20 @@ async function commentResult(client: DiscussionClient, operation: CommentOperati
   if (reason) assert.equal(result.reason, reason);
   return { id, sequence: result.sequence! };
 }
-async function rawComment(client: DiscussionClient, operation: unknown, reason: string, epoch = client.session.epoch, requestId: string = crypto.randomUUID()) {
+async function rawComment(client: DiscussionClient, operation: unknown, reason: string,
+  epoch = client.session.epoch, requestId: string = crypto.randomUUID(), existingEditReceipt = false) {
+  const receipts = existingEditReceipt ? await driver.rows(f.a, "receipts") : undefined;
+  const sequence = existingEditReceipt
+    ? (await driver.rows(f.a, "meta")).find((row) => row.key === "comment_sequence") : undefined;
+  if (receipts) assert(receipts.some((row) => row.request_id === requestId && row.kind === "edit"));
   client.raw({ kind: "comment", epoch, requestId, operation });
   await until(() => client.peer.messages.find((message) => message.kind === "comment_refused" && message.requestId === requestId), Boolean);
   assert.equal(client.peer.messages.find((message) => message.kind === "comment_refused" && message.requestId === requestId)!.reason, reason);
-  assert(!(await driver.rows(f.a, "receipts")).some((row) => row.request_id === requestId));
+  if (existingEditReceipt) {
+    // A refused reuse preserves the original edit's kind, digest and revision.
+    assert.deepEqual(await driver.rows(f.a, "receipts"), receipts);
+    assert.deepEqual((await driver.rows(f.a, "meta")).find((row) => row.key === "comment_sequence"), sequence);
+  } else assert(!(await driver.rows(f.a, "receipts")).some((row) => row.request_id === requestId));
 }
 async function commentsEqual(people: readonly DiscussionClient[]) {
   const rows = await driver.rows(f.a, "threads");
@@ -770,7 +779,7 @@ check(130, "comments bypass waiting edits and receipts cannot cross request kind
   a.raw({ kind: "comment", epoch: a.session.epoch, requestId, operation: start });
   await until(() => a.peer.messages.find((message) => message.kind === "comment_saved" && message.requestId === requestId), Boolean);
   assert.equal((await driver.rows(f.a, "waiting")).length, 1); a.releaseOut(); await saved(a, first); await saved(a, second);
-  await rawComment(a, startComment(), "request_id_reused", a.session.epoch, first);
+  await rawComment(a, startComment(), "request_id_reused", a.session.epoch, first, true);
   a.raw({ kind: "edit", epoch: a.session.epoch, requestId, update: a.session.requests.get(first)!.update });
   assert.equal((await a.peer.next("refused")).reason, "request_id_reused");
 });

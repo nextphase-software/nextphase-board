@@ -39,7 +39,7 @@ export async function makeDriver(context: Context): Promise<Driver> {
             room.initialized = false;
           });
         });
-        await evictDurableObject(stub);
+        // S121 calls wake() next; it owns eviction before the next storage open.
         return {};
       }
       if (value.scheduled) {

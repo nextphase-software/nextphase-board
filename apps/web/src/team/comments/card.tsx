@@ -98,7 +98,8 @@ export function CommentCard({ hosted, thread, exists, deletedBy, resolvedBy, sty
   }, [gone, reply.text, editing?.draft.text]);
   function menuFor(event: React.MouseEvent<HTMLButtonElement>, id: string) {
     const row = event.currentTarget.closest<HTMLElement>(".comment-row"), node = card.current!;
-    setMenu({ id, opener: event.currentTarget, top: row ? row.offsetTop + 36 - node.scrollTop : 40 });
+    // Card-relative offsets start inside its 1px border; the row offset stays unchanged.
+    setMenu({ id, opener: event.currentTarget, top: row ? row.offsetTop + 36 - node.scrollTop : 39 });
   }
   function keys(event: KeyboardEvent) {
     event.stopPropagation();
@@ -143,7 +144,7 @@ export function CommentCard({ hosted, thread, exists, deletedBy, resolvedBy, sty
     <CommentField hosted={hosted} draft={reply} change={setReply} operation={fieldOperation} locked={gone} saved={() => {
       card.current?.querySelector<HTMLTextAreaElement>('[aria-label="Reply"]')?.focus();
     }} />
-    {menu && <CommentMenu opener={menu.opener} close={() => setMenu(null)} style={{ top: menu.top, right: 6 }} items={menu.id === "thread"
+    {menu && <CommentMenu opener={menu.opener} close={() => setMenu(null)} style={{ top: menu.top, right: 5 }} items={menu.id === "thread"
       ? [{ label: "Delete thread…", run: () => setQuestion({ thread: true }) }]
       : [{ label: "Edit", run: () => { const comment = thread.comments.find((comment) => comment.id === menu.id)!; setEditing({ id: comment.id, draft: { text: comment.text } }); } },
         { label: "Delete comment", run: () => setQuestion({ commentId: menu.id, thread: menu.id === thread.firstComment }) }]} />}

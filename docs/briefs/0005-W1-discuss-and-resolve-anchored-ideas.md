@@ -639,3 +639,113 @@ No hooks were bypassed.
 rechecks of S121 and S130. No claim is made here that those runner checks pass.
 No browser, Supabase CLI command, Docker, stack, operating-system input, deployment,
 new dependency, production change, merge or push was used in this round.
+
+
+### Fix round 2 — 2026-11-03
+
+Review v2 assessed candidate `b6d79ab28d03a33610c93384ee83cc9c167657a4`, whose validated
+revision was `2065d73e9537124fa02c9073eb24936ef58bc896`, as NEEDS WORK for F3
+(Minor, contract). It reported that fix round 1's S121 and S130 now pass on both
+runners; those server checks were not rerun here.
+
+**Finding.** The card menus' absolute offsets were measured inside the card's 1 px
+border. C1-S19 reported a comment menu right edge of 751 where interaction v30's
+outer-edge measurement required 752, outside its 0.5 px tolerance. The same border
+also added 1 px to the thread menu's top offset.
+
+**Change.** In `apps/web/src/team/comments/card.tsx`, the shared right offset for
+these two card menus is now 5 px inside the padding edge, yielding 6 px from the
+card's outer right edge. The thread menu's top offset is now 39 px inside the
+padding edge, yielding 40 px from the outer top. A comment explains the border
+adjustment. The comment menu's existing `row.offsetTop + 36 - node.scrollTop`
+expression is unchanged, so its row-relative top placement stays unchanged.
+The filter menu, shared menu component, stylesheet and every other screen control
+are unchanged. No base style rule was edited. This meets interaction v30's
+"Menus" section without a contract exception.
+
+- Branch: `codex/0005-W1-discuss-and-resolve-anchored-ideas`.
+- New validated source revision: **`f3cd847a0ebe6f25c0dcb35f3bb6d61800e260b5`**
+  (`fix(web): align comment menus with card border edges`). Tests are unchanged
+  from the reviewed candidate. The fix's entire source diff is one file.
+- Final branch tip: the later documentation-only commit appending this record,
+  reported separately by full hash in the handoff. It changes no validated source.
+  No push or publication was performed.
+
+#### Fix round 2 commands and results
+
+Every command used the pinned Node bin directory first on PATH. `node --version`
+printed `v26.13.0`; `npm --version` printed `11.20.0`. `FIX_TMP` below denotes the
+system temporary directory created by `mktemp -d -t board-0005-w1-fix2`.
+`BASE_TMP` denotes the original implementation's preserved system temporary
+base-build directory. New build copies and logs are outside tracked paths.
+
+```sh
+node --version
+npm --version
+npm ci --ignore-scripts --no-audit --no-fund
+# exit 0; 118 packages installed
+
+git diff --exit-code 86fd7ab -- package-lock.json ':(glob)**/package.json'
+# exit 0
+npm run typecheck
+# exit 0 for all five workspaces
+npm test > "$FIX_TMP/unit.tap"
+rg '^not ok|^# tests|^# pass|^# fail' "$FIX_TMP/unit.tap"
+# exit 0; 863 tests, 863 passed, 0 failed
+
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cmp apps/web/dist/index.html "$BASE_TMP/base-off/index.html"
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt "$BASE_TMP/base-off/THIRD_PARTY_NOTICES.txt"
+node --input-type=module -e 'import {readFileSync} from "node:fs"; import assert from "node:assert/strict"; const inputs=Object.keys(JSON.parse(readFileSync("apps/web/dist/meta.json")).inputs); assert(!inputs.some(p => p.startsWith("node_modules/@supabase/") || p.startsWith("apps/web/src/team/")));'
+npm run audit:licenses
+cp -R apps/web/dist "$FIX_TMP/off"
+# each exit 0
+
+npm run build:fixtures
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cmp apps/web/dist/index.html "$BASE_TMP/base-on/index.html"
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt
+npm run audit:licenses
+cp -R apps/web/dist "$FIX_TMP/on"
+# each exit 0
+
+npm run build:server
+npm run audit:licenses
+WRANGLER_LOG_PATH="$FIX_TMP/wrangler.log" npx wrangler deploy --dry-run --outdir "$FIX_TMP/worker" -c apps/server/wrangler.json
+# each exit 0; Wrangler 4.156.0, dry run only
+
+git diff --check
+git diff --cached --check
+git commit -m 'fix(web): align comment menus with card border edges'
+# each exit 0; both public-boundary hooks PASS
+
+git diff --name-status 86fd7ab..f3cd847
+git diff --name-status b6d79ab..f3cd847
+# each exit 0; original milestone scope preserved; this round changes only card.tsx
+```
+
+```text
+PASS: V1 every manifest and package-lock.json byte-identical to the original base
+PASS: V2 npm ci exited 0
+PASS: V3 all five workspaces typechecked
+PASS: V4 863 unit tests passed, 0 failed
+PASS: V5 off build, original base HTML/notices, excluded inputs and license audit
+PASS: V6 fixture/on builds, original base HTML, runtime notices v3 and license audit
+PASS: V7 server build, Worker dry run and license audit
+PASS: V8 validated fix changes only card.tsx; overall milestone scope preserved
+```
+
+Scope inspection compared the complete card file with the reviewed candidate and
+verified exactly the two offset changes and explanatory comment. The stylesheet
+and filter panel are byte-identical to that candidate, and the stylesheet still
+retains the original `86fd7ab` content as its exact prefix. All tests and other
+source files are unchanged. Graph discovery again returned the approval-policy
+rejection, so direct reads were used. Git printed its nonfatal `packed-refs.lock`
+permission warning; the commit exited 0, its branch and full hash were verified,
+and no hooks were bypassed.
+
+**V9–V13 remain for the review's check run.** In particular, C1-S19's real browser
+geometry has not been measured here; typechecking, unit tests and successful builds
+do not substitute for that check. No browser, Supabase CLI, stack, Docker,
+operating-system input, server suite, deployment, new dependency, merge or push
+was used in this round.

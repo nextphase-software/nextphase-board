@@ -336,3 +336,17 @@ the comments panel, and the view-only toolbar's Comment tool.
 [document v11](0001-document-v11.md), [board file v2](0006-board-file-v2.md) and
 [storage v3](0001-storage-v3.md) stay in force. No dependency, board document, board file or
 export format changes.
+
+For 0006-W1 v1, [0003 API v5](0003-api-v5.md), [0003 hosted persistence v5](0003-hosted-persistence-v5.md),
+[0001 interaction v31](0001-interaction-v31.md) and [0001 web modules v29](0001-web-modules-v29.md)
+govern importing a board file as a new team board: **Import board file…** on Home, the board file
+read and checked in the tab, one creation request carrying the document, a room that starts from
+that document at revision 0 with its objects' IDs recorded, and the creation undone when the room
+step fails. [Access v5](0003-access-v5.md), [sync v6](0003-sync-v6.md),
+[hosted storage v5](0003-hosted-storage-v5.md), [0005 comments v1](0005-comments-v1.md),
+[presence v1](0004-presence-v1.md), [toolchain v5](0001-toolchain-v5.md) with
+[lock v5](0001-dependency-lock-v5.json), [inventory v5](0001-dependency-inventory-v5.json) and
+[runtime notices v3](0001-runtime-notices-v3.txt), [identity v3](0003-identity-v3.md),
+[self-host runner v1](0003-self-host-runner-v1.md), [document v11](0001-document-v11.md),
+[board file v2](0006-board-file-v2.md) and [storage v3](0001-storage-v3.md) stay in force. No
+dependency, board document, board file, storage version or database schema changes.

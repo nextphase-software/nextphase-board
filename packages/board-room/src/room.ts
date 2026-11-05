@@ -46,7 +46,13 @@ export class Room {
     this.tail = result.catch(() => {});
     return result;
   }
-  async load() {
+  create(document: BoardV10) {
+    return this.ordered(async () => {
+      if (meta(this.env.storage, "storage_version")) throw new RoomError(409, "room_exists");
+      await this.load(document);
+    });
+  }
+  async load(document?: BoardV10) {
     this.closeLegacy();
     initialize(this.env.storage);
     if (this.initialized) return;
@@ -59,19 +65,23 @@ export class Room {
       } catch { /* Without a stored role an outage must not reveal a board. */ }
       if (!details || !page) throw new RoomError(404, "not_found");
       const adapter = new Adapter();
-      const board: BoardV10 = { schemaVersion: 10, boardId: this.boardId, title: details.title, objects: [], retiredGenerations: [] };
+      const board: BoardV10 = document ?? { schemaVersion: 10, boardId: this.boardId, title: details.title, objects: [], retiredGenerations: [] };
       adapter.set(board);
-      storage.transaction(() => {
-        setMeta(storage, "storage_version", 3);
-        storage.exec("INSERT INTO meta VALUES ('board_id', ?)", this.boardId);
-        setMeta(storage, "last_edit_at", Date.parse(details.createdAt));
-        setMeta(storage, "revision", 0);
-        setMeta(storage, "watermark", page.latest);
-        setMeta(storage, "restore_generation", 0);
-        setMeta(storage, "restore_pending", 0);
-        snapshot(storage, adapter.doc, board, 0);
-      });
-      adapter.destroy();
+      try {
+        storage.transaction(() => {
+          setMeta(storage, "storage_version", 3);
+          storage.exec("INSERT INTO meta VALUES ('board_id', ?)", this.boardId);
+          setMeta(storage, "last_edit_at", Date.parse(details.createdAt));
+          setMeta(storage, "revision", 0);
+          setMeta(storage, "watermark", page.latest);
+          setMeta(storage, "restore_generation", 0);
+          setMeta(storage, "restore_pending", 0);
+          snapshot(storage, adapter.doc, board, 0);
+          for (const object of board.objects) {
+            storage.exec("INSERT INTO identifiers VALUES (?, ?, 0)", object.id, object.generation);
+          }
+        });
+      } finally { adapter.destroy(); }
     }
     await this.creationTime();
     this.copies?.suspend();

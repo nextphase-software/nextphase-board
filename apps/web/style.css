@@ -1180,3 +1180,11 @@ button.comment-destructive, button.comment-destructive:hover:not(:disabled):not(
   .comment-panel { position: fixed; top: auto; left: 12px; right: 12px; bottom: 80px; width: auto; height: min(42dvh, 320px); }
   .comment-card, .comment-composer { z-index: 5; max-width: calc(100% - 24px); }
 }
+
+.home-import { display: flex; align-items: center; gap: 6px; }
+@media (max-width: 599.98px) {
+  .home-import { width: 40px; height: 40px; padding: 0; justify-content: center; }
+  .home-import span { display: none; }
+  .home-import, .home .home-new-board { flex-shrink: 0; white-space: nowrap; }
+  .home-topbar h1 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

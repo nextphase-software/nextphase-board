@@ -846,3 +846,172 @@ check(133, "board comment limits bound the backup and reject mixed envelope shap
   for (const table of ["comments", "comment_ids", "comment_counts"]) delete mixed.tables[table];
   await restoreComments(mixed, 400);
 });
+
+// 0006-W1: portable board creation uses the same fixture on both runners.
+const workspaceRows = () => helper("rows", { table: "boards", filters: { workspace_id: f.workspace } });
+const identifierRows = (board: BoardV10) => board.objects.map((object) =>
+  ({ object_id: object.id, generation: object.generation, first_revision: 0 }))
+  .sort((a, b) => a.object_id.localeCompare(b.object_id));
+const orderedIdentifiers = async (board: string) => (await driver.rows(board, "identifiers"))
+  .sort((a, b) => a.object_id.localeCompare(b.object_id));
+async function importDocument(document: unknown, title: string, name = "owner") {
+  return success(`/workspaces/${f.workspace}/boards`, name, "POST", { title, document }, 201);
+}
+async function noImportWrite(before: any[]) {
+  assert.deepEqual(await workspaceRows(), before);
+  const log = await helper("proxy");
+  assert(!log.some((entry: any) => entry.name === "create_board"));
+}
+async function importRefusal(value: unknown, reason: string, status = 400, name = "owner") {
+  const response = await request(`/workspaces/${f.workspace}/boards`, name, "POST", value);
+  assert.equal(response.status, status, await response.clone().text());
+  const reply = await response.json() as any;
+  assert.equal(reply.error.reason, reason);
+  return reply;
+}
+check(134, "import creates an independent rich board at revision zero with durable identifiers", async () => {
+  const { richBoard } = await import("../import-fixture.mjs");
+  const document = { ...richBoard(), boardId: f.a }, original = await exported();
+  const details = await importDocument(document, "Launch plan");
+  assert.notEqual(details.id, document.boardId); assert.equal(details.workspaceId, f.workspace);
+  const expected = { ...document, boardId: details.id };
+  assert.equal(await success(`/boards/${details.id}`, "editor").then((row) => row.title), document.title);
+  const list = await success(`/workspaces/${f.workspace}/boards`, "editor");
+  assert(list.boards.some((row: any) => row.id === details.id && row.title === "Launch plan"));
+  assert.equal(await request(`/boards/${details.id}/export`).then((reply) => reply.text()), canonical(expected));
+  assert.equal(await exported(), original);
+  const client = await join("editor", details.id);
+  assert.equal(client.session.revision, 0); assert.deepEqual(client.session.board, expected);
+  const rows = await orderedIdentifiers(details.id); assert.deepEqual(rows, identifierRows(expected));
+  const metadata = await driver.rows(details.id, "meta");
+  const values = Object.fromEntries(metadata.map((row) => [row.key, row.value]));
+  assert.equal(values.storage_version, 3); assert.equal(values.revision, 0); assert.equal(values.board_id, details.id);
+  client.session.close(); for (const peer of client.peers) await peer.close();
+  await driver.wake(details.id);
+  const reopened = await join("editor", details.id);
+  assert.equal(reopened.session.revision, 0); assert.deepEqual(reopened.session.board, expected);
+  assert.deepEqual(await orderedIdentifiers(details.id), rows);
+  console.log("EVIDENCE-S134 " + JSON.stringify({ identifiers: rows, meta: metadata }));
+});
+check(135, "import validates exact body document size and pictures before writing", async () => {
+  const { richBoard, sizedBoard, imageBoard } = await import("../import-fixture.mjs");
+  const document = richBoard(), before = await workspaceRows(); await helper("proxy", { clearLog: true });
+  for (const [value, reason] of [
+    [{ title: "Launch plan", document: {} }, "invalid_document"],
+    [{ title: "Launch plan", document: { ...document, schemaVersion: 9 } }, "invalid_document"],
+    [{ title: "Sized", document: sizedBoard(2097153) }, "document_too_large"],
+    [{ title: "x".repeat(120), document: sizedBoard() }, "document_too_large"],
+    [{ title: "Pictures", document: imageBoard() }, "images_not_supported"],
+    [{ title: "Launch plan", document, extra: true }, "bad_request"],
+    [{ document }, "bad_request"],
+  ] as const) { await importRefusal(value, reason); await noImportWrite(before); }
+  for (const bytes of [13631489, 13631488]) {
+    const response = await driver.request(`/workspaces/${f.workspace}/boards`, { method: "POST",
+      headers: { Authorization: "Bearer " + f.people.owner.token, "Content-Type": "application/json" }, body: " ".repeat(bytes) });
+    assert.equal(response.status, bytes === 13631489 ? 413 : 400);
+    assert.equal((await response.json() as any).error.reason, bytes === 13631489 ? "body_too_large" : "bad_request");
+    await noImportWrite(before);
+  }
+});
+check(136, "import requires a workspace editor and ignores a guest's board grant", async () => {
+  const { richBoard } = await import("../import-fixture.mjs");
+  await helper("rpc", { name: "write_member_role", parameters: { workspace: f.workspace, person: f.people.granted.id, role: "guest" } });
+  await helper("rpc", { name: "write_board_grant", parameters: { board: f.a, person: f.people.granted.id, role: "editor" } });
+  const document = richBoard(), before = await workspaceRows(); await helper("proxy", { clearLog: true });
+  for (const name of ["viewer", "granted"]) {
+    const reply = await importRefusal({ title: document.title, document }, "role_too_low", 403, name);
+    assert.equal(reply.error.needed, "editor"); await noImportWrite(before);
+  }
+  await importRefusal({ title: document.title, document }, "not_found", 404, "outsider"); await noImportWrite(before);
+});
+check(137, "import compensates room failures transaction rollback and an already opened room", async () => {
+  const { richBoard } = await import("../import-fixture.mjs");
+  const document = richBoard(), before = await workspaceRows();
+  try {
+    for (const stage of ["before", "write", "after", "exists"]) {
+      await helper("proxy", { clearLog: true }); await driver.control({ failCreate: stage });
+      await importRefusal({ title: document.title, document }, stage === "exists" ? "room_exists" : "service_unavailable", stage === "exists" ? 409 : 503);
+      const log = await helper("proxy"), made = log.find((entry: any) => entry.name === "create_board");
+      assert(made?.reply?.id); const id = made.reply.id;
+      assert.deepEqual(await workspaceRows(), before);
+      const tables: Record<string, unknown[]> = {};
+      for (const table of ["meta", "snapshot_chunks", "identifiers", "edits", "threads", "comments"]) {
+        tables[table] = await driver.rows(id, table); assert.deepEqual(tables[table], []);
+      }
+      assert.equal((await request(`/boards/${id}`)).status, 404);
+      assert.equal((await request(`/boards/${id}/export`)).status, 404);
+      assert.equal((await request(`/boards/${id}/join-tickets`, "owner", "POST")).status, 404);
+      console.log("EVIDENCE-S137 " + JSON.stringify({ stage, id, tables }));
+    }
+    await driver.control({ failCreate: "" });
+    await helper("proxy", { clearLog: true, rpc: "create_board", fail: true });
+    await importRefusal({ title: document.title, document }, "service_unavailable", 503);
+    assert.deepEqual(await workspaceRows(), before);
+    assert((await helper("proxy")).filter((entry: any) => entry.name === "create_board").every((entry: any) => !entry.reply));
+    console.log("EVIDENCE-S137 " + JSON.stringify({ stage: "database-before", rows: "unchanged" }));
+  } finally { await driver.control({ failCreate: "" }); await helper("proxy", { rpc: "create_board" }); }
+});
+check(138, "imported identifiers cannot be reused after their objects are deleted", async () => {
+  const { richBoard } = await import("../import-fixture.mjs");
+  const rich = richBoard(), document = { ...rich, objects: rich.objects.filter((o: any) => o.type === "sticky")
+    .map((o: any, order: number) => ({ ...o, order, group: null, section: null })) };
+  const details = await importDocument(document, document.title); f.a = details.id;
+  const client = await join(), old = client.session.board.objects[0];
+  await edit(client, (board) => remove(board, [old.id]));
+  const before = await exported(), identifiers = await orderedIdentifiers(f.a);
+  const id = client.session.edit({ ...client.session.board, objects: [{ ...old, generation: crypto.randomUUID(), order: 0 }] });
+  await until(() => client.session.requests.get(id)?.state, (state) => state === "refused");
+  assert.equal(client.session.requests.get(id)?.reason, "identifier_reused");
+  assert.equal(await exported(), before); assert.deepEqual(await orderedIdentifiers(f.a), identifiers);
+  console.log("EVIDENCE-S138 " + JSON.stringify({ id: old.id, identifiers }));
+});
+check(139, "import backup restores revision zero identifiers and empty comment tables", async () => {
+  const { richBoard } = await import("../import-fixture.mjs");
+  const document = richBoard(), details = await importDocument(document, document.title); f.a = details.id;
+  const expected = canonical({ ...document, boardId: f.a }), envelope = await backupComments();
+  assert.deepEqual(envelope.tables.identifiers.sort((a: any, b: any) => a.object_id.localeCompare(b.object_id)), identifierRows(document));
+  assert.deepEqual(envelope.tables.threads, []); assert.deepEqual(envelope.tables.comments, []);
+  const client = await join(); await edit(client, (board) => ({ ...board, title: "After import" }));
+  assert.notEqual(await exported(), expected); await restoreComments(envelope);
+  assert.equal(await exported(), expected);
+  const restored = await join(); assert.equal(restored.session.revision, 0);
+  await until(() => restored.session.commentsReady, Boolean); assert.equal(restored.session.threads.size, 0);
+  assert.deepEqual(await orderedIdentifiers(f.a), envelope.tables.identifiers);
+});
+check(140, "editor imports the exact 2 MiB document and refuses one more canonical byte", async () => {
+  const { sizedBoard } = await import("../import-fixture.mjs");
+  const document = sizedBoard(), json = canonical(document), body = JSON.stringify({ title: document.title, document });
+  assert.equal(new TextEncoder().encode(json).length, 2097152);
+  const started = Date.now(), details = await importDocument(document, document.title, "editor"), durationMs = Date.now() - started;
+  assert.equal(await request(`/boards/${details.id}/export`, "editor").then((response) => response.text()), canonical({ ...document, boardId: details.id }));
+  await helper("proxy", { clearLog: true }); const before = await workspaceRows();
+  await importRefusal({ title: document.title, document: sizedBoard(2097153) }, "document_too_large", 400, "editor"); await noImportWrite(before);
+  console.log("MEASURE-S140 " + JSON.stringify({ canonicalBytes: new TextEncoder().encode(json).length,
+    requestBytes: new TextEncoder().encode(body).length, objects: document.objects.length, durationMs }));
+});
+check(141, "import enforces the creation title and stores the chosen title", async () => {
+  const { richBoard } = await import("../import-fixture.mjs");
+  const document = richBoard(), before = await workspaceRows(); await helper("proxy", { clearLog: true });
+  for (const title of ["", " ", "x".repeat(121), "Has\u0000null"]) {
+    await importRefusal({ title, document }, "bad_request"); await noImportWrite(before);
+  }
+  const details = await importDocument(document, "Chosen title");
+  assert.equal(await request(`/boards/${details.id}/export`).then((reply) => reply.text()),
+    canonical({ ...document, boardId: details.id, title: "Chosen title" }));
+});
+check(142, "lost database reply leaves the documented row without a room snapshot", async () => {
+  const { richBoard } = await import("../import-fixture.mjs");
+  const document = richBoard(); let id: string | undefined;
+  try {
+    await helper("proxy", { clearLog: true, rpc: "create_board", failAfter: true });
+    await importRefusal({ title: document.title, document }, "service_unavailable", 503);
+    const made = (await helper("proxy")).find((entry: any) => entry.name === "create_board");
+    assert(made?.reply?.id); id = made.reply.id;
+    const rows = await helper("rows", { table: "boards", filters: { id } }); assert.equal(rows.length, 1);
+    assert.equal(rows[0].title, document.title); assert.deepEqual(await driver.rows(id!, "snapshot_chunks"), []);
+    console.log("FINDING-S142 " + JSON.stringify({ id, rowRemains: true, snapshot: false }));
+  } finally {
+    await helper("proxy", { rpc: "create_board" });
+    if (id) await helper("sql", { sql: `DELETE FROM nextphase_board.boards WHERE id='${id}'` });
+  }
+});

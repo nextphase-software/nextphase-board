@@ -533,16 +533,19 @@ test("production runners contain none of the test driver names", () => {
 });
 
 
-test("team modules and imports follow web modules v28", () => {
+test("team modules and imports follow web modules v29", () => {
   const team = new URL("team/", source);
   const names = files(team).sort();
   assert.deepEqual(names, ["api.ts", "auth.ts", "comments/card.tsx", "comments/icons.tsx", "comments/layer.tsx",
-    "comments/panel.tsx", "comments/rules.ts", "comments/tool.tsx", "config.ts", "dialog.tsx", "home-card.tsx", "home-lists.ts",
-    "home-menu.tsx", "home-rules.ts", "home.tsx", "hosted-board.ts", "links.ts",
+    "comments/panel.tsx", "comments/rules.ts", "comments/tool.tsx", "config.ts", "dialog.tsx", "home-card.tsx", "home-import.tsx", "home-lists.ts",
+    "home-menu.tsx", "home-rules.ts", "home.tsx", "hosted-board.ts", "import.ts", "links.ts",
     "notices.ts", "pages.tsx", "people.tsx", "presence-layer.tsx", "presence.ts", "roles.ts", "share-dialog.tsx", "sign-in.tsx", "team-app.tsx"]);
   for (const name of names) {
     const content = readFileSync(new URL(name, team), "utf8");
     assert.equal(content.split("\n")[0], "// SPDX-License-Identifier: Apache-2.0", name);
+    if (name === "import.ts") {
+      assert(specifiers(content).every((specifier) => specifier === "../board-file.ts" || specifier.startsWith("nextphase-board-rules/")), name);
+    }
     if (["comments/rules.ts", "home-rules.ts", "links.ts", "roles.ts", "notices.ts", "presence.ts"].includes(name)) {
       assert.doesNotMatch(content, /from ["'](?:react|.\/auth)/, name);
     }

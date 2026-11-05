@@ -5,18 +5,32 @@ import { checkSettings } from "../../apps/server/src/settings.ts";
 const settings = checkSettings(JSON.parse(await readFile(process.env.BOARD_SETTINGS!, "utf8")));
 let fixedNow: number | null = null;
 let offset = 0, unreachable: string[] = [];
+let failCreate = "";
 const app = await startNode(settings, { now: () => fixedNow ?? Date.now() + offset, backupLimit: 16777216,
   deliveryIntervalMs: Number(process.env.BOARD_DELIVERY_INTERVAL_MS ?? 0) });
 const original = app.runtime.room;
 app.runtime.room = (board) => {
   const room = original(board);
-  return { rename: (p, title) => room.rename(p, title), ticket: (p) => room.ticket(p), export: (p) => room.export(p), backup: () => room.backup(), restore: (v) => room.restore(v),
+  return { async create(document) {
+    if (failCreate === "before") throw Error("Create unavailable");
+    const entry = app.rooms.get(board)!;
+    if (failCreate === "exists") await entry.room.ordered(() => entry.room.load());
+    const exec = entry.storage.exec.bind(entry.storage);
+    if (failCreate === "write") entry.storage.exec = (sql, ...values) => {
+      if (sql.startsWith("INSERT INTO snapshot_chunks")) throw Error("Snapshot write unavailable");
+      exec(sql, ...values);
+    };
+    try { await room.create(document); }
+    finally { entry.storage.exec = exec; }
+    if (failCreate === "after") throw Error("Create reply unavailable");
+  }, rename: (p, title) => room.rename(p, title), ticket: (p) => room.ticket(p), export: (p) => room.export(p), backup: () => room.backup(), restore: (v) => room.restore(v),
     changed: () => unreachable.includes(board) ? Promise.reject(Error("Room unavailable")) : room.changed() };
 };
 process.on("message", async (message: any) => {
   try {
     let result: any = {};
     const value = message.value;
+    if (value.failCreate !== undefined) failCreate = value.failCreate;
     if (value.fixedNow !== undefined) fixedNow = value.fixedNow;
     if (value.offset !== undefined) offset = value.offset;
     if (value.unreachable) unreachable = value.unreachable;

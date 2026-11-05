@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { serve } from "@hono/node-server";
 import { WebSocketServer } from "ws";
-import { mkdir, access } from "node:fs/promises";
+import { mkdir, access, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { meta } from "nextphase-board-room/storage.ts";
@@ -94,6 +94,25 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
   const upgrades = new WeakMap<Request, { board: string; attachment: Attachment }>();
   const runtime: Runtime = { auth, db, allowedOrigin: settings.allowedOrigin, operatorKey: settings.operatorKey,
     room: (board) => roomEntry(board).room,
+    async removeRoom(board) {
+      const entry = rooms.get(board);
+      if (entry) {
+        await entry.room.ordered(async () => {
+          for (const connection of entry.connections) connection.close(4403);
+          clearTimeout(entry.timer);
+        });
+        // Copies settle through the room queue, so drain them outside that queue.
+        while (tasks.size) await Promise.allSettled([...tasks]);
+        await entry.room.ordered(async () => {
+          clearTimeout(entry.timer);
+          rooms.delete(board);
+          entry.storage.close();
+        });
+      }
+      for (const suffix of ["", "-wal", "-shm"]) {
+        await rm(resolve(settings.dataDir, "boards", board + ".sqlite" + suffix), { force: true });
+      }
+    },
     async upgrade(board, ticket, request) {
       const attachment = await roomEntry(board).room.join(ticket);
       if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") throw new RoomError(400, "bad_request");
@@ -134,7 +153,10 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
         websocket.on("message", (data, binary) => {
           void entry.room.message(connection, binary ? "" : data.toString()).catch(() => websocket.close(1011));
         });
-        websocket.on("close", () => { entry.connections.delete(connection); void entry.room.closed(connection); });
+        websocket.on("close", () => {
+          entry.connections.delete(connection);
+          if (rooms.get(accepted.board) === entry) void entry.room.closed(connection);
+        });
         websocket.on("error", () => {});
         void entry.room.connected(connection).catch(() => websocket.close(1011));
       });

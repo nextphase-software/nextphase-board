@@ -34,6 +34,20 @@ These server checks require the local stack and belong to the review's V11 run.
 The 0005-W1 browser scenario, base negative control, A–J comparison and amended
 0004-W2 checks belong to the review's V9–V13 run; they are not unit-test results.
 
+`team-import.test.mjs` covers 0006-W1's exact reader refusals, picture and size
+refusals, current and upgraded request bodies, and revision-zero room creation,
+identifier rows, reload and `room_exists` immutability. `import-fixture.mjs` shares
+synthetic rich, exact-size and picture boards with the unit and server checks.
+These tests run with `npm test` without Supabase or a browser.
+
+`tests/server/shared.test.ts` adds S134–S142 on both runners for creation, ordered
+validation, access, compensating cleanup, identifier reuse, backup/restore, the
+2 MiB boundary, title precedence and the documented lost-database-answer gap.
+`SUMMARY-SHARED` counts them. The runners' `failCreate` and proxy's `failAfter`
+controls exercise the failure stages. The 0006-W1 implementer runs V1–V8 only;
+V9–V13, including these server checks and the browser scenarios, remain for the
+review's check run with its local stack.
+
 The commands and matrix below are a catalog, not a default execution checklist.
 Run a broader set only when explicitly requested. Use the exact Node/npm versions
 in the toolchain contract. From the repository root:

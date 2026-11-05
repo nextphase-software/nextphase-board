@@ -47,9 +47,9 @@ export default async function setup(project: any) {
   const issuer = stack.apiUrl + "/auth/v1";
   const bad = await badTokens(key, issuer, people.owner, stack.jwtSecret);
   let offline = false;
-  const rpcControls = new Map<string, { fail?: boolean; delayMs?: number; hold?: boolean; parameters?: Record<string, unknown> }>();
+  const rpcControls = new Map<string, { fail?: boolean; failAfter?: boolean; delayMs?: number; hold?: boolean; parameters?: Record<string, unknown> }>();
   const held: { name: string; release(): void }[] = [];
-  const rpcLog: { name: string; at: number; parameters: any; forwardedAt?: number; heldAt?: number }[] = [];
+  const rpcLog: { name: string; at: number; parameters: any; reply?: any; forwardedAt?: number; heldAt?: number }[] = [];
   // All server Supabase and key-endpoint calls pass through this proxy. Test
   // administration uses the stack directly, leaving its containers untouched.
   const proxy = createServer(async (req, res) => {
@@ -73,6 +73,8 @@ export default async function setup(project: any) {
         ...(chunks.length ? { body: Buffer.concat(chunks) } : {}) });
       const bytes = Buffer.from(await response.arrayBuffer());
       const control = name ? rpcControls.get(name) : undefined;
+      if (record && name === "create_board" && response.ok) record.reply = JSON.parse(bytes.toString());
+      if (control?.failAfter) { res.writeHead(503); res.end(); return; }
       if (record && control?.hold && Object.entries(control.parameters ?? {}).every(([key, value]) => record!.parameters[key] === value)) {
         record.heldAt = Date.now();
         await new Promise<void>((release) => held.push({ name: name!, release }));
@@ -132,7 +134,7 @@ export default async function setup(project: any) {
         case "/server-config": result = JSON.parse(await readFile(new URL("apps/server/wrangler.json", root), "utf8")); break;
         case "/proxy":
           if (value.offline !== undefined) offline = value.offline;
-          if (value.rpc) rpcControls.set(value.rpc, { fail: value.fail, delayMs: value.delayMs, hold: value.hold, parameters: value.parameters });
+          if (value.rpc) rpcControls.set(value.rpc, { fail: value.fail, failAfter: value.failAfter, delayMs: value.delayMs, hold: value.hold, parameters: value.parameters });
           if (value.release) {
             const control = rpcControls.get(value.release);
             if (control) control.hold = false;

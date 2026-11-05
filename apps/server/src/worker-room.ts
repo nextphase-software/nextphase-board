@@ -30,8 +30,18 @@ export class WorkerRoom {
   state: DurableObjectState;
   env: WorkerEnv;
   room?: Room;
+  private discarded = false;
+  private tasks = new Set<Promise<void>>();
   constructor(state: DurableObjectState, env: WorkerEnv) { this.state = state; this.env = env; }
-  environment(board: string) { return roomEnvironment(this.state, this.env, board); }
+  environment(board: string) {
+    const environment = roomEnvironment(this.state, this.env, board);
+    environment.background = { run: (task) => {
+      this.tasks.add(task);
+      this.state.waitUntil(task);
+      void task.finally(() => this.tasks.delete(task)).catch(() => {});
+    } };
+    return environment;
+  }
   async getRoom(board?: string) {
     if (!board) {
       try {
@@ -57,9 +67,23 @@ export class WorkerRoom {
         return new Response(null, { status: 101, webSocket: pair[0] });
       }
       const { board, value } = await request.json() as { board: string; value: any };
+      if (url.pathname === "/discard") {
+        const room = this.room;
+        if (room) await room.ordered(async () => {});
+        while (this.tasks.size) await Promise.allSettled([...this.tasks]);
+        const discard = async () => {
+          for (const socket of this.state.getWebSockets()) socket.close(4403);
+          this.discarded = true;
+          this.room = undefined;
+          await this.state.storage.deleteAll();
+        };
+        if (room) await room.ordered(discard); else await discard();
+        return Response.json({});
+      }
       const room = await this.getRoom(board);
       let result: unknown;
       switch (url.pathname) {
+        case "/create": await room.create(value); result = {}; break;
         case "/ticket": result = await room.ticket(value); break;
         case "/rename": result = await room.rename(value.person, value.title); break;
         case "/export": result = await room.export(value); break;
@@ -88,8 +112,8 @@ export class WorkerRoom {
   }
   async webSocketClose(socket: WebSocket, code: number) {
     socket.close(code === 1006 ? 1001 : code);
-    await (await this.getRoom()).closed(connection(socket));
+    if (!this.discarded) await (await this.getRoom()).closed(connection(socket));
   }
-  async webSocketError(socket: WebSocket) { socket.close(1011); await (await this.getRoom()).closed(connection(socket)); }
+  async webSocketError(socket: WebSocket) { socket.close(1011); if (!this.discarded) await (await this.getRoom()).closed(connection(socket)); }
   async alarm() { await (await this.getRoom()).alarm(); }
 }

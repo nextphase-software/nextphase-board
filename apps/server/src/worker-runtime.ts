@@ -30,7 +30,7 @@ export function workerRuntime(env: WorkerEnv): Runtime {
       if (!response.ok) throw new RoomError(response.status, result.error.reason, result.error.needed);
       return result;
     }
-    return { rename: (person, title) => call("rename", { person, title }), ticket: (person) => call("ticket", person), export: (person) => call("export", person),
+    return { create: (document) => call("create", document), rename: (person, title) => call("rename", { person, title }), ticket: (person) => call("ticket", person), export: (person) => call("export", person),
       changed: () => call("changed"), backup: () => call("backup"), restore: (value) => call("restore", value),
       async restoreToTime(bookmark) {
         const result = await call("restore-to-time", bookmark);
@@ -42,6 +42,12 @@ export function workerRuntime(env: WorkerEnv): Runtime {
   }
   const runtime: Runtime = { auth, db, allowedOrigin: env.ALLOWED_ORIGIN, operatorKey: env.OPERATOR_KEY,
     room: client,
+    async removeRoom(board) {
+      const response = await stub(env, "ROOMS", board).fetch("http://room/discard", {
+        method: "POST", body: JSON.stringify({ board }),
+      });
+      if (!response.ok) throw new RoomError(503, "service_unavailable");
+    },
     upgrade: (board, ticket, request) => stub(env, "ROOMS", board).fetch(
       new Request("http://room/join?board=" + board + "&ticket=" + encodeURIComponent(ticket), request)),
   };

@@ -31,6 +31,10 @@ export class Supabase implements AccessSource, BoardRows {
     if (error) throw new RoomError(503, "service_unavailable");
     return data ?? [];
   }
+  async deleteBoard(id: string): Promise<void> {
+    const { error } = await this.client.schema("nextphase_board").from("boards").delete().eq("id", id);
+    if (error) throw new RoomError(503, "service_unavailable");
+  }
   async board(id: string): Promise<BoardDetails | null> {
     const row = (await this.rows("boards", { id }))[0];
     return row ? boardDetails(row) : null;

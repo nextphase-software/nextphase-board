@@ -1,7 +1,9 @@
 BRIEF VERSION: 0006-W1 v1 (2026-11-04)
 # 0006-W1 — Export and restore a portable board
 
-Status: Draft. Contracts: [0003 API v5](../architecture/0003-api-v5.md),
+Status: Implemented. Independently reviewed at `5508924` (pass) and merged into main on
+2026-11-05 ([evidence summary](0006-W1-export-and-restore-a-portable-board-evidence.md)).
+Contracts: [0003 API v5](../architecture/0003-api-v5.md),
 [0003 hosted persistence v5](../architecture/0003-hosted-persistence-v5.md),
 [0001 interaction v31](../architecture/0001-interaction-v31.md) and
 [0001 web modules v29](../architecture/0001-web-modules-v29.md) (new versions). Unchanged and still

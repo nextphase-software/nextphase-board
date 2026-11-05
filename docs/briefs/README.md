@@ -323,6 +323,15 @@ filters, and nothing queued while offline. It uses [0005 comments v1](../archite
 [interaction v30](../architecture/0001-interaction-v30.md), with no dependency change, is implemented
 and merged into main.
 
+[0006-W1 v1 — Export and restore a portable board](0006-W1-export-and-restore-a-portable-board.md)
+in which an owner or editor on Home chooses Import board file…, picks a saved `.nextboard` file, and gets
+a new team board with the file's title, never an overwrite of an existing one, while every role can still
+save a copy. The import runs on the server in one request on both runners, keeps the object IDs, refuses
+files with pictures or over the size limit with the reader's own message, and opens the imported board. It
+uses [0003 API v5](../architecture/0003-api-v5.md), [0003 hosted persistence v5](../architecture/0003-hosted-persistence-v5.md),
+[interaction v31](../architecture/0001-interaction-v31.md) and [web modules v29](../architecture/0001-web-modules-v29.md),
+with no dependency change, is implemented and merged into main.
+
 Each brief is a complete contributor-facing contract. Use this structure:
 
 ```text

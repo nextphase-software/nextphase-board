@@ -355,3 +355,134 @@ Retrieved 2026-11-04:
 ## Implementation record
 
 (Appended by the implementer.)
+
+### v1 implementation — 2026-11-05
+
+- Branch: `codex/0006-W1-export-and-restore-a-portable-board`, in the milestone's
+  designated worktree, from committed main
+  `e9779e588448b673d5857f65037056f345dec3dc` (base).
+- Validated source/test revision: `c84f006674561811db7a09ff1478e395d35dcc5b`.
+  The later implementation-record commit changes only this section; the final
+  branch tip is reported separately in the handoff.
+- Implemented API v5's ordered checks, creation with a document, both cleanup
+  attempts and cleanup failure reporting; revision-zero room snapshots and
+  identifiers; Node and Durable Object discards; and interaction v31's Home
+  button, menu, picker, shared creation lock, persistent progress, refusals,
+  toast priority and focus. The CSS is appended verbatim from interaction v31.
+  The approved design amendment's 16 × 16 icon and reader size-refusal words
+  are used. The existing export and local file paths are unchanged.
+- Added the shared synthetic fixture and 13 unit tests, updated the v29 module
+  guard, and appended S134–S142 with the specified test-only failure controls.
+  No dependency was added or changed; all manifests and the lock are unchanged.
+
+Validation used Node **26.13.0**, npm **11.20.0** and the accepted dependencies.
+The pinned Node/npm installation was selected on `PATH`. The following shell
+settings were used for the checks below. `BOARD_W1_CHECK` was set to disposable
+evidence storage outside the checkout, not a shipped input; its machine-specific
+location is omitted here. The base commands below use that variable for the
+same evidence directory.
+
+```sh
+export BOARD_SUPABASE_URL=http://127.0.0.1:55321
+export BOARD_SUPABASE_ANON_KEY=synthetic
+export BOARD_SERVER_URL=http://127.0.0.1:8796
+```
+
+The base was extracted with `git archive` into disposable storage and installed
+and built there with the same settings. Each build was copied aside before the
+next build replaced it:
+
+```sh
+mkdir -p "$BOARD_W1_CHECK/base"
+git archive e9779e588448b673d5857f65037056f345dec3dc | tar -x -C "$BOARD_W1_CHECK/base"
+# From the extracted base:
+npm ci --ignore-scripts --no-audit --no-fund
+BOARD_TEAM_FEATURES=off npm run build
+cp -R apps/web/dist "$BOARD_W1_CHECK/base-off"
+BOARD_TEAM_FEATURES=on npm run build
+cp -R apps/web/dist "$BOARD_W1_CHECK/base-on"
+```
+
+All base preparation commands exited 0. Candidate commands, from the worktree
+root, and their results:
+
+| Check | Exact commands and result |
+| --- | --- |
+| V1 | `git diff --exit-code e9779e588448b673d5857f65037056f345dec3dc c84f006674561811db7a09ff1478e395d35dcc5b -- package.json package-lock.json ':(glob)**/package.json'` exited 0 with no diff. A byte comparison of every base manifest and the lock against `git show <base>:<path>` also passed. |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` exited 0. |
+| V3 | `npm run typecheck` exited 0 for web, server, board-rules, board-room and board-sync. |
+| V4 | `npm test` exited 0: **876 tests, 876 passed, 0 failed, 0 skipped**. `git diff --name-status e9779e588448b673d5857f65037056f345dec3dc..c84f006674561811db7a09ff1478e395d35dcc5b -- 'tests/*.test.mjs'` showed only modified `tests/modules.test.mjs` and added `tests/team-import.test.mjs`; all other base unit test files are unchanged. The module guard changes only its version, module list and import rule. |
+| V5 | The off-build commands below all exited 0. Index and notices were byte-identical to the base off build; its metadata had no team or Supabase inputs. |
+| V6 | The fixture/on-build commands below all exited 0. Index was byte-identical to the base on build; notices were runtime notices v3 byte for byte. |
+| V7 | The server-build, license-audit and Worker dry-run commands below all exited 0. Wrangler 4.156.0 reported `--dry-run: exiting now.` No deployment occurred. |
+| V8 | `git diff --name-status e9779e588448b673d5857f65037056f345dec3dc..c84f006674561811db7a09ff1478e395d35dcc5b` exited 0 and showed exactly the 19 allowed source/test/documentation files in items 1–3, including the four new files. No brief change is in that revision. |
+
+V5 commands:
+
+```sh
+BOARD_TEAM_FEATURES=off npm run build
+cp -R apps/web/dist "$BOARD_W1_CHECK/candidate-off"
+cmp apps/web/dist/index.html "$BOARD_W1_CHECK/base-off/index.html"
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt "$BOARD_W1_CHECK/base-off/THIRD_PARTY_NOTICES.txt"
+node --input-type=module -e 'import fs from "node:fs"; const m=JSON.parse(fs.readFileSync("apps/web/dist/meta.json")); if (Object.keys(m.inputs).some(p=>p.includes("node_modules/@supabase/")||p.includes("apps/web/src/team/"))) throw Error("Team input in off build");'
+npm run audit:licenses
+```
+
+V6 commands:
+
+```sh
+npm run build:fixtures
+BOARD_TEAM_FEATURES=on npm run build
+cp -R apps/web/dist "$BOARD_W1_CHECK/candidate-on"
+cmp apps/web/dist/index.html "$BOARD_W1_CHECK/base-on/index.html"
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt
+npm run audit:licenses
+```
+
+V7 commands:
+
+```sh
+npm run build:server
+npm run audit:licenses
+WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH="$BOARD_W1_CHECK/wrangler-logs" npx wrangler deploy --dry-run --outdir "$BOARD_W1_CHECK/worker-dry-run" -c apps/server/wrangler.json
+```
+
+Each command's output was captured under `BOARD_W1_CHECK`: `ci.log`,
+`typecheck.log`, `unit.log`, `off-build.log`, `off-audit.log`,
+`fixtures-build.log`, `on-build.log`, `on-audit.log`, `server-build.log`,
+`server-audit.log`, `worker-dry-run.log` and `scope.log`. The validation runner
+exited 0 and emitted:
+
+```text
+PASS: V1
+PASS: V2
+PASS: V3
+PASS: V4
+PASS: V5
+PASS: V6
+PASS: V7
+PASS: V8
+```
+
+Before the validated commit, a focused `node --test tests/team-import.test.mjs`
+run exposed fixture errors (connector section membership, oversized text fields,
+and SQLite row prototypes), which were corrected. An initial typecheck exposed
+that React's declarations do not provide the file input's `onCancel` prop; the
+input now listens for the native `cancel` event. An initial full unit run had one
+module-list ordering failure, corrected before the final run above. These were
+new implementation/test failures, not base failures. No failing check remains
+within V1–V8.
+
+Exclusions: **V9–V13 were not run**. This includes the X1 browser checks, base
+negative controls, both Supabase-backed server suites (S134–S142 included), the
+A–J comparison and the amended W5 scenario. They remain for the review's check
+run; no visual/runtime acceptance is claimed from the builds or unit tests.
+No browser or Supabase CLI was started, no hosted project was used, and no push,
+merge or publication was performed. API v5's lost-database-answer and failed-cleanup
+gaps remain as specified.
+
+The graph tools were unavailable because they required approval under a session
+policy that disallows approval; discovery used direct reads and searches.
+Both mandatory boundary hooks passed on the implementation commit. Git emitted
+a non-fatal packed-refs lock permission warning, but the successful commit and
+its exact branch tip were verified. Hooks were not bypassed and no stash was used.

@@ -311,6 +311,18 @@ wait asks first. It uses [0003 sync v5](../architecture/0003-sync-v5.md) (`joine
 [interaction v29](../architecture/0001-interaction-v29.md), with no access, API, storage format or
 dependency change, is implemented and merged into main.
 
+[0005-W1 v1 — Discuss and resolve anchored ideas](0005-W1-discuss-and-resolve-anchored-ideas.md)
+in which anyone with a role on a hosted board, viewers included, starts a comment thread on an
+object or an empty spot, replies, resolves and reopens it, and only a comment's author edits or
+deletes it. Threads live beside the board in the room's database, follow their objects, and stay
+where they were, marked detached, when the object is deleted. Plain text, a comments panel with
+filters, and nothing queued while offline. It uses [0005 comments v1](../architecture/0005-comments-v1.md)
+(new), [0003 sync v6](../architecture/0003-sync-v6.md), [0003 access v5](../architecture/0003-access-v5.md),
+[0003 hosted persistence v4](../architecture/0003-hosted-persistence-v4.md) (storage version 3),
+[0003 hosted storage v5](../architecture/0003-hosted-storage-v5.md) and
+[interaction v30](../architecture/0001-interaction-v30.md), with no dependency change, is implemented
+and merged into main.
+
 Each brief is a complete contributor-facing contract. Use this structure:
 
 ```text

@@ -1,7 +1,9 @@
 BRIEF VERSION: 0005-W1 v1 (2026-11-03)
 # 0005-W1 — Discuss and resolve anchored ideas
 
-Status: Draft. Contracts: [0005 comments v1](../architecture/0005-comments-v1.md) (new),
+Status: Implemented. Independently reviewed at `8d772ce` (pass) and merged into main on
+2026-11-03 ([evidence summary](0005-W1-discuss-and-resolve-anchored-ideas-evidence.md)).
+Contracts: [0005 comments v1](../architecture/0005-comments-v1.md) (new),
 [0003 sync v6](../architecture/0003-sync-v6.md), [0003 access v5](../architecture/0003-access-v5.md),
 [0003 hosted persistence v4](../architecture/0003-hosted-persistence-v4.md),
 [0003 hosted storage v5](../architecture/0003-hosted-storage-v5.md),

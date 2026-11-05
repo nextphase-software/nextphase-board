@@ -486,3 +486,33 @@ policy that disallows approval; discovery used direct reads and searches.
 Both mandatory boundary hooks passed on the implementation commit. Git emitted
 a non-fatal packed-refs lock permission warning, but the successful commit and
 its exact branch tip were verified. Hooks were not bypassed and no stash was used.
+
+### Fix round 1 — 2026-11-05
+
+- Branch: `codex/0006-W1-export-and-restore-a-portable-board`, continuing from
+  `15a6ff2384c443218d029a08054ba7845e6410b7`.
+- Finding F1 (Minor, test defect): `workspaceRows` returned board rows in database
+  order. The review's workerd S140 run compared the same three rows in a different
+  order when `created_at` values tied within a millisecond window, causing a false
+  failure in a "nothing was written" comparison.
+- Change: `tests/server/shared.test.ts` now awaits the rows and sorts them by
+  string `id` with `localeCompare` before returning them. Every row and every
+  assertion is preserved; no check's meaning or production code changed.
+- Validated source/test revision (fix commit):
+  `af8eb5d821a6cbf0200de7158a9959e8634f74bc`
+  (`test(server): compare workspace rows in a stable order`). The subsequent
+  record commit changes only this implementation record; the final branch tip
+  is reported separately in the handoff.
+- Validation used Node **26.13.0** and npm **11.20.0**, selected on `PATH`:
+  - `npm run typecheck` exited 0 for all five workspace members.
+  - `npm test` exited 0: **876 tests, 876 passed, 0 failed, 0 skipped**.
+  - `git diff --check` exited 0 before the fix commit. The fix diff contains only
+    the `workspaceRows` ordering change. The record diff was inspected; no links
+    were added or changed, and application tests were not rerun for this documentation.
+- Exclusions: no browser checks, Supabase CLI, Supabase-backed Node/workerd server
+  suites, builds or other acceptance checks were run in this fix round. The
+  workerd S140 rerun remains for review; the unit run does not claim that evidence.
+- Dependencies: none added or changed. No stash, hook bypass, push, merge or
+  publication. Both boundary hooks passed on the fix commit. Git emitted a
+  non-fatal packed-refs lock permission warning; the successful commit and its
+  exact revision were verified.

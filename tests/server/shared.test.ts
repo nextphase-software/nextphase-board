@@ -848,7 +848,8 @@ check(133, "board comment limits bound the backup and reject mixed envelope shap
 });
 
 // 0006-W1: portable board creation uses the same fixture on both runners.
-const workspaceRows = () => helper("rows", { table: "boards", filters: { workspace_id: f.workspace } });
+const workspaceRows = async () => (await helper("rows", { table: "boards", filters: { workspace_id: f.workspace } }))
+  .sort((a: any, b: any) => a.id.localeCompare(b.id));
 const identifierRows = (board: BoardV10) => board.objects.map((object) =>
   ({ object_id: object.id, generation: object.generation, first_revision: 0 }))
   .sort((a, b) => a.object_id.localeCompare(b.object_id));

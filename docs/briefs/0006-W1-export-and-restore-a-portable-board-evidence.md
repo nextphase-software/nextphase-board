@@ -83,4 +83,4 @@ Negative control: on the baseline build, 30 of 34 criterion checks failed or wer
 - Scenario V log and the original meta.json: the run ended before writing them
 - Home regression W5-S: not rerun; the fix touches one test file only
 
-Raw output fingerprint (SHA-256): `7ac376c44f7ace4790500e46f615cb27d5e4c7ae8bb0d3e6a101325a69b81900`.
+Raw output fingerprint (SHA-256): `5fe19d5e0c1007a4c7f1c8b07272e3bc93bbacc8b17da451e4298b857dcc993d`.

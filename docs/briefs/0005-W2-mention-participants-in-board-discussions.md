@@ -403,3 +403,121 @@ A Safari sample is chosen at review, not fixed here. Boundary hooks remain manda
 ## Implementation record
 
 (Appended by the implementer.)
+
+### Implementation handoff — 2026-11-05
+
+- Brief: **0005-W2 v1**, with exactly the ten replacement contract versions named above.
+- Branch: `codex/0005-W2-mention-participants-in-board-discussions`.
+- Committed-main base: `b6f83e4c0f2f84e448094995fb47c5aafccdcfd0`; the milestone worktree
+  started clean at that revision. No unrelated work was present or changed.
+- **Validated source/test revision: `b36c78e5c1b2a2ccef8586870514a8a8564597ce`.**
+  The implementation-record commit follows it and changes only this brief. The final
+  record-inclusive branch tip is reported separately in the handoff.
+- Added dependencies: **none**. Package manifests, lock, dependency inventories and notices
+  are byte-identical to the base. `App.tsx`, state hooks, board document/adapters/export/file
+  code, `supabase/config.toml` and `tests/server/driver-node.ts` are unchanged.
+
+The implementation adds current-protocol mention ranges, the permission-limited participant
+picker, atomic room targets/pending work, reference-only account notifications and versioned
+read/unread/dismissal actions. It keeps the approved W2 stylesheet values and edit-wrapper
+padding. Same-board notification navigation retains open-thread drafts, chips and immutable
+unconfirmed requests through Back to files in the loaded tab; ordinary card Close/Escape
+still discards that draft. Confirmed inbox writes followed by a failed canonical refresh retry
+only the read. Current layout-4 creation, backup validation and restore fencing replace the
+starting implementation's older-format/capability paths.
+
+Node marked-volume recovery reads both live checkpoints and advances the durable independent
+fence above their maximum and both restored generations before clearing/unlocking. A failed
+checkpoint read, invalid generation or failed durable advancement fails closed. An absent
+mention checkpoint contributes zero only after a successful read. Focused unit checks cover
+those floors, failures and explicit retry; **the physical S168 scenario is added but unrun**.
+S143–S167 and the current-format amendments are prepared for the independent server session.
+
+#### Commands and results
+
+All commands below ran with Node **26.13.0** and npm **11.20.0** selected on `PATH`;
+`node --version` and `npm --version` printed those versions. `$W2_TMP` denotes this run's
+disposable system-temporary output directory, not a repository directory. The revisions used were:
+
+```sh
+W2_BASE=b6f83e4c0f2f84e448094995fb47c5aafccdcfd0
+W2_SOURCE=b36c78e5c1b2a2ccef8586870514a8a8564597ce
+```
+
+| Check | Exact commands / inspection | Result |
+| --- | --- | --- |
+| V1 | `git diff --exit-code "$W2_BASE" "$W2_SOURCE" -- package.json package-lock.json ':(glob)**/package.json' ':(glob)docs/architecture/*dependency*' ':(glob)docs/architecture/*notices*'`; additionally compared each committed manifest/lock/inventory/notice blob byte for byte with its worktree file | PASS, exit 0; no dependency, inventory or notice addition |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` | PASS, exit 0; 118 packages installed |
+| V3 | `npm run typecheck` | PASS, exit 0 for all five workspace members |
+| V4 | `npm test` | PASS, exit 0; **890 tests, 890 pass, 0 fail, 0 skipped**, including all **15** mention unit cases |
+| V5 | Team-off build, copy, audit and comparisons below | PASS; build/audit/comparisons exit 0; off index/notices match the independently built base; metafile contains no team or Supabase input |
+| V6 | Fixture build, team-on build, copy, audit and comparisons below | PASS; exit 0; on index matches the independently built base, notices equal runtime notices v3 |
+| V7 | `npm run build:server`; `npm run audit:licenses`; `WRANGLER_LOG_PATH="$W2_TMP/wrangler.log" npx wrangler deploy --dry-run --outdir "$W2_TMP/worker-dry-run" -c apps/server/wrangler.json` | PASS, each exit 0; Node/Worker notices verified; Wrangler reports `--dry-run: exiting now.`; no deployment |
+| V8 | `git diff --name-status "$W2_BASE" "$W2_SOURCE"`; inspect every path against deliverables 1–4; `git diff --check "$W2_BASE" "$W2_SOURCE"` | PASS, exit 0; exactly **48** permitted implementation/test/guide files; this record is excluded from that revision |
+
+The V5/V6 commands, run from the candidate root, were:
+
+```sh
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist/. "$W2_TMP/off/"
+npm run audit:licenses
+npm run build:fixtures
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist/. "$W2_TMP/on/"
+npm run audit:licenses
+cmp "$W2_TMP/off/index.html" "$W2_TMP/base-off/index.html"
+cmp "$W2_TMP/off/THIRD_PARTY_NOTICES.txt" "$W2_TMP/base-off/THIRD_PARTY_NOTICES.txt"
+node --input-type=module -e 'import { readFileSync } from "node:fs"; import assert from "node:assert/strict"; const inputs = Object.keys(JSON.parse(readFileSync(process.argv[1], "utf8")).inputs); assert(!inputs.some(p => p.includes("node_modules/@supabase/") || p.includes("apps/web/src/team/")));' "$W2_TMP/off/meta.json"
+cmp "$W2_TMP/on/index.html" "$W2_TMP/base-on/index.html"
+cmp "$W2_TMP/on/THIRD_PARTY_NOTICES.txt" docs/architecture/0001-runtime-notices-v3.txt
+```
+
+Both distribution directories were copied aside before another build replaced them.
+For the comparison baseline, `git archive b6f83e4 | tar -x -C "$W2_TMP/base"` extracted
+committed main into an independent scratch tree. In that tree, the same `npm ci` and literal
+team-off/team-on build commands above each exited 0; each output was copied to `base-off`
+and `base-on`. Its workspace dependencies came from its own install, without candidate
+source links. The final comparisons above also exited 0 after the last team-on wiring change.
+
+Additional focused checks:
+
+- `node --test tests/mentions.test.mjs`: exit 0, **15 pass, 0 fail**. These include exact
+  code-point ranges and normalization, null/malformed/20/21/256-byte cases, ordering/pages/
+  suffixes, replacement/plain paste, immutable retries and no replay, unchanged document/file/
+  local records/board Undo, current backup validation, same-board tab memory and Node floors.
+- `node --check tests/server/mentions.test.ts`, `node --check tests/server/node-test.ts` and
+  `node --check tests/server/driver-workerd.ts`: each exit 0. These are syntax checks, **not
+  execution or acceptance of S143–S168**.
+- `git diff --exit-code "$W2_BASE" "$W2_SOURCE" -- apps/web/src/App.tsx supabase/config.toml tests/server/driver-node.ts`:
+  exit 0. Existing test identity domains and ports were preserved; no private tools or scratch
+  settings were included. Module guards retain exactly 22 state hooks and 31 team modules.
+- Source pre-commit and commit-message privacy hooks both printed `PUBLIC BOUNDARY: PASS`.
+  Git also printed a nonfatal `packed-refs.lock` permission error; the
+  source commit, branch reference and clean worktree were verified afterward. Hooks were
+  not bypassed, and no stash, push, merge or publication was performed.
+
+Initial diagnostics are not hidden: the first typecheck found an implicit array type and an
+unavailable `String.isWellFormed` declaration in the room's ES2022 library. Explicit typing
+and surrogate validation corrected these without a configuration change. The first unit run
+was 886/888, with two new fixture failures caused by an unbound `crypto.randomUUID`; binding
+that callback corrected them. The focused run and final 890/890 run above supersede those
+failed diagnostics. No pre-existing unit failure remained.
+
+#### Exclusions and remaining acceptance
+
+**V9–V13 were not run.** No browser, local Supabase stack, Supabase CLI, server suite,
+base negative-control suite, C1/C2 scenario, screenshot comparison or A–J comparison ran in
+this workspace-write session. S168's physical volume rewind, actual minute scheduler dispatch,
+service SQL/RLS execution, live concurrency and server byte/inventory measurements remain
+unverified until that fresh independent full-access check. Earlier exploratory results and
+focused C2-S27 choreography evidence are not counted as implementation validation. The
+corrected open-card/same-loaded-tab C2-S27 procedure remains the required independent check.
+
+No new prototype, hosted schema application/deployment, external notification, browser matrix,
+fixture-harness sweep, native IME, accessibility, load/performance or unrelated scenario campaign
+was performed. Older clients/boards/files and old-binary upgrade ordering are excluded; current
+format persistence and both restore fences remain implemented requirements. The 16 MiB backup
+ceiling remains an explicit refusal boundary, with no universal-fit claim. This is an
+implementation handoff for independent review of the exact source revision, not a merge or
+milestone acceptance. The record-only commit receives diff/link inspection, without rerunning
+application checks for documentation.

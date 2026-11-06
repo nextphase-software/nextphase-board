@@ -332,6 +332,11 @@ uses [0003 API v5](../architecture/0003-api-v5.md), [0003 hosted persistence v5]
 [interaction v31](../architecture/0001-interaction-v31.md) and [web modules v29](../architecture/0001-web-modules-v29.md),
 with no dependency change, is implemented and merged into main.
 
+[0005-W2 v1 — Mention participants in board discussions](0005-W2-mention-participants-in-board-discussions.md)
+is a draft: permission-limited blue mentions in hosted comments, Home's latest 50 account-wide
+in-app notices, explicit read/unread/dismiss, exact discussion navigation and fenced delivery.
+It introduces ten contract versions listed in the brief; no dependency change. It is not implemented.
+
 Each brief is a complete contributor-facing contract. Use this structure:
 
 ```text

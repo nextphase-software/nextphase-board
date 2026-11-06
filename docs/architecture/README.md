@@ -350,3 +350,27 @@ step fails. [Access v5](0003-access-v5.md), [sync v6](0003-sync-v6.md),
 [self-host runner v1](0003-self-host-runner-v1.md), [document v11](0001-document-v11.md),
 [board file v2](0006-board-file-v2.md) and [storage v3](0001-storage-v3.md) stay in force. No
 dependency, board document, board file, storage version or database schema changes.
+
+For 0005-W2 v1 (draft), the current contracts are:
+
+- [0005 comments v2](0005-comments-v2.md).
+- [0003 access v6](0003-access-v6.md).
+- [0003 identity v4](0003-identity-v4.md).
+- [0003 sync v7](0003-sync-v7.md).
+- [0003 API v6](0003-api-v6.md).
+- [0003 hosted persistence v6](0003-hosted-persistence-v6.md).
+- [0003 hosted storage v6](0003-hosted-storage-v6.md).
+- [0001 interaction v32](0001-interaction-v32.md).
+- [0001 web modules v30](0001-web-modules-v30.md).
+- [0003 self-host runner v2](0003-self-host-runner-v2.md).
+
+They specify structured comment mentions, a permission-limited roster, account-owned reference-only
+notifications, room layout 4, transactional source work, fenced projection/retry, current-format
+restore, the explicit 16 MiB backup refusal and the complete mention/inbox look and words.
+[Presence v1](0004-presence-v1.md), [document v11](0001-document-v11.md),
+[storage v3](0001-storage-v3.md), [board file v2](0006-board-file-v2.md) and
+[toolchain v5](0001-toolchain-v5.md) with [lock v5](0001-dependency-lock-v5.json),
+[inventory v5](0001-dependency-inventory-v5.json) and [runtime notices v3](0001-runtime-notices-v3.txt)
+stay in force. No dependency or board-document/file format changes. Earlier-client and older-saved-format
+compatibility is outside this draft's requirements. See the
+[brief](../briefs/0005-W2-mention-participants-in-board-discussions.md) for the exact allowed files/checks.

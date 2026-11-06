@@ -383,3 +383,118 @@ not latency/scale promises. Safari samples are chosen at review. Boundary hooks 
 ## Implementation record
 
 (Appended by the implementer.)
+
+
+### 2026-11-06 — v1 implementation handoff
+
+- Base committed main: `48f80523421e51fde429bab81f9aefa9b2ebdee5`.
+- Branch: `codex/0006-W3-manage-board-history` in the supplied fresh linked milestone worktree;
+  the starting worktree was clean. No unrelated work was present or changed.
+- Validated source/test revision: `b53b4d6e8608fa98381f8fc8a37c72816a906e9c`.
+  Production implementation commit: `f6810123cdfd0023fc5525e0e10bc6be2b6f8bc4`;
+  the later source/test revision adds the focused live-role refusal test only.
+  Build inputs are identical between those two revisions.
+- Record-inclusive final branch tip is reported separately in the handoff after
+  this append is committed. This record does not assert independent acceptance.
+- Toolchain used for final checks: Node `26.13.0`, npm `11.20.0`.
+  The initial shell's older toolchain was replaced for validation using an isolated
+  scratch installation; no repository manifest, lock or inventory changed.
+- Added dependencies: **none**. Saved document remains 10; current room layout is 5.
+- Scope is this v1 brief and its eleven committed contracts. Approved local-time,
+  Automatic-version subtitle, palette, shadow, chunked-intent, fingerprint,
+  confirmation-author and Pan corrections are included. No prototype, extra
+  agent, checkpoint, schema application, deployment, push or next milestone.
+- Graph discovery was attempted first, but the MCP approval policy rejected it;
+  direct repository inspection supplied the fallback. No hook was bypassed.
+
+#### Implementer validation (V1–V8)
+
+All commands below ran from the milestone worktree with the exact toolchain above,
+except the independent base builds, which ran in a clean archived checkout of the
+base revision with its own `npm ci`. Scratch output locations are omitted from
+public evidence; no source links to the candidate were used for base builds.
+
+| Check | Command / inspection | Actual result |
+| --- | --- | --- |
+| V1 | Compare Git base blobs with current bytes for every package.json, package-lock.json, dependency lock/inventory and runtime notices | PASS: all 20 protected files identical; zero new dependencies |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` | PASS, exit 0; 118 packages installed with Node 26.13.0/npm 11.20.0 |
+| V3 | `npm run typecheck` | PASS, exit 0, all five workspace members |
+| V4 | `npm test` | PASS, exit 0: 912 tests, 912 pass, 0 fail/cancelled/skipped/todo; new H-U01–H-U20 all pass |
+| V5 | Off build command below; `npm run audit:licenses`; compare copied off artifacts and inspect meta.json | PASS, both exits 0; index.html and THIRD_PARTY_NOTICES.txt identical to base off; no team or Supabase inputs |
+| V6 | `npm run build:fixtures`; on build command below; `npm run audit:licenses` | PASS, all exits 0; index.html identical to base on; distributed notices equal runtime notices v3 |
+| V7 | `npm run build:server`; `npm run audit:licenses`; `npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` | PASS, all exits 0; Node and Worker bundles built; dry run explicitly exited without deployment |
+| V8 | `git diff --name-status 48f80523421e51fde429bab81f9aefa9b2ebdee5..b53b4d6e8608fa98381f8fc8a37c72816a906e9c` and every changed hunk; `git diff --check 48f80523421e51fde429bab81f9aefa9b2ebdee5..b53b4d6e8608fa98381f8fc8a37c72816a906e9c` | PASS: 52 permitted deliverables 1–4 files only; diff check exit 0; this brief's only later change is the append-only record |
+
+Exact web build commands:
+
+```sh
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+```
+
+Each generated web dist was copied to isolated scratch before the next build.
+Base and candidate artifacts were compared as raw bytes, without normalization.
+SHA-256 receipts:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Off index.html (base = candidate) | `66f0d8d097b0c1b88dba01e2fe87c1233b576b3d0019e81401434a7f58a74c8e` |
+| Off notices (base = candidate) | `3367640f4a3b473755079ad41dc46c67bd65ed2dd21a0ca47edcd14944d3a91d` |
+| On index.html (base = candidate) | `9829ba305ce746513c6c6bcd3735b505123b2eecd96962d2573b3ef0a65886ee` |
+| On notices (base = candidate = runtime notices v3) | `2c7ff36a2ae55948ac01928c713c7f203d1771198cfde411a845693750368c76` |
+| Unchanged App.tsx | `051bd75f08fbceabb02390f2eb9c359f99986063af3c4211f09e01feb2f92bfd` |
+| Unchanged tests/history.test.mjs | `a73b4131fb93e16f5f8284fe4717e0034eaf0d3d775832ac808a4af2ff938066` |
+
+The new server test/control files also passed `node --check` source syntax
+inspection; this did **not** execute a server test or apply SQL. Both Vitest
+configurations include S169–S194, with independent fixture setup for each ID and
+actual PASS/FAIL plus SUMMARY-HISTORY output when the independent run executes them.
+
+#### Focused implementation evidence and approved choices
+
+| Choice / review focus | Evidence actually run |
+| --- | --- |
+| AS01 capture timing, confirmed-only manual capture and metadata | H-U01/U03/U05/U16; transactional capture failure preserves fingerprint/deadline, manual equality captures, 100/500 code points, current canonical bytes |
+| AS02 newest 50 / 30 elapsed days | H-U02/U04/U10; naming does not renew; expiry gates reads and retains the durable fingerprint |
+| AS03 effective access | H-U20 actual room operations: viewer list/preview permitted, viewer mutations 403, no role 404, service failure 503 without empty success or mutation; full HTTP/guest/auth matrix remains S175–S177 |
+| AS04 same-ID restore, before state, head conflict and retry | H-U06–U10/U16/U18; fresh revision/generation, consecutive entries, exact retry result after restart/expiry, atomic rollback/pending/cleanup and ordinary seen-ID reuse refusal |
+| AS05 current discussion and stale work | H-U13/U16–U18 plus accepted unit regressions; immutable edit generation before receipts, current comments retained, matching/missing/detached anchors reconciled, current identifiers union retained; real notice carry and open-tab proof remains S184–S187/H1 |
+| AS06 panel/preview handoff | H-U12/U14/U15/U19 inspect the actual hosted hook/controller and confirmation render: Pan before HTTP, current/viewer/restore handoffs, newer selection wins, cleared access cannot repaint, confirmed-write refresh retries GET only; full geometry/focus/runtime comparison remains H1 |
+| AS11 truthful refusals | H-U07–U10/U19/U20; stale head 409, known intent rollback restore_failed, durable/uncertain carry/cleanup restore_pending with lock and backup refusal, no false success |
+| Final Read 2: durable canonical fingerprint | H-U02/U03/U10: expiry of all copies, A→B→A at higher revisions/restart, automatic suppression, failed capture atomicity, required current-backup hash/count validation |
+| Final Read 2: confirmation attribution | H-U11/U15: namedBy precedes actor, null namedBy falls back to actor, both null render time alone without separator |
+| Final Read 2: active Pan | H-U12/U14: production hook before-request activation and passive readOnly-cancellation handoff; Pan retained on current/viewer/restore return with later explicit tools allowed |
+
+H-U16 measured two valid canonical documents of exactly 2,097,152 bytes each:
+intent chunks were `[1048576,1048576,1048576,1048576]`, and the metadata-only
+journal was **759 UTF-8 bytes**. Completion deleted all four intent rows with the
+terminal result and unlock in one transaction. H-U08 separately injected cleanup
+failure and verified the pending journal, lock and complete chunks stayed durable.
+No document bodies or identifier union are embedded in the journal.
+
+#### Files, limits and next independent run
+
+The validated implementation changes 52 files across:
+`apps/server`, `apps/server/src`, `apps/server/src/routes`,
+`apps/server/supabase`, `apps/web`, `apps/web/src/state`, `apps/web/src/team`,
+`apps/web/src/team/comments`, `apps/web/src/ui`, `packages/board-room/src`,
+`packages/board-sync/src`, `tests`, `tests/server`, and the root Vitest configs.
+This append adds one file in `docs/briefs` for 53 record-inclusive files. All
+numbered requirements, eleven contracts and brief/index bytes before the
+Implementation record remain unchanged. App.tsx stays unchanged and within its
+264-line budget; module guards pass for 22 hooks and 34 team modules.
+
+V9–V13 were **not run**. No browser, Supabase CLI/stack or hosted schema was used.
+S169–S194 are authored for both runners, **not claimed passed**. A fresh independent
+full-access check run must write its H1 scenario tool and run H1 (all 27 states,
+locales and the three final review focuses in the running build), the independent
+base negative control and accepted full unit/server/A–J/X1/C2/W5 regressions.
+No older-client/board/file conversion, upgrade, extra browser matrix, load/native
+input or unrelated acceptance sweep was run. No new requirement was assumed or
+waived; runtime visual and two-store claims remain unverified here.
+
+Mandatory public-boundary hooks printed PASS on the implementation/test commits.
+Git emitted a non-fatal packed-refs.lock sandbox permission warning during commit
+maintenance; both commits succeeded, branch refs were verified and worktree status
+was clean. No permissions or hooks were bypassed. The maintainer retains merge and
+publication; this is implementation evidence only.

@@ -25,11 +25,13 @@ export type PresenceSnapshot = {
 export class HostedBoard {
   commentDrafts = new Map<string, { reply: import("./comments/card").Draft; editing: { id: string; draft: import("./comments/card").Draft } | null }>();
   unreadMentions = new Map<string, Set<string>>();
+  private mentionRead = 0;
   async refreshMentions() {
     if (!this.comments.ready) return;
+    const read = ++this.mentionRead;
     try {
       const result = await api<{ notices: { boardId: string; threadId: string; comment: { id: string }; read: boolean }[] }>("/notifications");
-      if (this.stopped || this.ended) return;
+      if (this.stopped || this.ended || read !== this.mentionRead) return;
       this.unreadMentions.clear();
       for (const notice of result.notices) if (notice.boardId === this.boardId && !notice.read) {
         const ids = this.unreadMentions.get(notice.threadId) ?? new Set<string>(); ids.add(notice.comment.id); this.unreadMentions.set(notice.threadId, ids);
@@ -51,6 +53,7 @@ export class HostedBoard {
   }
   get comments() {
     return { threads: this.session?.threads, requests: this.session?.commentRequests,
+      ended: this.ended,
       ready: this.snapshot.connected && !!this.session?.commentsReady && !this.ended && !this.stopped,
       person: this.session?.self?.person ?? "", label: this.session?.self?.label ?? "" };
   }
@@ -258,9 +261,9 @@ export class HostedBoard {
     if (outcome.retry) this.session?.interrupt();
     else {
       this.ended = true;
-      this.commentDrafts.clear(); this.unreadMentions.clear(); clearNotificationMemory(this.boardId);
       const reason = outcome.name === "expired" ? "sign_in_expired" : "access_removed";
       this.session?.discard(reason);
+      this.clearDiscussion();
     }
     attempt.socket?.close(1000);
     this.clearPresence();
@@ -374,11 +377,16 @@ export class HostedBoard {
   }
   expire() { this.end("expired"); }
   signedOut() { this.end("signedOut"); }
+  private clearDiscussion() {
+    ++this.mentionRead;
+    this.commentDrafts.clear(); this.unreadMentions.clear(); clearNotificationMemory(this.boardId);
+    this.session?.commentRequests.clear(); this.session?.threads.clear();
+  }
   private end(name: "expired" | "signedOut") {
     if (this.ended || this.stopped) return;
     this.ended = true;
-    this.commentDrafts.clear(); this.unreadMentions.clear(); clearNotificationMemory(this.boardId);
     this.session?.discard(name === "expired" ? "sign_in_expired" : "signed_out"); this.attempt?.socket?.close(1000);
+    this.clearDiscussion();
     if (this.attempt) { this.attempt.cancelled = true; clearTimeout(this.attempt.timer); }
     clearTimeout(this.retry); clearTimeout(this.renewal);
     this.clearPresence();

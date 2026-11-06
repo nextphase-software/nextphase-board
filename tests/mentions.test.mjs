@@ -153,3 +153,58 @@ test('M-U13 retained historical person-label pairs can shift; a new pair must re
   assert.deepEqual(await service.prepare('author','@new',[{...shifted,label:'new'}],previous),{targets:[],removed:[]});
  }finally{f.storage.close();}
 });
+
+// Bundle the real hosted controller and discussion boundary, replacing only network/Auth
+// ports. Server rendering inspects the boundary without starting a browser or a server.
+let hostedHarness;
+async function hostedMentionHarness() {
+ if (!hostedHarness) hostedHarness=(async()=>{
+  const {build}=await import('esbuild');const {mkdtemp,writeFile,rm}=await import('node:fs/promises');
+  const {tmpdir}=await import('node:os');const {join}=await import('node:path');const {pathToFileURL,fileURLToPath}=await import('node:url');
+  const result=await build({stdin:{contents:`export {HostedBoard} from './apps/web/src/team/hosted-board.ts'; export {CommentsLayer} from './apps/web/src/team/comments/layer.tsx'; export {setRequest,ApiError} from './apps/web/src/team/api.ts'; export {renderToStaticMarkup} from 'react-dom/server'; export {createElement} from 'react';`,resolveDir:fileURLToPath(new URL('../',import.meta.url)),loader:'ts'},bundle:true,write:false,format:'esm',platform:'node',jsx:'automatic',banner:{js:"import {createRequire} from 'node:module'; const require=createRequire(import.meta.url);"},plugins:[{name:'mention-test-ports',setup(b){
+   b.onLoad({filter:/\/team\/api\.ts$/},()=>({contents:`let request; export function setRequest(next){request=next;} export function api(...args){return request(...args);} export class ApiError extends Error {constructor(status,reason){super(reason);this.status=status;this.reason=reason;}}`,loader:'js'}));
+   b.onLoad({filter:/\/team\/auth\.ts$/},()=>({contents:'export const auth={};',loader:'js'}));
+   b.onLoad({filter:/\/team\/config\.ts$/},()=>({contents:`export const socketOrigin='ws://127.0.0.1';`,loader:'js'}));
+  }}]});
+  const folder=await mkdtemp(join(tmpdir(),'board-mention-unit-'));
+  try{const path=join(folder,'hosted.mjs');await writeFile(path,result.outputFiles[0].text);return await import(pathToFileURL(path).href);}finally{await rm(folder,{recursive:true,force:true});}
+ })();
+ return hostedHarness;
+}
+function readyHosted(HostedBoard) {
+ const board={schemaVersion:10,boardId:crypto.randomUUID(),title:'Synthetic',objects:[],retiredGenerations:[]};
+ const hosted=new HostedBoard({kind:'board',board:board.boardId},()=>{});
+ const session={commentsReady:true,threads:new Map(),commentRequests:new Map(),self:{person:key,label:'ben'},requests:new Map(),discard(){},close(){},interrupt(){}};
+ hosted.session=session;hosted.snapshot={...hosted.snapshot,board,connected:true,role:'editor'};
+ return {hosted,session,board};
+}
+test('M-U14 final access loss removes the discussion boundary and all draft/request memory; offline keeps it',async()=>{
+ const {HostedBoard,CommentsLayer,renderToStaticMarkup,createElement,setRequest,ApiError}=await hostedMentionHarness();
+ const previousWindow=Object.getOwnPropertyDescriptor(globalThis,'window');Object.defineProperty(globalThis,'window',{configurable:true,value:{innerWidth:1280,innerHeight:800,removeEventListener(){}}});
+ const {hosted,session,board}=readyHosted(HostedBoard),drafts=hosted.commentDrafts;
+ const props={hosted,board,objects:[],view:{x:0,y:0,z:1},size:{w:1280,h:800},tool:'Comment',setTool(){},setView(){},scene:{current:null},select(){},setInline(){}};
+ const render=()=>renderToStaticMarkup(createElement(CommentsLayer,props));
+ try{
+  drafts.set('thread',{reply:{text:'😀 @ben',mentions:[mention]},editing:{id:'comment',draft:{text:'@ben edit',mentions:[{...mention,start:0,end:4}]}}});
+  session.commentRequests.set('pending',{state:'unconfirmed',text:'immutable draft body',epoch:1,restoreGeneration:0});
+  assert.match(render(),/comment-panel/);hosted.snapshot.connected=false;assert.match(render(),/comment-panel/);assert.equal(drafts.size,1,'offline must retain the draft');
+  hosted.snapshot.connected=true;const attempt={joined:true,outcome:null,cancelled:false};hosted.attempt=attempt;
+  hosted.changed(session,{kind:'close',code:4403});assert.equal(hosted.snapshot.outcome.name,'reconnect');assert.equal(drafts.size,1,'one role/epoch change is not proof of final access loss');
+  setRequest(async()=>{throw new ApiError(404,'not_found');});await assert.rejects(hosted.ticket());
+  assert.equal(hosted.snapshot.outcome.name,'accessRemoved');assert.equal(drafts.size,0);
+  assert.equal(render(),'','a terminal access loss must unmount the stateful discussion subtree, including Reply/edit/composer');
+  assert.equal(session.commentRequests.size,0);
+ }finally{hosted.stop();if(previousWindow)Object.defineProperty(globalThis,'window',previousWindow);else delete globalThis.window;}
+});
+test('M-U15 an older inbox response cannot replace newer confirmed plural counts or restore a read/dismissed notice',async()=>{
+ const {HostedBoard,setRequest}=await hostedMentionHarness();const {hosted}=readyHosted(HostedBoard),pending=[];
+ setRequest(path=>{assert.equal(path,'/notifications');return new Promise(resolve=>pending.push(resolve));});
+ const notice=(id,read=false)=>({id,boardId:hosted.boardId,threadId:'thread',comment:{id},read});
+ const old=hosted.refreshMentions(),fresh=hosted.refreshMentions();
+ pending[1]({notices:[notice('root'),notice('reply')]});await fresh;assert.equal(hosted.unreadMentions.get('thread').size,2);
+ pending[0]({notices:[notice('root')]});await old;
+ assert.equal(hosted.unreadMentions.get('thread').size,2,'late singular snapshot must not overwrite the newer retained pair');
+ const beforeRead=hosted.refreshMentions(),read=hosted.refreshMentions();pending[3]({notices:[notice('root',true)]});await read;
+ pending[2]({notices:[notice('root'),notice('reply')]});await beforeRead;assert.equal(hosted.unreadMentions.size,0,'read/dismissed references must not return through a late read');
+ hosted.signedOut();
+});

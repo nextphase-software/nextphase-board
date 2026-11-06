@@ -17,7 +17,12 @@ import { anchorAt, anchorPoint, authorColour, drawingOrder, placeBox, refusalWor
 type Props = { hosted: HostedBoard; board: BoardV10; objects: ResolvedItem[]; view: View; size: { w: number; h: number };
   tool: string; setTool: Dispatch<SetStateAction<string>>; setView: Dispatch<SetStateAction<View>>;
   scene: RefObject<HTMLDivElement | null>; select: (value: string) => void; setInline: Dispatch<SetStateAction<boolean>> };
-export function CommentsLayer({ hosted, board, objects, view, size, tool, setTool, setView, scene, select, setInline }: Props) {
+export function CommentsLayer(props: Props) {
+  // Unmount the stateful editors on a terminal ending, so clearing the shared
+  // draft map cannot leave a reply/edit/composer or picker alive behind the dialog.
+  return props.hosted.comments.ended ? null : <ActiveCommentsLayer {...props} />;
+}
+function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool, setView, scene, select, setInline }: Props) {
   const [, redraw] = useState(0), [hidden, setHidden] = useState(false);
   const [showResolved, setResolved] = useState(false), [onlyYours, setYours] = useState(false);
   const [composer, setComposer] = useState<Anchor | null>(null), [draft, setDraft] = useState<Draft>({ text: "" });
@@ -35,6 +40,12 @@ export function CommentsLayer({ hosted, board, objects, view, size, tool, setToo
   const ready = hosted.comments.ready;
   const landing = notificationNavigation.target?.boardId === hosted.boardId ? notificationNavigation.target : undefined;
   const [sort, setSort] = useState(false);
+  useEffect(() => {
+    // Comment broadcasts can arrive before their notice projection. Explicitly
+    // opening Comments must read current retained references rather than reuse
+    // the earlier broadcast-time inbox snapshot.
+    if (mode && ready) void hosted.refreshMentions();
+  }, [hosted, mode, ready]);
   useEffect(() => {
     if (!ready || !landing) return;
     const thread=threads?.get(landing.threadId); if (!thread) return;

@@ -21,9 +21,11 @@ async function action(c:Awaited<ReturnType<typeof peer>>,operation:any,reason?:s
  const answer=await until(()=>c.p.messages.slice(offset).find(m=>m.requestId===id&&['comment_saved','comment_refused'].includes(m.kind)));
  assert.equal(answer.kind,reason?'comment_refused':'comment_saved',JSON.stringify(answer));if(reason)assert.equal(answer.reason,reason);return {id,message,answer};
 }
-async function mention(name='editor',labelName='viewer') {const people=await roster(name),target=people.find((p:any)=>p.person===personKey(f.a,f.people[labelName].id))??people.find((p:any)=>p.label===f.people[labelName].email.split('@')[0]);assert(target,'permitted target');const text='@'+target.label;return{text,mentions:[{start:0,end:[...text].length,person:target.person,label:target.label}]};}
-// Synchronous key comparison is resolved by the registered label fallback in mention().
-function personKey(_board:string,_id:string){return '';}
+async function mention(name='editor',labelName='viewer') {const people=await roster(name),person=await personKey(f.a,f.people[labelName].id),target=people.find((p:any)=>p.person===person);assert(target,'permitted target');const text='@'+target.label;return{text,mentions:[{start:0,end:[...text].length,person:target.person,label:target.label}]};}
+async function personKey(board:string,id:string){
+ const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(`presence:${board}:${id}`));
+ return [...new Uint8Array(hash)].map(byte=>byte.toString(16).padStart(2,'0')).join('').slice(0,32);
+}
 async function notices(name='viewer'){return(await ok('/notifications',name)).notices;}
 async function deliver(){await driver.control({board:f.a,deliverMentions:true});}
 async function rows(table:string){return driver.rows(f.a,table);}

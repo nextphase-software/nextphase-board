@@ -222,3 +222,12 @@ test('H-U19 obsolete preview/access responses cannot repaint; confirmed-write re
     setRequest(async(path,method)=>{calls.push({path,method});return {versions:[v],head:{revision:0,generation:0}};});await h.refresh();assert.equal(calls.filter(c=>c.method==='POST').length,1);assert.equal(h.state,'ready');
   }finally{globalThis.requestAnimationFrame=previous;}
 });
+test('H-U20 live effective roles browse history, viewer mutations refuse, and outages never become empty success',async()=>{
+  await import('../packages/board-room/src/history.ts');const f=await fixture();try{
+    const version=(await f.list())[0],head=await f.head(),request={requestId:randomUUID(),expectedRevision:head.revision,expectedGeneration:head.generation};
+    f.role('viewer');assert.equal((await f.list()).length,1);assert.equal((await f.room.version(f.person,version.id)).version.id,version.id);
+    for(const operation of [()=>f.save(),()=>f.room.nameVersion(f.person,version.id,{name:'Denied',description:''}),()=>f.room.restoreVersion(f.person,version.id,request)])await assert.rejects(operation(),error=>error.status===403&&error.message==='role_too_low');
+    f.role(null);for(const operation of [()=>f.list(),()=>f.room.version(f.person,version.id),()=>f.room.restoreVersion(f.person,version.id,request)])await assert.rejects(operation(),error=>error.status===404&&error.message==='not_found');
+    f.env.access.role=async()=>{throw Error('service unavailable');};await assert.rejects(f.list(),error=>error.status===503&&error.message==='service_unavailable');assert.equal(f.storage.all('SELECT * FROM versions').length,1);assert.equal(f.storage.all('SELECT * FROM history_requests').length,0);
+  }finally{f.close();}
+});

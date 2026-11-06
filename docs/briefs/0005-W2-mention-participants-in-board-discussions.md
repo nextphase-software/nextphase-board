@@ -521,3 +521,96 @@ ceiling remains an explicit refusal boundary, with no universal-fit claim. This 
 implementation handoff for independent review of the exact source revision, not a merge or
 milestone acceptance. The record-only commit receives diff/link inspection, without rerunning
 application checks for documentation.
+
+### Fix round 1 — 2026-11-06
+
+Branch: `codex/0005-W2-mention-participants-in-board-discussions`.
+Validated source/test revision: **`3b1f48f1c56144a58f6701cc5345365c9257922a`**.
+The later record-only commit is reported separately as the final branch tip; it is not
+the source/test revision. The round started clean at
+`bf2d45bec6c9b045ab58694e4ab76905a976605f`, retaining the original implementation and record.
+
+| Finding | Classification and correction | Focused evidence |
+| --- | --- | --- |
+| S146 | Server-test helper defect. Compute the real board person key from the board/account IDs, then select that exact roster person. Remove the empty-key stub and email-label fallback. Product identity behavior is unchanged. | S146's body and assertions are byte-identical to the round-start revision. The helper follows identity v4's SHA-256 person-key rule, including after the registered label changes. Server execution remains blocked below. |
+| C2-S19 | Product defect. A terminal access loss cleared the shared draft map but left stateful discussion editors mounted. Unmount that subtree and clear retained threads, unconfirmed comment requests, drafts and unread references after a terminal ending. A reconnect/epoch change alone keeps drafts. | Hosted storage v6 requires clearing draft/roster/inbox/pending memory on known final access loss (lines 37–38). New M-U14 exercises offline retention, a nonterminal 4403 change, then a canonical 404 terminal loss through the real hosted controller and discussion boundary. |
+| C2-S26 additional clause | Product defect. Explicit Comments entry now refreshes retained notices; an older overlapping response cannot overwrite a newer confirmed count or restore read/dismissed references. No stylesheet or active discussion geometry changed. | Hosted storage v6 lines 78–83 define retained unread mention references, excluding ordinary replies. New M-U15 delivers two confirmed references before a stale single-reference response, and confirms read/dismissed references cannot return through an older response. The clause correctly waits for `2 unread mentions`; the timeout's `1 unread mention` was its last observed value. |
+
+Before the fixes, `node --test --test-name-pattern='M-U14|M-U15' tests/mentions.test.mjs`
+exited 1: **2 tests, 0 pass, 2 fail** (discussion boundary still rendered; late singular
+snapshot replaced the retained pair). After the fixes, the identical command exited 0:
+**2 tests, 2 pass, 0 fail**. An earlier harness diagnostic treated a 4403 reconnect as terminal;
+the test was corrected to follow it with the canonical 404 before the accepted red/green run.
+These are unit regressions, not new browser scenario passes.
+
+#### Repeated V1–V8
+
+Commands ran with Node **26.13.0** / npm **11.20.0** on `PATH`.
+`$W2_FIX_TMP` denotes this round's disposable system-temporary output directory.
+
+```sh
+W2_MAIN=b6f83e4c0f2f84e448094995fb47c5aafccdcfd0
+W2_FIX_START=bf2d45bec6c9b045ab58694e4ab76905a976605f
+W2_FIX_SOURCE=3b1f48f1c56144a58f6701cc5345365c9257922a
+```
+
+| Check | Exact commands / inspection | Result |
+| --- | --- | --- |
+| V1 | `git diff --exit-code "$W2_MAIN" "$W2_FIX_SOURCE" -- package.json package-lock.json ':(glob)**/package.json' ':(glob)docs/architecture/*dependency*' ':(glob)docs/architecture/*notices*'`; compare all 20 corresponding tracked manifest/lock/inventory/notice files against their committed-main blobs | PASS, exit 0; byte-identical; no added dependency or notice |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` | PASS, exit 0; 118 packages installed |
+| V3 | `npm run typecheck` | PASS, exit 0 for all five workspace members |
+| V4 | `npm test` | PASS, exit 0; **892 tests, 892 pass, 0 fail, 0 skipped**, including all **17** mention unit cases |
+| V5 | Team-off build, copy, audit and comparisons below | PASS, all exit 0; off index/notices equal the fresh committed-main build; no team/Supabase input |
+| V6 | Fixture build, team-on build, copy, audit and comparisons below | PASS, all exit 0; on index equals the fresh committed-main build; notices equal runtime notices v3 |
+| V7 | `npm run build:server`; `npm run audit:licenses`; `WRANGLER_LOG_PATH="$W2_FIX_TMP/wrangler.log" npx wrangler deploy --dry-run --outdir "$W2_FIX_TMP/worker-dry-run" -c apps/server/wrangler.json` | PASS, all exit 0; verified Node/Worker notices; `--dry-run: exiting now.`; no deployment |
+| V8 | `git diff --name-status "$W2_FIX_START" "$W2_FIX_SOURCE"`; inspect against deliverables 1–4; `git diff --check "$W2_FIX_START" "$W2_FIX_SOURCE"` | PASS, exit 0; exactly four allowed source/test files. The earlier record remains in ancestry; this round's record is a later documentation-only commit. |
+
+V5/V6 candidate commands were:
+
+```sh
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$W2_FIX_TMP/off"
+npm run audit:licenses
+npm run build:fixtures
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+cp -R apps/web/dist "$W2_FIX_TMP/on"
+npm run audit:licenses
+cmp "$W2_FIX_TMP/off/index.html" "$W2_FIX_TMP/base-off/index.html"
+cmp "$W2_FIX_TMP/off/THIRD_PARTY_NOTICES.txt" "$W2_FIX_TMP/base-off/THIRD_PARTY_NOTICES.txt"
+node --input-type=module -e 'import { readFileSync } from "node:fs"; import assert from "node:assert/strict"; const inputs = Object.keys(JSON.parse(readFileSync(process.argv[1], "utf8")).inputs); assert(!inputs.some(p => p.includes("node_modules/@supabase/") || p.includes("apps/web/src/team/")));' "$W2_FIX_TMP/off/meta.json"
+cmp "$W2_FIX_TMP/on/index.html" "$W2_FIX_TMP/base-on/index.html"
+cmp "$W2_FIX_TMP/on/THIRD_PARTY_NOTICES.txt" docs/architecture/0001-runtime-notices-v3.txt
+```
+
+For an independent comparison baseline, `mkdir -p "$W2_FIX_TMP/base"` and
+`git archive b6f83e4 | tar -x -C "$W2_FIX_TMP/base"` extracted committed main into a fresh
+scratch tree. From that tree, the same `npm ci` and literal team-off/team-on build commands
+above exited 0, with outputs copied by `cp -R apps/web/dist ../base-off` and
+`cp -R apps/web/dist ../base-on`. Its install has no candidate source links. All comparison
+commands exited 0; on notices also equal the baseline's on notices.
+
+Additional checks and exact exclusions:
+
+- `node --check tests/server/mentions.test.ts`: exit 0, syntax only.
+- `npm run test:server:node -- tests/server/mentions.test.ts -t '^S146 '`: exit 1 during
+  setup, **zero tests executed**, because `tests/server/.stack.json` does not exist.
+  This is blocked execution, not an S146 pass or assertion failure. Neither runner's S146
+  was executed in this session; the next independent full-access check must run both.
+- `git diff --exit-code "$W2_FIX_START" "$W2_FIX_SOURCE" -- apps/web/src/App.tsx apps/web/src/style.css supabase/config.toml tests/server/driver-node.ts docs/architecture`:
+  exit 0. All contract prerequisites, existing stylesheet, settings and driver remain unchanged.
+  Unit module guards still pass at 22 state hooks / 31 team modules.
+- Four source/test paths changed: `apps/web/src/team/comments/layer.tsx`,
+  `apps/web/src/team/hosted-board.ts`, `tests/mentions.test.mjs`,
+  `tests/server/mentions.test.ts`. No private tooling or scratch configuration was copied.
+  Both source commit hooks printed `PUBLIC BOUNDARY: PASS`; Git again printed the nonfatal
+  `packed-refs.lock` permission error. The source commit, branch ref and clean source worktree
+  were verified. No hook was bypassed.
+- **V9–V13 were not rerun.** No browser could start in this sandbox; no local stack,
+  Supabase CLI, Docker server suite, schema application, deployment, browser scenario or
+  screenshot comparison was attempted. Prior independent check and prototype results are
+  not counted as new implementation validation. C2-S28/S46/S49 and C1-S19 check-tool defects
+  were left untouched for the independent checker.
+- No compatibility work, new prototype, unrelated test campaign, stash, push, merge or main
+  modification. Current-format persistence and restore fences remain unchanged. This record
+  receives diff/link inspection only; the next full-access session reviews the exact source
+  revision above and separately reports the record-inclusive branch tip.

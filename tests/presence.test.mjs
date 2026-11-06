@@ -113,20 +113,17 @@ test("labels use the last @ and refuse empty or excessive UTF-8 without shorteni
   for (const email of ["@host", "", "é".repeat(128) + "a@host"]) assert.throws(() => labelOf(email), /invalid_label/);
 });
 
-for (const created of [true, false]) test(`base storage migration is atomic and idempotent, created=${created}`, () => {
+for (const created of [true, false]) test(`current storage initialization is idempotent, created=${created}`, () => {
   const storage = new NodeStorage(":memory:");
   try {
-    storage.exec("CREATE TABLE meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL)");
-    storage.exec("CREATE TABLE tickets (digest TEXT PRIMARY KEY, person_id TEXT NOT NULL, token_expires_at INTEGER NOT NULL, expires_at INTEGER NOT NULL)");
-    if (created) setMeta(storage, "storage_version", 1);
-    storage.exec("INSERT INTO tickets VALUES ('old', 'person', 1, 1)");
     initialize(storage);
+    if (created) setMeta(storage, "storage_version", 4);
     assert(storage.all("PRAGMA table_info(tickets)").some((c) => c.name === "label"));
     assert.deepEqual(storage.all("SELECT * FROM tickets"), []);
-    assert.equal(meta(storage, "storage_version"), created ? 3 : 0);
+    assert.equal(meta(storage, "storage_version"), created ? 4 : 0);
     storage.exec("INSERT INTO tickets VALUES ('new', 'person', 1, 1, 'label')"); initialize(storage);
     assert.equal(storage.all("SELECT * FROM tickets").length, 1);
-    assert.equal(meta(storage, "storage_version"), created ? 3 : 0);
+    assert.equal(meta(storage, "storage_version"), created ? 4 : 0);
   } finally { storage.close(); }
 });
 

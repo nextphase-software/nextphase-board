@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 export * from "nextphase-board-sync/comments.ts";
+export * from "nextphase-board-sync/mentions.ts";
 import { nameObject, type CommentThread, type CommentRequest } from "nextphase-board-sync/comments.ts";
 import type { BoardV10 } from "nextphase-board-rules/document.ts";
 
 export const words = {
   empty: "No comments yet. Click a sticky, shape or empty spot to start a thread. Press Esc to stop commenting.",
-  onlyYours: "No threads you started or replied to.", noResolved: "No resolved threads.",
+  onlyYours: "No threads you started, replied to or were mentioned in.", noResolved: "No resolved threads.",
   offline: "You're offline. Your reply stays here; post it when the board is back.",
   unconfirmed: "Your comment may not have been posted. Your text is kept below.",
   notRetryable: "Your access or the board changed, so this can't be sent again. Check the thread before posting it again.",
@@ -49,6 +50,9 @@ export function threadName(thread: CommentThread, board: BoardV10) {
     (count > 0 ? `, ${replyCount(count)}` : "") + (thread.anchor.detached ? ", detached" : "") + (thread.resolved ? ", resolved" : "");
 }
 export function refusalWords(reason: string, text = true, action = "reply") {
+  if (reason === "mention_unavailable") return "A selected person is no longer available. Your text is kept. Remove the mention or choose again.";
+  if (reason === "restore_changed") return words.notRetryable;
+  if (reason === "mention_pending_limit") return "Notifications are waiting to be saved. Try again later. Your text is kept.";
   if (reason === "thread_deleted") return text ? words.gone() : words.threadDeleted;
   if (reason === "comment_deleted") return words.commentDeleted;
   if (reason === "comment_limit") return "This board has reached its comment limit.";

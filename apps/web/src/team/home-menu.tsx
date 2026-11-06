@@ -6,8 +6,8 @@ export type MenuEntry = { kind: "label"; text: string } | { kind: "divider" }
   | { kind: "item"; text: string; run: () => void; checked?: boolean; initial?: boolean };
 export type MenuPosition = { point: { x: number; y: number }; opener: HTMLElement };
 
-export function HomeMenu({ entries, position, close }: {
-  entries: MenuEntry[]; position: MenuPosition; close: () => void;
+export function HomeMenu({ entries, position, close, className = "" }: {
+  entries: MenuEntry[]; position: MenuPosition; close: () => void; className?: string;
 }) {
   const menu = useRef<HTMLDivElement>(null);
   const dismiss = (focus: boolean) => { if (focus) position.opener.focus(); close(); };
@@ -31,7 +31,7 @@ export function HomeMenu({ entries, position, close }: {
       window.removeEventListener("resize", resize);
     };
   }, []);
-  return <div ref={menu} className="home-menu" role="menu" onKeyDown={(event) => {
+  return <div ref={menu} className={"home-menu" + (className ? " " + className : "")} role="menu" onKeyDown={(event) => {
     event.stopPropagation();
     if (event.key === "Tab") { dismiss(true); return; }
     if (event.key === "Escape") { event.preventDefault(); dismiss(true); return; }

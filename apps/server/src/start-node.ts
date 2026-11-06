@@ -17,8 +17,24 @@ import { deliver } from "./delivery.ts";
 export type NodeOptions = {
   now?: () => number; db?: Supabase; auth?: Auth; backupLimit?: number;
   deliveryIntervalMs?: number;
-  fence?: { read(board: string): Promise<number>; raise(board: string): Promise<number> };
+  fence?: { read(board: string): Promise<number>; raise(board: string, minimum?: number): Promise<number> };
 };
+export async function recoveryGeneration(board: string, storage: NodeStorage, db: Supabase, fences: NonNullable<NodeOptions['fence']>) {
+  let generation = await fences.read(board);
+  if (meta(storage, "restore_pending")) {
+    // A successful mention clear can be newer than a delayed document copy.
+    // Neither failed checkpoint read may become an absent/zero checkpoint.
+    const document = await db.documentGeneration(board);
+    const mentions = await db.mentionGeneration(board);
+    const restored = meta(storage, "restore_generation");
+    const values = [generation, restored, document, mentions];
+    if (!values.every(n => Number.isSafeInteger(n) && n >= 0) || Math.max(...values) >= Number.MAX_SAFE_INTEGER) throw Error("Invalid restore generation");
+    const minimum = Math.max(...values);
+    generation = await fences.raise(board, minimum);
+    if (!Number.isSafeInteger(generation) || generation <= minimum) throw Error("Restore fence did not advance");
+  }
+  return generation;
+}
 export async function startNode(settings: Settings, options: NodeOptions = {}) {
   await mkdir(resolve(settings.dataDir, "boards"), { recursive: true });
   const now = options.now ?? Date.now;
@@ -42,10 +58,12 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
     async read(board: string) {
       await access(fenceFile, 4);
       return Number(openFence().all("SELECT generation FROM fences WHERE board_id = ?", board)[0]?.generation ?? 0); },
-    async raise(board: string) {
+    async raise(board: string, minimum = 0) {
       const storage = openFence();
       return storage.transaction(() => {
-        storage.exec("INSERT INTO fences VALUES (?, 1) ON CONFLICT(board_id) DO UPDATE SET generation=generation+1", board);
+        const current = Number(storage.all("SELECT generation FROM fences WHERE board_id = ?", board)[0]?.generation ?? 0);
+        if (![current, minimum].every(n => Number.isSafeInteger(n) && n >= 0) || Math.max(current, minimum) >= Number.MAX_SAFE_INTEGER) throw Error("Invalid restore generation");
+        storage.exec("INSERT INTO fences VALUES (?, ?) ON CONFLICT(board_id) DO UPDATE SET generation=excluded.generation", board, Math.max(current, minimum) + 1);
         return Number(storage.all("SELECT generation FROM fences WHERE board_id = ?", board)[0].generation);
       });
     },
@@ -63,17 +81,8 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
     storage.exec("CREATE TABLE IF NOT EXISTS waiting (connection_id TEXT, sequence INTEGER, message_bytes INTEGER NOT NULL, received_at INTEGER NOT NULL, deadline INTEGER NOT NULL, request_id TEXT NOT NULL, \"update\" BLOB NOT NULL, PRIMARY KEY(connection_id, sequence))");
     storage.exec("DELETE FROM waiting");
     const connections = new Set<Connection>();
-    const room = new Room(board, { storage, access: db, rows: db, background, now,
-      async fence() {
-        let generation = await fences.read(board);
-        if (meta(storage, "restore_pending")) {
-          const row = (await db.rows("boards", { id: board }))[0];
-          if (!row) throw Error("Board row unavailable");
-          const minimum = Math.max(generation, Number(row.document_generation));
-          do { generation = await fences.raise(board); } while (generation <= minimum);
-        }
-        return generation;
-      }, raiseFence: () => fences.raise(board),
+    const room = new Room(board, { storage, access: db, rows: db, mentions: db, background, now,
+      fence: () => recoveryGeneration(board, storage, db, fences), raiseFence: () => fences.raise(board),
       hash: async (value) => createHash("sha256").update(value).digest("hex"), randomTicket: () => randomBytes(32).toString("base64url"),
       randomId: randomUUID, verify: (token) => auth.verify(token), connections: () => [...connections],
       backupLimit: options.backupLimit ?? BACKUP_LIMIT,

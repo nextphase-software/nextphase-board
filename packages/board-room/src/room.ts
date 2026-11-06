@@ -6,7 +6,7 @@ import { canonical, type BoardV10 } from "nextphase-board-rules/document.ts";
 import { Copies } from "./copies.ts";
 import { Access, closeCode } from "./access.ts";
 import { backup, decodeBackup, replace } from "./backups.ts";
-import { Comments } from "./comments.ts";
+import { Comments, commentRow } from "./comments.ts";
 import { EditSession } from "./edit-session.ts";
 import type { RoomEnvironment } from "./interfaces.ts";
 import { base64, bytes, MESSAGE_LIMIT, rank, RoomError, send, type Attachment, type Connection, type Person } from "./protocol.ts";
@@ -69,13 +69,15 @@ export class Room {
       adapter.set(board);
       try {
         storage.transaction(() => {
-          setMeta(storage, "storage_version", 3);
+          setMeta(storage, "storage_version", 4);
           storage.exec("INSERT INTO meta VALUES ('board_id', ?)", this.boardId);
           setMeta(storage, "last_edit_at", Date.parse(details.createdAt));
           setMeta(storage, "revision", 0);
           setMeta(storage, "watermark", page.latest);
           setMeta(storage, "restore_generation", 0);
           setMeta(storage, "restore_pending", 0);
+          setMeta(storage, "mention_order", 0);
+          setMeta(storage, "mention_cleanup", 0);
           snapshot(storage, adapter.doc, board, 0);
           for (const object of board.objects) {
             storage.exec("INSERT INTO identifiers VALUES (?, ?, 0)", object.id, object.generation);
@@ -98,8 +100,11 @@ export class Room {
         storage.exec("DELETE FROM waiting");
       }
     } catch { this.access.locked = true; return; }
+    if (this.access.locked) { try { await this.comments.mentions.restore(this.generation); } catch { return; } }
     try { await this.access.replay(this.boardId, this.generation); } catch { /* Ordinary wakes use their stored copy. */ }
+    if (!this.access.locked) { try { await this.comments.mentions.prune(); } catch { /* Delivery retries require a successful prune. */ } }
     this.saved();
+    this.background(() => this.deliverNotices());
   }
   private closeLegacy() {
     for (const peer of this.env.connections()) if (!currentAttachment(peer.attachment())) this.close(peer, 1012);
@@ -129,9 +134,11 @@ export class Room {
     catch { this.access.locked = true; if (strict) throw new RoomError(503, "room_locked"); return; }
     if (this.generation > meta(this.env.storage, "restore_generation") || meta(this.env.storage, "restore_pending")) {
       this.access.locked = true;
+      try { await this.comments.mentions.restore(this.generation); } catch { if (strict) throw new RoomError(503, "room_locked"); return; }
     }
     try { await this.access.replay(this.boardId, this.generation); }
     catch (error) { if (strict) throw error; /* A restore remains locked until replay succeeds. */ }
+    if (!this.access.locked) { try { await this.comments.mentions.prune(); } catch (error) { if (strict) throw error; } }
     this.saved();
   }
   ticket(person: Person) {
@@ -236,6 +243,28 @@ export class Room {
       return meta(this.env.storage, "watermark");
     });
   }
+  deliverNotices() {
+    return this.ordered(async () => {
+      if (!meta(this.env.storage, "storage_version") || !meta(this.env.storage, "mention_cleanup")) return;
+      await this.refresh(true);
+      if (this.access.locked) throw new RoomError(503, this.access.reason);
+      await this.comments.mentions.deliver();
+    });
+  }
+  discussion(person: Person, commentId: string, occurrence?: string) {
+    return this.ordered(async () => {
+      await this.refresh(true);
+      await this.access.lookup(person.id, this.boardId, true);
+      if (this.access.locked) throw new RoomError(503, this.access.reason);
+      const target = this.env.storage.all("SELECT * FROM mention_targets WHERE comment_id = ? AND recipient = ?", commentId, person.id)[0];
+      const row = this.env.storage.all("SELECT * FROM comments WHERE id = ?", commentId)[0];
+      if (!target || occurrence && target.occurrence !== occurrence || !row) throw new RoomError(404, "not_found");
+      const thread = this.env.storage.all("SELECT * FROM threads WHERE id = ?", String(row.thread_id))[0];
+      if (!thread) throw new RoomError(404, "not_found");
+      return { boardId: this.boardId, title: this.board.title, threadId: row.thread_id,
+        comment: commentRow(row), anchor: JSON.parse(String(thread.anchor)), resolved: !!thread.resolved };
+    });
+  }
   message(connection: Connection, text: string) {
     return this.ordered(async () => {
       await this.load();
@@ -263,6 +292,7 @@ export class Room {
       }
       if (message?.kind === "comment") {
         await this.comments.handle(connection, message);
+        this.background(() => this.deliverNotices());
         return;
       }
       if (message?.kind !== "edit" || typeof message.requestId !== "string" || !message.requestId.length ||
@@ -328,6 +358,10 @@ export class Room {
       this.copies?.suspend();
       this.closeAll(4423);
       replace(this.env, envelope);
+      this.env.storage.transaction(() => {
+        this.env.storage.exec("DELETE FROM mention_pending"); this.env.storage.exec("DELETE FROM mention_targets");
+        setMeta(this.env.storage, "mention_cleanup", 0); setMeta(this.env.storage, "mention_order", 0);
+      });
       setMeta(this.env.storage, "restore_pending", 1);
       this.initialized = false;
       this.access.locked = true;

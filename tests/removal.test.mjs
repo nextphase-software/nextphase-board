@@ -21,6 +21,7 @@ test("delivery limits active rooms to ten and acknowledges only stored watermark
   let active = 0, maximum = 0;
   const runtime = {
     db: { async rpc(name, parameters) {
+      if (name === "mention_boards") return [];
       if (name === "pending_access_boards") return boards;
       receipts.push(parameters);
     } },
@@ -48,6 +49,7 @@ test("a second delivery waits for the first attempt including its receipts", asy
   const gate = deferred(), entered = deferred();
   let reads = 0;
   const runtime = { db: { async rpc(name) {
+    if (name === "mention_boards") return [];
     if (name === "pending_access_boards") { reads++; return ["board"]; }
     entered.resolve(); await gate.promise;
   } }, room: () => ({ changed: async () => 7 }) };

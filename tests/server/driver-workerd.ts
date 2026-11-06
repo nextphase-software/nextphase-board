@@ -25,6 +25,11 @@ export async function makeDriver(context: Context): Promise<Driver> {
       return result;
     },
     async control(value) {
+      if (value.board && value.fences) {
+        const stub = bindings.FENCES.get(bindings.FENCES.idFromName(String(value.board)));
+        const result = await stub.fetch('http://fence/read').then((response: Response) => response.json()) as { generation: number };
+        return result.generation;
+      }
       if (value.board && value.legacyStorage !== undefined) {
         const stub = roomStub(String(value.board));
         await runInDurableObject<DurableObject, void>(stub, async (instance: any) => {
@@ -41,6 +46,14 @@ export async function makeDriver(context: Context): Promise<Driver> {
         });
         // S121 calls wake() next; it owns eviction before the next storage open.
         return {};
+      }
+      if (value.board && (value.roomSQL || value.failInitialization || value.deliverMentions)) {
+        return runInDurableObject(roomStub(String(value.board)), async (instance:any) => {
+          const room=await instance.getRoom(String(value.board)), storage=room.env.storage;
+          if(value.roomSQL)await room.ordered(async()=>{for(const item of value.roomSQL)storage.exec(item.sql,...(item.bindings??[]));});
+          if(value.failInitialization){const execute=storage.exec.bind(storage);storage.exec=(sql:string,...args:any[])=>{if(sql.includes("CREATE TABLE IF NOT EXISTS mention_pending"))throw Error("initialization rollback");execute(sql,...args);};try{const {initialize}=await import("../../packages/board-room/src/storage.ts");initialize(storage);}finally{storage.exec=execute;}}
+          if(value.deliverMentions)await room.deliverNotices();
+        });
       }
       if (value.scheduled) {
         const execution = createExecutionContext();

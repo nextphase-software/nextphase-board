@@ -271,28 +271,24 @@ test("the comment deadline ends the attempt at ten seconds and ignores late answ
     wire.message({ kind: "comment_saved", requestId: id, sequence: 1 }); assert.equal(f.session.commentRequests.get(id).state, "unconfirmed");
   } finally { f.finish(); }
 });
-for (const layout of ["v2", "unversioned snapshot", "uncreated"]) test(`storage migration reaches version 3 atomically and idempotently: ${layout}`, async () => {
+for (const layout of ["created", "uncreated"]) test(`current storage initialization is idempotent: ${layout}`, async () => {
   await import("../packages/board-sync/src/comments.ts");
   const { initialize, meta, setMeta } = await import("../packages/board-room/src/storage.ts");
   const { NodeStorage } = await import("../apps/server/src/node-storage.ts");
   const storage = new NodeStorage(":memory:");
   try {
-    storage.exec("CREATE TABLE meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL)");
-    storage.exec("CREATE TABLE receipts (person_id TEXT, request_id TEXT, digest TEXT NOT NULL, revision INTEGER NOT NULL, PRIMARY KEY(person_id, request_id))");
-    storage.exec("CREATE TABLE snapshot_chunks (snapshot_revision INTEGER, kind TEXT, chunk_index INTEGER, bytes BLOB, PRIMARY KEY(snapshot_revision, kind, chunk_index))");
-    if (layout === "v2") setMeta(storage, "storage_version", 2);
-    if (layout !== "uncreated") storage.exec("INSERT INTO snapshot_chunks VALUES (0, 'yjs', 0, ?)", new Uint8Array([0, 0]));
-    storage.exec("INSERT INTO receipts VALUES ('p', 'r', 'digest', 4)");
     initialize(storage);
-    assert.equal(meta(storage, "storage_version"), layout === "uncreated" ? 0 : 3);
+    if (layout === "created") setMeta(storage, "storage_version", 4);
+    storage.exec("INSERT INTO receipts VALUES ('p', 'r', 'digest', 4, 'edit')");
+    assert.equal(meta(storage, "storage_version"), layout === "uncreated" ? 0 : 4);
     assert.equal(storage.all("SELECT * FROM receipts")[0].kind, "edit");
-    for (const table of ["threads", "comments", "comment_ids", "comment_counts"]) assert.deepEqual(storage.all(`SELECT * FROM ${table}`), []);
+    for (const table of ["threads", "comments", "comment_ids", "comment_counts", "mention_targets", "mention_pending"]) assert.deepEqual(storage.all(`SELECT * FROM ${table}`), []);
     const before = storage.all("SELECT * FROM sqlite_master ORDER BY name"); initialize(storage);
     assert.deepEqual(storage.all("SELECT * FROM sqlite_master ORDER BY name"), before);
     assert.equal(storage.all("SELECT * FROM receipts").length, 1);
   } finally { storage.close(); }
 });
-test("a fresh room creates storage version 3 with no threads", async () => {
+test("a fresh room creates storage version 4 with no threads", async () => {
   await import("../packages/board-sync/src/comments.ts");
   const { Room } = await import("../packages/board-room/src/room.ts"), { NodeStorage } = await import("../apps/server/src/node-storage.ts");
   const { meta } = await import("../packages/board-room/src/storage.ts");
@@ -300,7 +296,7 @@ test("a fresh room creates storage version 3 with no threads", async () => {
   try {
     const room = new Room(randomUUID(), { storage, now: () => 0, connections: () => [], schedule: async () => {},
       access: { board: async () => ({ title: "Comments", createdAt: new Date(0).toISOString() }), changes: async () => ({ latest: 0, lowestKept: 1, changes: [] }) }, fence: async () => 0 });
-    await room.load(); assert.equal(meta(storage, "storage_version"), 3); assert.deepEqual(storage.all("SELECT * FROM threads"), []);
+    await room.load(); assert.equal(meta(storage, "storage_version"), 4); assert.deepEqual(storage.all("SELECT * FROM threads"), []);
   } finally { storage.close(); }
 });
 
@@ -325,7 +321,7 @@ async function roomFixture() {
     peers.push(peer); await room.connected(peer); return peer;
   }
   async function send(peer, operation, requestId = randomUUID()) {
-    await room.message(peer, JSON.stringify({ kind: "comment", requestId, epoch: peer.attachment().epoch, operation }));
+    await room.message(peer, JSON.stringify({ kind: "comment", requestId, epoch: peer.attachment().epoch, restoreGeneration: 0, operation }));
     return peer.messages.at(-1);
   }
   return { storage, room, open, send, advance(ms = 1001) { now += ms; } };
@@ -350,11 +346,9 @@ test("room actions stamp private-safe rows, enforce authorship, share receipts a
     const envelope = await f.room.backup(); assert.equal(envelope.tables.receipts[0].kind, "comment");
     const missing = structuredClone(envelope); delete missing.tables.comment_ids;
     assert.throws(() => decodeBackup(missing, f.room.boardId), /bad_request/);
-    const old = structuredClone(envelope); old.tables.meta.find((row) => row.key === "storage_version").value = 2;
-    assert.throws(() => decodeBackup(old, f.room.boardId), /bad_request/);
-    for (const table of ["threads", "comments", "comment_ids", "comment_counts"]) delete old.tables[table];
-    old.tables.receipts = [];
-    assert.doesNotThrow(() => decodeBackup(old, f.room.boardId));
+    const malformed = structuredClone(envelope); malformed.tables.comments[0].mentions = 'null';
+    assert.throws(() => decodeBackup(malformed, f.room.boardId), /bad_request/);
+    assert.doesNotThrow(() => decodeBackup(envelope, f.room.boardId));
     await f.send(a, { action: "delete_comment", threadId: operation.threadId, commentId: operation.commentId });
     assert.equal(f.storage.all("SELECT * FROM comments").length, 0); assert.equal(f.storage.all("SELECT * FROM comment_ids").length, 3);
     assert.equal((await f.send(a, operation)).reason, "identifier_reused");
@@ -363,15 +357,15 @@ test("room actions stamp private-safe rows, enforce authorship, share receipts a
     assert.equal(f.storage.all("SELECT value FROM meta WHERE key = 'revision'")[0].value, 0);
   } finally { f.storage.close(); }
 });
-test("a failed version-3 migration rolls back its table and column changes", async () => {
+test("a failed current initialization rolls back its tables", async () => {
   await import("../packages/board-sync/src/comments.ts");
   const { initialize } = await import("../packages/board-room/src/storage.ts");
   const { NodeStorage } = await import("../apps/server/src/node-storage.ts");
   const storage = new NodeStorage(":memory:");
   try {
     const execute = storage.exec.bind(storage);
-    storage.exec = (sql, ...args) => { if (sql.includes("CREATE TABLE IF NOT EXISTS comment_ids")) throw Error("Injected migration failure"); execute(sql, ...args); };
-    assert.throws(() => initialize(storage), /Injected migration failure/);
+    storage.exec = (sql, ...args) => { if (sql.includes("CREATE TABLE IF NOT EXISTS comment_ids")) throw Error("Injected initialization failure"); execute(sql, ...args); };
+    assert.throws(() => initialize(storage), /Injected initialization failure/);
     assert.deepEqual(storage.all("SELECT name FROM sqlite_master WHERE type = 'table'"), []);
   } finally { storage.close(); }
 });

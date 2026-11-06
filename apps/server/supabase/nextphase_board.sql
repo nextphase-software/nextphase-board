@@ -380,6 +380,131 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   ) page
 $$;
 
+-- SPDX-License-Identifier: Apache-2.0
+CREATE TABLE IF NOT EXISTS nextphase_board.mention_leases (
+  board_id uuid REFERENCES nextphase_board.boards(id) ON DELETE CASCADE,
+  person_id uuid REFERENCES nextphase_board.people(id) ON DELETE CASCADE,
+  lease uuid NOT NULL DEFAULT gen_random_uuid(), PRIMARY KEY(board_id, person_id)
+);
+CREATE TABLE IF NOT EXISTS nextphase_board.mention_delivery (
+  board_id uuid PRIMARY KEY REFERENCES nextphase_board.boards(id) ON DELETE CASCADE,
+  generation bigint NOT NULL, source_order bigint NOT NULL
+);
+CREATE TABLE IF NOT EXISTS nextphase_board.mention_inbox (
+  id uuid PRIMARY KEY, recipient uuid NOT NULL REFERENCES nextphase_board.people(id) ON DELETE CASCADE,
+  board_id uuid NOT NULL REFERENCES nextphase_board.boards(id) ON DELETE CASCADE,
+  thread_id uuid NOT NULL, comment_id uuid NOT NULL, lease uuid NOT NULL,
+  generation bigint NOT NULL, source_order bigint NOT NULL, created_at bigint NOT NULL,
+  delivered_order bigint GENERATED ALWAYS AS IDENTITY, is_read boolean NOT NULL DEFAULT false,
+  state_version bigint NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS mention_inbox_recipient_order ON nextphase_board.mention_inbox(recipient, delivered_order DESC);
+CREATE INDEX IF NOT EXISTS mention_inbox_board ON nextphase_board.mention_inbox(board_id);
+CREATE OR REPLACE FUNCTION nextphase_board.refresh_mention_leases(board uuid)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  PERFORM 1 FROM nextphase_board.boards b WHERE b.id = board FOR UPDATE;
+  DELETE FROM nextphase_board.mention_leases l WHERE l.board_id = board AND nextphase_board.board_role(l.person_id, board) IS NULL;
+  DELETE FROM nextphase_board.mention_inbox n WHERE n.board_id = board AND NOT EXISTS
+    (SELECT 1 FROM nextphase_board.mention_leases l WHERE l.board_id = board AND l.person_id = n.recipient AND l.lease = n.lease);
+  INSERT INTO nextphase_board.mention_leases(board_id,person_id)
+    SELECT board,m.person_id FROM nextphase_board.boards b JOIN nextphase_board.workspace_members m ON m.workspace_id=b.workspace_id
+    WHERE b.id=board AND nextphase_board.board_role(m.person_id,board) IS NOT NULL ON CONFLICT DO NOTHING;
+END $$;
+CREATE OR REPLACE FUNCTION nextphase_board.mention_access_changed()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE b uuid;
+BEGIN
+  FOR b IN SELECT id FROM nextphase_board.boards WHERE workspace_id=NEW.workspace_id AND (NEW.board_id IS NULL OR id=NEW.board_id) ORDER BY id LOOP
+    PERFORM nextphase_board.refresh_mention_leases(b);
+  END LOOP;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS mention_access_changed ON nextphase_board.access_changes;
+CREATE TRIGGER mention_access_changed AFTER INSERT ON nextphase_board.access_changes FOR EACH ROW EXECUTE FUNCTION nextphase_board.mention_access_changed();
+CREATE OR REPLACE FUNCTION nextphase_board.mention_roster(board uuid, caller uuid)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE guest boolean; result jsonb;
+BEGIN
+  IF nextphase_board.board_role(caller,board) IS NULL THEN RAISE EXCEPTION 'not_found'; END IF;
+  PERFORM nextphase_board.refresh_mention_leases(board);
+  SELECT m.role='guest' INTO guest FROM nextphase_board.workspace_members m JOIN nextphase_board.boards b ON b.workspace_id=m.workspace_id WHERE m.person_id=caller AND b.id=board;
+  SELECT coalesce(jsonb_agg(jsonb_build_object('id',p.id,'email',p.email,'lease',l.lease)), '[]') INTO result
+    FROM nextphase_board.mention_leases l JOIN nextphase_board.people p ON p.id=l.person_id
+    JOIN nextphase_board.boards b ON b.id=l.board_id JOIN nextphase_board.workspace_members m ON m.workspace_id=b.workspace_id AND m.person_id=p.id
+    WHERE l.board_id=board AND (NOT guest OR m.role<>'guest' OR p.id=caller) AND NOT p.disabled;
+  RETURN result;
+END $$;
+CREATE OR REPLACE FUNCTION nextphase_board.project_mentions(board uuid, generation bigint, source_order bigint, active jsonb, creates jsonb)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE checkpoint nextphase_board.mention_delivery; item jsonb; who uuid;
+BEGIN
+  PERFORM 1 FROM nextphase_board.boards b WHERE b.id=board FOR UPDATE;
+  SELECT * INTO checkpoint FROM nextphase_board.mention_delivery d WHERE d.board_id=board;
+  IF FOUND AND (checkpoint.generation, checkpoint.source_order)>=(generation,source_order) THEN RETURN; END IF;
+  IF checkpoint.generation IS NOT NULL AND checkpoint.generation<>generation THEN
+    DELETE FROM nextphase_board.mention_inbox n WHERE n.board_id=board;
+  END IF;
+  PERFORM nextphase_board.refresh_mention_leases(board);
+  DELETE FROM nextphase_board.mention_inbox n WHERE n.board_id=board AND NOT EXISTS
+    (SELECT 1 FROM jsonb_array_elements(active) a WHERE (a->>'occurrence')::uuid=n.id AND (a->>'lease')::uuid=n.lease);
+  FOR who IN SELECT DISTINCT (c->>'recipient')::uuid FROM jsonb_array_elements(creates) c ORDER BY 1 LOOP
+    PERFORM 1 FROM nextphase_board.people p WHERE p.id=who FOR UPDATE;
+  END LOOP;
+  FOR item IN SELECT * FROM jsonb_array_elements(creates) ORDER BY (value->>'source_order')::bigint, value->>'occurrence' LOOP
+    IF (checkpoint.generation IS NULL OR checkpoint.generation<>generation OR (item->>'source_order')::bigint>checkpoint.source_order) AND EXISTS (SELECT 1 FROM nextphase_board.mention_leases l WHERE l.board_id=board AND l.person_id=(item->>'recipient')::uuid AND l.lease=(item->>'lease')::uuid)
+      AND nextphase_board.board_role((item->>'recipient')::uuid,board) IS NOT NULL THEN
+      INSERT INTO nextphase_board.mention_inbox(id,recipient,board_id,thread_id,comment_id,lease,generation,source_order,created_at)
+        VALUES ((item->>'occurrence')::uuid,(item->>'recipient')::uuid,board,(item->>'thread_id')::uuid,(item->>'comment_id')::uuid,(item->>'lease')::uuid,generation,(item->>'source_order')::bigint,(item->>'created_at')::bigint)
+        ON CONFLICT DO NOTHING;
+      DELETE FROM nextphase_board.mention_inbox n WHERE n.recipient=(item->>'recipient')::uuid AND n.id IN
+        (SELECT x.id FROM nextphase_board.mention_inbox x WHERE x.recipient=n.recipient ORDER BY x.created_at DESC, x.delivered_order DESC OFFSET 50);
+    END IF;
+  END LOOP;
+  INSERT INTO nextphase_board.mention_delivery VALUES(board,generation,source_order)
+    ON CONFLICT(board_id) DO UPDATE SET generation=excluded.generation,source_order=excluded.source_order;
+END $$;
+CREATE OR REPLACE FUNCTION nextphase_board.clear_board_mentions(board uuid, generation bigint)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  PERFORM 1 FROM nextphase_board.boards b WHERE b.id=board FOR UPDATE;
+  IF EXISTS(SELECT 1 FROM nextphase_board.mention_delivery d WHERE d.board_id=board AND d.generation>clear_board_mentions.generation) THEN RETURN; END IF;
+  DELETE FROM nextphase_board.mention_inbox n WHERE n.board_id=board;
+  INSERT INTO nextphase_board.mention_delivery VALUES(board,generation,-1) ON CONFLICT(board_id)
+    DO UPDATE SET generation=excluded.generation,source_order=excluded.source_order;
+END $$;
+CREATE OR REPLACE FUNCTION nextphase_board.list_mentions(person uuid)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT coalesce(jsonb_agg(to_jsonb(n) ORDER BY n.created_at DESC, n.delivered_order DESC),'[]') FROM nextphase_board.mention_inbox n
+    JOIN nextphase_board.mention_leases l ON l.board_id=n.board_id AND l.person_id=n.recipient AND l.lease=n.lease
+    WHERE n.recipient=person AND nextphase_board.board_role(person,n.board_id) IS NOT NULL
+$$;
+CREATE OR REPLACE FUNCTION nextphase_board.act_mentions(person uuid, action text, seen jsonb)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE item jsonb;
+BEGIN
+  IF action NOT IN ('read','unread','dismiss') OR jsonb_typeof(seen)<>'array' OR jsonb_array_length(seen)>50 THEN RAISE EXCEPTION 'bad_request'; END IF;
+  PERFORM 1 FROM nextphase_board.people p WHERE p.id=person FOR UPDATE;
+  FOR item IN SELECT * FROM jsonb_array_elements(seen) LOOP
+    IF action='dismiss' THEN DELETE FROM nextphase_board.mention_inbox n WHERE n.id=(item->>'id')::uuid AND n.recipient=person;
+    ELSE UPDATE nextphase_board.mention_inbox n SET is_read=(action='read'),state_version=n.state_version+1
+      WHERE n.id=(item->>'id')::uuid AND n.recipient=person AND n.state_version=(item->>'version')::bigint AND nextphase_board.board_role(person,n.board_id) IS NOT NULL; END IF;
+  END LOOP;
+END $$;
+CREATE OR REPLACE FUNCTION nextphase_board.valid_mention_targets(board uuid, targets jsonb)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT coalesce(jsonb_agg(t->>'occurrence'),'[]') FROM jsonb_array_elements(targets) t
+    JOIN nextphase_board.mention_leases l ON l.board_id=board AND l.person_id=(t->>'recipient')::uuid AND l.lease=(t->>'lease')::uuid
+    WHERE nextphase_board.board_role(l.person_id,board) IS NOT NULL
+$$;
+CREATE OR REPLACE FUNCTION nextphase_board.mention_boards()
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT coalesce(jsonb_agg(b.id ORDER BY b.id),'[]') FROM nextphase_board.boards b
+$$;
+ALTER TABLE nextphase_board.mention_leases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE nextphase_board.mention_delivery ENABLE ROW LEVEL SECURITY;
+ALTER TABLE nextphase_board.mention_inbox ENABLE ROW LEVEL SECURITY;
+
 -- Repeated runs replace policies without widening privileges.
 DO $$ DECLARE t text; BEGIN
   FOREACH t IN ARRAY ARRAY['people','workspaces','workspace_members','boards','board_opens','board_grants','invitations','access_changes','access_log_floor','access_deliveries'] LOOP

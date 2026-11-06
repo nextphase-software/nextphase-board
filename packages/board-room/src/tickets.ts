@@ -4,7 +4,7 @@ import { bytes, RoomError, type Person } from "./protocol.ts";
 export function labelOf(email: string): string {
   const at = email.lastIndexOf("@");
   const label = at < 0 ? email : email.slice(0, at);
-  if (!label || bytes(label).length > 256) throw new RoomError(400, "invalid_label");
+  if (!label || /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(label) || bytes(label).length > 256) throw new RoomError(400, "invalid_label");
   return label;
 }
 export async function issueTicket(env: RoomEnvironment, person: Person) {

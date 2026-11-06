@@ -4,6 +4,8 @@ import { RoomError, type Role } from "nextphase-board-room/protocol.ts";
 import type { AccessPage, AccessSource, BoardDetails, BoardRows, SavedBoard } from "nextphase-board-room/interfaces.ts";
 import type { Cursor, Sort, Order } from "./cursor.ts";
 export type RecordRow = Record<string, any>;
+import { duplicateSuffixes } from "nextphase-board-sync/mentions.ts";
+import { labelOf } from "nextphase-board-room/tickets.ts";
 export class Supabase implements AccessSource, BoardRows {
   client: SupabaseClient;
   constructor(url: string, serviceKey: string, fetcher = fetch) {
@@ -57,6 +59,30 @@ export class Supabase implements AccessSource, BoardRows {
     return this.rpc("list_boards", { person, workspace, sort, direction, after_key: after?.key ?? null, after_id: after?.id ?? null });
   }
   recentBoards(person: string): Promise<RecordRow[]> { return this.rpc("list_recent_boards", { person }); }
+  validTargets(board: string, targets: object[]): Promise<string[]> { return this.rpc("valid_mention_targets", { board, targets }); }
+  async roster(board: string, caller: string) {
+    const rows = await this.rpc<RecordRow[]>("mention_roster", { board, caller });
+    const people = await Promise.all(rows.map(async row => {
+      let label: string; try { label = labelOf(row.email); } catch { return null; }
+      const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`presence:${board}:${row.id}`));
+      const person = [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2,"0")).join("").slice(0,32);
+      return { id: String(row.id), lease: String(row.lease), person, label };
+    }));
+    return duplicateSuffixes(people.filter((p): p is NonNullable<typeof p> => p !== null));
+  }
+  async project(board: string, generation: number, order: number, active: object[], creates: object[]) {
+    await this.rpc("project_mentions", { board, generation, source_order: order, active, creates });
+  }
+  async documentGeneration(board: string): Promise<number> {
+    const row = (await this.rows("boards", { id: board }))[0];
+    if (!row) throw new RoomError(503, "service_unavailable");
+    return checkpointGeneration(row.document_generation);
+  }
+  async mentionGeneration(board: string): Promise<number> {
+    const row = (await this.rows("mention_delivery", { board_id: board }))[0];
+    return row ? checkpointGeneration(row.generation) : 0;
+  }
+  async clearNotices(board: string, generation: number) { await this.rpc("clear_board_mentions", { board, generation }); }
   async account(email: string) {
     for (let page = 1; ; page++) {
       const { data, error } = await this.client.auth.admin.listUsers({ page, perPage: 1000 });
@@ -80,4 +106,9 @@ export function boardDetails(row: RecordRow): BoardDetails {
 export function invitationDetails(row: RecordRow) {
   return { id: row.id, workspaceId: row.workspace_id, boardId: row.board_id, email: row.email,
     role: row.role, expiresAt: new Date(row.expires_at).toISOString() };
+}
+
+function checkpointGeneration(value: unknown): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) throw new RoomError(503, "service_unavailable");
+  return value;
 }

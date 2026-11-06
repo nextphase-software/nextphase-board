@@ -83,7 +83,7 @@ test("room create persists the imported canonical document and identifiers at re
   const f = await roomFixture();
   try {
     await f.room.create(f.board);
-    assert.equal(meta(f.storage, "revision"), 0); assert.equal(meta(f.storage, "storage_version"), 3);
+    assert.equal(meta(f.storage, "revision"), 0); assert.equal(meta(f.storage, "storage_version"), 4);
     assert.equal(meta(f.storage, "watermark"), 7); assert.deepEqual(f.room.board, f.board);
     const chunks = f.storage.all("SELECT bytes FROM snapshot_chunks WHERE kind = 'json' ORDER BY chunk_index");
     assert.equal(Buffer.concat(chunks.map((row) => Buffer.from(row.bytes))).toString(), canonical(f.board));

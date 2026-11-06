@@ -571,8 +571,8 @@ check(48, "schema is repeatable and authenticated writes are denied", async () =
   const f = await fixture();
   const catalog = await helper("sql", { sql: `SELECT count(*), bool_and(relrowsecurity) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='nextphase_board' AND relkind='r';
     SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='nextphase_board' AND p.proname IN ('bootstrap_workspace','remember_person','create_board','write_member_role','write_board_grant','create_invitation','cancel_invitation','accept_invitation','access_changes_after','record_board_open','copy_saved_board','list_workspaces','list_boards','list_recent_boards','remove_member','remove_grant','disable_person','enable_person','record_access_receipt','pending_access_boards','pending_deliveries','deliver_access_change') AND has_function_privilege('authenticated',p.oid,'execute');` });
-  assert.match(catalog, /10\|t/); assert.match(catalog, /\n0\n/);
-  for (const table of ["people", "workspaces", "workspace_members", "boards", "board_opens", "board_grants", "invitations", "access_changes", "access_log_floor", "access_deliveries"]) {
+  assert.match(catalog, /13\|t/); assert.match(catalog, /\n0\n/);
+  for (const table of ["people", "workspaces", "workspace_members", "boards", "board_opens", "board_grants", "invitations", "access_changes", "access_log_floor", "access_deliveries", "mention_inbox", "mention_delivery", "mention_leases"]) {
     assert((await helper("rls", { token: person("owner").token, table, write: { id: crypto.randomUUID() } })).error);
   }
   for (const [rpc, parameters] of [

@@ -4,6 +4,7 @@ import type { BoardV10 } from "nextphase-board-rules/document.ts";
 import type { CommentOperation } from "./comments/rules";
 import { api, ApiError } from "./api";
 import { auth, type AuthSession } from "./auth";
+import { clearNotificationMemory, notificationDrafts, notificationRequests } from "./notification-navigation";
 import { socketOrigin } from "./config";
 import type { TeamLink } from "./links";
 import { chooseFollow, fitFollow, isPresenceRefusal, presenceToSend, SHOW_CURSORS_KEY, type Presence, type PresenceInput } from "./presence";
@@ -22,6 +23,24 @@ export type PresenceSnapshot = {
   self?: Presence; others: Presence[]; followed: string | null; showCursors: boolean;
 };
 export class HostedBoard {
+  commentDrafts = new Map<string, { reply: import("./comments/card").Draft; editing: { id: string; draft: import("./comments/card").Draft } | null }>();
+  unreadMentions = new Map<string, Set<string>>();
+  async refreshMentions() {
+    if (!this.comments.ready) return;
+    try {
+      const result = await api<{ notices: { boardId: string; threadId: string; comment: { id: string }; read: boolean }[] }>("/notifications");
+      if (this.stopped || this.ended) return;
+      this.unreadMentions.clear();
+      for (const notice of result.notices) if (notice.boardId === this.boardId && !notice.read) {
+        const ids = this.unreadMentions.get(notice.threadId) ?? new Set<string>(); ids.add(notice.comment.id); this.unreadMentions.set(notice.threadId, ids);
+      }
+      this.publishComments();
+    } catch { /* A read failure never declares an unread mention read. */ }
+  }
+  async displayed(comments: string[]) {
+    await api(`/boards/${this.boardId}/mentions/displayed`, "POST", { comments });
+    await this.refreshMentions();
+  }
   private commentListeners = new Set<(event?: SessionEvent) => void>();
   subscribeComments = (listener: (event?: SessionEvent) => void) => {
     this.commentListeners.add(listener);
@@ -104,7 +123,7 @@ export class HostedBoard {
     try { this.presence.showCursors = localStorage.getItem(SHOW_CURSORS_KEY) !== "false"; }
     catch { /* Unavailable storage defaults to showing cursors. */ }
     this.local = local;
-    if (link.kind === "board") this.boardId = link.board;
+    if (link.kind === "board") { this.boardId = link.board; this.commentDrafts = notificationDrafts(this.boardId); }
   }
   get canEdit() { return this.snapshot.connected && !this.session?.recovering && this.snapshot.role !== "viewer" && !this.ended; }
   get counts() { return changeCounts(this.session?.requests.values() ?? [], this.losses.losses.values()); }
@@ -163,6 +182,7 @@ export class HostedBoard {
         if (!this.current(attempt)) throw Error("Abandoned attempt");
         this.accepted = true;
         this.boardId = reply.boardId ?? this.link.board ?? "";
+        if (this.boardId) this.commentDrafts = notificationDrafts(this.boardId);
         attempt.acceptance = false;
         if (!this.boardId) { this.stop(); this.local(); throw Error("No destination board"); }
       }
@@ -238,6 +258,7 @@ export class HostedBoard {
     if (outcome.retry) this.session?.interrupt();
     else {
       this.ended = true;
+      this.commentDrafts.clear(); this.unreadMentions.clear(); clearNotificationMemory(this.boardId);
       const reason = outcome.name === "expired" ? "sign_in_expired" : "access_removed";
       this.session?.discard(reason);
     }
@@ -258,6 +279,7 @@ export class HostedBoard {
       });
       if (this.stopped || this.ended || this.attempt?.outcome) { session.close(); return; }
       this.session = session;
+      for (const [id, request] of notificationRequests(this.boardId)) session.commentRequests.set(id, request);
       session.subscribe((event) => this.changed(session, event));
       this.joined(session);
     } catch {
@@ -273,10 +295,11 @@ export class HostedBoard {
     this.publish({ board: session.board, role: session.role, connected: true, outcome: null,
       generation: this.snapshot.generation + 1 });
     this.updateSession(this.token ?? null);
+    void this.refreshMentions();
   }
   private changed(session: BoardSession<string>, event: SessionEvent) {
     if (this.stopped || this.ended || session !== this.session) return;
-    if (event.kind.startsWith("comment")) { this.publishComments(event); return; }
+    if (event.kind.startsWith("comment")) { this.publishComments(event); if (event.kind === "comment_changed" || event.kind === "comments_snapshot" && event.done) void this.refreshMentions(); return; }
     if (event.kind === "present" || event.kind === "left") {
       const connection = String(event.connection);
       if (event.kind === "present") this.received.set(connection, ++this.receiveOrder);
@@ -354,6 +377,7 @@ export class HostedBoard {
   private end(name: "expired" | "signedOut") {
     if (this.ended || this.stopped) return;
     this.ended = true;
+    this.commentDrafts.clear(); this.unreadMentions.clear(); clearNotificationMemory(this.boardId);
     this.session?.discard(name === "expired" ? "sign_in_expired" : "signed_out"); this.attempt?.socket?.close(1000);
     if (this.attempt) { this.attempt.cancelled = true; clearTimeout(this.attempt.timer); }
     clearTimeout(this.retry); clearTimeout(this.renewal);
@@ -361,12 +385,19 @@ export class HostedBoard {
     this.publish({ connected: false, outcome: { name, retry: false } });
   }
   stop() {
+    if (this.stopped) return;
     window.removeEventListener("offline", this.offline);
     this.losses = emptyLossRecord();
+    this.unreadMentions.clear();
     this.clearPresence();
     this.stopped = true;
     if (this.attempt) { this.attempt.cancelled = true; clearTimeout(this.attempt.timer); }
     clearTimeout(this.retry); clearTimeout(this.renewal);
     this.session?.close(); this.attempt?.socket?.close(1000);
+    if (!this.ended && this.session) {
+      const retained = notificationRequests(this.boardId);
+      retained.clear();
+      for (const [id, request] of this.session.commentRequests) retained.set(id, request);
+    }
   }
 }

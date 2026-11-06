@@ -15,7 +15,15 @@ export interface BoardRows {
   opened(person: string, board: string, at: number): Promise<void>;
 }
 export interface Background { run(task: Promise<void>): void }
+export type MentionPerson = { id: string; person: string; label: string; lease: string; suffix: string };
+export interface MentionSource {
+  validTargets(board: string, targets: object[]): Promise<string[]>;
+  roster(board: string, caller: string): Promise<MentionPerson[]>;
+  project(board: string, generation: number, order: number, active: object[], creates: object[]): Promise<void>;
+  clearNotices(board: string, generation: number): Promise<void>;
+}
 export interface RoomEnvironment {
+  mentions?: MentionSource;
   rows?: BoardRows;
   background?: Background;
   storage: Storage;

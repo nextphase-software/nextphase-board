@@ -12,6 +12,7 @@ import { words } from "./notices";
 import { SignIn } from "./sign-in";
 import { ShareDialog } from "./share-dialog";
 import { EndBoardDialog, LeaveBoardQuestion, TeamPage, type PendingLeave } from "./pages";
+import { clearNotificationMemory } from "./notification-navigation";
 import { Home } from "./home";
 import { holdName, type HeldNames } from "./home-rules";
 
@@ -26,6 +27,7 @@ export function TeamApp() {
   const [session, setSession] = useState<AuthSession | null>(null), [ready, setReady] = useState(false);
   const [signIn, setSignIn] = useState(false), [epoch, setEpoch] = useState(0);
   const [forceGate, setForceGate] = useState(false);
+  const accountId = useRef("");
   const active = useRef<HostedBoard | null>(null), ownSignOut = useRef(false);
   const names = useRef<HeldNames>(new Map());
   const [leave, setLeave] = useState<PendingLeave | null>(null);
@@ -55,6 +57,10 @@ export function TeamApp() {
     const { data } = auth.onAuthStateChange((event, next) => {
       // Auth holds its lock in this callback. Session work runs after it returns.
       queueMicrotask(() => {
+        if (accountId.current !== (next?.user.id ?? "")) {
+          names.current.clear(); clearNotificationMemory();
+          active.current?.signedOut(); accountId.current = next?.user.id ?? ""; setEpoch(value => value + 1);
+        }
         setSession(next); setReady(true);
         if (event === "SIGNED_OUT") {
           names.current.clear();
@@ -66,6 +72,8 @@ export function TeamApp() {
   }, []);
   async function signOut(local = false) {
     ownSignOut.current = true;
+    active.current?.signedOut();
+    clearNotificationMemory();
     names.current.clear();
     active.current?.stop(); active.current = null;
     setForceGate(local); setSession(null); setEpoch((value) => value + 1);

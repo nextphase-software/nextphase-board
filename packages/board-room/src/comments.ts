@@ -3,6 +3,8 @@ import type { BoardV10 } from "nextphase-board-rules/document.ts";
 import { hasRectangle } from "nextphase-board-rules/objects/registry.ts";
 import { anchorPoint, detachAnchor, nameObject, textProblem, type Anchor, type AnchorInput,
   type Comment, type CommentOperation, type Thread } from "nextphase-board-sync/comments.ts";
+import { Mentions } from "./mentions.ts";
+import type { Mention } from "nextphase-board-sync/comments.ts";
 import type { Access } from "./access.ts";
 import type { RoomEnvironment } from "./interfaces.ts";
 import { bytes, send, type Connection } from "./protocol.ts";
@@ -25,16 +27,18 @@ function threadRow(row: Row): Thread {
     resolved: !!row.resolved, createdAt: Number(row.created_at), updatedAt: Number(row.updated_at),
     sequence: Number(row.sequence), firstComment: String(row.first_comment) };
 }
-function commentRow(row: Row): Comment {
+export function commentRow(row: Row): Comment {
   return { id: String(row.id), threadId: String(row.thread_id), person: String(row.person), label: String(row.label),
     text: String(row.text), createdAt: Number(row.created_at), editedAt: row.edited_at === null ? null : Number(row.edited_at),
-    sequence: Number(row.sequence) };
+    sequence: Number(row.sequence), mentions: JSON.parse(String(row.mentions ?? "[]")) };
 }
 export class Comments {
+  mentions: Mentions;
   private env: RoomEnvironment;
   private access: Access;
-  private host: { board: BoardV10; boardId: string };
-  constructor(env: RoomEnvironment, access: Access, host: { board: BoardV10; boardId: string }) {
+  private host: { board: BoardV10; boardId: string; generation: number };
+  constructor(env: RoomEnvironment, access: Access, host: { board: BoardV10; boardId: string; generation: number }) {
+    this.mentions = new Mentions(env, host);
     this.env = env; this.access = access; this.host = host;
   }
   snapshot(connection: Connection) {
@@ -52,11 +56,12 @@ export class Comments {
     const refuse = (reason: string) => send(connection, { kind: "comment_refused", reason,
       ...(typeof message.requestId === "string" ? { requestId: message.requestId } : {}) });
     if (typeof message.requestId !== "string" || !message.requestId.length || [...message.requestId].length > 100 ||
-      !Number.isSafeInteger(message.epoch) || !operationShape(message.operation)) { refuse("bad_message"); return; }
+      !Number.isSafeInteger(message.epoch) || !Number.isSafeInteger(message.restoreGeneration) || !operationShape(message.operation)) { refuse("bad_message"); return; }
     const value = connection.attachment(), grant = this.access.get(value.id);
     if (!grant) { refuse("no_access"); return; }
     if (grant.epoch !== message.epoch || grant.epoch !== value.epoch) { refuse("epoch_changed"); return; }
     const storage = this.env.storage, op = message.operation;
+    if (message.restoreGeneration !== meta(storage, "restore_generation")) { refuse("restore_changed"); return; }
     // Hash the parsed operation, including its original key order and ignored fields.
     const digest = await this.env.hash(bytes("comment:" + JSON.stringify(op)));
     const receipt = storage.all("SELECT * FROM receipts WHERE person_id = ? AND request_id = ?", value.id, message.requestId)[0];
@@ -87,6 +92,12 @@ export class Comments {
     }
     if (comment && comment.author_id !== value.id ||
       (op.action === "move" || op.action === "delete_thread") && stored.author_id !== value.id) { refuse("not_author"); return; }
+    let mentionPlan: Awaited<ReturnType<Mentions["prepare"]>> | undefined;
+    const mentions: Mention[] = "text" in op ? (op.mentions === undefined ? [] : op.mentions) : [];
+    if ("text" in op) {
+      try { mentionPlan = await this.mentions.prepare(value.id, op.text, mentions, comment); }
+      catch (error) { refuse(error instanceof Error ? error.message : "service_unavailable"); return; }
+    }
     let anchor: Anchor | undefined;
     if ("anchor" in op) {
       const input: AnchorInput = op.anchor;
@@ -122,11 +133,11 @@ export class Comments {
         storage.exec("INSERT INTO comment_ids VALUES (?, 'thread', ?)", op.threadId, sequence);
       }
       if (posting) {
-        storage.exec("INSERT INTO comments VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)", op.commentId, op.threadId, value.id, person, value.label!, op.text, now, sequence);
+        storage.exec("INSERT INTO comments VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)", op.commentId, op.threadId, value.id, person, value.label!, op.text, now, sequence, JSON.stringify(mentions));
         storage.exec("INSERT INTO comment_ids VALUES (?, 'comment', ?)", op.commentId, sequence);
         storage.exec("UPDATE threads SET resolved = 0, updated_at = ? WHERE id = ?", now, op.threadId);
       } else if (op.action === "edit") {
-        storage.exec("UPDATE comments SET text = ?, edited_at = ? WHERE id = ?", op.text, now, op.commentId);
+        storage.exec("UPDATE comments SET text = ?, edited_at = ?, mentions = ? WHERE id = ?", op.text, now, JSON.stringify(mentions), op.commentId);
         storage.exec("UPDATE threads SET updated_at = ? WHERE id = ?", now, op.threadId);
       } else if (op.action === "delete_thread" || op.action === "delete_comment" && stored.first_comment === op.commentId) {
         storage.exec("DELETE FROM comments WHERE thread_id = ?", op.threadId);
@@ -140,6 +151,8 @@ export class Comments {
         const resolved = Number(op.action === "resolve");
         if (Number(stored.resolved) !== resolved) storage.exec("UPDATE threads SET resolved = ?, updated_at = ? WHERE id = ?", resolved, now, op.threadId);
       }
+      if (mentionPlan && "commentId" in op) this.mentions.save(op.commentId, op.threadId, mentionPlan, now);
+      else if (op.action.startsWith("delete")) this.mentions.cleanDeleted();
       setMeta(storage, "comment_sequence", sequence);
       storage.exec("INSERT INTO receipts VALUES (?, ?, ?, ?, 'comment')", value.id, message.requestId as string, digest, sequence);
       storage.exec("DELETE FROM comment_counts WHERE hour < ?", hour);

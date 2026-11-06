@@ -6,6 +6,8 @@ import type { ResolvedItem } from "../../geometry";
 import { hitObject } from "../../connectors";
 import { screenPoint, type View } from "../../view";
 import type { HostedBoard } from "../hosted-board";
+import { notificationNavigation } from "../notification-navigation";
+import { api } from "../api";
 import { CommentCard, CommentField, type Draft } from "./card";
 import { CommentsPanel } from "./panel";
 import { CommentIcon } from "./icons";
@@ -31,6 +33,15 @@ export function CommentsLayer({ hosted, board, objects, view, size, tool, setToo
   const mode = tool === "Comment", previousMode = useRef(false);
   const threads = hosted.comments.threads, current = opened && threads?.get(opened.id);
   const ready = hosted.comments.ready;
+  const landing = notificationNavigation.target?.boardId === hosted.boardId ? notificationNavigation.target : undefined;
+  const [sort, setSort] = useState(false);
+  useEffect(() => {
+    if (!ready || !landing) return;
+    const thread=threads?.get(landing.threadId); if (!thread) return;
+    setTool("Comment"); setHidden(false); setOpened(thread); setComposer(null);
+    const p=anchorPoint(thread.anchor,board), s=screenPoint(p,view,size);
+    setView({...view, x:p.x+(window.innerWidth>=768?140/view.z:0), y:p.y});
+  }, [ready, landing?.noticeId]);
   useEffect(() => hosted.subscribeComments((event) => {
     if (event?.kind === "comment_changed") {
       const id = String(event.threadId), thread = event.thread as CommentThread | null | undefined;
@@ -43,7 +54,7 @@ export function CommentsLayer({ hosted, board, objects, view, size, tool, setToo
       if (action) {
         actions.current.delete(String(event.requestId));
         if (event.kind === "comment_refused") setToast({ text: refusalWords(String(event.reason), false, action.operation.action), error: true });
-        else if (action.resolve) { setOpened(null); scene.current?.focus(); setToast({ text: words.resolved, thread: action.operation.threadId }); }
+        else if (action.resolve) { hosted.commentDrafts.delete(action.operation.threadId); setOpened(null); scene.current?.focus(); setToast({ text: words.resolved, thread: action.operation.threadId }); }
       }
     }
     redraw((value) => value + 1);
@@ -55,7 +66,7 @@ export function CommentsLayer({ hosted, board, objects, view, size, tool, setToo
   }, [toast]);
   useEffect(() => {
     if (mode) { select(""); setInline(false); }
-    else if (previousMode.current) { setComposer(null); setDraft({ text: "" }); setOpened(null); }
+    else if (previousMode.current) { if (opened) hosted.commentDrafts.delete(opened.id); setComposer(null); setDraft({ text: "" }); setOpened(null); }
     previousMode.current = mode;
   }, [mode]);
   useLayoutEffect(() => {
@@ -71,10 +82,20 @@ export function CommentsLayer({ hosted, board, objects, view, size, tool, setToo
   function hasConnector(point: Point) { const hit = hitObject(objects, point, view.z); return hit && hasEnds(hit); }
   function closeCard() {
     const id = opened?.id; setOpened(null);
+    if (landing) {
+      const source=landing; delete notificationNavigation.target;
+      void api<{notices:{id:string}[]}>("/notifications").then(result => {
+        if(result.notices.some(n=>n.id===source.noticeId)){notificationNavigation.returnNotice=source.noticeId;location.hash=source.source;}
+        else scene.current?.focus();
+      }).catch(()=>scene.current?.focus()); return;
+    }
+    if (id) hosted.commentDrafts.delete(id);
     requestAnimationFrame(() => (id && pins.current.get(id) || scene.current)?.focus());
   }
   function open(thread: CommentThread, centre = false) {
-    setComposer(null); setDraft({ text: "" }); setOpened(thread);
+    if (opened && opened.id !== thread.id) hosted.commentDrafts.delete(opened.id);
+    delete notificationNavigation.target;
+    setComposer(null); setOpened(thread);
     if (centre) {
       const p = pinPoint(thread);
       setView({ ...view, x: p.x + (window.innerWidth >= 768 ? 140 / view.z : 0), y: p.y });
@@ -85,7 +106,7 @@ export function CommentsLayer({ hosted, board, objects, view, size, tool, setToo
     if (hosted.comments.requests?.has(request)) actions.current.set(request, { operation, resolve });
     else setToast({ text: refusalWords(request, false, operation.action), error: true });
   }
-  function place(point: Point) { setOpened(null); setComposer(anchor(point)); }
+  function place(point: Point) { if (opened) hosted.commentDrafts.delete(opened.id); delete notificationNavigation.target; setOpened(null); setComposer(anchor(point)); }
   useEffect(() => {
     const canvas = scene.current;
     if (!canvas) return;
@@ -139,6 +160,9 @@ export function CommentsLayer({ hosted, board, objects, view, size, tool, setToo
     if (pending) { clearTimeout(pending.timer); moved(pending.thread, pending.point); }
   }
   const visible = visibleThreads(threads?.values() ?? [], hosted.comments.person, showResolved, onlyYours);
+  if(sort)visible.sort((a,b)=>Number(!!hosted.unreadMentions.get(b.id)?.size)-Number(!!hosted.unreadMentions.get(a.id)?.size)||a.sequence-b.sequence);
+  const revealed=landing&&threads?.get(landing.threadId);
+  if(revealed&&!visible.some(t=>t.id===revealed.id))visible.push(revealed);
   const ordered = [...visible].sort((a, b) => {
     const object = (thread: CommentThread) => !thread.anchor.detached && board.objects.find((object) => object.id === thread.anchor.objectId);
     const left = object(a), right = object(b);
@@ -195,14 +219,14 @@ export function CommentsLayer({ hosted, board, objects, view, size, tool, setToo
         <span className="comment-initial">{hosted.comments.label[0]?.toUpperCase()}</span></div>}
     </div>
     {mode && <CommentsPanel threads={visible} board={board} current={opened?.id} showResolved={showResolved} onlyYours={onlyYours}
-      setResolved={setResolved} setYours={setYours} open={(thread) => open(thread, true)} close={() => { setTool("Select"); scene.current?.focus(); }} />}
+      landing={landing?.threadId} sort={sort} setSort={setSort} unread={hosted.unreadMentions} setResolved={setResolved} setYours={setYours} open={(thread) => open(thread, true)} close={() => { setTool("Select"); scene.current?.focus(); }} />}
     {composer && mode && <div ref={composerBox} className="comment-composer" role="dialog" aria-label="New comment"
       style={placeBox(screenPoint(composer, view, size), area, window.innerWidth, mode, true, composerHeight)}
       onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Escape") { event.preventDefault(); setComposer(null); setDraft({ text: "" }); scene.current?.focus(); } }}>
       <CommentField hosted={hosted} draft={draft} change={setDraft} label="Add a comment" operation={() => ({ action: "start", threadId: crypto.randomUUID(), commentId: crypto.randomUUID(), anchor: composer, text: draft.text })}
         saved={() => { const request = hosted.comments.requests?.get(draft.request!); const id = request && JSON.parse(request.text).operation.threadId; const thread = threads?.get(id); setComposer(null); if (thread) setOpened(thread); }} />
     </div>}
-    {cardThread && <CommentCard key={cardThread.id} hosted={hosted} thread={cardThread} exists={!!current || !ready}
+    {cardThread && <CommentCard key={cardThread.id} hosted={hosted} thread={cardThread} exists={!!current || !ready} target={landing?.commentId} landing={!!landing}
       deletedBy={deletedBy.current.get(cardThread.id)} resolvedBy={resolvedBy.current.get(cardThread.id)}
       style={placeBox(screenPoint(pinPoint(cardThread), view, size), area, window.innerWidth, mode)} close={closeCard} action={action} />}
     {toast && <div className={"team-toast comment-toast" + (toast.error ? " error" : "")} role={toast.error ? "alert" : "status"}>

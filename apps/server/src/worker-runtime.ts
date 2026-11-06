@@ -31,6 +31,7 @@ export function workerRuntime(env: WorkerEnv): Runtime {
       return result;
     }
     return { create: (document) => call("create", document), rename: (person, title) => call("rename", { person, title }), ticket: (person) => call("ticket", person), export: (person) => call("export", person),
+      deliverNotices: () => call("deliver-notices"), discussion: (person, commentId, occurrence) => call("discussion", { person, commentId, occurrence }),
       changed: () => call("changed"), backup: () => call("backup"), restore: (value) => call("restore", value),
       async restoreToTime(bookmark) {
         const result = await call("restore-to-time", bookmark);

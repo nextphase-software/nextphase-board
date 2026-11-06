@@ -5,14 +5,16 @@ import { hasRectangle, orderBand } from "nextphase-board-rules/objects/registry.
 export type Point = { x: number; y: number };
 export type AnchorInput = Point & { objectId: string | null; u: number; v: number };
 export type Anchor = AnchorInput & { detached: boolean; objectLabel: string; objectType: string };
+export type Mention = { start: number; end: number; person: string; label: string };
+export type Candidate = { person: string; label: string; suffix: string };
 export type Comment = { id: string; threadId: string; person: string; label: string; text: string;
-  createdAt: number; editedAt: number | null; sequence: number };
+  createdAt: number; editedAt: number | null; sequence: number; mentions?: Mention[] };
 export type Thread = { id: string; person: string; label: string; anchor: Anchor; resolved: boolean;
   createdAt: number; updatedAt: number; sequence: number; firstComment: string };
 export type CommentThread = Thread & { comments: Comment[] };
 export type CommentOperation =
-  | { action: "start"; threadId: string; commentId: string; anchor: AnchorInput; text: string }
-  | { action: "reply" | "edit"; threadId: string; commentId: string; text: string }
+  | { action: "start"; threadId: string; commentId: string; anchor: AnchorInput; text: string; mentions?: Mention[] }
+  | { action: "reply" | "edit"; threadId: string; commentId: string; text: string; mentions?: Mention[] }
   | { action: "delete_comment"; threadId: string; commentId: string }
   | { action: "delete_thread" | "resolve" | "reopen"; threadId: string }
   | { action: "move"; threadId: string; anchor: AnchorInput };
@@ -66,6 +68,6 @@ export function detachAnchor(anchor: Anchor, before: BoardV10, after: BoardV10):
 }
 export function visibleThreads(threads: Iterable<CommentThread>, person: string, showResolved = false, onlyYours = false) {
   return [...threads].filter((thread) => (showResolved || !thread.resolved) &&
-    (!onlyYours || thread.person === person || thread.comments.some((comment) => comment.person === person)))
+    (!onlyYours || thread.person === person || thread.comments.some((comment) => comment.person === person || comment.mentions?.some((mention) => mention.person === person))))
     .sort((a, b) => a.sequence - b.sequence);
 }

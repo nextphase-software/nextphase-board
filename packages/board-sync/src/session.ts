@@ -150,7 +150,7 @@ export class BoardSession<T = unknown> {
   }
   discard(reason: string) {
     if (this.ended) return;
-    this.drop(reason); this.history.clear(); this.endAttempt();
+    this.drop(reason); this.history.clear(); this.threads.clear(); this.commentRequests.clear(); this.endAttempt();
     this.report({ kind: "discarded", reason });
   }
   private async connect() {
@@ -301,7 +301,7 @@ export class BoardSession<T = unknown> {
       if (problem) return problem;
     }
     const requestId = crypto.randomUUID();
-    const text = JSON.stringify({ kind: "comment", epoch: this.epoch, requestId, operation });
+    const text = JSON.stringify({ kind: "comment", epoch: this.epoch, requestId, operation, restoreGeneration: this.restoreGeneration });
     this.commentRequests.set(requestId, { state: "sent", text, epoch: this.epoch, restoreGeneration: this.restoreGeneration });
     this.deadline(requestId);
     this.send(text);

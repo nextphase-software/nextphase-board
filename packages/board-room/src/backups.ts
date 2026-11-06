@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+import { mentionProblem } from "nextphase-board-sync/mentions.ts";
+import { textProblem } from "nextphase-board-sync/comments.ts";
 import type { RoomEnvironment } from "./interfaces.ts";
 import { base64, bytes, RoomError, unbase64 } from "./protocol.ts";
 import { binaryColumns, insert, tables, type Row } from "./storage.ts";
@@ -24,9 +26,8 @@ export function decodeBackup(value: unknown, board: string): Envelope {
     envelope.boardId !== board || typeof envelope.createdAt !== "string" || !envelope.tables ||
     !Array.isArray(envelope.tables.meta)) throw new RoomError(400, "bad_request");
   const version = envelope.tables.meta.find((row) => row && row.key === "storage_version")?.value;
-  const legacy = version === 1 || version === 2;
-  const accepted = legacy ? names.filter((name) => !["threads", "comments", "comment_ids", "comment_counts"].includes(name)) : names;
-  if ((!legacy && version !== 3) || Object.keys(envelope.tables).sort().join() !== [...accepted].sort().join()) {
+  const accepted = names;
+  if (version !== 4 || Object.keys(envelope.tables).sort().join() !== [...accepted].sort().join()) {
     throw new RoomError(400, "bad_request");
   }
   const decoded = { ...envelope, tables: {} as Record<string, Row[]> };
@@ -34,13 +35,15 @@ export function decodeBackup(value: unknown, board: string): Envelope {
     for (const name of accepted) {
       if (!Array.isArray(envelope.tables[name])) throw Error();
       decoded.tables[name] = envelope.tables[name].map((row) => {
-        const columns = legacy && name === "receipts" ? tables[name].filter((key) => key !== "kind") : tables[name];
+        const columns = tables[name];
         if (!row || Object.keys(row).sort().join() !== [...columns].sort().join()) throw Error();
-        const result: Row = { ...row, ...(legacy && name === "receipts" ? { kind: "edit" } : {}) };
+        const result: Row = { ...row };
         for (const [key, value] of Object.entries(result)) {
           if (key === binaryColumns[name]) result[key] = unbase64(value);
           else if (value !== null && typeof value !== "number" && typeof value !== "string") throw Error();
         }
+        if (name === "comments" && (typeof result.text !== "string" || typeof result.mentions !== "string" ||
+          textProblem(result.text) || mentionProblem(result.text, JSON.parse(result.mentions)))) throw Error();
         return result;
       });
     }

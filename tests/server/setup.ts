@@ -47,7 +47,7 @@ export default async function setup(project: any) {
   const issuer = stack.apiUrl + "/auth/v1";
   const bad = await badTokens(key, issuer, people.owner, stack.jwtSecret);
   let offline = false;
-  const rpcControls = new Map<string, { fail?: boolean; failAfter?: boolean; delayMs?: number; hold?: boolean; parameters?: Record<string, unknown> }>();
+  const rpcControls = new Map<string, { fail?: boolean; failAfter?: boolean; delayMs?: number; hold?: boolean; holdBefore?: boolean; parameters?: Record<string, unknown> }>();
   const held: { name: string; release(): void }[] = [];
   const rpcLog: { name: string; at: number; parameters: any; reply?: any; forwardedAt?: number; heldAt?: number }[] = [];
   // All server Supabase and key-endpoint calls pass through this proxy. Test
@@ -67,6 +67,9 @@ export default async function setup(project: any) {
         const control = rpcControls.get(name);
         if (control?.delayMs) await new Promise((resolve) => setTimeout(resolve, control.delayMs));
         if (control?.fail) { res.writeHead(503); res.end(); return; }
+        if(control?.holdBefore && Object.entries(control.parameters ?? {}).every(([key,value])=>record!.parameters[key]===value)) {
+          record.heldAt=Date.now(); await new Promise<void>(release=>held.push({name:name!,release}));
+        }
         (record as any).forwardedAt = Date.now();
       }
       const response = await fetch(stack.apiUrl + req.url, { method: req.method, headers,
@@ -134,10 +137,10 @@ export default async function setup(project: any) {
         case "/server-config": result = JSON.parse(await readFile(new URL("apps/server/wrangler.json", root), "utf8")); break;
         case "/proxy":
           if (value.offline !== undefined) offline = value.offline;
-          if (value.rpc) rpcControls.set(value.rpc, { fail: value.fail, failAfter: value.failAfter, delayMs: value.delayMs, hold: value.hold, parameters: value.parameters });
+          if (value.rpc) rpcControls.set(value.rpc, { fail: value.fail, failAfter: value.failAfter, delayMs: value.delayMs, hold: value.hold, holdBefore: value.holdBefore, parameters: value.parameters });
           if (value.release) {
             const control = rpcControls.get(value.release);
-            if (control) control.hold = false;
+            if (control) { control.hold = false; control.holdBefore = false; }
             for (const item of held.splice(0)) {
               if (item.name === value.release) item.release(); else held.push(item);
             }

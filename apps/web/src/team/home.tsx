@@ -7,6 +7,7 @@ import { applyHeldNames, canCreate, canRename, holdName, roleWords, sortWords,
 import { useHomeLists } from "./home-lists";
 import { HomeImport, type HomeImportHandle } from "./home-import";
 import { HomeCard } from "./home-card";
+import { Notifications } from "./notifications";
 import { HomeMenu, type MenuEntry, type MenuPosition } from "./home-menu";
 
 type Menu = MenuPosition & ({ kind: "account" } | { kind: "create" } | { kind: "import" } | { kind: "sort" } | { kind: "card"; row: BoardRow });
@@ -156,9 +157,9 @@ export function Home({ workspaceId, email, names, signOut }: {
     menu={(opener) => buttonMenu("import", opener)} creating={creating} creation={creation} setCreating={setCreating} notify={importNotice}>
     {({ button, input }) => <main className="home">
     <nav className="home-sidebar" aria-label="Files">
-      <button className="home-account" aria-haspopup="menu" onClick={(event) => buttonMenu("account", event.currentTarget)}>
+      <div className="w2-account-row"><button className="home-account" aria-haspopup="menu" onClick={(event) => buttonMenu("account", event.currentTarget)}>
         <b className="home-brand" aria-hidden="true">N</b><span>{email}</span><Icon kind="chevron" />
-      </button>
+      </button><Notifications account={email} unavailable={lists.retry}/></div>
       <button className="home-sidebar-item" aria-current={!workspaceId ? "page" : undefined}
         onClick={() => { location.hash = "#/files"; }}><Icon kind="clock" />Recents</button>
       <div className="home-workspaces-label">Workspaces</div>

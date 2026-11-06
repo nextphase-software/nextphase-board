@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { errorBody, RoomError } from "nextphase-board-room/protocol.ts";
 import type { Runtime, AppVariables } from "./runtime.ts";
 import { accessRoutes } from "./routes/access.ts";
+import { mentions } from "./routes/mentions.ts";
 import { lists } from "./routes/lists.ts";
 import { boards } from "./routes/boards.ts";
 import { invitations } from "./routes/invitations.ts";
@@ -30,6 +31,7 @@ export function createApp(runtime: Runtime) {
   });
   boards(app, runtime);
   lists(app, runtime);
+  mentions(app, runtime);
   accessRoutes(app, runtime);
   invitations(app, runtime);
   operators(app, runtime);

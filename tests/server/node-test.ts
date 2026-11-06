@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 import { readFile } from "node:fs/promises";
+import { Supabase } from "../../apps/server/src/supabase.ts";
 import { startNode } from "../../apps/server/src/start-node.ts";
 import { checkSettings } from "../../apps/server/src/settings.ts";
 const settings = checkSettings(JSON.parse(await readFile(process.env.BOARD_SETTINGS!, "utf8")));
 let fixedNow: number | null = null;
 let offset = 0, unreachable: string[] = [];
-let failCreate = "";
-const app = await startNode(settings, { now: () => fixedNow ?? Date.now() + offset, backupLimit: 16777216,
+let failCreate = "", failCheckpoint = "";
+const db = new Supabase(settings.supabaseUrl, settings.serviceKey);
+const documentGeneration = db.documentGeneration.bind(db), mentionGeneration = db.mentionGeneration.bind(db);
+db.documentGeneration = board => failCheckpoint === "document" ? Promise.reject(Error("Document checkpoint unavailable")) : documentGeneration(board);
+db.mentionGeneration = board => failCheckpoint === "mention" ? Promise.reject(Error("Mention checkpoint unavailable")) : mentionGeneration(board);
+const app = await startNode(settings, { db, now: () => fixedNow ?? Date.now() + offset, backupLimit: 16777216,
   deliveryIntervalMs: Number(process.env.BOARD_DELIVERY_INTERVAL_MS ?? 0) });
 const original = app.runtime.room;
 app.runtime.room = (board) => {
@@ -24,12 +29,15 @@ app.runtime.room = (board) => {
     finally { entry.storage.exec = exec; }
     if (failCreate === "after") throw Error("Create reply unavailable");
   }, rename: (p, title) => room.rename(p, title), ticket: (p) => room.ticket(p), export: (p) => room.export(p), backup: () => room.backup(), restore: (v) => room.restore(v),
+    discussion: (p, id, occurrence) => room.discussion(p, id, occurrence), deliverNotices: () => room.deliverNotices(),
     changed: () => unreachable.includes(board) ? Promise.reject(Error("Room unavailable")) : room.changed() };
 };
 process.on("message", async (message: any) => {
   try {
     let result: any = {};
     const value = message.value;
+    if (value.failCheckpoint !== undefined) failCheckpoint = value.failCheckpoint;
+    if (value.fences) result = await app.fences.read(value.board);
     if (value.failCreate !== undefined) failCreate = value.failCreate;
     if (value.fixedNow !== undefined) fixedNow = value.fixedNow;
     if (value.offset !== undefined) offset = value.offset;
@@ -48,6 +56,12 @@ process.on("message", async (message: any) => {
         });
         entry.room.initialized = false;
       }
+      if (value.roomSQL) await entry.room.ordered(async () => { for (const item of value.roomSQL) entry.storage.exec(item.sql, ...(item.bindings ?? [])); });
+      if (value.failInitialization) {
+        const execute=entry.storage.exec.bind(entry.storage); entry.storage.exec=(sql,...args)=>{if(sql.includes("CREATE TABLE IF NOT EXISTS mention_pending"))throw Error("initialization rollback");execute(sql,...args);};
+        try { const {initialize}=await import("../../packages/board-room/src/storage.ts"); initialize(entry.storage); } finally { entry.storage.exec=execute; }
+      }
+      if (value.deliverMentions) await entry.room.deliverNotices();
       if (value.rows) result = entry.storage.all(`SELECT * FROM "${value.rows}"`).map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v instanceof Uint8Array ? { bytes: v.byteLength } : v])));
       if (value.raiseFence) result = await entry.room.lock();
       if (value.fileSnapshot) entry.storage.exec("VACUUM INTO ?", value.fileSnapshot);

@@ -565,7 +565,7 @@ async function rawComment(client: DiscussionClient, operation: unknown, reason: 
   const sequence = existingEditReceipt
     ? (await driver.rows(f.a, "meta")).find((row) => row.key === "comment_sequence") : undefined;
   if (receipts) assert(receipts.some((row) => row.request_id === requestId && row.kind === "edit"));
-  client.raw({ kind: "comment", epoch, requestId, operation });
+  client.raw({ kind: "comment", epoch, restoreGeneration: client.session.restoreGeneration, requestId, operation });
   await until(() => client.peer.messages.find((message) => message.kind === "comment_refused" && message.requestId === requestId), Boolean);
   assert.equal(client.peer.messages.find((message) => message.kind === "comment_refused" && message.requestId === requestId)!.reason, reason);
   if (existingEditReceipt) {
@@ -598,19 +598,16 @@ async function longCommentTokens() {
     person.token = await helper("token", { person, options: { now, exp: Math.floor(now / 1000) + 172800 } });
   }
 }
-check(121, "storage version 3 migrates old layouts and operator backups without losing edits", async () => {
+check(121, "current layout 4 creation is idempotent across restart with edits and receipts kept", async () => {
   const a = await discussionJoin(); await commentsReady(a); await seed(a);
-  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 3);
+  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 4);
   const before = await exported(), edits = await driver.rows(f.a, "edits"), receipts = await driver.rows(f.a, "receipts");
-  const legacy = await backupComments();
-  legacy.tables.meta.find((row: any) => row.key === "storage_version").value = 2;
-  for (const table of ["threads", "comments", "comment_ids", "comment_counts"]) delete legacy.tables[table];
-  legacy.tables.receipts.forEach((row: any) => { delete row.kind; });
+  const envelope = await backupComments();
   await a.peer.close();
-  for (const version of [2, 0, 1]) {
-    await driver.control({ board: f.a, legacyStorage: version }); await driver.wake(f.a);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await driver.wake(f.a);
     const reopened = await discussionJoin(); await commentsReady(reopened);
-    assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 3);
+    assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 4);
     assert.equal(await exported(), before); assert.deepEqual(await driver.rows(f.a, "edits"), edits);
     assert.deepEqual(await driver.rows(f.a, "receipts"), receipts);
     assert((await driver.rows(f.a, "receipts")).every((row) => row.kind === "edit"));
@@ -618,9 +615,9 @@ check(121, "storage version 3 migrates old layouts and operator backups without 
   }
   const once = await driver.rows(f.a, "meta"); await driver.wake(f.a); await ticket();
   assert.deepEqual(await driver.rows(f.a, "meta"), once);
-  await restoreComments(legacy); const restored = await discussionJoin(); await commentsReady(restored);
+  await restoreComments(envelope); const restored = await discussionJoin(); await commentsReady(restored);
   assert.equal(await exported(), before); assert.equal(restored.session.threads.size, 0);
-  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 3);
+  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 4);
 });
 check(122, "every comment action broadcasts once before its answer and leaves board edits alone", async () => {
   const [a, b, c] = await discussionAll(); await Promise.all([a, b, c].map(commentsReady)); await seed(a); await equal([a, b, c]);
@@ -702,7 +699,7 @@ check(126, "old epochs refuse new and retried comments and removed people receiv
   const retry = await discussionJoin("granted"); await commentsReady(retry); assert.notEqual(retry.session.epoch, oldEpoch);
   await rawComment(retry, startComment(), "epoch_changed", oldEpoch);
   const before = await driver.rows(f.a, "receipts");
-  retry.raw({ kind: "comment", epoch: oldEpoch, requestId: saved.id, operation: start });
+  retry.raw({ kind: "comment", epoch: oldEpoch, restoreGeneration: retry.session.restoreGeneration, requestId: saved.id, operation: start });
   assert.equal((await retry.peer.next("comment_refused")).reason, "epoch_changed"); assert.deepEqual(await driver.rows(f.a, "receipts"), before);
   await success(`/workspaces/${f.workspace}/members/${f.people.granted.id}`, "owner", "DELETE"); await closeCode(retry, 4403);
   for (const name of ["granted", "outsider"]) {
@@ -776,7 +773,7 @@ check(130, "comments bypass waiting edits and receipts cannot cross request kind
   const first = a.session.edit({ ...a.session.board, title: "Dependency" }), second = a.session.edit({ ...a.session.board, title: "Waiting" });
   a.raw(a.out[1]); await until(() => a.session.requests.get(second)?.state, (state) => state === "received");
   const start = startComment(), requestId = crypto.randomUUID();
-  a.raw({ kind: "comment", epoch: a.session.epoch, requestId, operation: start });
+  a.raw({ kind: "comment", epoch: a.session.epoch, restoreGeneration: a.session.restoreGeneration, requestId, operation: start });
   await until(() => a.peer.messages.find((message) => message.kind === "comment_saved" && message.requestId === requestId), Boolean);
   assert.equal((await driver.rows(f.a, "waiting")).length, 1); a.releaseOut(); await saved(a, first); await saved(a, second);
   await rawComment(a, startComment(), "request_id_reused", a.session.epoch, first, true);
@@ -841,10 +838,10 @@ check(133, "board comment limits bound the backup and reject mixed envelope shap
   const envelope = await backupComments(), size = new TextEncoder().encode(JSON.stringify(envelope)).length;
   measures.commentBackupBytes = size; console.log("MEASURE-S133 " + JSON.stringify({ bytes: size })); assert(size < 16777216);
   const missing = structuredClone(envelope); delete missing.tables.comments; await restoreComments(missing, 400);
-  const mixed = structuredClone(envelope); mixed.tables.meta.find((row: any) => row.key === "storage_version").value = 2;
-  for (const row of mixed.tables.receipts) delete row.kind;
-  for (const table of ["comments", "comment_ids", "comment_counts"]) delete mixed.tables[table];
+  const mixed = structuredClone(envelope); delete mixed.tables.mention_pending;
   await restoreComments(mixed, 400);
+  const malformed = structuredClone(envelope); malformed.tables.comments[0].mentions = 'null';
+  await restoreComments(malformed, 400);
 });
 
 // 0006-W1: portable board creation uses the same fixture on both runners.
@@ -886,7 +883,7 @@ check(134, "import creates an independent rich board at revision zero with durab
   const rows = await orderedIdentifiers(details.id); assert.deepEqual(rows, identifierRows(expected));
   const metadata = await driver.rows(details.id, "meta");
   const values = Object.fromEntries(metadata.map((row) => [row.key, row.value]));
-  assert.equal(values.storage_version, 3); assert.equal(values.revision, 0); assert.equal(values.board_id, details.id);
+  assert.equal(values.storage_version, 4); assert.equal(values.revision, 0); assert.equal(values.board_id, details.id);
   client.session.close(); for (const peer of client.peers) await peer.close();
   await driver.wake(details.id);
   const reopened = await join("editor", details.id);

@@ -76,7 +76,7 @@ export class Access {
     this.locked = false;
     this.reason = "room_locked";
   }
-  async lookup(person: string, board: string): Promise<Grant> {
+  async lookup(person: string, board: string, strict = false): Promise<Grant> {
     const stored = this.get(person);
     if (this.locked) throw new RoomError(stored ? 503 : 404, stored ? this.reason : "not_found");
     if (stored) return stored;
@@ -92,7 +92,7 @@ export class Access {
         this.apply(person, role, after.latest);
         return this.get(person)!;
       }
-    } catch { /* No role is cached when its lookup could not be confirmed. */ }
+    } catch { if (strict) throw new RoomError(503, "service_unavailable"); /* No unconfirmed role is cached. */ }
     throw new RoomError(404, "not_found");
   }
 }

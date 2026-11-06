@@ -5,6 +5,10 @@ type DeliveryRuntime = Pick<Runtime, "db" | "room">;
 const deliveries = new WeakMap<Runtime["db"], Promise<void>>();
 
 async function attempt(runtime: DeliveryRuntime) {
+  try {
+    const all = await runtime.db.rpc<string[]>("mention_boards", {});
+    for (let offset = 0; offset < all.length; offset += 10) await Promise.allSettled(all.slice(offset, offset + 10).map(b => runtime.room(b).deliverNotices()));
+  } catch { /* Failed source work remains durable for the next shared retry. */ }
   let boards: string[];
   try { boards = await runtime.db.rpc("pending_access_boards", {}); }
   catch { return; }

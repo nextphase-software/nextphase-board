@@ -21,15 +21,17 @@ sort words, creation and rename permissions, held names and menu placement. It r
 with `npm test` without Supabase or a browser.
 
 `comments.test.mjs` covers 0005-W1's shared anchor, detach, Unicode text, author colour,
-filter, screen-word and placement rules, comment request lifecycle and storage-version-3
-migration. It runs with `npm test` without Supabase or a browser. Each test imports its
+filter, screen-word and placement rules, comment request lifecycle and current layout-4
+initialization. It runs with `npm test` without Supabase or a browser. Each test imports its
 subject dynamically, so the missing feature fails each test by name on the base.
 
-`tests/server/shared.test.ts` adds S121–S133 on both runners for comment migration,
+`tests/server/shared.test.ts` adds S121–S133 on both runners for current comment initialization,
 actions, permissions, ordering, deletion, epochs, snapshots/restores, anchors, text,
 waiting edits, receipts, rate limits, malformed messages and board/backup capacity.
-Its existing `SUMMARY-SHARED` counts these checks. The two test drivers expose
-`legacyStorage` only to make S121's old layouts; production runners are unchanged.
+Its existing `SUMMARY-SHARED` counts these checks. S121 checks current layout-4
+creation/idempotence/restart with edits and receipts kept; S133 uses current
+backup tables and ranges, and S134 expects layout 4. Comment fixtures include
+`restoreGeneration`. Older-format migration checks are outside this milestone.
 These server checks require the local stack and belong to the review's V11 run.
 The 0005-W1 browser scenario, base negative control, A–J comparison and amended
 0004-W2 checks belong to the review's V9–V13 run; they are not unit-test results.
@@ -223,3 +225,34 @@ typechecking these additions does not count as running the server suite.
 The implementer records V1–V8. The review's check run owns V9–V14: W2-S1–S21,
 the fresh-base negative control, both server runners, A–J, the amended 0003-W4
 checks and the 0004-W3 checks. No browser or Supabase stack is needed for V1–V8.
+
+## Discussion mentions (0005-W2)
+
+`tests/mentions.test.mjs` runs without a browser or Supabase in `npm test`.
+Each test imports its subject inside the test, so a missing feature fails by name.
+It covers normalized code-point ranges, null/malformed metadata, 20/21 ranges,
+256-byte labels, paging/suffixes, chip replacement/plain paste, immutable
+request/epoch/generation retry, no automatic replay, current initialization and
+backup validation, unchanged canonical document/file/local records/board Undo,
+and Node's marked-volume generation floor and failed checkpoint reads/writes.
+
+`tests/server/mentions.test.ts` supplies S143–S167 on both runners and S168 on
+Node only. `SUMMARY-MENTIONS` counts actual passes/failures, with measured UTF-8
+request/frame/backup sizes and durable store inventory. Test-only controls add
+ordered room SQL, explicit delivery, initialization failure, pre-forward RPC
+hold/release, fence inspection and Node failures for each live checkpoint read.
+Existing synthetic identity domains, ports and production settings are retained.
+
+S168 uses the existing Node `volumeCopy` control and marking script on current
+layout-4 data. It first demonstrates a live mention generation ahead of the
+failed document copy, then checks recovery above both checkpoints and both
+restored generations before clear/unlock, held-work fencing, fresh delivery,
+and separate fail-closed document/mention checkpoint reads with explicit retry.
+It is not executed on workerd.
+
+The implementer runs only V1–V8 from the versioned brief. A fresh independent
+full-access session repeats those checks and owns V9–V13: C2 (including corrected
+open-card/same-tab C2-S27), base negative controls, both server suites, team-off
+A–J and amended C1. The focused C2-S27 rerun from planning is not a full scenario
+or new implementation validation. No hosted schema application or deployment is
+part of these commands.

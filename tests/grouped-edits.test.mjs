@@ -12,7 +12,7 @@ async function fixture(initial = initialBoard()) {
   const seed = new Adapter(); seed.set(initial);
   const wires = [], timers = new Set();
   const clock = { now: () => 0, after(ms, run) { const timer = { ms, run }; timers.add(timer); return () => timers.delete(timer); } };
-  const joined = { kind: "joined", role: "editor", epoch: 1, revision: 0,
+  const joined = { kind: "joined", restoreGeneration: 0, role: "editor", epoch: 1, revision: 0,
     update: encode(Y.encodeStateAsUpdate(seed.doc)), self: {}, present: [] };
   const session = await BoardSession.join({ clock, clientId: 42, ticket: async () => "ticket",
     open: async () => {
@@ -98,14 +98,14 @@ test("the group never reaches the wire: edit bytes are identical", async (contex
   const left = await fixture(initial), right = await fixture(initial);
   try {
     // Both connections receive the same seed bytes and use the same client ID.
-    right.wires[0].message({ kind: "joined", role: "editor", epoch: 1, revision: 0,
+    right.wires[0].message({ kind: "joined", restoreGeneration: 0, role: "editor", epoch: 1, revision: 0,
       update: encode(Y.encodeStateAsUpdate(left.seed.doc)), self: {}, present: [] });
     right.session.doc.clientID = left.session.doc.clientID;
     context.mock.method(crypto, "randomUUID", () => "11111111-1111-4111-8111-111111111111");
     left.session.edit(text(left.session.board, "Same"), "typing");
     right.session.edit(text(right.session.board, "Same"));
     assert.equal(left.wires[0].sent[0], right.wires[0].sent[0]);
-    assert.deepEqual(Object.keys(JSON.parse(left.wires[0].sent[0])), ["kind", "epoch", "requestId", "update"]);
+    assert.deepEqual(Object.keys(JSON.parse(left.wires[0].sent[0])), ["kind", "epoch", "requestId", "update", "restoreGeneration"]);
   } finally { left.finish(); right.finish(); }
 });
 

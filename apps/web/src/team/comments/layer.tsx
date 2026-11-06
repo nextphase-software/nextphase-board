@@ -76,8 +76,8 @@ function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool
     return () => clearTimeout(timer);
   }, [toast]);
   useEffect(() => {
-    if (mode) { select(""); setInline(false); }
-    else if (previousMode.current) { if (opened) hosted.commentDrafts.delete(opened.id); setComposer(null); setDraft({ text: "" }); setOpened(null); }
+    if (mode) { if (!previousMode.current && hosted.history.open) { hosted.history.open = false; hosted.historyChanged(); } select(""); setInline(false); }
+    else if (previousMode.current && !hosted.history.open && !hosted.history.rejoining && !hosted.history.kept) { if (opened) hosted.commentDrafts.delete(opened.id); setComposer(null); setDraft({ text: "" }); setOpened(null); }
     previousMode.current = mode;
   }, [mode]);
   useLayoutEffect(() => {
@@ -123,6 +123,7 @@ function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool
     if (!canvas) return;
     const keys = (event: globalThis.KeyboardEvent) => {
       const target = event.target as Element;
+      if (hosted.history.previewing || hosted.history.locked) return;
       if (target.closest(".comment-card,.comment-composer,.comment-menu")) return;
       if (event.key === "Escape" && !event.isComposing) {
         if (composer) { setComposer(null); setDraft({ text: "" }); canvas.focus(); }
@@ -182,6 +183,7 @@ function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool
   const rect = scene.current?.getBoundingClientRect();
   const area = { w: size.w, h: Math.min(size.h, window.innerHeight - (rect?.top ?? 0)) };
   const cardThread = current ?? opened;
+  if (hosted.history.open || hosted.history.previewing) return null;
   return <>
     <div className="comment-pins" role="group" aria-label="Comment pins">
       {mode && [...new Set([hover, composer?.objectId])].map((id) => {

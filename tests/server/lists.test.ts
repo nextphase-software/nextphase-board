@@ -79,7 +79,7 @@ async function join(board: string, name = "editor") {
   const peer = await driver.connect(`/boards/${board}/join?ticket=${issued.ticket}`); peers.push(peer);
   const joined = await peer.next("joined"), doc = new Y.Doc();
   Y.applyUpdate(doc, Uint8Array.from(atob(joined.update), (c) => c.charCodeAt(0)));
-  return { peer, doc, epoch: joined.epoch as number, revision: joined.revision as number };
+  return { peer, joined, doc, epoch: joined.epoch as number, revision: joined.revision as number };
 }
 function encoded(bytes: Uint8Array) {
   let text = "";
@@ -93,7 +93,7 @@ function titleUpdate(doc: Y.Doc, title: string) {
 }
 async function edit(client: Awaited<ReturnType<typeof join>>, title: string) {
   const requestId = crypto.randomUUID();
-  client.peer.send({ kind: "edit", epoch: client.epoch, requestId, update: titleUpdate(client.doc, title) });
+  client.peer.send({ kind: "edit", restoreGeneration: client.joined.restoreGeneration, epoch: client.epoch, requestId, update: titleUpdate(client.doc, title) });
   return client.peer.next("saved");
 }
 async function operator(board: string, action: string, value?: unknown) {
@@ -203,7 +203,7 @@ check(59, "rename role matrix title rules and document size limit", async () => 
   for (let count = 5; count <= 250; count += 5) {
     const vector = Y.encodeStateVector(client.doc);
     adapter.set({ ...board, objects: board.objects.slice(0, count) });
-    client.peer.send({ kind: "edit", epoch: client.epoch, requestId: crypto.randomUUID(), update: encoded(Y.encodeStateAsUpdate(client.doc, vector)) });
+    client.peer.send({ kind: "edit", restoreGeneration: client.joined.restoreGeneration, epoch: client.epoch, requestId: crypto.randomUUID(), update: encoded(Y.encodeStateAsUpdate(client.doc, vector)) });
     revision = (await client.peer.next("saved")).revision;
     await observer.peer.next("update");
   }
@@ -252,10 +252,10 @@ check(62, "ordinary title edits reach board details and both lists", async () =>
 check(63, "refused edits copy nothing and ordinary NUL titles keep their document", async () => {
   const f = await fixture(), viewer = await join(f.a, "viewer");
   await copyIdle(f.a); const before = await row(f.a);
-  viewer.peer.send({ kind: "edit", requestId: "viewer", epoch: viewer.epoch, update: titleUpdate(viewer.doc, "Refused") });
+  viewer.peer.send({ kind: "edit", requestId: "viewer", epoch: viewer.epoch, restoreGeneration: viewer.joined.restoreGeneration, update: titleUpdate(viewer.doc, "Refused") });
   assert.equal((await viewer.peer.next("refused")).reason, "role_too_low");
   const editor = await join(f.a);
-  editor.peer.send({ kind: "edit", requestId: "invalid", epoch: editor.epoch, update: "invalid!" });
+  editor.peer.send({ kind: "edit", requestId: "invalid", epoch: editor.epoch, restoreGeneration: editor.joined.restoreGeneration, update: "invalid!" });
   assert.equal((await editor.peer.next("refused")).reason, "invalid_update");
   assert.equal((await row(f.a)).title, before.title); assert.equal((await row(f.a)).edited_at, before.edited_at);
   await edit(editor, "With\u0000NUL");
@@ -276,7 +276,7 @@ check(64, "edited times throttle idle flush and failed copies retry after sixty 
     const vector = Y.encodeStateVector(client.doc), adapter = new Adapter(); adapter.doc = client.doc;
     const board = readBoard(client.doc);
     adapter.set(board.objects.length ? { ...board, objects: board.objects.map((o) => ({ ...o, x })) } : add(board, "text", x, 0));
-    client.peer.send({ kind: "edit", epoch: client.epoch, requestId: crypto.randomUUID(), update: encoded(Y.encodeStateAsUpdate(client.doc, vector)) });
+    client.peer.send({ kind: "edit", restoreGeneration: client.joined.restoreGeneration, epoch: client.epoch, requestId: crypto.randomUUID(), update: encoded(Y.encodeStateAsUpdate(client.doc, vector)) });
     await client.peer.next("saved");
   }
   await contentEdit(1);

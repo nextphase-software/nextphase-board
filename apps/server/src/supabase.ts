@@ -82,6 +82,9 @@ export class Supabase implements AccessSource, BoardRows {
     const row = (await this.rows("mention_delivery", { board_id: board }))[0];
     return row ? checkpointGeneration(row.generation) : 0;
   }
+  async carryNotices(board: string, from: number, to: number) {
+    await this.rpc("carry_board_mentions", { board, from_generation: from, to_generation: to });
+  }
   async clearNotices(board: string, generation: number) { await this.rpc("clear_board_mentions", { board, generation }); }
   async account(email: string) {
     for (let page = 1; ; page++) {

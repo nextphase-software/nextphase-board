@@ -109,7 +109,7 @@ async function fixture() {
   doc.getMap("board").set("title", "Missing predecessor");
   const vector = Y.encodeStateVector(doc);
   doc.getMap("board").set("title", "Must never save");
-  await room.message(connection, JSON.stringify({ kind: "edit", epoch: attachment.epoch,
+  await room.message(connection, JSON.stringify({ kind: "edit", restoreGeneration: messages.find(message => message.kind === "joined").restoreGeneration, epoch: attachment.epoch,
     requestId: "waiting", update: Buffer.from(Y.encodeStateAsUpdate(doc, vector)).toString("base64") }));
   assert.equal(messages.at(-1).kind, "received");
   doc.destroy();
@@ -144,7 +144,7 @@ test("lowered access and deletion of its waiting edits commit together before cl
     assert(observations.some((row) => row.role === "viewer" && row.epoch === 1 && row.waiting === 0 && row.closes === 0));
     assert.deepEqual(f.closes, [4403]);
     assert.equal(f.storage.all("SELECT * FROM receipts").length, 0);
-    await f.room.message(f.connection, JSON.stringify({ kind: "edit", epoch: 0, requestId: "stale", update: "" }));
+    await f.room.message(f.connection, JSON.stringify({ kind: "edit", restoreGeneration: f.messages.find(message => message.kind === "joined").restoreGeneration, epoch: 0, requestId: "stale", update: "" }));
     assert.equal(f.messages.at(-1).reason, "epoch_changed");
   } finally { f.storage.close(); }
 });

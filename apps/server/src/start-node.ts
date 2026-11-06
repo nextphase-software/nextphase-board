@@ -21,7 +21,7 @@ export type NodeOptions = {
 };
 export async function recoveryGeneration(board: string, storage: NodeStorage, db: Supabase, fences: NonNullable<NodeOptions['fence']>) {
   let generation = await fences.read(board);
-  if (meta(storage, "restore_pending")) {
+  if (meta(storage, "restore_pending") && !storage.all("SELECT result FROM history_requests WHERE operation = 'restore'").some(r => JSON.parse(String(r.result)).phase)) {
     // A successful mention clear can be newer than a delayed document copy.
     // Neither failed checkpoint read may become an absent/zero checkpoint.
     const document = await db.documentGeneration(board);
@@ -78,11 +78,11 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
     let entry = rooms.get(board);
     if (entry) return entry;
     const storage = new NodeStorage(resolve(settings.dataDir, "boards", board + ".sqlite"));
-    storage.exec("CREATE TABLE IF NOT EXISTS waiting (connection_id TEXT, sequence INTEGER, message_bytes INTEGER NOT NULL, received_at INTEGER NOT NULL, deadline INTEGER NOT NULL, request_id TEXT NOT NULL, \"update\" BLOB NOT NULL, PRIMARY KEY(connection_id, sequence))");
+    storage.exec("CREATE TABLE IF NOT EXISTS waiting (connection_id TEXT, sequence INTEGER, message_bytes INTEGER NOT NULL, received_at INTEGER NOT NULL, deadline INTEGER NOT NULL, request_id TEXT NOT NULL, \"update\" BLOB NOT NULL, restore_generation INTEGER NOT NULL, PRIMARY KEY(connection_id, sequence))");
     storage.exec("DELETE FROM waiting");
     const connections = new Set<Connection>();
     const room = new Room(board, { storage, access: db, rows: db, mentions: db, background, now,
-      fence: () => recoveryGeneration(board, storage, db, fences), raiseFence: () => fences.raise(board),
+      fence: () => recoveryGeneration(board, storage, db, fences), raiseFence: (minimum) => fences.raise(board, minimum),
       hash: async (value) => createHash("sha256").update(value).digest("hex"), randomTicket: () => randomBytes(32).toString("base64url"),
       randomId: randomUUID, verify: (token) => auth.verify(token), connections: () => [...connections],
       backupLimit: options.backupLimit ?? BACKUP_LIMIT,

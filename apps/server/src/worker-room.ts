@@ -17,7 +17,12 @@ export function roomEnvironment(state: DurableObjectState, env: WorkerEnv, board
   };
   return { storage: new WorkerStorage(state.storage), access: runtime.db, rows: runtime.db, mentions: runtime.db,
     background: { run: (task) => state.waitUntil(task) }, now: Date.now,
-    fence: () => fenceCall("read"), raiseFence: () => fenceCall("raise"),
+    fence: () => fenceCall("read"), raiseFence: async (minimum = 0) => {
+      // The independent fence has one durable increment operation. Never lower it.
+      let next = await fenceCall("raise");
+      while (next <= minimum) next = await fenceCall("raise");
+      return next;
+    },
     hash: async (value) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(value)))].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
     randomTicket: () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
     randomId: () => crypto.randomUUID(), verify: (token) => runtime.auth.verify(token),
@@ -83,6 +88,11 @@ export class WorkerRoom {
       const room = await this.getRoom(board);
       let result: unknown;
       switch (url.pathname) {
+        case "/versions": result = await room.versions(value.person); break;
+        case "/version": result = await room.version(value.person, value.id); break;
+        case "/save-version": result = await room.saveVersion(value.person, value.input); break;
+        case "/name-version": result = await room.nameVersion(value.person, value.id, value.input); break;
+        case "/restore-version": result = await room.restoreVersion(value.person, value.id, value.input); break;
         case "/create": await room.create(value); result = {}; break;
         case "/ticket": result = await room.ticket(value); break;
         case "/rename": result = await room.rename(value.person, value.title); break;

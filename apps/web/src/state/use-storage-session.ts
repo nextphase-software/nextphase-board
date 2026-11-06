@@ -326,9 +326,9 @@ export function useStorageSession({
     questionTarget.current = null; setQuestion(null); await openTarget(target);
   }
   async function saveCopy() {
-    if (invalid || busy || composing || operation.current) return;
+    if (invalid || busy || composing || operation.current || hosted?.history.previewing || hosted?.history.locked) return;
     try {
-      const board = structuredClone(model.current), unchanged = revision.current === ack.current ? opened.current : undefined;
+      const board = structuredClone(hosted?.snapshot.board ?? model.current), unchanged = revision.current === ack.current ? opened.current : undefined;
       if (store.current?.db) await readPictures(store.current.db, boardPictures(unchanged ?? board));
       for (const hash of boardPictures(unchanged ?? board)) {
         const picture = tabPictures.get(hash);

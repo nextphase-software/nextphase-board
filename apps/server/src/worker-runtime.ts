@@ -30,7 +30,11 @@ export function workerRuntime(env: WorkerEnv): Runtime {
       if (!response.ok) throw new RoomError(response.status, result.error.reason, result.error.needed);
       return result;
     }
-    return { create: (document) => call("create", document), rename: (person, title) => call("rename", { person, title }), ticket: (person) => call("ticket", person), export: (person) => call("export", person),
+    return { versions: person => call("versions", { person }), version: (person, id) => call("version", { person, id }),
+      saveVersion: (person, value) => call("save-version", { person, input: value }),
+      nameVersion: (person, id, value) => call("name-version", { person, id, input: value }),
+      restoreVersion: (person, id, value) => call("restore-version", { person, id, input: value }),
+      create: (document) => call("create", document), rename: (person, title) => call("rename", { person, title }), ticket: (person) => call("ticket", person), export: (person) => call("export", person),
       deliverNotices: () => call("deliver-notices"), discussion: (person, commentId, occurrence) => call("discussion", { person, commentId, occurrence }),
       changed: () => call("changed"), backup: () => call("backup"), restore: (value) => call("restore", value),
       async restoreToTime(bookmark) {

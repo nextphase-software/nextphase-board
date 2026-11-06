@@ -117,13 +117,13 @@ for (const created of [true, false]) test(`current storage initialization is ide
   const storage = new NodeStorage(":memory:");
   try {
     initialize(storage);
-    if (created) setMeta(storage, "storage_version", 4);
+    if (created) setMeta(storage, "storage_version", 5);
     assert(storage.all("PRAGMA table_info(tickets)").some((c) => c.name === "label"));
     assert.deepEqual(storage.all("SELECT * FROM tickets"), []);
-    assert.equal(meta(storage, "storage_version"), created ? 4 : 0);
+    assert.equal(meta(storage, "storage_version"), created ? 5 : 0);
     storage.exec("INSERT INTO tickets VALUES ('new', 'person', 1, 1, 'label')"); initialize(storage);
     assert.equal(storage.all("SELECT * FROM tickets").length, 1);
-    assert.equal(meta(storage, "storage_version"), created ? 4 : 0);
+    assert.equal(meta(storage, "storage_version"), created ? 5 : 0);
   } finally { storage.close(); }
 });
 
@@ -168,7 +168,7 @@ test("a base-format attachment closes 1012 on wake with waiting deleted and no l
     const a = await f.open(), b = await f.open();
     const old = a.attachment();
     a.attach({ id: old.id, email: "old@example.test", connectionId: old.connectionId, expiresAt: old.expiresAt, role: old.role, epoch: old.epoch });
-    f.storage.exec("INSERT INTO waiting VALUES (?, 1, 1, 1, 99999999, 'waiting', ?)", old.connectionId, new Uint8Array([0, 0]));
+    f.storage.exec("INSERT INTO waiting VALUES (?, 1, 1, 1, 99999999, 'waiting', ?, 0)", old.connectionId, new Uint8Array([0, 0]));
     b.messages.length = 0; await f.room.alarm();
     assert.equal(f.events.find((e) => e.kind === "close" && e.peer === a).code, 1012);
     assert.equal(f.storage.all("SELECT * FROM waiting").length, 0);

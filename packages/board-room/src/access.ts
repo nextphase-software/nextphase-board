@@ -30,7 +30,7 @@ export class Access {
       person, role, (old?.epoch ?? 0) + (changed ? 1 : 0), number);
     else this.storage.exec("DELETE FROM grants WHERE person_id = ?", person);
   }
-  async replay(board: string, generation: number) {
+  async replay(board: string, generation: number, keepLock = false) {
     const watermark = meta(this.storage, "watermark");
     const page = await this.source.changes(board, watermark);
     if (page.lowestKept > watermark + 1) {
@@ -64,7 +64,7 @@ export class Access {
       }
       setMeta(this.storage, "watermark", page.latest);
       setMeta(this.storage, "restore_generation", generation);
-      setMeta(this.storage, "restore_pending", 0);
+      if (!keepLock) setMeta(this.storage, "restore_pending", 0);
     });
     for (const connection of this.connections()) {
       const attachment = connection.attachment(), grant = this.get(attachment.id);
@@ -73,7 +73,7 @@ export class Access {
         connection.close(closeCode(grant?.role ?? null, attachment.role ?? null));
       }
     }
-    this.locked = false;
+    this.locked = keepLock;
     this.reason = "room_locked";
   }
   async lookup(person: string, board: string, strict = false): Promise<Grant> {

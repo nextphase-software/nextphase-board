@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState } from "react";
+import { historyNavigation } from "./history";
 import { api, ApiError } from "./api";
 import { boardLink } from "./links";
 import { applyHeldNames, canCreate, canRename, holdName, roleWords, sortWords,
@@ -42,6 +43,16 @@ export function Home({ workspaceId, email, names, signOut }: {
   const pageName = workspaceId ? workspace?.name ?? "Workspace" : "Recents";
 
   useEffect(() => () => { alive.current = false; }, []);
+  useEffect(() => {
+    const row = rows.find(row => row.id === historyNavigation.returnBoard);
+    if (!row) return;
+    const opener = [...document.querySelectorAll<HTMLElement>(".home-board-card")].find(node => node.getAttribute("aria-label") === row.title);
+    if (!opener) return;
+    delete historyNavigation.returnBoard; setSelected(row.id); opener.focus();
+    const rect = opener.getBoundingClientRect();
+    setMenu({ kind: "card", row, opener, point: { x:rect.left+24,y:rect.top+80 } });
+    requestAnimationFrame(() => [...document.querySelectorAll<HTMLElement>('.home-menu button')].find(node => node.textContent === 'Show version history')?.focus());
+  }, [lists.status, lists.rows]);
   useEffect(() => {
     if (!toast.text || toast.persistent) return;
     const timer = setTimeout(() => setToast((value) => ({ ...value, text: "" })), 5000);
@@ -131,6 +142,10 @@ export function Home({ workspaceId, email, names, signOut }: {
       { kind: "divider" }, { kind: "item", text: "Copy link", run: () => { void copy(row); } },
       ...(canRename(row.role) && !pending.current.has(row.id) ? [{ kind: "divider" as const },
         { kind: "item" as const, text: "Rename", run: () => setRenaming(row.id) }] : []),
+      { kind: "divider" }, { kind: "item", text: "Show version history", run: () => {
+        historyNavigation.open = row.id; historyNavigation.source = location.hash || "#/files";
+        location.hash = "#/b/" + row.id;
+      } },
     ];
   }
   function stateContent() {

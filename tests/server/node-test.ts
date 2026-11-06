@@ -6,7 +6,8 @@ import { checkSettings } from "../../apps/server/src/settings.ts";
 const settings = checkSettings(JSON.parse(await readFile(process.env.BOARD_SETTINGS!, "utf8")));
 let fixedNow: number | null = null;
 let offset = 0, unreachable: string[] = [];
-let failCreate = "", failCheckpoint = "";
+let failCreate = "", failCheckpoint = "", failHistory = "";
+const instrumented = new WeakSet<object>();
 const db = new Supabase(settings.supabaseUrl, settings.serviceKey);
 const documentGeneration = db.documentGeneration.bind(db), mentionGeneration = db.mentionGeneration.bind(db);
 db.documentGeneration = board => failCheckpoint === "document" ? Promise.reject(Error("Document checkpoint unavailable")) : documentGeneration(board);
@@ -16,7 +17,25 @@ const app = await startNode(settings, { db, now: () => fixedNow ?? Date.now() + 
 const original = app.runtime.room;
 app.runtime.room = (board) => {
   const room = original(board);
-  return { async create(document) {
+  const entry = app.rooms.get(board)!;
+  if (!instrumented.has(entry)) {
+    instrumented.add(entry);
+    const exec = entry.storage.exec.bind(entry.storage), raise = entry.room.env.raiseFence;
+    entry.storage.exec = (sql, ...args) => {
+      if (failHistory === "capture" && sql.startsWith("INSERT INTO versions") ||
+        failHistory === "intent" && sql.startsWith("INSERT INTO history_requests") ||
+        failHistory === "local" && sql.startsWith("INSERT INTO versions") && args[5] === "before_restore" ||
+        failHistory === "cleanup" && sql.startsWith("DELETE FROM history_intent_chunks")) throw Error("History transaction unavailable");
+      exec(sql,...args);
+    };
+    entry.room.env.raiseFence = async minimum => {
+      if (failHistory === "fence") throw Error("Fence unavailable");
+      const result = await raise(minimum);
+      if (failHistory === "after-fence") throw Error("Fence answer unavailable");
+      return result;
+    };
+  }
+  return { versions: p => room.versions(p), version: (p,id) => room.version(p,id), saveVersion: (p,v) => room.saveVersion(p,v), nameVersion: (p,id,v) => room.nameVersion(p,id,v), restoreVersion: (p,id,v) => room.restoreVersion(p,id,v), async create(document) {
     if (failCreate === "before") throw Error("Create unavailable");
     const entry = app.rooms.get(board)!;
     if (failCreate === "exists") await entry.room.ordered(() => entry.room.load());
@@ -36,6 +55,7 @@ process.on("message", async (message: any) => {
   try {
     let result: any = {};
     const value = message.value;
+    if (value.failHistory !== undefined) failHistory = value.failHistory;
     if (value.failCheckpoint !== undefined) failCheckpoint = value.failCheckpoint;
     if (value.fences) result = await app.fences.read(value.board);
     if (value.failCreate !== undefined) failCreate = value.failCreate;

@@ -4,7 +4,7 @@ import { createApp } from "../../apps/server/src/app.ts";
 import { Auth } from "../../apps/server/src/auth.ts";
 import { workerRuntime, type WorkerEnv } from "../../apps/server/src/worker-runtime.ts";
 export { RestoreFence };
-export type Controls = { failCreate?: "before" | "write" | "after" | "exists" | ""; fixedNow?: number | null; offset?: number; fenceUnreadable?: boolean; backupLimit?: number; noOperator?: boolean; unreachable?: string[] };
+export type Controls = { failHistory?: string; failCheckpoint?: string; failCreate?: "before" | "write" | "after" | "exists" | ""; fixedNow?: number | null; offset?: number; fenceUnreadable?: boolean; backupLimit?: number; noOperator?: boolean; unreachable?: string[] };
 export type TestEnv = WorkerEnv & { CONTROLS: DurableObjectNamespace };
 export class TestControls {
   state: DurableObjectState;
@@ -24,7 +24,24 @@ export class BoardRoom extends ProductionRoom {
   async refreshControls() { this.current = await controls(this.env as TestEnv); }
   environment(board: string) {
     const environment = super.environment(board);
-    const actualFence = environment.fence;
+    const actualFence = environment.fence, raise = environment.raiseFence, exec = environment.storage.exec.bind(environment.storage);
+    environment.storage.exec = (sql,...args) => {
+      const failure = this.current.failHistory;
+      if (failure === "capture" && sql.startsWith("INSERT INTO versions") || failure === "intent" && sql.startsWith("INSERT INTO history_requests") ||
+        failure === "local" && sql.startsWith("INSERT INTO versions") && args[5] === "before_restore" || failure === "cleanup" && sql.startsWith("DELETE FROM history_intent_chunks")) throw Error("History transaction unavailable");
+      exec(sql,...args);
+    };
+    environment.raiseFence = async minimum => {
+      if (this.current.failHistory === "fence") throw Error("Fence unavailable");
+      const result = await raise(minimum);
+      if (this.current.failHistory === "after-fence") throw Error("Fence answer unavailable");
+      return result;
+    };
+    const source = environment.mentions!;
+    const mentions = Object.create(source);
+    mentions.documentGeneration = (id:string) => this.current.failCheckpoint === "document" ? Promise.reject(Error("Checkpoint unavailable")) : source.documentGeneration!(id);
+    mentions.mentionGeneration = (id:string) => this.current.failCheckpoint === "mention" ? Promise.reject(Error("Checkpoint unavailable")) : source.mentionGeneration!(id);
+    environment.mentions = mentions;
     environment.now = () => this.current.fixedNow ?? Date.now() + (this.current.offset ?? 0);
     environment.fence = () => this.current.fenceUnreadable ? Promise.reject(Error("Fence unreadable")) : actualFence();
     environment.backupLimit = this.current.backupLimit ?? environment.backupLimit;

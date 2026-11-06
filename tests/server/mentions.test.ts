@@ -179,7 +179,7 @@ check(159,'current initialization rollback and current backup validation precede
   assert(!(await helper('proxy')).some((r:any)=>r.name==='clear_board_mentions'));
  }
  const meta=await rows('meta');await assert.rejects(driver.control({board:f.a,failInitialization:true}),/initialization rollback/);assert.deepEqual(await rows('meta'),meta);
- await driver.wake(f.a);const reopened=await peer();assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,4);
+ await driver.wake(f.a);const reopened=await peer();assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,5);
  assert.equal((await operator('restore',envelope)).status,200);await peer();assert.deepEqual(JSON.parse(String((await rows('comments'))[0].mentions)),m.mentions);assert.equal((await rows('mention_targets')).length,0);assert.equal((await notices()).length,0);
 });
 check(160,'inventory measures every current store and identifies lifetime-growing history separately',async()=>{

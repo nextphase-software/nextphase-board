@@ -45,6 +45,7 @@ function webImportProblems(content, file = "") {
     specifier === "nextphase-board-rules/transition.ts" ||
     specifier.startsWith("@supabase/") && !(specifier === "@supabase/auth-js" && file === "team/auth.ts") ||
     specifier.startsWith("nextphase-board-sync") && specifier !== "nextphase-board-sync/document-adapter.ts" &&
+      !(specifier === "nextphase-board-sync/history.ts" && file === "team/history-rules.ts") &&
       !(specifier === "nextphase-board-sync/session.ts" && file === "team/hosted-board.ts") &&
       !(["nextphase-board-sync/comments.ts", "nextphase-board-sync/mentions.ts"].includes(specifier) && file === "team/comments/rules.ts") ||
     specifier.startsWith("nextphase-board-rules/") && !rulesParts.includes(specifier.slice("nextphase-board-rules/".length)));
@@ -533,11 +534,11 @@ test("production runners contain none of the test driver names", () => {
 });
 
 
-test("team modules and imports follow web modules v30", () => {
+test("team modules and imports follow web modules v31", () => {
   const team = new URL("team/", source);
   const names = files(team).sort();
   assert.deepEqual(names, ["api.ts", "auth.ts", "comments/card.tsx", "comments/icons.tsx", "comments/layer.tsx", "comments/mention-editor.tsx",
-    "comments/panel.tsx", "comments/rules.ts", "comments/tool.tsx", "config.ts", "dialog.tsx", "home-card.tsx", "home-import.tsx", "home-lists.ts",
+    "comments/panel.tsx", "comments/rules.ts", "comments/tool.tsx", "config.ts", "dialog.tsx", "history-panel.tsx", "history-rules.ts", "history.ts", "home-card.tsx", "home-import.tsx", "home-lists.ts",
     "home-menu.tsx", "home-rules.ts", "home.tsx", "hosted-board.ts", "import.ts", "links.ts",
     "notices.ts", "notification-navigation.ts", "notifications.tsx", "pages.tsx", "people.tsx", "presence-layer.tsx", "presence.ts", "roles.ts", "share-dialog.tsx", "sign-in.tsx", "team-app.tsx"]);
   for (const name of names) {

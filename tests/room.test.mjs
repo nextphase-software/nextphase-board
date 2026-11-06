@@ -38,7 +38,7 @@ function edit(doc, title) {
 test("room serializes concurrent messages, saves receipts atomically and snapshots after 100", async () => {
   const f = fixture(), connection = await f.open(), doc = new Y.Doc();
   Y.applyUpdate(doc, Buffer.from(f.messages[0].update, "base64"));
-  const messages = Array.from({ length: 100 }, (_, i) => ({ kind: "edit", epoch: 0, requestId: "e" + i, update: edit(doc, "Edit " + i) }));
+  const messages = Array.from({ length: 100 }, (_, i) => ({ kind: "edit", restoreGeneration: f.messages.find(message => message.kind === "joined").restoreGeneration, epoch: 0, requestId: "e" + i, update: edit(doc, "Edit " + i) }));
   await Promise.all(messages.map((m) => f.room.message(connection, JSON.stringify(m))));
   assert.deepEqual(f.messages.filter((m) => m.kind === "saved").map((m) => m.revision), Array.from({ length: 100 }, (_, i) => i + 1));
   await f.room.message(connection, JSON.stringify(messages[0]));
@@ -52,9 +52,9 @@ test("waiting count and deadline use the injected clock and never create receipt
   Y.applyUpdate(doc, Buffer.from(f.messages[0].update, "base64"));
   edit(doc, "Missing predecessor");
   const update = edit(doc, "Waiting");
-  for (let i = 0; i < 65; i++) await f.room.message(connection, JSON.stringify({ kind: "edit", epoch: 0, requestId: "w" + i, update }));
+  for (let i = 0; i < 65; i++) await f.room.message(connection, JSON.stringify({ kind: "edit", restoreGeneration: f.messages.find(message => message.kind === "joined").restoreGeneration, epoch: 0, requestId: "w" + i, update }));
   assert.equal(f.messages.at(-1).reason, "waiting_count");
-  await f.room.message(connection, JSON.stringify({ kind: "edit", epoch: 0, requestId: "deadline", update }));
+  await f.room.message(connection, JSON.stringify({ kind: "edit", restoreGeneration: f.messages.find(message => message.kind === "joined").restoreGeneration, epoch: 0, requestId: "deadline", update }));
   f.advance(30001); await f.room.alarm();
   assert.equal(f.messages.at(-1).reason, "waiting_timeout");
   assert.equal(f.storage.all("SELECT * FROM receipts").length, 0);

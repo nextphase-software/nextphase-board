@@ -13,11 +13,12 @@ export function CommentField({ hosted, draft, change, operation, saved, cancel, 
   saved: () => void; cancel?: () => void; label?: string; edit?: boolean; locked?: boolean; autoFocus?: boolean;
 }) {
   const request = draft.request ? hosted.comments.requests?.get(draft.request) : undefined;
-  const pending = request?.state === "sent" || request?.state === "unconfirmed";
+  const superseded = !!request && request.restoreGeneration !== hosted.comments.restoreGeneration;
+  const pending = !superseded && (request?.state === "sent" || request?.state === "unconfirmed");
   const gone = ["thread_deleted", "comment_deleted"].includes(request?.reason ?? "");
   const readOnly = locked || !!pending || gone;
   const length = textLength(normalizeText(draft.text));
-  const note = draft.note ? { text: draft.note, tone: "error", role: "alert" as const }
+  const note = superseded ? { text: words.notRetryable, tone: "amber", role: "status" as const } : draft.note ? { text: draft.note, tone: "error", role: "alert" as const }
     : requestNote(request, hosted.comments.ready, operation().action);
   useEffect(() => {
     if (request?.state === "saved") { change({ text: "" }); saved(); }
@@ -154,6 +155,7 @@ export function CommentCard({ hosted, thread, exists, deletedBy, resolvedBy, sty
       </div>}
       {thread.resolved && <div className="comment-note neutral" role="status">{landing ? "Resolved. Replying reopens this thread." : words.resolvedNote(resolvedBy)}</div>}
     </>}
+    {hosted.history.kept && (reply.text || editing?.draft.text) && <div className="comment-note amber history-unposted">Unposted text kept in this tab. Nothing was sent.</div>}
     <CommentField autoFocus={!landing} hosted={hosted} draft={reply} change={setReply} operation={fieldOperation} locked={gone} saved={() => {
       card.current?.querySelector<HTMLTextAreaElement>('[aria-label="Reply"]')?.focus();
     }} />

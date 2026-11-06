@@ -3,13 +3,14 @@ import { mentionProblem } from "nextphase-board-sync/mentions.ts";
 import { textProblem } from "nextphase-board-sync/comments.ts";
 import type { RoomEnvironment } from "./interfaces.ts";
 import { base64, bytes, RoomError, unbase64 } from "./protocol.ts";
-import { binaryColumns, insert, tables, type Row } from "./storage.ts";
+import { meta, binaryColumns, insert, tables, type Row } from "./storage.ts";
 export type Envelope = {
   format: "nextphase-board-room-backup"; version: 1; boardId: string; createdAt: string;
   tables: Record<string, Row[]>;
 };
 const names = Object.keys(tables).filter((table) => !["waiting", "tickets"].includes(table));
 export function backup(env: RoomEnvironment, board: string): Envelope {
+  if (meta(env.storage, "restore_pending")) throw new RoomError(503, "restore_pending");
   const output = { format: "nextphase-board-room-backup" as const, version: 1 as const,
     boardId: board, createdAt: new Date(env.now()).toISOString(), tables: {} as Record<string, Row[]> };
   for (const name of names) {
@@ -27,7 +28,7 @@ export function decodeBackup(value: unknown, board: string): Envelope {
     !Array.isArray(envelope.tables.meta)) throw new RoomError(400, "bad_request");
   const version = envelope.tables.meta.find((row) => row && row.key === "storage_version")?.value;
   const accepted = names;
-  if (version !== 4 || Object.keys(envelope.tables).sort().join() !== [...accepted].sort().join()) {
+  if (version !== 5 || Object.keys(envelope.tables).sort().join() !== [...accepted].sort().join()) {
     throw new RoomError(400, "bad_request");
   }
   const decoded = { ...envelope, tables: {} as Record<string, Row[]> };

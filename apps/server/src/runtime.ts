@@ -4,6 +4,11 @@ import type { Person } from "nextphase-board-room/protocol.ts";
 import type { Auth } from "./auth.ts";
 import type { Supabase } from "./supabase.ts";
 export interface RoomClient {
+  versions(person: Person): Promise<any>;
+  version(person: Person, id: string): Promise<any>;
+  saveVersion(person: Person, value: import("nextphase-board-sync/history.ts").SaveVersion): Promise<any>;
+  nameVersion(person: Person, id: string, value: { name: string; description: string }): Promise<any>;
+  restoreVersion(person: Person, id: string, value: import("nextphase-board-sync/history.ts").RestoreVersion): Promise<any>;
   create(document: BoardV10): Promise<void>;
   ticket(person: Person): Promise<{ ticket: string; expiresAt: number }>;
   rename(person: Person, title: string): Promise<{ id: string; title: string; revision: number }>;

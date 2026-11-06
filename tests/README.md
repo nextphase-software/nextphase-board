@@ -244,7 +244,7 @@ hold/release, fence inspection and Node failures for each live checkpoint read.
 Existing synthetic identity domains, ports and production settings are retained.
 
 S168 uses the existing Node `volumeCopy` control and marking script on current
-layout-4 data. It first demonstrates a live mention generation ahead of the
+layout-5 data. It first demonstrates a live mention generation ahead of the
 failed document copy, then checks recovery above both checkpoints and both
 restored generations before clear/unlock, held-work fencing, fresh delivery,
 and separate fail-closed document/mention checkpoint reads with explicit retry.
@@ -256,3 +256,29 @@ open-card/same-tab C2-S27), base negative controls, both server suites, team-off
 A–J and amended C1. The focused C2-S27 rerun from planning is not a full scenario
 or new implementation validation. No hosted schema application or deployment is
 part of these commands.
+
+## Manage board history (0006-W3 v1)
+
+`tests/board-history.test.mjs` runs in `npm test` without browsers or Supabase.
+Named tests dynamically import the new production history modules. They cover
+canonical capture fingerprints through expiry/restart, transactional rollback,
+retention and metadata code points, same-ID restore and request identities,
+chunked pending intents/atomic cleanup, current backup fingerprints/budget,
+confirmation-author fallback, local time formatting and immutable edit generations.
+`tests/history.test.mjs` remains unchanged Undo/Redo regression coverage.
+
+`tests/server/history.test.ts` registers S169–S194 on both Node and workerd. Each
+prints `PASS: S<n> <name>` or `FAIL: S<n> <name>` from actual assertions, then
+`SUMMARY-HISTORY` with runner/pass/fail and measured inventory/size fields. They use
+independent synthetic fixtures and actual HTTP adapters, deterministic clocks,
+room SQL/alarms, socket close, pre-forward RPC hold/release and named history
+transaction/fence failures. Current accepted fixtures carry the joined edit
+restoreGeneration and expect layout 5. Absolute comment dates use viewer-local
+Intl formatting; relative thresholds and existing functional assertions stay.
+
+Implementation runs V1–V8 only. A fresh independent full-access run authors H1,
+executes all 27 state comparisons, the baseline negative control, S169–S194 on
+both runners and the accepted unit/server/A–J/X1/C2/W5 regressions (V9–V13).
+Server checks being registered or typechecked is not evidence that they ran.
+No browser, Supabase CLI, schema application, deployment or broader test campaign
+is authorized by the implementer's V1–V8 command set.

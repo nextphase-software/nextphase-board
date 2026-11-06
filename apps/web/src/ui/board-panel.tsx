@@ -69,10 +69,16 @@ export function BoardPanel({
       />
       <small>{count(title)} / 120 · nonblank name required</small>
       <div className="board-file-commands">
-        <button onClick={boardFiles.saveCopy} disabled={boardFiles.invalid || busy || composing || boardFiles.opening}>Save a copy to file</button>
+        <button onClick={boardFiles.saveCopy} disabled={boardFiles.invalid || busy || composing || boardFiles.opening || !!team?.hosted?.history.previewing || !!team?.hosted?.history.locked}>Save a copy to file</button>
         {!team?.hosted && <button ref={boardFiles.fileButton} onClick={() => boardFiles.fileInput.current?.click()}
           disabled={busy || composing || boardFiles.opening}>Open board file…</button>}
       </div>
+      {team?.hosted && <button data-show-history onClick={event => {
+        const opener = event.currentTarget; setPanel("");
+        team.hosted!.history.show(opener, () => {
+          setPanel("Board"); requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-show-history]")?.focus());
+        });
+      }}>Show version history</button>}
       {!team?.hosted && <><input hidden ref={boardFiles.fileInput} type="file" accept=".nextboard,.json" onChange={(e) => {
         const file = e.currentTarget.files?.[0]; e.currentTarget.value = "";
         if (file) boardFiles.openFile(file);

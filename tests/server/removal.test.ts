@@ -94,7 +94,7 @@ function titleUpdate(doc: Y.Doc, title: string) {
   return encoded(Y.encodeStateAsUpdate(doc, vector));
 }
 async function saved(client: Awaited<ReturnType<typeof join>>, title: string) {
-  client.peer.send({ kind: "edit", epoch: client.epoch, requestId: crypto.randomUUID(), update: titleUpdate(client.doc, title) });
+  client.peer.send({ kind: "edit", restoreGeneration: client.joined.restoreGeneration, epoch: client.epoch, requestId: crypto.randomUUID(), update: titleUpdate(client.doc, title) });
   return client.peer.next("saved");
 }
 async function closed(peer: Peer, code = 4403) {
@@ -182,7 +182,7 @@ check(80, "active edits stop at the room step and saved edits match export", asy
     const vector = Y.encodeStateVector(client.doc), board = add(readBoard(client.doc), "sticky", 0, 0);
     const object = board.objects.at(-1)!, requestId = crypto.randomUUID();
     adapter.set(board); sent.set(requestId, object.id);
-    try { client.peer.send({ kind: "edit", epoch: client.epoch, requestId, update: encoded(Y.encodeStateAsUpdate(client.doc, vector)) }); }
+    try { client.peer.send({ kind: "edit", restoreGeneration: client.joined.restoreGeneration, epoch: client.epoch, requestId, update: encoded(Y.encodeStateAsUpdate(client.doc, vector)) }); }
     catch { /* A transport close can race the next 10 ms send. */ }
   };
   try {
@@ -199,11 +199,11 @@ check(80, "active edits stop at the room step and saved edits match export", asy
 check(81, "removal deletes waiting edits before another editor supplies their dependency", async () => {
   const client = await join(), other = await join(f.a, "owner");
   const first = titleUpdate(client.doc, "Missing update"), second = titleUpdate(client.doc, "Waiting edit must disappear");
-  client.peer.send({ kind: "edit", epoch: client.epoch, requestId: "waiting", update: second });
+  client.peer.send({ kind: "edit", restoreGeneration: client.joined.restoreGeneration, epoch: client.epoch, requestId: "waiting", update: second });
   await client.peer.next("received");
   await done(memberPath()); await closed(client.peer);
   assert.deepEqual(await driver.rows(f.a, "waiting"), []);
-  other.peer.send({ kind: "edit", epoch: other.epoch, requestId: "missing", update: first }); await other.peer.next("saved");
+  other.peer.send({ kind: "edit", restoreGeneration: other.joined.restoreGeneration, epoch: other.epoch, requestId: "missing", update: first }); await other.peer.next("saved");
   assert.equal((await success(`/boards/${f.a}/export`)).title, "Missing update");
   assert(!(await driver.rows(f.a, "receipts")).some((row) => row.request_id === "waiting"));
   assert(!client.peer.messages.some((m) => m.kind === "saved"));
@@ -212,7 +212,7 @@ check(81, "removal deletes waiting edits before another editor supplies their de
 check(82, "lowering closes 4403 and raising closes 4409 with the new join role", async () => {
   const editor = await join(); await done(memberPath(), "PUT", { role: "viewer" }); await closed(editor.peer);
   const viewer = await join(); assert.equal(viewer.joined.role, "viewer");
-  viewer.peer.send({ kind: "edit", epoch: viewer.epoch, requestId: "denied", update: titleUpdate(viewer.doc, "Denied") });
+  viewer.peer.send({ kind: "edit", restoreGeneration: viewer.joined.restoreGeneration, epoch: viewer.epoch, requestId: "denied", update: titleUpdate(viewer.doc, "Denied") });
   const reply = await viewer.peer.next("refused"); assert.equal(reply.reason, "role_too_low"); assert.equal(reply.needed, "editor");
   await success(`/boards/${f.a}/export`, "editor");
   await done(memberPath(), "PUT", { role: "editor" }); await closed(viewer.peer, 4409);

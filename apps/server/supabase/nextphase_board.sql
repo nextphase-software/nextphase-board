@@ -464,6 +464,25 @@ BEGIN
   INSERT INTO nextphase_board.mention_delivery VALUES(board,generation,source_order)
     ON CONFLICT(board_id) DO UPDATE SET generation=excluded.generation,source_order=excluded.source_order;
 END $$;
+-- User document restore preserves the delivered cutoff and every retained read state.
+CREATE OR REPLACE FUNCTION nextphase_board.carry_board_mentions(board uuid, from_generation bigint, to_generation bigint)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE checkpoint nextphase_board.mention_delivery;
+BEGIN
+  IF from_generation IS NULL OR to_generation IS NULL OR from_generation < 0 OR to_generation <= from_generation OR to_generation > 9007199254740991 THEN RAISE EXCEPTION 'bad_request'; END IF;
+  PERFORM 1 FROM nextphase_board.boards b WHERE b.id=board FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'not_found'; END IF;
+  SELECT * INTO checkpoint FROM nextphase_board.mention_delivery d WHERE d.board_id=board;
+  IF FOUND THEN
+    IF checkpoint.generation=to_generation THEN RETURN; END IF;
+    IF checkpoint.generation<>from_generation THEN RAISE EXCEPTION 'generation_conflict'; END IF;
+    UPDATE nextphase_board.mention_delivery d SET generation=to_generation WHERE d.board_id=board;
+  ELSE
+    INSERT INTO nextphase_board.mention_delivery VALUES(board,to_generation,-1);
+  END IF;
+  UPDATE nextphase_board.mention_inbox n SET generation=to_generation WHERE n.board_id=board;
+  PERFORM nextphase_board.refresh_mention_leases(board);
+END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.clear_board_mentions(board uuid, generation bigint)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 BEGIN

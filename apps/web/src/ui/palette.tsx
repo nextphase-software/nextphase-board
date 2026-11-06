@@ -37,7 +37,7 @@ export function Palette({
   return (
     <>
     <nav className="palette floating" aria-label="Board tools">
-      {(["Select", "Pan", ...OBJECT_TYPES.flatMap((t) => t.tool ? [t.tool] : [])] as const).filter((name) => !team?.hosted || !readOnly || !placementTool(name)).flatMap((
+      {(["Select", "Pan", ...OBJECT_TYPES.flatMap((t) => t.tool ? [t.tool] : [])] as const).filter((name) => !team?.hosted || !readOnly || team.hosted.previewEditor || !placementTool(name)).flatMap((
         name,
       ) => [
         <button
@@ -45,7 +45,7 @@ export function Palette({
           className={"icon-button" + (name === OBJECT_TYPES[0].tool ? " tool-divider" : "")}
           aria-label={name + " tool"}
           aria-pressed={tool === name || !!placementTool(name)?.shapePaint && !!kindForTool(tool)}
-          disabled={busy || composing ||
+          disabled={!!team?.hosted?.history.previewing && name !== "Pan" || busy || composing ||
             (readOnly && !!placementTool(name))}
           onClick={() => {
             setTool(placementTool(name)?.shapePaint ? SHAPE_KINDS[0].tool : name);
@@ -58,13 +58,13 @@ export function Palette({
         </button>,
         ...(placementTool(name)?.shapePaint ? [<DrawButton key="Draw" tool={tool} drawing={drawing} disabled={readOnly || busy || composing} arm={arm} />] : []),
       ])}
-      {!(team?.hosted && readOnly) && <button ref={templatesButton} className="icon-button" aria-label="Templates"
+      {(!(team?.hosted && readOnly) || team.hosted.previewEditor) && <button ref={templatesButton} className="icon-button" aria-label="Templates"
         aria-expanded={panel === "Templates"} aria-pressed={panel === "Templates"}
         disabled={readOnly || busy || composing} onClick={() => { if (panel !== "Templates") void loadTemplates(); toggle("Templates"); }}>
         <Icon name="Templates" /><span className="tooltip">Templates</span>
       </button>}
       {!team?.hosted && <ImageButton picker={imagePicker} />}
-      {team?.commentTool && <team.commentTool tool={tool} setTool={setTool} scene={scene} disabled={busy || composing} />}
+      {team?.commentTool && <team.commentTool tool={tool} setTool={setTool} scene={scene} disabled={busy || composing || !!team?.hosted?.history.previewing || !!team?.hosted?.history.locked} />}
     </nav>
     <DrawingBar tool={tool} drawing={drawing} disabled={readOnly || busy || composing} arm={arm} />
     {panel === "Templates" && <TemplatesPanel close={() => toggle("Templates")} addActivity={addActivity}

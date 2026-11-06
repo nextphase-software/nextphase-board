@@ -3,6 +3,8 @@ import * as Y from "yjs";
 import { Adapter } from "nextphase-board-sync/document-adapter.ts";
 import { readBoard } from "nextphase-board-sync/codec.ts";
 import { canonical, type BoardV10 } from "nextphase-board-rules/document.ts";
+import { History, validateHistoryBackup } from "./history.ts";
+import { HISTORY_INTERVAL } from "nextphase-board-sync/history.ts";
 import { Copies } from "./copies.ts";
 import { Access, closeCode } from "./access.ts";
 import { backup, decodeBackup, replace } from "./backups.ts";
@@ -22,6 +24,7 @@ export class Room {
   edits: EditSession;
   presence: Presences;
   comments: Comments;
+  history: History;
   doc = new Y.Doc();
   board!: BoardV10;
   initialized = false;
@@ -35,6 +38,7 @@ export class Room {
     this.access = new Access(env.storage, env.access, env.connections);
     this.edits = new EditSession(env, this.access, this);
     this.presence = new Presences(env, boardId);
+    this.history = new History(this);
     this.comments = new Comments(env, this.access, this);
     if (env.rows && env.background) this.copies = new Copies(env.storage, env.rows, env.now,
       () => this.ordered(() => this.schedule()));
@@ -68,8 +72,9 @@ export class Room {
       const board: BoardV10 = document ?? { schemaVersion: 10, boardId: this.boardId, title: details.title, objects: [], retiredGenerations: [] };
       adapter.set(board);
       try {
+        const prepared = await this.history.prepare(board);
         storage.transaction(() => {
-          setMeta(storage, "storage_version", 4);
+          setMeta(storage, "storage_version", 5);
           storage.exec("INSERT INTO meta VALUES ('board_id', ?)", this.boardId);
           setMeta(storage, "last_edit_at", Date.parse(details.createdAt));
           setMeta(storage, "revision", 0);
@@ -79,6 +84,8 @@ export class Room {
           setMeta(storage, "mention_order", 0);
           setMeta(storage, "mention_cleanup", 0);
           snapshot(storage, adapter.doc, board, 0);
+          this.history.capture(prepared, 0, 0, "initial");
+          setMeta(storage, "history_next_at", this.env.now() + HISTORY_INTERVAL);
           for (const object of board.objects) {
             storage.exec("INSERT INTO identifiers VALUES (?, ?, 0)", object.id, object.generation);
           }
@@ -100,6 +107,7 @@ export class Room {
         storage.exec("DELETE FROM waiting");
       }
     } catch { this.access.locked = true; return; }
+    if (this.history.active()) { try { await this.history.resume(); } catch { return; } }
     if (this.access.locked) { try { await this.comments.mentions.restore(this.generation); } catch { return; } }
     try { await this.access.replay(this.boardId, this.generation); } catch { /* Ordinary wakes use their stored copy. */ }
     if (!this.access.locked) { try { await this.comments.mentions.prune(); } catch { /* Delivery retries require a successful prune. */ } }
@@ -132,6 +140,9 @@ export class Room {
     await this.creationTime();
     try { this.generation = await this.env.fence(); }
     catch { this.access.locked = true; if (strict) throw new RoomError(503, "room_locked"); return; }
+    if (this.history.active()) {
+      try { await this.history.resume(); } catch { if (strict) throw new RoomError(503, "restore_pending"); return; }
+    }
     if (this.generation > meta(this.env.storage, "restore_generation") || meta(this.env.storage, "restore_pending")) {
       this.access.locked = true;
       try { await this.comments.mentions.restore(this.generation); } catch { if (strict) throw new RoomError(503, "room_locked"); return; }
@@ -184,7 +195,7 @@ export class Room {
       const attachment: Attachment = { ...person, role: grant.role, epoch: grant.epoch, connectionId: this.env.randomId() };
       const connection: Connection = { attachment: () => attachment, attach: () => {}, close: () => {},
         send: (text) => { reply = JSON.parse(text); } };
-      const message = { requestId, epoch: grant.epoch, update: base64(update) };
+      const message = { requestId, epoch: grant.epoch, update: base64(update), restoreGeneration: meta(this.env.storage, "restore_generation") };
       await this.edits.handle(connection, message, JSON.stringify(message));
       if (reply.kind !== "saved") throw new RoomError(reply.reason === "document_too_large" ? 413 : 409, reply.reason);
       await this.schedule();
@@ -296,7 +307,8 @@ export class Room {
         return;
       }
       if (message?.kind !== "edit" || typeof message.requestId !== "string" || !message.requestId.length ||
-        [...message.requestId].length > 100 || !Number.isSafeInteger(message.epoch) || typeof message.update !== "string") {
+        [...message.requestId].length > 100 || !Number.isSafeInteger(message.epoch) || typeof message.update !== "string" || !Number.isSafeInteger(message.restoreGeneration) || message.restoreGeneration < 0 ||
+        Object.keys(message).sort().join() !== ["kind", "epoch", "requestId", "update", "restoreGeneration"].sort().join()) {
         send(connection, { kind: "refused", reason: "bad_message" }); return;
       }
       await this.edits.handle(connection, message, text);
@@ -314,8 +326,9 @@ export class Room {
     this.presence.expire();
     this.env.storage.exec("DELETE FROM tickets WHERE expires_at <= ?", this.env.now());
   }
-  private async schedule() {
-    const deadlines = this.env.connections().map((connection) => connection.attachment().expiresAt);
+  private async schedule(historyRetry = false) {
+    const historyAt = meta(this.env.storage, "history_next_at");
+    const deadlines = [historyRetry ? Math.max(historyAt, this.env.now() + 1000) : historyAt, ...this.env.connections().map((connection) => connection.attachment().expiresAt)];
     deadlines.push(...this.presence.deadlines());
     for (const peer of this.env.connections()) if (peer.attachment().presence) deadlines.push(peer.attachment().presenceAt! + 30000);
     const waiting = this.env.storage.all("SELECT MIN(deadline) AS at FROM waiting")[0]?.at;
@@ -334,7 +347,8 @@ export class Room {
       await this.load();
       endPresence(connection, this.env.connections());
       this.env.storage.exec("DELETE FROM waiting WHERE connection_id = ?", connection.attachment().connectionId);
-      if (!this.env.connections().length) this.env.storage.transaction(() => snapshot(this.env.storage, this.doc, this.board, meta(this.env.storage, "revision")));
+      if (!this.env.connections().length && !this.access.locked) await this.history.automatic("last_close");
+      if (!this.env.connections().length && !this.access.locked) this.env.storage.transaction(() => snapshot(this.env.storage, this.doc, this.board, meta(this.env.storage, "revision")));
       await this.schedule();
     });
   }
@@ -342,6 +356,8 @@ export class Room {
     return this.ordered(async () => {
       await this.load();
       await this.expire();
+      try { await this.history.automatic("checkpoint"); }
+      catch (error) { await this.schedule(true); throw error; }
       this.saved(true);
       const revision = meta(this.env.storage, "revision");
       if (revision > newestSnapshot(this.env.storage) && this.env.now() >= meta(this.env.storage, "last_edit_at") + 60000) {
@@ -350,10 +366,23 @@ export class Room {
       await this.schedule();
     });
   }
+  historyPause(actor: string) {
+    this.copies?.suspend();
+    for (const peer of this.env.connections()) send(peer, { kind: "history_restoring", actor });
+    this.closeAll(4423);
+    this.env.storage.exec("DELETE FROM tickets"); this.env.storage.exec("DELETE FROM waiting");
+  }
+  versions(person: Person) { return this.ordered(() => this.history.list(person)); }
+  version(person: Person, id: string) { return this.ordered(() => this.history.preview(person, id)); }
+  saveVersion(person: Person, value: import("nextphase-board-sync/history.ts").SaveVersion) { return this.ordered(() => this.history.save(person, value)); }
+  nameVersion(person: Person, id: string, value: { name: string; description: string }) { return this.ordered(() => this.history.name(person, id, value)); }
+  restoreVersion(person: Person, id: string, value: import("nextphase-board-sync/history.ts").RestoreVersion) { return this.ordered(() => this.history.restore(person, id, value)); }
   backup() { return this.ordered(async () => { await this.load(); return backup(this.env, this.boardId); }); }
   restore(value: unknown) {
     return this.ordered(async () => {
       const envelope = decodeBackup(value, this.boardId);
+      try { await validateHistoryBackup(this.env, envelope.tables, this.boardId); } catch { throw new RoomError(400, "bad_request"); }
+      if (this.history.active()) throw new RoomError(503, "restore_pending");
       const generation = await this.env.raiseFence();
       this.copies?.suspend();
       this.closeAll(4423);

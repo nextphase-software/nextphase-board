@@ -257,7 +257,7 @@ check(101, "hibernation retains stamps and the latest presence", async () => {
 check(102, "viewer raw and local edit undo redo cannot write", async () => {
   const [a, b, c] = await all(), before = await exported(), start = c.peer.messages.length;
   for (const result of [c.session.edit(c.session.board), c.session.undo(), c.session.redo()]) assert.equal(result, "role_too_low");
-  assert.equal(c.peer.messages.length, start); c.raw({ kind: "edit", epoch: c.session.epoch, requestId: "viewer", update: "AAA=" });
+  assert.equal(c.peer.messages.length, start); c.raw({ kind: "edit", restoreGeneration: c.session.restoreGeneration, epoch: c.session.epoch, requestId: "viewer", update: "AAA=" });
   const reply = await c.peer.next("refused"); assert.equal(reply.reason, "role_too_low"); assert.equal(reply.needed, "editor");
   assert.equal(await exported(), before); assert(![a, b].some((p) => p.peer.messages.some((m) => m.kind === "update")));
 });
@@ -352,11 +352,11 @@ check(109, "receipt retry returns the whole board and rejects reused IDs", async
   const [a, b, c] = await all(); await seed(a); await equal([a, b, c]);
   const id = await edit(a, (b) => patch(b, { x: 10 })), update = a.session.requests.get(id)!.update;
   const revision = a.session.revision, before = await exported(), edits = (await driver.rows(f.a, "edits")).length;
-  a.raw({ kind: "edit", epoch: a.session.epoch, requestId: id, update });
+  a.raw({ kind: "edit", restoreGeneration: a.session.restoreGeneration, epoch: a.session.epoch, requestId: id, update });
   await until(() => a.peer.messages.filter((m) => m.kind === "saved" && m.requestId === id).length, (n) => n === 2);
   const reply = a.peer.messages.filter((m) => m.kind === "saved" && m.requestId === id).at(-1)!; assert.equal(reply.revision, revision); assert.equal(typeof reply.update, "string");
   assert.equal((await driver.rows(f.a, "edits")).length, edits); assert.equal(await exported(), before);
-  a.raw({ kind: "edit", epoch: a.session.epoch, requestId: id, update: "AAA=" }); assert.equal((await a.peer.next("refused")).reason, "request_id_reused");
+  a.raw({ kind: "edit", restoreGeneration: a.session.restoreGeneration, epoch: a.session.epoch, requestId: id, update: "AAA=" }); assert.equal((await a.peer.next("refused")).reason, "request_id_reused");
 });
 
 check(110, "undo redo geometry preserves another writer's text", async () => {
@@ -399,7 +399,7 @@ check(114, "undo add preserves an object another writer edited", async () => {
 
 check(115, "viewer edit forged presence and unknown kind never update a board", async () => {
   const [a, b, c] = await all(), before = await exported(), revision = a.session.revision;
-  for (const [value, reason] of [[{ kind: "edit", epoch: c.session.epoch, requestId: "viewer", update: "AAA=" }, "role_too_low"],
+  for (const [value, reason] of [[{ kind: "edit", restoreGeneration: c.session.restoreGeneration, epoch: c.session.epoch, requestId: "viewer", update: "AAA=" }, "role_too_low"],
     [{ kind: "presence", ...presence(), update: "AAA=" }, "presence_fields"], [{ kind: "unknown", update: "AAA=" }, "bad_message"]] as const) {
     c.raw(value); assert.equal((await c.peer.next("refused")).reason, reason);
   }
@@ -443,7 +443,7 @@ check(117, "a saved edit with its answer lost recovers through its receipt once"
   a.incoming.length = 0; a.holdIn(false); a.holdOut();
   await a.session.reconnect();
   assert.equal(a.out.length, 1);
-  assert.deepEqual(JSON.parse(a.out[0]), { kind: "edit", epoch: a.session.epoch, requestId: id, update });
+  assert.deepEqual(JSON.parse(a.out[0]), { kind: "edit", restoreGeneration: a.session.restoreGeneration, epoch: a.session.epoch, requestId: id, update });
   a.releaseOut();
   const reply = await saved(a, id);
   assert.equal(reply.revision, revision + 1); assert.equal(typeof reply.update, "string");
@@ -464,7 +464,7 @@ check(118, "an edit retried with an old epoch is refused without storing anythin
   const retry = await join("editor");
   assert.notEqual(retry.session.epoch, epoch);
   const before = await exported(), receipts = await driver.rows(f.a, "receipts"), edits = await driver.rows(f.a, "edits");
-  retry.raw({ kind: "edit", epoch, requestId: id, update });
+  retry.raw({ kind: "edit", restoreGeneration: retry.session.restoreGeneration, epoch, requestId: id, update });
   assert.equal((await retry.peer.next("refused")).reason, "epoch_changed");
   assert.equal(await exported(), before);
   assert.deepEqual(await driver.rows(f.a, "receipts"), receipts);
@@ -598,16 +598,16 @@ async function longCommentTokens() {
     person.token = await helper("token", { person, options: { now, exp: Math.floor(now / 1000) + 172800 } });
   }
 }
-check(121, "current layout 4 creation is idempotent across restart with edits and receipts kept", async () => {
+check(121, "current layout 5 creation is idempotent across restart with edits and receipts kept", async () => {
   const a = await discussionJoin(); await commentsReady(a); await seed(a);
-  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 4);
+  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 5);
   const before = await exported(), edits = await driver.rows(f.a, "edits"), receipts = await driver.rows(f.a, "receipts");
   const envelope = await backupComments();
   await a.peer.close();
   for (let attempt = 0; attempt < 2; attempt++) {
     await driver.wake(f.a);
     const reopened = await discussionJoin(); await commentsReady(reopened);
-    assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 4);
+    assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 5);
     assert.equal(await exported(), before); assert.deepEqual(await driver.rows(f.a, "edits"), edits);
     assert.deepEqual(await driver.rows(f.a, "receipts"), receipts);
     assert((await driver.rows(f.a, "receipts")).every((row) => row.kind === "edit"));
@@ -617,7 +617,7 @@ check(121, "current layout 4 creation is idempotent across restart with edits an
   assert.deepEqual(await driver.rows(f.a, "meta"), once);
   await restoreComments(envelope); const restored = await discussionJoin(); await commentsReady(restored);
   assert.equal(await exported(), before); assert.equal(restored.session.threads.size, 0);
-  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 4);
+  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 5);
 });
 check(122, "every comment action broadcasts once before its answer and leaves board edits alone", async () => {
   const [a, b, c] = await discussionAll(); await Promise.all([a, b, c].map(commentsReady)); await seed(a); await equal([a, b, c]);
@@ -652,7 +652,7 @@ check(123, "viewers comment while only authors can edit delete or move discussio
   await commentResult(c, start);
   await commentResult(c, { action: "reply", threadId: start.threadId, commentId: crypto.randomUUID(), text: "Viewer reply" });
   await commentResult(c, { action: "resolve", threadId: start.threadId }); await commentResult(c, { action: "reopen", threadId: start.threadId });
-  const before = await exported(); c.raw({ kind: "edit", epoch: c.session.epoch, requestId: "viewer-comment-check", update: "AAA=" });
+  const before = await exported(); c.raw({ kind: "edit", restoreGeneration: c.session.restoreGeneration, epoch: c.session.epoch, requestId: "viewer-comment-check", update: "AAA=" });
   assert.equal((await c.peer.next("refused")).reason, "role_too_low"); assert.equal(await exported(), before);
   const own = startComment(); await commentResult(a, own);
   for (const person of [b, owner]) for (const operation of [
@@ -777,7 +777,7 @@ check(130, "comments bypass waiting edits and receipts cannot cross request kind
   await until(() => a.peer.messages.find((message) => message.kind === "comment_saved" && message.requestId === requestId), Boolean);
   assert.equal((await driver.rows(f.a, "waiting")).length, 1); a.releaseOut(); await saved(a, first); await saved(a, second);
   await rawComment(a, startComment(), "request_id_reused", a.session.epoch, first, true);
-  a.raw({ kind: "edit", epoch: a.session.epoch, requestId, update: a.session.requests.get(first)!.update });
+  a.raw({ kind: "edit", restoreGeneration: a.session.restoreGeneration, epoch: a.session.epoch, requestId, update: a.session.requests.get(first)!.update });
   assert.equal((await a.peer.next("refused")).reason, "request_id_reused");
 });
 check(131, "hourly counts span connections and prune old hours; connection windows count only saves", async () => {
@@ -883,7 +883,7 @@ check(134, "import creates an independent rich board at revision zero with durab
   const rows = await orderedIdentifiers(details.id); assert.deepEqual(rows, identifierRows(expected));
   const metadata = await driver.rows(details.id, "meta");
   const values = Object.fromEntries(metadata.map((row) => [row.key, row.value]));
-  assert.equal(values.storage_version, 4); assert.equal(values.revision, 0); assert.equal(values.board_id, details.id);
+  assert.equal(values.storage_version, 5); assert.equal(values.revision, 0); assert.equal(values.board_id, details.id);
   client.session.close(); for (const peer of client.peers) await peer.close();
   await driver.wake(details.id);
   const reopened = await join("editor", details.id);

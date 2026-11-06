@@ -91,10 +91,10 @@ test("time words cover minute and hour edges, calendar days and both date format
   const now = new Date(2026, 10, 3, 14).getTime();
   for (const [elapsed, expected] of [[59000, "Just now"], [60000, "1 min ago"], [59 * 60000, "59 min ago"],
     [3600000, "1 hour ago"], [23 * 3600000, "23 hours ago"], [86400000, "Yesterday"],
-    [2 * 86400000, "2 days ago"], [6 * 86400000, "6 days ago"], [7 * 86400000, "Oct 27"]]) {
+    [2 * 86400000, "2 days ago"], [6 * 86400000, "6 days ago"], [7 * 86400000, new Intl.DateTimeFormat(undefined,{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit",timeZoneName:"short"}).format(now - 7 * 86400000)]]) {
     assert.equal(timeWords(now - elapsed, now), expected);
   }
-  assert.equal(timeWords(new Date(2025, 9, 28).getTime(), now), "Oct 28, 2025");
+  assert.equal(timeWords(new Date(2025, 9, 28).getTime(), now), new Intl.DateTimeFormat(undefined,{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit",timeZoneName:"short"}).format(new Date(2025, 9, 28).getTime()));
 });
 test("comment words cover counts, delete questions, limits, names and every refusal note", async () => {
   const r = await import("../apps/web/src/team/comments/rules.ts"), board = await boardFixture();
@@ -278,9 +278,9 @@ for (const layout of ["created", "uncreated"]) test(`current storage initializat
   const storage = new NodeStorage(":memory:");
   try {
     initialize(storage);
-    if (layout === "created") setMeta(storage, "storage_version", 4);
+    if (layout === "created") setMeta(storage, "storage_version", 5);
     storage.exec("INSERT INTO receipts VALUES ('p', 'r', 'digest', 4, 'edit')");
-    assert.equal(meta(storage, "storage_version"), layout === "uncreated" ? 0 : 4);
+    assert.equal(meta(storage, "storage_version"), layout === "uncreated" ? 0 : 5);
     assert.equal(storage.all("SELECT * FROM receipts")[0].kind, "edit");
     for (const table of ["threads", "comments", "comment_ids", "comment_counts", "mention_targets", "mention_pending"]) assert.deepEqual(storage.all(`SELECT * FROM ${table}`), []);
     const before = storage.all("SELECT * FROM sqlite_master ORDER BY name"); initialize(storage);
@@ -288,15 +288,15 @@ for (const layout of ["created", "uncreated"]) test(`current storage initializat
     assert.equal(storage.all("SELECT * FROM receipts").length, 1);
   } finally { storage.close(); }
 });
-test("a fresh room creates storage version 4 with no threads", async () => {
+test("a fresh room creates storage version 5 with no threads", async () => {
   await import("../packages/board-sync/src/comments.ts");
   const { Room } = await import("../packages/board-room/src/room.ts"), { NodeStorage } = await import("../apps/server/src/node-storage.ts");
   const { meta } = await import("../packages/board-room/src/storage.ts");
   const storage = new NodeStorage(":memory:");
   try {
-    const room = new Room(randomUUID(), { storage, now: () => 0, connections: () => [], schedule: async () => {},
+    const room = new Room(randomUUID(), { storage, hash: async value => { const { createHash } = await import("node:crypto"); return createHash("sha256").update(value).digest("hex"); }, randomId: randomUUID, now: () => 0, connections: () => [], schedule: async () => {},
       access: { board: async () => ({ title: "Comments", createdAt: new Date(0).toISOString() }), changes: async () => ({ latest: 0, lowestKept: 1, changes: [] }) }, fence: async () => 0 });
-    await room.load(); assert.equal(meta(storage, "storage_version"), 4); assert.deepEqual(storage.all("SELECT * FROM threads"), []);
+    await room.load(); assert.equal(meta(storage, "storage_version"), 5); assert.deepEqual(storage.all("SELECT * FROM threads"), []);
   } finally { storage.close(); }
 });
 

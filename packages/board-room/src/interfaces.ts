@@ -20,6 +20,9 @@ export interface MentionSource {
   validTargets(board: string, targets: object[]): Promise<string[]>;
   roster(board: string, caller: string): Promise<MentionPerson[]>;
   project(board: string, generation: number, order: number, active: object[], creates: object[]): Promise<void>;
+  documentGeneration?(board: string): Promise<number>;
+  mentionGeneration?(board: string): Promise<number>;
+  carryNotices?(board: string, from: number, to: number): Promise<void>;
   clearNotices(board: string, generation: number): Promise<void>;
 }
 export interface RoomEnvironment {
@@ -30,7 +33,7 @@ export interface RoomEnvironment {
   access: AccessSource;
   now(): number;
   fence(): Promise<number>;
-  raiseFence(): Promise<number>;
+  raiseFence(minimum?: number): Promise<number>;
   hash(bytes: Uint8Array): Promise<string>;
   randomTicket(): string;
   randomId(): string;

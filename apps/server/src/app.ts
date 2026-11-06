@@ -5,6 +5,7 @@ import type { Runtime, AppVariables } from "./runtime.ts";
 import { accessRoutes } from "./routes/access.ts";
 import { mentions } from "./routes/mentions.ts";
 import { lists } from "./routes/lists.ts";
+import { historyRoutes } from "./routes/history.ts";
 import { boards } from "./routes/boards.ts";
 import { invitations } from "./routes/invitations.ts";
 import { operators } from "./routes/operator.ts";
@@ -30,6 +31,7 @@ export function createApp(runtime: Runtime) {
     await next();
   });
   boards(app, runtime);
+  historyRoutes(app, runtime);
   lists(app, runtime);
   mentions(app, runtime);
   accessRoutes(app, runtime);

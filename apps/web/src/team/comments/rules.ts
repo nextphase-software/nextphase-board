@@ -25,8 +25,7 @@ export function timeWords(at: number, now = Date.now()) {
   const days = day(today) - day(date);
   if (days === 1) return "Yesterday";
   if (days >= 2 && days <= 6) return `${days} days ago`;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric",
-    ...(date.getFullYear() !== today.getFullYear() ? { year: "numeric" } : {}) });
+  return new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" }).format(at);
 }
 export function replyCount(count: number, resolved = false) {
   return [count ? `${count} ${count === 1 ? "reply" : "replies"}` : "", resolved ? "Resolved" : ""].filter(Boolean).join(" · ");

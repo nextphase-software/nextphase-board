@@ -79,7 +79,7 @@ function change(doc: Y.Doc, title: string) {
 }
 async function edit(client: Awaited<ReturnType<typeof join>>, title = "Edited", requestId = crypto.randomUUID()) {
   const update = change(client.doc, title);
-  client.peer.send({ kind: "edit", epoch: client.epoch, requestId, update });
+  client.peer.send({ kind: "edit", restoreGeneration: client.joined.restoreGeneration, epoch: client.epoch, requestId, update });
   return { saved: await client.peer.next("saved"), update, requestId };
 }
 async function untilClosed(peer: Peer, code: number) {
@@ -244,7 +244,7 @@ async function secrecy() {
 check(16, "refused joins disclose no board content", secrecy);
 async function viewerEdit() {
   const f = await fixture(), c = await join(f.a, "viewer"), before = await success(`/boards/${f.a}/export`);
-  c.peer.send({ kind: "edit", epoch: c.epoch, requestId: "viewer", update: change(c.doc, "Refused") });
+  c.peer.send({ kind: "edit", restoreGeneration: c.joined.restoreGeneration, epoch: c.epoch, requestId: "viewer", update: change(c.doc, "Refused") });
   const r = await c.peer.next("refused"); assert.equal(r.reason, "role_too_low"); assert.equal(r.needed, "editor");
   assert(!c.peer.messages.some((m) => ["received", "saved"].includes(m.kind)));
   assert.deepEqual(await success(`/boards/${f.a}/export`), before);
@@ -260,22 +260,22 @@ check(18, "saved precedes broadcast", editorEdit);
 check(19, "incomplete edits wait until dependencies arrive", async () => {
   const f = await fixture(), c = await join(f.a);
   const first = change(c.doc, "First"), second = change(c.doc, "Second");
-  c.peer.send({ kind: "edit", epoch: c.epoch, requestId: "second", update: second });
+  c.peer.send({ kind: "edit", restoreGeneration: c.joined.restoreGeneration, epoch: c.epoch, requestId: "second", update: second });
   await c.peer.next("received"); assert(!c.peer.messages.some((m) => m.kind === "saved"));
-  c.peer.send({ kind: "edit", epoch: c.epoch, requestId: "first", update: first });
+  c.peer.send({ kind: "edit", restoreGeneration: c.joined.restoreGeneration, epoch: c.epoch, requestId: "first", update: first });
   assert.equal((await c.peer.next("saved")).requestId, "first"); assert.equal((await c.peer.next("saved")).requestId, "second");
 });
 check(20, "receipt retry is idempotent and bound to update bytes", async () => {
   const f = await fixture(), c = await join(f.a), result = await edit(c);
-  c.peer.send({ kind: "edit", epoch: c.epoch, requestId: result.requestId, update: result.update });
+  c.peer.send({ kind: "edit", restoreGeneration: c.joined.restoreGeneration, epoch: c.epoch, requestId: result.requestId, update: result.update });
   assert.equal((await c.peer.next("saved")).revision, 1);
-  c.peer.send({ kind: "edit", epoch: c.epoch, requestId: result.requestId, update: change(c.doc, "Other") });
+  c.peer.send({ kind: "edit", restoreGeneration: c.joined.restoreGeneration, epoch: c.epoch, requestId: result.requestId, update: change(c.doc, "Other") });
   assert.equal((await c.peer.next("refused")).reason, "request_id_reused");
 });
 check(21, "highest board role wins", async () => {
   const f = await fixture(); await grant(f.a, "viewer");
   const c = await join(f.a, "viewer"); await edit(c);
-  const b = await join(f.b, "viewer"); b.peer.send({ kind: "edit", epoch: b.epoch, requestId: "low", update: change(b.doc, "No") });
+  const b = await join(f.b, "viewer"); b.peer.send({ kind: "edit", restoreGeneration: b.joined.restoreGeneration, epoch: b.epoch, requestId: "low", update: change(b.doc, "No") });
   assert.equal((await b.peer.next("refused")).reason, "role_too_low");
 });
 check(22, "guest access and Data API rows agree", async () => {
@@ -387,7 +387,7 @@ async function setBoard(client: Awaited<ReturnType<typeof join>>, board: any) {
   adapter.set(board);
   const update = encoded(Y.encodeStateAsUpdate(client.doc, vector));
   assert(new TextEncoder().encode(update).length < 1048000, "Fixture edit must fit one incoming message");
-  client.peer.send({ kind: "edit", epoch: client.epoch, requestId: crypto.randomUUID(), update });
+  client.peer.send({ kind: "edit", restoreGeneration: client.joined.restoreGeneration, epoch: client.epoch, requestId: crypto.randomUUID(), update });
   return client.peer.next("saved");
 }
 check(33, "exact 2 MiB board persists in bounded chunks", async () => {
@@ -432,16 +432,16 @@ check(36, "waiting count bytes deadline and hibernation", async () => {
   const f = await fixture(), c = await join(f.a);
   change(c.doc, "Missing"); const update = change(c.doc, "Waiting");
   for (let n = 0; n < 64; n++) {
-    c.peer.send({ kind: "edit", epoch: c.epoch, requestId: "count" + n, update }); await c.peer.next("received");
+    c.peer.send({ kind: "edit", restoreGeneration: c.joined.restoreGeneration, epoch: c.epoch, requestId: "count" + n, update }); await c.peer.next("received");
   }
-  c.peer.send({ kind: "edit", epoch: c.epoch, requestId: "count64", update });
+  c.peer.send({ kind: "edit", restoreGeneration: c.joined.restoreGeneration, epoch: c.epoch, requestId: "count64", update });
   assert.equal((await c.peer.next("resync")).reason, "waiting_count");
   for (let n = 0; n < 5; n++) {
-    const message = JSON.stringify({ kind: "edit", epoch: c.epoch, requestId: "bytes" + n, update });
+    const message = JSON.stringify({ kind: "edit", restoreGeneration: c.joined.restoreGeneration, epoch: c.epoch, requestId: "bytes" + n, update });
     c.peer.send(message + " ".repeat(900000 - message.length));
     if (n < 4) await c.peer.next("received"); else assert.equal((await c.peer.next("resync")).reason, "waiting_bytes");
   }
-  c.peer.send({ kind: "edit", epoch: c.epoch, requestId: "deadline", update }); await c.peer.next("received");
+  c.peer.send({ kind: "edit", restoreGeneration: c.joined.restoreGeneration, epoch: c.epoch, requestId: "deadline", update }); await c.peer.next("received");
   const waiting = await driver.rows(f.a, "waiting"); assert.equal(waiting.length, 1);
   if (runner === "workerd") { await driver.wake(f.a); assert.deepEqual(await driver.rows(f.a, "waiting"), waiting); }
   await driver.control({ offset: 30001, board: f.a, alarm: true }); assert.equal((await c.peer.next("resync")).reason, "waiting_timeout");
@@ -449,11 +449,11 @@ check(36, "waiting count bytes deadline and hibernation", async () => {
 });
 check(37, "Node restart drops waits and clients resend", async () => {
   const f = await fixture(), c = await join(f.a), first = change(c.doc, "First"), second = change(c.doc, "Second");
-  c.peer.send({ kind: "edit", epoch: c.epoch, requestId: "second", update: second }); await c.peer.next("received");
+  c.peer.send({ kind: "edit", restoreGeneration: c.joined.restoreGeneration, epoch: c.epoch, requestId: "second", update: second }); await c.peer.next("received");
   await driver.wake(f.a); assert.equal((await driver.rows(f.a, "waiting")).length, 0);
   const next = await join(f.a);
   for (const [requestId, update] of [["first", first], ["second", second]]) {
-    next.peer.send({ kind: "edit", epoch: next.epoch, requestId, update }); await next.peer.next("saved");
+    next.peer.send({ kind: "edit", restoreGeneration: next.joined.restoreGeneration, epoch: next.epoch, requestId, update }); await next.peer.next("saved");
   }
 });
 check(38, "hostile transitions hidden fields history and size store nothing", async () => {
@@ -464,7 +464,7 @@ check(38, "hostile transitions hidden fields history and size store nothing", as
     const client = await join(board), vector = Y.encodeStateVector(client.doc);
     const before = (await driver.rows(board, "receipts")).length;
     mutate(client.doc);
-    client.peer.send({ kind: "edit", epoch: client.epoch, requestId: crypto.randomUUID(), update: encoded(Y.encodeStateAsUpdate(client.doc, vector)) });
+    client.peer.send({ kind: "edit", restoreGeneration: client.joined.restoreGeneration, epoch: client.epoch, requestId: crypto.randomUUID(), update: encoded(Y.encodeStateAsUpdate(client.doc, vector)) });
     assert.equal((await client.peer.next("refused")).reason, reason);
     assert.equal((await driver.rows(board, "receipts")).length, before);
   }
@@ -480,14 +480,14 @@ check(39, "hosted image edits are refused", async () => {
   const f = await fixture(), c = await join(f.a), vector = Y.encodeStateVector(c.doc), adapter = new Adapter(); adapter.doc = c.doc;
   adapter.set({ ...readBoard(c.doc), objects: [{ id: crypto.randomUUID(), generation: crypto.randomUUID(), type: "image", group: null, section: null,
     asset: "a".repeat(64), pixelWidth: 1, pixelHeight: 1, description: "Synthetic", x: 0, y: 0, width: 1, height: 1, order: 0 }] });
-  c.peer.send({ kind: "edit", epoch: c.epoch, requestId: "image", update: encoded(Y.encodeStateAsUpdate(c.doc, vector)) });
+  c.peer.send({ kind: "edit", restoreGeneration: c.joined.restoreGeneration, epoch: c.epoch, requestId: "image", update: encoded(Y.encodeStateAsUpdate(c.doc, vector)) });
   assert.equal((await c.peer.next("refused")).reason, "images_not_supported");
 });
 check(40, "ordinary wakes retain cached access during outage", async () => {
   const f = await fixture(); for (const name of ["owner", "editor", "viewer"]) await join(f.a, name);
   await helper("proxy", { offline: true }); await driver.wake(f.a);
   for (const name of ["owner", "editor"]) await edit(await join(f.a, name));
-  const viewer = await join(f.a, "viewer"); viewer.peer.send({ kind: "edit", epoch: viewer.epoch, requestId: "outage", update: change(viewer.doc, "No") });
+  const viewer = await join(f.a, "viewer"); viewer.peer.send({ kind: "edit", restoreGeneration: viewer.joined.restoreGeneration, epoch: viewer.epoch, requestId: "outage", update: change(viewer.doc, "No") });
   assert.equal((await viewer.peer.next("refused")).reason, "role_too_low");
   for (const name of ["granted", "plain", "outsider"]) await refused(await request(`/boards/${f.a}/join-tickets`, name, "POST"), 404, "not_found");
 });
@@ -537,7 +537,7 @@ check(45, "replay lowers and removes cached effective roles", async () => {
     DELETE FROM nextphase_board.board_grants WHERE board_id='${f.a}' AND person_id='${person("granted").id}';
     INSERT INTO nextphase_board.access_changes(workspace_id,board_id,person_id,kind,role) VALUES('${f.workspace}','${f.a}','${person("granted").id}','grant',NULL); COMMIT;` });
   await ticket(f.a, "owner"); await untilClosed(editor.peer, 4403); await untilClosed(guest.peer, 4403);
-  const viewer = await join(f.a); viewer.peer.send({ kind: "edit", epoch: viewer.epoch, requestId: "lowered", update: change(viewer.doc, "No") });
+  const viewer = await join(f.a); viewer.peer.send({ kind: "edit", restoreGeneration: viewer.joined.restoreGeneration, epoch: viewer.epoch, requestId: "lowered", update: change(viewer.doc, "No") });
   assert.equal((await viewer.peer.next("refused")).reason, "role_too_low");
   await refused(await request(`/boards/${f.a}/join-tickets`, "granted", "POST"), 404, "not_found");
 });

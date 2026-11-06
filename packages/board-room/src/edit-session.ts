@@ -10,7 +10,7 @@ import { base64, bytes, send, unbase64, type Connection } from "./protocol.ts";
 import { keepAnchors } from "./comments.ts";
 import type { Thread } from "nextphase-board-sync/comments.ts";
 import { endPresence } from "./presence.ts";
-type Edit = { requestId: string; epoch: number; update: string };
+type Edit = { requestId: string; epoch: number; update: string; restoreGeneration: number };
 type LiveBoard = { doc: Y.Doc; board: BoardV10; saved(): void };
 
 // Called only inside the room's queue. This module owns edit authorization,
@@ -29,6 +29,7 @@ export class EditSession {
     });
     if (!grant || grant.epoch !== message.epoch || grant.epoch !== connection.attachment().epoch) { refuse("epoch_changed"); return; }
     if (grant.role === "viewer") { refuse("role_too_low", "editor"); return; }
+    if (message.restoreGeneration !== meta(this.env.storage, "restore_generation")) { refuse("restore_changed"); return; }
     let update: Uint8Array;
     try { update = unbase64(message.update); } catch { refuse("invalid_update"); return; }
     const digest = await this.env.hash(update);
@@ -58,8 +59,8 @@ export class EditSession {
       else if (waiting.reduce((n, row) => n + Number(row.message_bytes), size) > 4194304) this.resync(connection, "waiting_bytes");
       else {
         const sequence = Number(this.env.storage.all("SELECT MAX(sequence) AS n FROM waiting")[0]?.n ?? 0) + 1;
-        this.env.storage.exec("INSERT INTO waiting VALUES (?, ?, ?, ?, ?, ?, ?)", id, sequence, size,
-          this.env.now(), this.env.now() + 30000, message.requestId, update);
+        this.env.storage.exec("INSERT INTO waiting VALUES (?, ?, ?, ?, ?, ?, ?, ?)", id, sequence, size,
+          this.env.now(), this.env.now() + 30000, message.requestId, update, message.restoreGeneration);
         send(connection, { kind: "received", requestId: message.requestId });
       }
     } else if (result === "saved") await this.retryWaiting();
@@ -109,6 +110,10 @@ export class EditSession {
           continue;
         }
         if (Number(row.deadline) <= this.env.now()) { this.resync(connection, "waiting_timeout"); continue; }
+        if (row.restore_generation !== meta(this.env.storage, "restore_generation")) {
+          this.env.storage.exec("DELETE FROM waiting WHERE connection_id = ? AND sequence = ?", row.connection_id, row.sequence);
+          send(connection, { kind: "refused", requestId: row.request_id, reason: "restore_changed" }); continue;
+        }
         const update = row.update as Uint8Array;
         const result = await this.save(connection, String(row.request_id), update, await this.env.hash(update));
         if (result !== "waiting") {

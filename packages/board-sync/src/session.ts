@@ -16,7 +16,7 @@ export type Transport = { send(text: string): void; close(code: number): void;
 export type SessionOptions<T> = { ticket(): Promise<T>; open(ticket: T): Promise<Transport>; clock: Clock; clientId?: number };
 export type Request = {
   state: "sent" | "received" | "waiting" | "saved" | "refused" | "dropped";
-  reason?: string; update: string; revision?: number; group?: string;
+  reason?: string; update: string; text?: string; revision?: number; group?: string;
   touched: { id: string; generation: string }[]; notKept?: boolean;
 };
 const outstanding = (request: Request) => ["sent", "received", "waiting"].includes(request.state);
@@ -186,6 +186,7 @@ export class BoardSession<T = unknown> {
       this.report(message);
       return;
     }
+    if (message.kind === "history_restoring") { this.drop("board_restored"); this.history.clear(); this.report(message); return; }
     const request = this.requests.get(message.requestId);
     if (["saved", "received", "refused"].includes(message.kind) && request && !outstanding(request)) return;
     if (message.kind === "joined") {
@@ -250,7 +251,7 @@ export class BoardSession<T = unknown> {
         request.state = "received"; this.deadline(message.requestId);
       }
     } else if (message.kind === "refused") {
-      const reason = ["epoch_changed", "role_too_low"].includes(message.reason) ? "access_changed" : "refused_edit";
+      const reason = message.reason === "restore_changed" ? "board_restored" : ["epoch_changed", "role_too_low"].includes(message.reason) ? "access_changed" : "refused_edit";
       if (request) {
         request.state = "refused"; request.reason = message.reason; this.cancelDeadline(message.requestId);
         this.drop(reason); this.rejoin();
@@ -335,8 +336,8 @@ export class BoardSession<T = unknown> {
   }
   private sendEdit(update: Uint8Array, group?: string, touched: Request["touched"] = []) {
     const requestId = crypto.randomUUID(), encoded = encode(update);
-    const text = JSON.stringify({ kind: "edit", epoch: this.epoch, requestId, update: encoded });
-    const request: Request = { state: "sent", update: encoded, touched, ...(group ? { group } : {}) };
+    const text = JSON.stringify({ kind: "edit", epoch: this.epoch, requestId, update: encoded, restoreGeneration: this.restoreGeneration });
+    const request: Request = { state: "sent", update: encoded, text, touched, ...(group ? { group } : {}) };
     this.requests.set(requestId, request);
     if (sizeOf(text) > 1048576) {
       request.state = "refused"; request.reason = "message_too_large";
@@ -361,7 +362,7 @@ export class BoardSession<T = unknown> {
   private sendRequest(id: string) {
     const request = this.requests.get(id)!;
     request.state = "sent"; this.deadline(id);
-    this.send(JSON.stringify({ kind: "edit", epoch: this.epoch, requestId: id, update: request.update }));
+    this.send(request.text!);
   }
   private inverse(direction: "undo" | "redo") {
     const blocked = this.blocked(); if (blocked) return blocked;

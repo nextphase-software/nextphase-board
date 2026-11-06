@@ -13,6 +13,8 @@ import { SignIn } from "./sign-in";
 import { ShareDialog } from "./share-dialog";
 import { EndBoardDialog, LeaveBoardQuestion, TeamPage, type PendingLeave } from "./pages";
 import { clearNotificationMemory } from "./notification-navigation";
+import { HistoryPanel, HistoryDenied } from "./history-panel";
+import { historyNavigation } from "./history";
 import { Home } from "./home";
 import { holdName, type HeldNames } from "./home-rules";
 
@@ -58,7 +60,7 @@ export function TeamApp() {
       // Auth holds its lock in this callback. Session work runs after it returns.
       queueMicrotask(() => {
         if (accountId.current !== (next?.user.id ?? "")) {
-          names.current.clear(); clearNotificationMemory();
+          names.current.clear(); clearNotificationMemory(); delete historyNavigation.open; delete historyNavigation.source; delete historyNavigation.returnBoard;
           active.current?.signedOut(); accountId.current = next?.user.id ?? ""; setEpoch(value => value + 1);
         }
         setSession(next); setReady(true);
@@ -139,6 +141,7 @@ function HostedRoute({ link, session, active, account, close, signInAgain, resta
   if (forceGate) return <SignIn gate close={restart} />;
   if (link.kind === "bad") return <TeamPage outcome={{ name: "notFound", retry: false }} close={close} signIn={signInAgain} />;
   const outcome = snapshot?.outcome ?? null;
+  if (board?.history.denied || outcome?.name === "notFound") return <HistoryDenied back={close} />;
   const ending = outcome && ["expired", "signedOut", "accessRemoved"].includes(outcome.name);
   if ((!session && !snapshot?.board) || outcome?.name === "expired" && !snapshot?.board) {
     return <SignIn gate close={restart} notice={outcome?.name === "expired" ? words.expired : outcome?.name === "signedOut" ? words.signedOut : ""} />;
@@ -160,6 +163,7 @@ function HostedRoute({ link, session, active, account, close, signInAgain, resta
       </div>)}
       {banner && <div className={"team-banner" + (!snapshot.connected ? " team-amber" : "")} role="status">{banner}</div>}
     </div> : undefined }} />
+    <HistoryPanel hosted={board} />
     {toast && <div className="team-toast" role="status">{toast}</div>}
     {share && !ending && !leave && <ShareDialog hosted={board} email={session?.user.email ?? ""} personId={session?.user.id ?? ""} close={() => setShare(false)} />}
     {leave && waiting > 0 && <LeaveBoardQuestion count={waiting} boardName={snapshot.board.title} pending={leave} stay={stay} />}

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { BoardHistory, historyNavigation } from "./history";
 import { BoardSession, type Transport, type Role, type SessionEvent } from "nextphase-board-sync/session.ts";
 import type { BoardV10 } from "nextphase-board-rules/document.ts";
 import type { CommentOperation } from "./comments/rules";
@@ -23,6 +24,17 @@ export type PresenceSnapshot = {
   self?: Presence; others: Presence[]; followed: string | null; showCursors: boolean;
 };
 export class HostedBoard {
+  readonly history = new BoardHistory(this);
+  panReturning = false;
+  private restoredGeneration?: number;
+  historyChanged() { this.publish(); }
+  historyDenied() { this.history.clear(); this.clearDiscussion(); this.history.denied = true; this.ended = true; this.session?.discard("access_removed"); this.clearPresence(); this.publish({ board: undefined, connected: false }); }
+  get paintBoard() {
+    const live = this.snapshot.board;
+    return this.history.previewing && live ? this.history.document ?? { ...live, objects: [], retiredGenerations: [] } : live;
+  }
+  get previewEditor() { return this.history.previewing && this.history.canManage; }
+
   commentDrafts = new Map<string, { reply: import("./comments/card").Draft; editing: { id: string; draft: import("./comments/card").Draft } | null }>();
   unreadMentions = new Map<string, Set<string>>();
   private mentionRead = 0;
@@ -52,9 +64,9 @@ export class HostedBoard {
     for (const listener of this.commentListeners) listener(event);
   }
   get comments() {
-    return { threads: this.session?.threads, requests: this.session?.commentRequests,
+    return { restoreGeneration: this.session?.restoreGeneration, threads: this.session?.threads, requests: this.session?.commentRequests,
       ended: this.ended,
-      ready: this.snapshot.connected && !!this.session?.commentsReady && !this.ended && !this.stopped,
+      ready: !this.history.previewing && !this.history.locked && !this.history.rejoining && this.snapshot.connected && !!this.session?.commentsReady && !this.ended && !this.stopped,
       person: this.session?.self?.person ?? "", label: this.session?.self?.label ?? "" };
   }
   comment(operation: CommentOperation) {
@@ -128,7 +140,7 @@ export class HostedBoard {
     this.local = local;
     if (link.kind === "board") { this.boardId = link.board; this.commentDrafts = notificationDrafts(this.boardId); }
   }
-  get canEdit() { return this.snapshot.connected && !this.session?.recovering && this.snapshot.role !== "viewer" && !this.ended; }
+  get canEdit() { return !this.history.previewing && !this.history.locked && !this.history.rejoining && this.snapshot.connected && !this.session?.recovering && this.snapshot.role !== "viewer" && !this.ended; }
   get counts() { return changeCounts(this.session?.requests.values() ?? [], this.losses.losses.values()); }
   get notices() { return lossNotices(this.losses); }
   get endingCount() {
@@ -143,8 +155,8 @@ export class HostedBoard {
   get status() {
     return saveState(this.snapshot.connected, this.snapshot.role, this.session?.requests.values() ?? [], this.losses.losses.values());
   }
-  get undoReason() { return this.session?.history.past.length ? "" : "Nothing to undo."; }
-  get redoReason() { return this.session?.history.future.length ? "" : "Nothing to redo."; }
+  get undoReason() { if (this.history.previewing || this.history.locked) return "History preview is read-only."; return this.session?.history.past.length ? "" : "Nothing to undo."; }
+  get redoReason() { if (this.history.previewing || this.history.locked) return "History preview is read-only."; return this.session?.history.future.length ? "" : "Nothing to redo."; }
   subscribe(listener: () => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
   private publish(change: Partial<HostedSnapshot> = {}) {
     if (this.stopped) return;
@@ -254,6 +266,7 @@ export class HostedBoard {
   }
   private finish(attempt: Attempt, event: AttemptEvent) {
     if (!this.current(attempt) || attempt.outcome) return;
+    const hadHistory = this.history.open || this.history.previewing;
     const outcome = attemptOutcome(attempt.outcome, event, !!this.snapshot.board, this.counts.waiting);
     attempt.outcome = outcome;
     clearTimeout(attempt.timer);
@@ -264,10 +277,11 @@ export class HostedBoard {
       const reason = outcome.name === "expired" ? "sign_in_expired" : "access_removed";
       this.session?.discard(reason);
       this.clearDiscussion();
+      if (hadHistory) this.history.denied = true;
     }
     attempt.socket?.close(1000);
     this.clearPresence();
-    this.publish({ connected: false, outcome });
+    this.publish({ connected: false, outcome, ...(!outcome.retry && hadHistory ? { board: undefined } : {}) });
     if (!outcome.retry) return;
     const delay = outcome.retry === "now" ? 0 : retryDelay(this.failures++);
     this.retry = setTimeout(() => { void this.connect(); }, delay);
@@ -291,6 +305,10 @@ export class HostedBoard {
     }
   }
   private joined(session: BoardSession<string>) {
+    const restored = this.restoredGeneration !== undefined && this.restoredGeneration !== session.restoreGeneration;
+    this.restoredGeneration = session.restoreGeneration;
+    this.history.rejoined(restored);
+    if (this.panReturning) { this.history.panEpoch++; this.panReturning = false; }
     this.recoveringIds = [...session.requests].filter(([, request]) => isOutstanding(request)).map(([id]) => id);
     this.received.clear();
     for (const connection of session.present.keys()) this.received.set(connection, ++this.receiveOrder);
@@ -299,9 +317,11 @@ export class HostedBoard {
       generation: this.snapshot.generation + 1 });
     this.updateSession(this.token ?? null);
     void this.refreshMentions();
+    if (historyNavigation.open === this.boardId) { delete historyNavigation.open; this.history.show(); }
   }
   private changed(session: BoardSession<string>, event: SessionEvent) {
     if (this.stopped || this.ended || session !== this.session) return;
+    if (event.kind === "history_restoring") { this.history.restoring(typeof event.actor === "string" ? event.actor : null); return; }
     if (event.kind.startsWith("comment")) { this.publishComments(event); if (event.kind === "comment_changed" || event.kind === "comments_snapshot" && event.done) void this.refreshMentions(); return; }
     if (event.kind === "present" || event.kind === "left") {
       const connection = String(event.connection);
@@ -378,6 +398,7 @@ export class HostedBoard {
   expire() { this.end("expired"); }
   signedOut() { this.end("signedOut"); }
   private clearDiscussion() {
+    this.history.clear();
     ++this.mentionRead;
     this.commentDrafts.clear(); this.unreadMentions.clear(); clearNotificationMemory(this.boardId);
     this.session?.commentRequests.clear(); this.session?.threads.clear();
@@ -398,6 +419,7 @@ export class HostedBoard {
     this.losses = emptyLossRecord();
     this.unreadMentions.clear();
     this.clearPresence();
+    this.history.clear();
     this.stopped = true;
     if (this.attempt) { this.attempt.cancelled = true; clearTimeout(this.attempt.timer); }
     clearTimeout(this.retry); clearTimeout(this.renewal);

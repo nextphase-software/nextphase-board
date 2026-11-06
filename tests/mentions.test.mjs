@@ -51,9 +51,9 @@ test('M-U05 current initialization rollback, idempotence and future-layout refus
  try {
   s.exec=(sql,...args)=>{if(sql.includes('CREATE TABLE IF NOT EXISTS mention_pending'))throw Error('initialization rollback');execute(sql,...args);};
   assert.throws(()=>initialize(s),/initialization rollback/);assert.deepEqual(s.all("SELECT name FROM sqlite_master WHERE type='table'"),[]);
-  s.exec=execute;initialize(s);assert.equal(meta(s,'storage_version'),0);setMeta(s,'storage_version',4);
+  s.exec=execute;initialize(s);assert.equal(meta(s,'storage_version'),0);setMeta(s,'storage_version',5);
   const before=s.all('SELECT * FROM sqlite_master ORDER BY name');initialize(s);assert.deepEqual(s.all('SELECT * FROM sqlite_master ORDER BY name'),before);
-  setMeta(s,'storage_version',5);assert.throws(()=>initialize(s),/storage_unsupported/);
+  setMeta(s,'storage_version',6);assert.throws(()=>initialize(s),/storage_unsupported/);
  } finally{s.close();}
 });
 test('M-U06 shared scheduler enumerates all board IDs and retains delivery concurrency and access pass',async()=>{

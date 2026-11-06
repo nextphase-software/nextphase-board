@@ -374,3 +374,22 @@ restore, the explicit 16 MiB backup refusal and the complete mention/inbox look 
 stay in force. No dependency or board-document/file format changes. Earlier-client and older-saved-format
 compatibility is outside this draft's requirements. See the
 [brief](../briefs/0005-W2-mention-participants-in-board-discussions.md) for the exact allowed files/checks.
+
+For [0006-W3 v1 — Manage board history](../briefs/0006-W3-manage-board-history.md) (draft), use:
+
+- [0006-board-lifecycle-v1](0006-board-lifecycle-v1.md).
+- [0003-hosted-storage-v7](0003-hosted-storage-v7.md).
+- [0003-hosted-persistence-v7](0003-hosted-persistence-v7.md).
+- [0003-api-v7](0003-api-v7.md).
+- [0003-access-v7](0003-access-v7.md).
+- [0003-sync-v8](0003-sync-v8.md).
+- [0001-document-v12](0001-document-v12.md).
+- [0005-comments-v3](0005-comments-v3.md).
+- [0001-interaction-v33](0001-interaction-v33.md).
+- [0001-web-modules-v31](0001-web-modules-v31.md).
+- [0003-self-host-runner-v3](0003-self-host-runner-v3.md).
+
+These versions govern retained document history, layout 5, same-board restore with preserved
+current discussion/notices, live rights, generation fences and concrete history rendering with
+viewer-local timestamps. Saved document 10, identity v4, presence v1, storage v3, board file v2
+and toolchain/lock/inventory v5/runtime notices v3 remain unchanged. Trash/deletion are 0006-W4.

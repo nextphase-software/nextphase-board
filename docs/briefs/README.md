@@ -337,6 +337,11 @@ is a draft: permission-limited blue mentions in hosted comments, Home's latest 5
 in-app notices, explicit read/unread/dismiss, exact discussion navigation and fenced delivery.
 It introduces ten contract versions listed in the brief; no dependency change. It is not implemented.
 
+[0006-W3 v1 — Manage board history](0006-W3-manage-board-history.md) is a draft for retained
+team-board versions, viewer browsing, editor save/name and confirmed document-only restore.
+Its eleven contracts specify layout 5, current discussion/notice preservation, local timestamps
+and generation fences. No dependency change. Trash and board deletion are 0006-W4.
+
 Each brief is a complete contributor-facing contract. Use this structure:
 
 ```text

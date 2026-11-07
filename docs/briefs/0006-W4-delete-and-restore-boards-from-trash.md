@@ -393,3 +393,90 @@ Mandatory public-boundary hooks remain; source/record validation is not independ
 ## Implementation record
 
 (Appended by the implementer.)
+
+### Implementation v1 — 2026-11-07
+
+- Branch: `codex/0006-W4-delete-and-restore-boards-from-trash`.
+- Actual committed prerequisite base: `cffffbdaf54d6286339a8ce3063775cfb2b820da`.
+- Validated source/test revision: `9cd9c62610b3e7e52257b9857974822068e8d47e`.
+  The later record-only tip is reported separately in the implementation handoff.
+- Source scope: 58 files; lifecycle authority/routes/phase continuation, both runner
+  adapters and independent metadata ledger, ordered room freeze/recovery gates,
+  owner Trash/dialogs/sidebar, terminal protected clearing and current-format tests.
+  No dependencies added. Only the two permitted Vitest includes change configuration.
+  Saved document 10 / room layout 5, 22 state hooks and 37 team modules remain;
+  `App.tsx`, all prerequisite contracts, indexes and dependency inputs are unchanged.
+
+| Validation | Actual result |
+| --- | --- |
+| V1 | PASS. All 20 tracked manifest/lock/inventory/runtime-notice inputs equal the prerequisite base byte-for-byte; zero new dependencies. |
+| V2 | PASS. `npm ci --ignore-scripts --no-audit --no-fund` exited 0 under Node 26.13.0 / npm 11.20.0, for the candidate and an independently extracted/installed prerequisite base. An initial shell selected another installed toolchain; PATH was corrected before validation. |
+| V3 | PASS. `npm run typecheck` exited 0 for all five workspace members. |
+| V4 | PASS. `npm test` exited 0: 923 tests, 923 passed, 0 failed/skipped. L-U01–L-U10 pass. Existing M-U14 reconnect/draft assertions are unchanged and pass; existing unit edits only add active-authority fixtures and the v32 module inventory. |
+| V5 | PASS. Off build and license audit exited 0. Off `index.html` and `THIRD_PARTY_NOTICES.txt` equal the independently installed base; no team or Supabase bundle inputs. |
+| V6 | PASS. Fixture build, on build and license audit exited 0. On `index.html` equals independent base; on notices equal base and runtime notices v3. |
+| V7 | PASS. Node/Worker server build, license audit and Wrangler 4.156.0 deployment dry run exited 0. The dry run exited without deployment. |
+| V8 | PASS. Inspected the complete base-to-validated changed-file list and implementation hunks; only deliverables 1–4 change. `git diff --check` on that exact committed range exits 0. This later append is the only record-inclusive difference. |
+
+Validation commands (repository root, pinned toolchain):
+
+```sh
+npm ci --ignore-scripts --no-audit --no-fund
+npm run typecheck
+npm test
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+npm run audit:licenses
+npm run build:fixtures
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+npm run audit:licenses
+npm run build:server
+npm run audit:licenses
+WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json
+git diff --name-status cffffbdaf54d6286339a8ce3063775cfb2b820da..9cd9c62610b3e7e52257b9857974822068e8d47e
+git diff --check cffffbdaf54d6286339a8ce3063775cfb2b820da..9cd9c62610b3e7e52257b9857974822068e8d47e
+```
+
+The base was extracted with `git archive` at the exact prerequisite revision into
+scratch and installed there without candidate dependency links. Off/on candidate
+and base web artifacts were copied aside before replacement. Wrangler output/logs,
+unit/typecheck logs, test-only adapter bundles and comparisons remain scratch output.
+The new server test file and both test adapters also bundle successfully with the
+existing esbuild; bundling is not server execution.
+
+Byte-comparison receipts (SHA-256, identical candidate/base):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Off index | `66f0d8d097b0c1b88dba01e2fe87c1233b576b3d0019e81401434a7f58a74c8e` |
+| Off notices | `3367640f4a3b473755079ad41dc46c67bd65ed2dd21a0ca47edcd14944d3a91d` |
+| On index | `9829ba305ce746513c6c6bcd3735b505123b2eecd96962d2573b3ef0a65886ee` |
+| On notices / runtime notices v3 | `2c7ff36a2ae55948ac01928c713c7f203d1771198cfde411a845693750368c76` |
+
+AS07–AS11 implementation evidence is bounded to source inspection, unit assertions
+and the builds above: strict elapsed admission helpers, immutable retry/cycle state,
+metadata-only bounded journals, original history fingerprint preservation across a
+room fence, accepted-history-intent exclusion, discarded callbacks, resumed GET-only
+rows, late-response invalidation and terminal request/document/draft clearing.
+The independent journal validates nonnegative safe integers, refuses arrays, limits
+UTF-8 to 65,536 bytes and checks the complete encoded row below 131,072 bytes. SQL
+request constraints enforce journal and encoded-row bounds. Existing 1,048,576-byte
+raw history/intent chunks, 2,097,152-byte canonical documents and 16,777,216-byte
+backup refusal remain. Actual SQL maximal-row/chunk measurements and physical
+both-runner proof are registered in S219/S210–S216, not claimed from these unit checks.
+
+S195–S224 are registered on both runners, with individual PASS/FAIL and
+`SUMMARY-LIFECYCLE` output when executed. They were **not run** here. V9–V13,
+T1, its baseline negative control, both full server suites, browser state/value
+comparisons and the accepted A–J/H1/C2/W5/X1 regressions remain for the fresh,
+independent full-access check. No browser or Supabase CLI was started, no SQL schema
+was applied and no deployment, external message, push or next milestone occurred.
+No W3 supplemental runtime result is inferred. SQL/runner race, recovery and visual
+acceptance remain unsettled until that check. SQL recovery requires the latest
+independently preserved register and unresolved ledger to be reapplied before serving,
+as documented in the server README; an older SQL copy cannot establish completeness.
+
+Graph discovery/indexing tools were unavailable under the session's approval policy;
+source inspection was the fallback. Both mandatory public-boundary commit hooks
+passed. Git emitted a sandbox `packed-refs.lock` maintenance warning after the
+source commit; the expected milestone ref, parent and source commit were verified.
+No hook was bypassed and no unrelated files or checkpoints changed.

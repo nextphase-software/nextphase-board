@@ -498,3 +498,85 @@ Git emitted a non-fatal packed-refs.lock sandbox permission warning during commi
 maintenance; both commits succeeded, branch refs were verified and worktree status
 was clean. No permissions or hooks were bypassed. The maintainer retains merge and
 publication; this is implementation evidence only.
+
+### 2026-11-07 — fix round 1
+
+- Branch: `codex/0006-W3-manage-board-history`; resumed from the clean record-inclusive
+  candidate `50e0037952f0304fc1d7b29cf3048c3be95fa4be`.
+- Base committed main remains `48f80523421e51fde429bab81f9aefa9b2ebdee5`.
+- Validated source/test revision (one fix commit):
+  `da634d4a6bfc644ff4c16f56b987f14fa5e57b17`.
+  The later record-inclusive tip is reported separately after this append is committed.
+- Added dependencies: **none**. Node `26.13.0` / npm `11.20.0` used throughout.
+  Saved document 10 and room layout 5 remain unchanged. Pre-launch scope applies.
+
+| Item | Classification and change | Evidence actually available in this run |
+| --- | --- | --- |
+| H1-S25 | Product: HistoryModal explicitly wraps forward Tab from the last enabled visible control to the first and reverse Tab from the first to the last; restore confirmation follows Cancel → Restore → Cancel. Pending Retry loops to itself; no enabled controls retains dialog focus. | New H-U21 bundles the actual private component and executes its actual key handler: confirmation forward/reverse traversal, Save/Name field order, hidden/disabled controls, pending states and unrelated keys. It failed before the product change and passes after it; the full unit suite also passes. Browser proof remains for check-2. |
+| S170 Node | Test control: reapply fixedNow after both affected wakes, before the next room operation, including the expiry/fingerprint wake. Node wake restarts its child process and resets the module-scoped clock. | Driver/control source inspection confirms the reset and reapplication order; all existing capture-count, expiry and A→B→A fingerprint assertions are retained. Source syntax check passes; runtime row not run here. |
+| S182 Node | Test control: reapply failHistory=cleanup immediately after wake, before the restore retry. Node restart otherwise removes the injected cleanup failure. | Driver/control source inspection confirms the reset; the 503, durable phase/lock/chunk, retry/completion and cleanup assertions are retained. Source syntax check passes; runtime row not run here. |
+
+No server product defect was found for S170/S182: both failures follow loss of
+process-local test controls. Their tests now explicitly restore those controls;
+the same calls are idempotent on workerd. All **130** existing server-history
+assertion expressions are byte-identical to the starting candidate.
+
+#### Fix-round implementer validation (V1–V8)
+
+Commands ran in the milestone worktree. Fresh base off/on artifacts came from a
+clean archive of the base SHA, with its own `npm ci`, without candidate source
+links. Scratch logs/artifacts were retained outside the repository. All listed
+commands exited 0 unless a deliberate red regression is explicitly identified.
+
+| Check | Command / inspection | Actual result |
+| --- | --- | --- |
+| V1 | Compare all package.json/package-lock.json/dependency lock/inventory/runtime notices against base blobs | PASS: all 20 protected files identical, zero new dependencies; App.tsx and tests/history.test.mjs also unchanged |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` | PASS: 118 packages installed |
+| V3 | `npm run typecheck` | PASS: all five workspace members |
+| V4 | `npm test` | PASS: 913 tests, 913 pass, 0 fail/cancelled/skipped/todo; H-U01–H-U21 pass |
+| V5 | Off build command below; `npm run audit:licenses`; raw artifact comparisons and meta.json inspection | PASS: off index.html and notices byte-identical to independent base off; no team/Supabase inputs |
+| V6 | `npm run build:fixtures`; on build command below; `npm run audit:licenses`; raw artifact comparisons | PASS: on index.html equals independent base on; notices equal base on and runtime notices v3 |
+| V7 | `npm run build:server`; `npm run audit:licenses`; `npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` | PASS: Node/Worker bundles and notices verified; dry run explicitly exited without deployment |
+| V8 | `git diff --name-status 48f80523421e51fde429bab81f9aefa9b2ebdee5..da634d4a6bfc644ff4c16f56b987f14fa5e57b17`; scope/hunk review; `git diff --check` over the same range | PASS: 53 permitted files including the earlier append-only record; this round's fix changes only the three files below. Brief requirements, contracts and indexes unchanged; diff check exit 0 |
+
+Exact build commands (also used in the clean base archive):
+
+```sh
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+```
+
+Each dist was copied before the next build. Raw base/candidate equality, with no
+normalization, produced these SHA-256 receipts:
+
+| Artifact | SHA-256 (base = candidate) |
+| --- | --- |
+| Off index.html | `66f0d8d097b0c1b88dba01e2fe87c1233b576b3d0019e81401434a7f58a74c8e` |
+| Off notices | `3367640f4a3b473755079ad41dc46c67bd65ed2dd21a0ca47edcd14944d3a91d` |
+| On index.html | `9829ba305ce746513c6c6bcd3735b505123b2eecd96962d2573b3ef0a65886ee` |
+| On notices (also runtime notices v3) | `2c7ff36a2ae55948ac01928c713c7f203d1771198cfde411a845693750368c76` |
+
+Focused commands: `node --test --test-name-pattern=H-U21 tests/board-history.test.mjs`
+failed against the old handler (one deliberate failing test), then passed against
+the fixed handler (1 pass, 0 fail). `node --check tests/server/history.test.ts`
+passed; syntax inspection is not a server-suite result.
+
+Fix commit changes exactly `apps/web/src/team/history-panel.tsx`,
+`tests/board-history.test.mjs` and `tests/server/history.test.ts`. This append adds
+only this brief, for **4 files** in this round across `apps/web/src/team`, `tests`,
+`tests/server` and `docs/briefs`. No prior record text is changed.
+
+V9–V13, browser H1-S25 and server S170/S182 were **not run** here. A read-only
+Docker capability probe succeeded (server 29.5.2), but accepted server-suite global
+setup applies the SQL schema twice. Schema application is prohibited in this run,
+so the suite was not invoked or altered to bypass setup. Check-2 must execute
+S170/S182 on both runners, including every formerly unreached assertion, and the
+running-build focus check. No result is waived or claimed passed from source alone.
+No browser, Supabase CLI, schema application, deployment, external message, push,
+merge, main edit or extra agent was used. No new requirement was assumed.
+
+Mandatory public-boundary hooks printed PASS twice for the fix commit. Git again
+printed a non-fatal packed-refs.lock sandbox warning; the commit succeeded, its
+branch SHA was verified and the worktree was clean before this record append.
+No hook or permission was bypassed. The record-only commit receives diff/boundary
+checks; application tests/builds are not repeated for documentation alone.

@@ -10,7 +10,7 @@ function fixture() {
   const storage = new NodeStorage(":memory:"), board = crypto.randomUUID(), person = crypto.randomUUID();
   let now = Date.now(), fence = 0, offline = false;
   const connections = [], messages = [];
-  const environment = { storage, access: {
+  const environment = { storage, lifecycle: { lifecycle: async () => ({ state: "active", generation: 0 }) }, access: {
     async board() { return { id: board, title: "Room", workspaceId: crypto.randomUUID(), createdAt: new Date(now).toISOString() }; },
     async role() { return "editor"; },
     async changes() { if (offline) throw Error(); return { changes: [], latest: 0, lowestKept: 1 }; },

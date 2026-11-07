@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { requireActive } from "./lifecycle.ts";
 import * as Y from "yjs";
 import type { BoardV10 } from "nextphase-board-rules/document.ts";
 import type { Access } from "./access.ts";
@@ -23,6 +24,7 @@ export class EditSession {
     this.env = env; this.access = access; this.host = host;
   }
   async handle(connection: Connection, message: Edit, text: string) {
+    await requireActive(this.env, this.host.board.boardId);
     const grant = this.access.get(connection.attachment().id);
     const refuse = (reason: string, needed?: string) => send(connection, {
       kind: "refused", requestId: message.requestId, reason, ...(needed ? { needed } : {}),
@@ -33,6 +35,7 @@ export class EditSession {
     let update: Uint8Array;
     try { update = unbase64(message.update); } catch { refuse("invalid_update"); return; }
     const digest = await this.env.hash(update);
+    await requireActive(this.env, this.host.board.boardId);
     const receipt = this.env.storage.all("SELECT * FROM receipts WHERE person_id = ? AND request_id = ?", connection.attachment().id, message.requestId)[0];
     if (receipt) {
       if (receipt.kind !== "edit" || receipt.digest !== digest) refuse("request_id_reused");
@@ -66,6 +69,7 @@ export class EditSession {
     } else if (result === "saved") await this.retryWaiting();
   }
   private async save(connection: Connection, requestId: string, update: Uint8Array, digest: string) {
+    await requireActive(this.env, this.host.board.boardId);
     const result = evaluate(this.host.doc, this.host.board, update, this.env.storage);
     if (result.kind === "waiting") return "waiting";
     if (result.kind === "refused") { send(connection, { kind: "refused", requestId, reason: result.reason }); return "refused"; }

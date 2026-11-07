@@ -1295,3 +1295,44 @@ textarea.history-field { height:96px; resize:none; }
 }
 
 .history-ending { position:fixed; inset:0; background-color:#fafafa; background-image:radial-gradient(#ddd 1px,transparent 1px); background-size:24px 24px; }
+
+/* Workspace Trash and lifecycle controls (interaction v34). */
+.w4-sidebar-slot { flex:none; width:20px; height:20px; }
+button.w4-danger { color:#a32940; }
+button.w4-destructive,button.w4-destructive:hover:not(:disabled):not([aria-disabled=true]) { color:#fff; background:#a32940; border-color:#a32940; }
+.w4-title { display:flex; align-items:center; gap:10px; margin-bottom:20px; }
+.w4-title h2 { margin:0; font-size:24px; font-weight:600; }
+.w4-title .home-chip { margin-left:0; }
+.home .w4-explain { padding:12px; margin:0 0 16px; background:#f3f0f8; border:1px solid #e9e7ed; border-radius:8px; font:13px/1.5 system-ui; color:#45434d; }
+.w4-list { display:flex; flex-direction:column; gap:12px; }
+.w4-row { display:grid; grid-template-columns:minmax(0,1fr) max-content; align-items:center; gap:16px; padding:16px; border:1px solid #e9e7ed; border-radius:12px; background:#fff; box-shadow:0 2px 8px #29202e0a; }
+.w4-meta { min-width:0; display:flex; flex-direction:column; gap:4px; font:13px/1.5 system-ui; }
+.w4-meta strong { font-size:14px; font-weight:600; }
+.w4-meta small { font-size:12px; color:#79737f; overflow-wrap:anywhere; }
+.w4-row-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.w4-message,.w4-success { padding:12px; border:1px solid #e9e7ed; border-radius:8px; font:13px/1.5 system-ui; }
+.w4-message { background:#fff5da; color:#936000; }
+.w4-success { background:#fff; color:#29272e; }
+.home .w4-row-state { grid-column:1 / -1; margin:0; }
+.w4-state { display:flex; flex-direction:column; align-items:center; gap:8px; padding:40px 20px; text-align:center; font:13px/1.5 system-ui; color:#79737f; }
+.w4-state strong { font:700 14px/21px system-ui; color:#29272e; }
+.w4-state.error strong { color:#a32940; }
+.home .w4-state p { margin:0; }
+.w4-state button { font:400 13px/19.5px system-ui; color:#79737f; }
+.w4-modal { max-height:calc(100dvh - 100px); overflow:auto; padding:24px; border:1px solid #e9e7ed; border-radius:12px; background:#fff; }
+.w4-modal::backdrop { background:#29272e66; }
+.w4-modal h1 { font-size:20px; font-weight:700; margin:0 0 12px; }
+.home .w4-modal p,.w4-modal p { margin:14px 0; font-size:14px; line-height:1.5; }
+.w4-modal .comment-note { padding:8px 10px; font:13px/1.4 system-ui; border:1px solid #e9e7ed; border-radius:8px; }
+.w4-modal .comment-note.error { border-color:#f2cdd5; color:#a32940; background:#fdf0f2; }
+.w4-modal .comment-note.amber { color:#936000; background:#fff5da; }
+.w4-title h2:focus,.w4-state strong:focus,.history-denied h1:focus,.w4-modal:focus,.home-toast:focus { outline:3px solid #7051cf; outline-offset:3px; }
+.w4-end-status { font:13px/1.5 system-ui; color:#79737f; }
+@media(max-width:599.98px) {
+  .w4-title { flex-wrap:wrap; gap:8px; }
+  .w4-row { grid-template-columns:minmax(0,1fr); gap:12px; padding:12px; }
+  .w4-row-actions { flex-direction:column; }
+  .w4-row-actions button { width:100%; }
+  .home .w4-explain { padding:10px; }
+  .w4-state { padding:24px 10px; }
+}

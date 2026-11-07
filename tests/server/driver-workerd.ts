@@ -25,6 +25,7 @@ export async function makeDriver(context: Context): Promise<Driver> {
       return result;
     },
     async control(value) {
+      if(value.board&&value.inventory){return runInDurableObject(roomStub(String(value.board)),async(instance:any)=>({tables:instance.state.storage.sql.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '_cf_%'").toArray(),alarm:await instance.state.storage.getAlarm()}));}
       if (value.board && value.fences) {
         const stub = bindings.FENCES.get(bindings.FENCES.idFromName(String(value.board)));
         const result = await stub.fetch('http://fence/read').then((response: Response) => response.json()) as { generation: number };

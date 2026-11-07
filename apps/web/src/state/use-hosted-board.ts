@@ -14,6 +14,10 @@ export function useHostedBoard({ hosted, model, load, setBoard, setTitle, setRea
     if (!hosted) return;
     let generation = "", panEpoch = -1;
     const changed = () => {
+      if (hosted.unavailable) {
+        load({ ...model.current, title:"Untitled", objects:[], retiredGenerations:[] });
+        setTitle(""); setDrafts({}); select(""); setTool("Select"); setInline(false); setReadOnly(true); return;
+      }
       const board = hosted.paintBoard, nextGeneration = `${hosted.snapshot.generation}:${hosted.history.paintEpoch}`;
       if (board && generation !== nextGeneration) { load(board); select(""); generation = nextGeneration; }
       else if (board && JSON.stringify(board) !== JSON.stringify(model.current)) {

@@ -65,3 +65,9 @@ export function LeaveBoardQuestion({ count, boardName, pending, stay }: {
     </div>
   </dialog>;
 }
+
+export function UnavailableEnding({ home }: { home: () => void }) {
+  const title = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { title.current?.focus(); const frame = requestAnimationFrame(home); return () => cancelAnimationFrame(frame); }, []);
+  return <div className="history-ending"><section className="history-denied"><h1 ref={title} tabIndex={-1}>This board is not available.</h1><p>You may not have access, or it may no longer be available.</p><p className="w4-end-status">Returning to Home…</p></section></div>;
+}

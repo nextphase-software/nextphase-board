@@ -11,7 +11,9 @@ import { parseLink, type TeamLink } from "./links";
 import { words } from "./notices";
 import { SignIn } from "./sign-in";
 import { ShareDialog } from "./share-dialog";
-import { EndBoardDialog, LeaveBoardQuestion, TeamPage, type PendingLeave } from "./pages";
+import { LifecycleDialog } from "./trash";
+import { lifecycleNavigation } from "./lifecycle";
+import { EndBoardDialog, UnavailableEnding, LeaveBoardQuestion, TeamPage, type PendingLeave } from "./pages";
 import { clearNotificationMemory } from "./notification-navigation";
 import { HistoryPanel, HistoryDenied } from "./history-panel";
 import { historyNavigation } from "./history";
@@ -60,7 +62,7 @@ export function TeamApp() {
       // Auth holds its lock in this callback. Session work runs after it returns.
       queueMicrotask(() => {
         if (accountId.current !== (next?.user.id ?? "")) {
-          names.current.clear(); clearNotificationMemory(); delete historyNavigation.open; delete historyNavigation.source; delete historyNavigation.returnBoard;
+          names.current.clear(); clearNotificationMemory(); delete lifecycleNavigation.restoredBoard; delete lifecycleNavigation.focusWorkspace; delete lifecycleNavigation.unavailable; delete historyNavigation.open; delete historyNavigation.source; delete historyNavigation.returnBoard;
           active.current?.signedOut(); accountId.current = next?.user.id ?? ""; setEpoch(value => value + 1);
         }
         setSession(next); setReady(true);
@@ -76,6 +78,7 @@ export function TeamApp() {
     ownSignOut.current = true;
     active.current?.signedOut();
     clearNotificationMemory();
+    delete lifecycleNavigation.restoredBoard; delete lifecycleNavigation.focusWorkspace; delete lifecycleNavigation.unavailable;
     names.current.clear();
     active.current?.stop(); active.current = null;
     setForceGate(local); setSession(null); setEpoch((value) => value + 1);
@@ -86,10 +89,10 @@ export function TeamApp() {
   const closeBoard = () => askLeave(() => { active.current?.stop(); active.current = null; location.hash = "#/files"; });
   const account = session ? <div className="team-account">{words.signedInAs(session.user.email ?? "")}
     <button onClick={() => askLeave(() => { void signOut(); })}>Sign out</button></div> : undefined;
-  if (link.kind === "home") {
+  if (link.kind === "home" || link.kind === "trash") {
     if (!ready) return <main className="team-page"><span role="status">Loading boards…</span></main>;
     if (!session) return <SignIn gate home close={() => {}} />;
-    return <Home key={fragment + epoch} workspaceId={link.workspace} email={session.user.email ?? ""}
+    return <Home key={fragment + epoch} trash={link.kind === "trash"} workspaceId={link.workspace} email={session.user.email ?? ""}
       names={names.current} signOut={() => { void signOut(); }} />;
   }
   if (link.kind !== "local") {
@@ -141,6 +144,7 @@ function HostedRoute({ link, session, active, account, close, signInAgain, resta
   if (forceGate) return <SignIn gate close={restart} />;
   if (link.kind === "bad") return <TeamPage outcome={{ name: "notFound", retry: false }} close={close} signIn={signInAgain} />;
   const outcome = snapshot?.outcome ?? null;
+  if (board?.unavailable) return <UnavailableEnding home={() => { names.delete(board.boardId); clearNotificationMemory(board.boardId); lifecycleNavigation.unavailable = true; board.stop(); active.current = null; location.hash = "#/files"; }} />;
   if (board?.history.denied || outcome?.name === "notFound") return <HistoryDenied back={close} />;
   const ending = outcome && ["expired", "signedOut", "accessRemoved"].includes(outcome.name);
   if ((!session && !snapshot?.board) || outcome?.name === "expired" && !snapshot?.board) {
@@ -164,6 +168,7 @@ function HostedRoute({ link, session, active, account, close, signInAgain, resta
       {banner && <div className={"team-banner" + (!snapshot.connected ? " team-amber" : "")} role="status">{banner}</div>}
     </div> : undefined }} />
     <HistoryPanel hosted={board} />
+    <LifecycleDialog controller={board.lifecycle} moved={() => board.confirmUnavailable()} />
     {toast && <div className="team-toast" role="status">{toast}</div>}
     {share && !ending && !leave && <ShareDialog hosted={board} email={session?.user.email ?? ""} personId={session?.user.id ?? ""} close={() => setShare(false)} />}
     {leave && waiting > 0 && <LeaveBoardQuestion count={waiting} boardName={snapshot.board.title} pending={leave} stay={stay} />}

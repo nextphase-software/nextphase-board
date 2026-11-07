@@ -58,7 +58,7 @@ test('M-U05 current initialization rollback, idempotence and future-layout refus
 });
 test('M-U06 shared scheduler enumerates all board IDs and retains delivery concurrency and access pass',async()=>{
  const {deliver}=await import('../apps/server/src/delivery.ts');const boards=Array.from({length:23},(_,i)=>String(i));let active=0,max=0,visited=0,access=0;
- const db={rpc:async name=>name==='mention_boards'?boards:name==='pending_access_boards'?['access']:[]};
+ const db={lifecycle:async()=>({state:'active',generation:0}),rpc:async name=>name==='mention_boards'?boards:name==='pending_access_boards'?['access']:[]};
  await deliver({db,room:()=>({deliverNotices:async()=>{active++;max=Math.max(max,active);await new Promise(r=>setImmediate(r));visited++;active--;},changed:async()=>{assert.equal(visited,23);assert.equal(active,0);access++;return 0;}})});
  assert.equal(visited,23);assert.equal(max,10);assert.equal(access,1);
 });
@@ -67,7 +67,7 @@ async function mentionRoom() {
  const {Room}=await import('../packages/board-room/src/room.ts');const {NodeStorage}=await import('../apps/server/src/node-storage.ts');const {createHash}=await import('node:crypto');
  const storage=new NodeStorage(':memory:'),board=crypto.randomUUID(),peers=[];
  const recipient={id:crypto.randomUUID(),person:key,label:'ben',suffix:'',lease:crypto.randomUUID()};
- const env={storage,access:{board:async()=>({id:board,title:'Synthetic',createdAt:new Date(0).toISOString()}),changes:async()=>({changes:[],latest:0,lowestKept:1}),role:async()=> 'editor'},
+ const env={storage, lifecycle: { lifecycle: async () => ({ state: "active", generation: 0 }) },access:{board:async()=>({id:board,title:'Synthetic',createdAt:new Date(0).toISOString()}),changes:async()=>({changes:[],latest:0,lowestKept:1}),role:async()=> 'editor'},
   mentions:{roster:async()=>[recipient],validTargets:async(_b,targets)=>targets.map(t=>t.occurrence),project:async()=>{},clearNotices:async()=>{}},
   now:()=>10000,fence:async()=>0,raiseFence:async()=>1,hash:async value=>createHash('sha256').update(value).digest('hex'),randomId:()=>crypto.randomUUID(),randomTicket:()=>crypto.randomUUID(),
   connections:()=>peers,schedule:async()=>{},backupLimit:16777216};

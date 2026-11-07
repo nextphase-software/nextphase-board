@@ -7,6 +7,19 @@ export type RecordRow = Record<string, any>;
 import { duplicateSuffixes } from "nextphase-board-sync/mentions.ts";
 import { labelOf } from "nextphase-board-room/tickets.ts";
 export class Supabase implements AccessSource, BoardRows {
+  lifecycleGuard?: (board:string,row:import("nextphase-board-room/lifecycle.ts").Lifecycle|null,request:Record<string,unknown>|null)=>Promise<void>;
+  async lifecycle(board: string): Promise<import("nextphase-board-room/lifecycle.ts").Lifecycle | null> {
+    const row=await this.rpc<import("nextphase-board-room/lifecycle.ts").Lifecycle|null>("lifecycle_value", { board });
+    if(this.lifecycleGuard){
+      const request=row?.operationId?await this.rpc<Record<string,unknown>|null>("lifecycle_recovery_request",{board,operation:row.operationId}):null;
+      await this.lifecycleGuard(board,row,request);
+    }
+    return row;
+  }
+  async admitLifecycle(board: string, r: import("nextphase-board-room/lifecycle.ts").LifecycleRequest, now: number, floor: number): Promise<import("nextphase-board-room/lifecycle.ts").Lifecycle> {
+    const row=await this.rpc<import("nextphase-board-room/lifecycle.ts").Lifecycle>("admit_lifecycle", { board, caller:r.person,workspace:r.workspace,operation:r.operation,request:r.requestId,expected_cycle:r.expectedCycle,digest:r.digest,at_ms:now,floor_generation:floor });
+    await this.lifecycle(board); return row;
+  }
   client: SupabaseClient;
   constructor(url: string, serviceKey: string, fetcher = fetch) {
     this.client = createClient(url, serviceKey, {
@@ -19,9 +32,11 @@ export class Supabase implements AccessSource, BoardRows {
     if (error) {
       const statuses: Record<string, number> = { owner_row_immutable: 409, guest_has_grants: 409,
         account_disabled: 403, person_not_found: 404,
+        service_unavailable:503, lifecycle_pending:503, restore_pending:503, move_failed:503, restore_failed:503,
+        request_id_reused:409, lifecycle_changed:409, trash_expired:409, role_too_low:403,
         not_found: 404, invitation_email_mismatch: 403, invitation_expired: 410, invitation_used: 410,
         invitation_cancelled: 410, bad_request: 400 };
-      if (statuses[error.message]) throw new RoomError(statuses[error.message], error.message);
+      if (statuses[error.message]) throw new RoomError(statuses[error.message], error.message, error.message === "role_too_low" ? "owner" : undefined);
       throw new RoomError(503, "service_unavailable");
     }
     return data as T;
@@ -36,12 +51,21 @@ export class Supabase implements AccessSource, BoardRows {
   async deleteBoard(id: string): Promise<void> {
     const { error } = await this.client.schema("nextphase_board").from("boards").delete().eq("id", id);
     if (error) throw new RoomError(503, "service_unavailable");
+    const authority = await this.client.schema("nextphase_board").from("board_lifecycle").delete().eq("board_id", id).eq("state", "active").eq("cycle", 0);
+    if (authority.error) throw new RoomError(503, "service_unavailable");
   }
   async board(id: string): Promise<BoardDetails | null> {
     const row = (await this.rows("boards", { id }))[0];
-    return row ? boardDetails(row) : null;
+    if (!row) return null;
+    return (await this.lifecycle(id))?.state === "active" ? boardDetails(row) : null;
   }
-  role(person: string, board: string): Promise<Role | null> { return this.rpc("board_role", { person, board }); }
+  async role(person: string, board: string): Promise<Role | null> {
+    const life = await this.lifecycle(board);
+    if (!life || life.state !== "active") return null;
+    const role=await this.rpc<Role|null>("board_role", { person, board });
+    const current=await this.lifecycle(board);
+    return current?.state === "active" ? role : null;
+  }
   changes(board: string, after: number): Promise<AccessPage> { return this.rpc("access_changes_after", { board, after }); }
   async workspaceRole(person: string, workspace: string): Promise<string | null> {
     return (await this.workspaces(person)).find((row) => row.id === workspace)?.role ?? null;
@@ -55,10 +79,14 @@ export class Supabase implements AccessSource, BoardRows {
     await this.rpc("record_board_open", { person, board, opened_at: new Date(at).toISOString() });
   }
   workspaces(person: string): Promise<RecordRow[]> { return this.rpc("list_workspaces", { person }); }
-  boards(person: string, workspace: string, sort: Sort, direction: Order, after?: Cursor): Promise<RecordRow[]> {
-    return this.rpc("list_boards", { person, workspace, sort, direction, after_key: after?.key ?? null, after_id: after?.id ?? null });
+  async activeRows(rows:RecordRow[]):Promise<RecordRow[]> {
+    const states=await Promise.all(rows.map(row=>this.lifecycle(String(row.id))));
+    return rows.filter((_,i)=>states[i]?.state==='active');
   }
-  recentBoards(person: string): Promise<RecordRow[]> { return this.rpc("list_recent_boards", { person }); }
+  async boards(person: string, workspace: string, sort: Sort, direction: Order, after?: Cursor): Promise<RecordRow[]> {
+    return this.activeRows(await this.rpc("list_boards", { person, workspace, sort, direction, after_key: after?.key ?? null, after_id: after?.id ?? null }));
+  }
+  async recentBoards(person: string): Promise<RecordRow[]> { return this.activeRows(await this.rpc("list_recent_boards", { person })); }
   validTargets(board: string, targets: object[]): Promise<string[]> { return this.rpc("valid_mention_targets", { board, targets }); }
   async roster(board: string, caller: string) {
     const rows = await this.rpc<RecordRow[]>("mention_roster", { board, caller });

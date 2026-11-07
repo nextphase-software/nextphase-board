@@ -16,7 +16,7 @@ function fixture() {
   const person = "22222222-2222-4222-8222-222222222222";
   let now = 1000000, fence = 0, role = "editor", latest = 0;
   const peers = [], events = [];
-  const env = { storage, now: () => now, access: {
+  const env = { storage, lifecycle: { lifecycle: async () => ({ state: "active", generation: 0 }) }, now: () => now, access: {
     async board() { return { id: board, title: "Presence", createdAt: new Date(now).toISOString() }; },
     async role() { return role; },
     async changes(_board, after) { return { latest, lowestKept: 1, changes: latest > after ? [{ personId: person, number: latest }] : [] }; },

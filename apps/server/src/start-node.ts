@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { checkLedger, ledgerRecord, type RecoveryRecord } from "./lifecycle.ts";
 import { serve } from "@hono/node-server";
 import { WebSocketServer } from "ws";
 import { mkdir, access, rm } from "node:fs/promises";
@@ -42,11 +43,18 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
   const auth = options.auth ?? new Auth(settings, now);
   const fenceFile = resolve(settings.dataDir, "restore-fences.sqlite");
   let fenceStorage: NodeStorage | undefined;
+  let existingFence = false;
+  try { await access(fenceFile); existingFence = true; } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") existingFence = true; }
   function openFence() {
     if (!fenceStorage) {
       const storage = new NodeStorage(fenceFile);
-      try { storage.exec("CREATE TABLE IF NOT EXISTS fences (board_id TEXT PRIMARY KEY, generation INTEGER NOT NULL)"); }
+      try {
+        if (existingFence && !storage.all("SELECT name FROM sqlite_master WHERE type='table' AND name='lifecycle_ledger'").length) throw Error("Independent lifecycle ledger missing");
+        storage.exec("CREATE TABLE IF NOT EXISTS fences (board_id TEXT PRIMARY KEY, generation INTEGER NOT NULL)");
+        storage.exec("CREATE TABLE IF NOT EXISTS lifecycle_ledger (board_id TEXT PRIMARY KEY, record TEXT NOT NULL)");
+      }
       catch (error) { storage.close(); throw error; }
+      existingFence = true;
       fenceStorage = storage;
     }
     return fenceStorage;
@@ -68,12 +76,20 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
       });
     },
   };
+  db.lifecycleGuard = async (board,row,request) => {
+    await access(fenceFile,4);
+    const storage=openFence();
+    const saved=storage.all("SELECT record FROM lifecycle_ledger WHERE board_id=?",board)[0];
+    const previous=saved?JSON.parse(String(saved.record)) as RecoveryRecord:null;
+    checkLedger(previous,row);
+    if(row && !(row.state === "active" && row.cycle === 0)){const record=ledgerRecord(row,request);storage.exec("INSERT INTO lifecycle_ledger VALUES (?,?) ON CONFLICT(board_id) DO UPDATE SET record=excluded.record",board,JSON.stringify(record));}
+  };
   const tasks = new Set<Promise<void>>();
   const background = { run(task: Promise<void>) {
     tasks.add(task);
     void task.finally(() => tasks.delete(task)).catch(() => {});
   } };
-  const rooms = new Map<string, { room: Room; storage: NodeStorage; connections: Set<Connection>; timer?: ReturnType<typeof setTimeout> }>();
+  const rooms = new Map<string, { room: Room; storage: NodeStorage; connections: Set<Connection>; tasks: Set<Promise<void>>; timer?: ReturnType<typeof setTimeout> }>();
   function roomEntry(board: string) {
     let entry = rooms.get(board);
     if (entry) return entry;
@@ -81,7 +97,9 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
     storage.exec("CREATE TABLE IF NOT EXISTS waiting (connection_id TEXT, sequence INTEGER, message_bytes INTEGER NOT NULL, received_at INTEGER NOT NULL, deadline INTEGER NOT NULL, request_id TEXT NOT NULL, \"update\" BLOB NOT NULL, restore_generation INTEGER NOT NULL, PRIMARY KEY(connection_id, sequence))");
     storage.exec("DELETE FROM waiting");
     const connections = new Set<Connection>();
-    const room = new Room(board, { storage, access: db, rows: db, mentions: db, background, now,
+    const roomTasks = new Set<Promise<void>>();
+    const roomBackground = { run(task: Promise<void>) { roomTasks.add(task); background.run(task); void task.finally(() => roomTasks.delete(task)).catch(() => {}); } };
+    const room = new Room(board, { storage, access: db, lifecycle: db, rows: db, mentions: db, background: roomBackground, now,
       fence: () => recoveryGeneration(board, storage, db, fences), raiseFence: (minimum) => fences.raise(board, minimum),
       hash: async (value) => createHash("sha256").update(value).digest("hex"), randomTicket: () => randomBytes(32).toString("base64url"),
       randomId: randomUUID, verify: (token) => auth.verify(token), connections: () => [...connections],
@@ -90,28 +108,36 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
         const current = rooms.get(board);
         if (!current) return;
         clearTimeout(current.timer);
-        if (at !== null) {
+        if (at !== null && !room.lifecycle.discarded) {
           current.timer = setTimeout(() => { void room.alarm().catch(() => {}); }, Math.max(1, at - now()));
           current.timer.unref();
         }
       },
     });
-    entry = { room, storage, connections };
+    entry = { room, storage, connections, tasks: roomTasks };
     rooms.set(board, entry);
     return entry;
   }
   const upgrades = new WeakMap<Request, { board: string; attachment: Attachment }>();
-  const runtime: Runtime = { auth, db, allowedOrigin: settings.allowedOrigin, operatorKey: settings.operatorKey,
+  const runtime: Runtime = { now, async fenceGeneration(board) {
+      const independent=await fences.read(board),entry=rooms.get(board);
+      if(entry)return Math.max(independent,meta(entry.storage,"restore_generation"));
+      const file=resolve(settings.dataDir,"boards",board+".sqlite");
+      try {await access(file);} catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return independent;throw error;}
+      const saved=new NodeStorage(file);
+      try{return Math.max(independent,meta(saved,"restore_generation"));}finally{saved.close();}
+    }, auth, db, allowedOrigin: settings.allowedOrigin, operatorKey: settings.operatorKey,
     room: (board) => roomEntry(board).room,
-    async removeRoom(board) {
+    async removeRoom(board, generation) {
+      if (generation !== undefined && await fences.read(board) < generation) {
+        if (await fences.raise(board, generation - 1) !== generation) throw new RoomError(503, "service_unavailable");
+      }
       const entry = rooms.get(board);
       if (entry) {
-        await entry.room.ordered(async () => {
-          for (const connection of entry.connections) connection.close(4403);
-          clearTimeout(entry.timer);
-        });
+        await entry.room.discardLifecycle();
+        clearTimeout(entry.timer);
         // Copies settle through the room queue, so drain them outside that queue.
-        while (tasks.size) await Promise.allSettled([...tasks]);
+        while (entry.tasks.size) await Promise.allSettled([...entry.tasks]);
         await entry.room.ordered(async () => {
           clearTimeout(entry.timer);
           rooms.delete(board);
@@ -119,7 +145,10 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
         });
       }
       for (const suffix of ["", "-wal", "-shm"]) {
-        await rm(resolve(settings.dataDir, "boards", board + ".sqlite" + suffix), { force: true });
+        const file=resolve(settings.dataDir, "boards", board + ".sqlite" + suffix);
+        await rm(file, { force: true });
+        try { await access(file); throw new Error("Room discard not confirmed"); }
+        catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
       }
     },
     async upgrade(board, ticket, request) {

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { RoomLifecycle, type Lifecycle, type LifecycleRequest } from "./lifecycle.ts";
 import * as Y from "yjs";
 import { Adapter } from "nextphase-board-sync/document-adapter.ts";
 import { readBoard } from "nextphase-board-sync/codec.ts";
@@ -25,6 +26,7 @@ export class Room {
   presence: Presences;
   comments: Comments;
   history: History;
+  lifecycle: RoomLifecycle;
   doc = new Y.Doc();
   board!: BoardV10;
   initialized = false;
@@ -39,6 +41,7 @@ export class Room {
     this.edits = new EditSession(env, this.access, this);
     this.presence = new Presences(env, boardId);
     this.history = new History(this);
+    this.lifecycle = new RoomLifecycle(this);
     this.comments = new Comments(env, this.access, this);
     if (env.rows && env.background) this.copies = new Copies(env.storage, env.rows, env.now,
       () => this.ordered(() => this.schedule()));
@@ -57,6 +60,7 @@ export class Room {
     });
   }
   async load(document?: BoardV10) {
+    await this.lifecycle.active();
     this.closeLegacy();
     initialize(this.env.storage);
     if (this.initialized) return;
@@ -66,8 +70,9 @@ export class Room {
       try {
         details = await access.board(this.boardId);
         if (details) page = await access.changes(this.boardId, 0);
-      } catch { /* Without a stored role an outage must not reveal a board. */ }
-      if (!details || !page) throw new RoomError(404, "not_found");
+      } catch { throw new RoomError(503, "service_unavailable"); }
+      if (!details) throw new RoomError(404, "not_found");
+      if (!page) throw new RoomError(503, "service_unavailable");
       const adapter = new Adapter();
       const board: BoardV10 = document ?? { schemaVersion: 10, boardId: this.boardId, title: details.title, objects: [], retiredGenerations: [] };
       adapter.set(board);
@@ -166,11 +171,11 @@ export class Room {
   private background(operation: () => Promise<void>) {
     if (!this.env.background) return;
     // The continuation runs after the current ordered operation has finished.
-    const task = this.tail.then(operation).catch(() => {});
+    const task = this.tail.then(async () => { if (!this.lifecycle.discarded) { await this.lifecycle.active(); await operation(); } }).catch(() => {});
     try { this.env.background.run(task); } catch { /* Background failures never affect replies. */ }
   }
   saved(alarm = false) {
-    if (this.access.locked || !this.copies || !this.env.storage.all("SELECT value FROM meta WHERE key = 'last_edit_at'").length) return;
+    if (this.lifecycle.discarded || this.access.locked || !this.copies || !this.env.storage.all("SELECT value FROM meta WHERE key = 'last_edit_at'").length) return;
     this.copies.offer({ boardId: this.boardId, title: this.board.title,
       editedAt: meta(this.env.storage, "last_edit_at"), generation: this.generation,
       revision: meta(this.env.storage, "revision") });
@@ -207,6 +212,7 @@ export class Room {
       // Only ticket issuance creates a room. An upgrade with no stored ticket
       // never needs a board lookup, even for a never-opened board ID.
       if (!meta(this.env.storage, "storage_version")) throw new RoomError(401, "ticket_invalid");
+      try { await this.lifecycle.active(); } catch (error) { if (error instanceof RoomError && error.status === 404) throw new RoomError(401, "ticket_invalid"); throw error; }
       await this.load();
       const person = await consumeTicket(this.env, ticket);
       await this.refresh();
@@ -344,6 +350,7 @@ export class Room {
   }
   closed(connection: Connection) {
     return this.ordered(async () => {
+      if (this.lifecycle.discarded || this.access.locked) return;
       await this.load();
       endPresence(connection, this.env.connections());
       this.env.storage.exec("DELETE FROM waiting WHERE connection_id = ?", connection.attachment().connectionId);
@@ -366,6 +373,17 @@ export class Room {
       await this.schedule();
     });
   }
+  lifecyclePause() {
+    this.copies?.suspend();
+    this.closeAll(4403);
+    this.env.storage.exec("DELETE FROM tickets"); this.env.storage.exec("DELETE FROM waiting");
+  }
+  admitLifecycle(request: LifecycleRequest) {
+    if (request.operation === "move" && this.history.active()) return Promise.reject(new RoomError(503,"restore_pending"));
+    return this.ordered(() => this.lifecycle.admit(request));
+  }
+  fenceLifecycle(row: Lifecycle, ready = false) { return this.ordered(() => ready ? this.lifecycle.accessReady(row) : this.lifecycle.fence(row)); }
+  discardLifecycle() { return this.ordered(async () => { this.lifecycle.freeze(); this.lifecycle.discarded = true; await this.env.schedule(null); }); }
   historyPause(actor: string) {
     this.copies?.suspend();
     for (const peer of this.env.connections()) send(peer, { kind: "history_restoring", actor });
@@ -380,6 +398,7 @@ export class Room {
   backup() { return this.ordered(async () => { await this.load(); return backup(this.env, this.boardId); }); }
   restore(value: unknown) {
     return this.ordered(async () => {
+      await this.lifecycle.active();
       const envelope = decodeBackup(value, this.boardId);
       try { await validateHistoryBackup(this.env, envelope.tables, this.boardId); } catch { throw new RoomError(400, "bad_request"); }
       if (this.history.active()) throw new RoomError(503, "restore_pending");
@@ -399,6 +418,7 @@ export class Room {
   }
   lock() {
     return this.ordered(async () => {
+      await this.lifecycle.active();
       const generation = await this.env.raiseFence();
       this.copies?.suspend();
       this.closeAll(4423);

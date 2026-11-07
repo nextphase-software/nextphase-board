@@ -209,6 +209,9 @@ export default async function setup(project: any) {
       DELETE FROM nextphase_board.access_changes WHERE workspace_id='${workspace}';
       DELETE FROM nextphase_board.board_grants WHERE board_id IN (SELECT id FROM nextphase_board.boards WHERE workspace_id='${workspace}');
       DELETE FROM nextphase_board.boards WHERE workspace_id='${workspace}';
+      DELETE FROM nextphase_board.board_lifecycle_requests WHERE board_id IN (SELECT board_id FROM nextphase_board.board_lifecycle WHERE workspace_id='${workspace}' UNION SELECT board_id FROM nextphase_board.deleted_board_ids WHERE workspace_id='${workspace}');
+      DELETE FROM nextphase_board.board_lifecycle WHERE workspace_id='${workspace}';
+      DELETE FROM nextphase_board.deleted_board_ids WHERE workspace_id='${workspace}';
       DELETE FROM nextphase_board.workspace_members WHERE workspace_id='${workspace}';
       DELETE FROM nextphase_board.access_log_floor WHERE workspace_id='${workspace}';
       DELETE FROM nextphase_board.workspaces WHERE id='${workspace}'; COMMIT;`);

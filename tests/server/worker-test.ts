@@ -1,17 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
+import { deliver } from "../../apps/server/src/delivery.ts";
 import worker, { BoardRoom as ProductionRoom, RestoreFence } from "../../apps/server/src/worker.ts";
 import { createApp } from "../../apps/server/src/app.ts";
 import { Auth } from "../../apps/server/src/auth.ts";
 import { workerRuntime, type WorkerEnv } from "../../apps/server/src/worker-runtime.ts";
 export { RestoreFence };
-export type Controls = { failHistory?: string; failCheckpoint?: string; failCreate?: "before" | "write" | "after" | "exists" | ""; fixedNow?: number | null; offset?: number; fenceUnreadable?: boolean; backupLimit?: number; noOperator?: boolean; unreachable?: string[] };
+export type Controls = { failLifecycle?: string; holdRoom?: string; releaseRoom?: boolean; failHistory?: string; failCheckpoint?: string; failCreate?: "before" | "write" | "after" | "exists" | ""; fixedNow?: number | null; offset?: number; fenceUnreadable?: boolean; backupLimit?: number; noOperator?: boolean; unreachable?: string[] };
 export type TestEnv = WorkerEnv & { CONTROLS: DurableObjectNamespace };
+const lifecycleDatabases=new WeakSet<object>();
 export class TestControls {
   state: DurableObjectState;
+  held = new Set<() => void>();
   constructor(state: DurableObjectState) { this.state = state; }
   async fetch(request: Request) {
+    if(new URL(request.url).pathname==='/wait') {
+      const current=await this.state.storage.get<Controls>('controls');
+      if(current?.holdRoom)await new Promise<void>(resolve=>this.held.add(resolve));
+      return Response.json({});
+    }
     const old = await this.state.storage.get<Controls>("controls") ?? {};
     const value = request.method === "POST" ? { ...old, ...await request.json() as Controls } : old;
+    if(value.releaseRoom){value.holdRoom='';value.releaseRoom=false;for(const release of this.held)release();this.held.clear();}
     if (request.method === "POST") await this.state.storage.put("controls", value);
     return Response.json(value);
   }
@@ -51,6 +60,10 @@ export class BoardRoom extends ProductionRoom {
   }
   async fetch(request: Request) {
     await this.refreshControls();
+    if(new URL(request.url).pathname==='/discard'&&this.current.failLifecycle==='discard'||new URL(request.url).pathname==='/fence-lifecycle'&&this.current.failLifecycle==='room')return Response.json({error:{reason:'service_unavailable'}},{status:503});
+    if(new URL(request.url).pathname==='/admit-lifecycle'&&this.current.failLifecycle==='before'){
+      const {value}=await request.clone().json() as any;return Response.json({error:{reason:value.operation==='move'?'move_failed':'restore_failed'}},{status:503});
+    }
     if (new URL(request.url).pathname === "/changed") {
       const { board } = await request.clone().json() as { board: string };
       if (this.current.unreachable?.includes(board)) return Response.json({ error: { reason: "service_unavailable" } }, { status: 503 });
@@ -74,15 +87,25 @@ export class BoardRoom extends ProductionRoom {
     if (this.room) this.room.env.backupLimit = this.current.backupLimit ?? 16777216;
     return super.fetch(request);
   }
-  async webSocketMessage(socket: WebSocket, message: string | ArrayBuffer) { await this.refreshControls(); return super.webSocketMessage(socket, message); }
+  async webSocketMessage(socket: WebSocket, message: string | ArrayBuffer) {
+    await this.refreshControls();
+    if(this.current.holdRoom)await (this.env as TestEnv).CONTROLS.get((this.env as TestEnv).CONTROLS.idFromName('controls')).fetch('http://controls/wait');
+    return super.webSocketMessage(socket, message);
+  }
   async alarm() { await this.refreshControls(); return super.alarm(); }
 }
 export default {
-  scheduled: worker.scheduled,
+  async scheduled(_controller:ScheduledController,env:TestEnv,context:ExecutionContext){
+    const state=await controls(env),base=workerRuntime(env);context.waitUntil(deliver({...base,now:()=>state.fixedNow??Date.now()+(state.offset??0)}));
+  },
   async fetch(request: Request, env: TestEnv) {
     const state = await controls(env);
     const base = workerRuntime(env);
-    const runtime = { ...base, operatorKey: state.noOperator ? undefined : base.operatorKey,
+    if(!lifecycleDatabases.has(base.db)) {
+      lifecycleDatabases.add(base.db);const guard=base.db.lifecycleGuard!;
+      base.db.lifecycleGuard=async(...args)=>{if((await controls(env)).failLifecycle==='ledger')throw Error('Independent ledger unavailable');await guard(...args);};
+    }
+    const runtime = { ...base, now: () => state.fixedNow ?? Date.now() + (state.offset ?? 0), operatorKey: state.noOperator ? undefined : base.operatorKey,
       auth: new Auth({ supabaseUrl: env.SUPABASE_URL, issuer: env.SUPABASE_ISSUER, jwks: JSON.parse(env.JWKS) }, () => state.fixedNow ?? Date.now() + (state.offset ?? 0)),
       room(board: string) {
         const room = base.room(board);

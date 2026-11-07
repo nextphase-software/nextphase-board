@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { BoardLifecycle, lifecycleNavigation } from "./lifecycle";
+import { Trash, LifecycleDialog } from "./trash";
 import { historyNavigation } from "./history";
 import { api, ApiError } from "./api";
 import { boardLink } from "./links";
@@ -25,8 +27,8 @@ function Icon({ kind }: { kind: keyof typeof paths }) {
 }
 const reason = (error: unknown) => error instanceof ApiError ? error.reason.replaceAll("_", " ") : "no answer";
 
-export function Home({ workspaceId, email, names, signOut }: {
-  workspaceId?: string; email: string; names: HeldNames; signOut: () => void;
+export function Home({ workspaceId, email, names, signOut, trash = false }: {
+  trash?: boolean; workspaceId?: string; email: string; names: HeldNames; signOut: () => void;
 }) {
   const [sort, setSort] = useState<Sort>("edited"), [order, setOrder] = useState<Order>("desc");
   const lists = useHomeLists(workspaceId, sort, order);
@@ -36,13 +38,33 @@ export function Home({ workspaceId, email, names, signOut }: {
   const importer = useRef<HomeImportHandle>(null), importMessage = useRef(false);
   const creation = useRef(false), pending = useRef(new Set<string>());
   const body = useRef<HTMLDivElement>(null), alive = useRef(true);
+  const [lifecycle] = useState(() => new BoardLifecycle());
+  useEffect(() => lifecycle.subscribe(() => redraw(value => value + 1)), [lifecycle]);
+  useEffect(() => () => lifecycle.clear(), [lifecycle]);
   const workspace = lists.workspaces.find((item) => item.id === workspaceId);
   const creatable = lists.workspaces.filter((item) => canCreate(item.role));
-  const canMake = lists.status !== "notFound" && (workspaceId ? !!workspace && canCreate(workspace.role) : creatable.length > 0);
+  const canMake = !trash && lists.status !== "notFound" && (workspaceId ? !!workspace && canCreate(workspace.role) : creatable.length > 0);
   const rows = applyHeldNames(lists.rows, names);
-  const pageName = workspaceId ? workspace?.name ?? "Workspace" : "Recents";
+  const pageName = trash ? `${workspace?.name ?? "Workspace"} · Trash` : workspaceId ? workspace?.name ?? "Workspace" : "Recents";
 
   useEffect(() => () => { alive.current = false; }, []);
+  useEffect(() => {
+    if (lifecycleNavigation.unavailable) {
+      delete lifecycleNavigation.unavailable;
+      setToast(old => ({ text: "This board is not available.", id:old.id+1,persistent:false }));
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(".home-toast")?.focus());
+    }
+  }, []);
+  useEffect(() => { if (workspace && workspace.role !== "owner" && trash) lifecycle.deny(); }, [workspace?.role]);
+  useEffect(() => {
+    const workspace=lifecycleNavigation.focusWorkspace;
+    if (!workspace) return;
+    const target=document.querySelector<HTMLElement>(`[data-workspace-trash="${workspace}"]`);
+    if (target) { target.focus(); delete lifecycleNavigation.focusWorkspace; }
+  }, [lists.workspaces]);
+  useEffect(() => {
+    if (toast.text === "This board is not available.") document.querySelector<HTMLElement>(".home-toast")?.focus();
+  }, [toast.id]);
   useEffect(() => {
     const row = rows.find(row => row.id === historyNavigation.returnBoard);
     if (!row) return;
@@ -146,6 +168,13 @@ export function Home({ workspaceId, email, names, signOut }: {
         historyNavigation.open = row.id; historyNavigation.source = location.hash || "#/files";
         location.hash = "#/b/" + row.id;
       } },
+      ...(lists.workspaces.some(item => item.id === row.workspaceId && item.role === "owner") ? [
+        { kind:"divider" as const }, { kind:"item" as const, text:"Move to trash…", danger:true, run: () => {
+          const opener = menu;
+          void lifecycle.move({boardId:row.id,workspaceId:row.workspaceId,title:row.title,workspace:lists.workspaces.find(item => item.id === row.workspaceId)!.name}, () => {
+            setMenu(opener); requestAnimationFrame(() => [...document.querySelectorAll<HTMLElement>(".home-menu button")].find(node => node.textContent === "Move to trash…")?.focus());
+          });
+        } } ] : []),
     ];
   }
   function stateContent() {
@@ -175,14 +204,16 @@ export function Home({ workspaceId, email, names, signOut }: {
       <div className="w2-account-row"><button className="home-account" aria-haspopup="menu" onClick={(event) => buttonMenu("account", event.currentTarget)}>
         <b className="home-brand" aria-hidden="true">N</b><span>{email}</span><Icon kind="chevron" />
       </button><Notifications account={email} unavailable={lists.retry}/></div>
-      <button className="home-sidebar-item" aria-current={!workspaceId ? "page" : undefined}
+      <button className="home-sidebar-item" aria-current={!trash && !workspaceId ? "page" : undefined}
         onClick={() => { location.hash = "#/files"; }}><Icon kind="clock" />Recents</button>
       <div className="home-workspaces-label">Workspaces</div>
-      {lists.workspaces.map((item) => <button key={item.id} className="home-sidebar-item"
-        aria-current={workspaceId === item.id ? "page" : undefined} onClick={() => { location.hash = "#/files/" + item.id; }}>
+      {lists.workspaces.map((item) => <Fragment key={item.id}><button className="home-sidebar-item"
+        aria-current={!trash && workspaceId === item.id ? "page" : undefined} onClick={() => { location.hash = "#/files/" + item.id; }}>
         <span className="home-workspace-tile" aria-hidden="true">{[...item.name][0]}</span>
         <span className="home-workspace-name">{item.name}</span><small>{roleWords[item.role]}</small>
-      </button>)}
+      </button>{item.role === "owner" && <button className="home-sidebar-item" aria-label={`Trash for ${item.name}`} data-workspace-trash={item.id}
+        aria-current={trash && workspaceId === item.id ? "page" : undefined} onClick={() => { location.hash = "#/files/" + item.id + "/trash"; }}>
+        <span className="w4-sidebar-slot" aria-hidden="true"/><span className="home-workspace-name">Trash</span></button>}</Fragment>)}
       <div className="home-local"><button className="home-sidebar-item" onClick={() => { location.hash = ""; }}>
         <Icon kind="device" />Boards in this browser</button></div>
     </nav>
@@ -191,6 +222,7 @@ export function Home({ workspaceId, email, names, signOut }: {
         aria-haspopup={!workspaceId && creatable.length > 1 ? "menu" : undefined} disabled={creating}
         onClick={(event) => newBoard(event.currentTarget)}><Icon kind="plus" />New board</button>}</header>
       <div className="home-body" ref={body}>
+        {trash && workspaceId ? <Trash controller={lifecycle} workspaceId={workspaceId} workspace={workspace?.name ?? "Workspace"}/> : <>
         {workspace && <div className="home-workspace-head"><h2>{workspace.name}</h2><span className="home-chip">{roleWords[workspace.role]}</span>
           <div className="home-head-space" />{lists.status !== "notFound" && <button className="home-sort" aria-haspopup="menu"
             onClick={(event) => buttonMenu("sort", event.currentTarget)}>{sortWords[sort]}<Icon kind="chevron" /></button>}
@@ -203,11 +235,13 @@ export function Home({ workspaceId, email, names, signOut }: {
         </div>}
         {lists.paging && <p role="status">Loading boards…</p>}
         {(lists.status !== "ready" || !rows.length) && <div className="home-state"><div>{stateContent()}</div></div>}
+      </>}
       </div>
     </div>
+    {!trash && <LifecycleDialog controller={lifecycle} moved={(workspace,board) => { names.delete(board); lifecycleNavigation.focusWorkspace=workspace; lists.retry(); }}/>}
     {menu && <HomeMenu key={menu.kind + (menu.kind === "card" ? menu.row.id : "")} entries={menuEntries()} position={menu} close={() => setMenu(null)} />}
     {input}
-    {toast.text && <div className="home-toast" role="status">{toast.text}</div>}
+    {toast.text && <div className="home-toast" role="status" tabIndex={-1}>{toast.text}</div>}
   </main>}
   </HomeImport>;
 }

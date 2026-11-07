@@ -164,7 +164,11 @@ export function useStorageSession({
   }
   useEffect(() => {
     alive.current = true;
-    if (hosted) { setOpening(false); return () => { alive.current = false; adapter.current?.destroy(); }; }
+    if (hosted) {
+      setOpening(false);
+      const unsubscribe = hosted.subscribe(() => { if (hosted.unavailable) { epoch.current++; questionTarget.current=null; setQuestion(null); setSnapshots([]); clearHistory(); } });
+      return () => { unsubscribe(); alive.current = false; adapter.current?.destroy(); };
+    }
     let choice = new URL(location.href).searchParams.get("board");
     if (!isBoardKey(choice)) {
       try { choice = sessionStorage.getItem(OPEN_KEY); } catch {}

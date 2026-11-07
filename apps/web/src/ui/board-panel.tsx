@@ -79,6 +79,12 @@ export function BoardPanel({
           setPanel("Board"); requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-show-history]")?.focus());
         });
       }}>Show version history</button>}
+      {team?.hosted?.snapshot.workspaceOwner && <button className="w4-danger" data-move-trash onClick={() => {
+        const hosted = team.hosted!;
+        void hosted.lifecycle.move({boardId:hosted.boardId,workspaceId:hosted.snapshot.workspaceId,title,workspace:hosted.snapshot.workspace}, () => {
+          setPanel("Board"); requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-move-trash]")?.focus());
+        });
+      }}>Move to trash…</button>}
       {!team?.hosted && <><input hidden ref={boardFiles.fileInput} type="file" accept=".nextboard,.json" onChange={(e) => {
         const file = e.currentTarget.files?.[0]; e.currentTarget.value = "";
         if (file) boardFiles.openFile(file);

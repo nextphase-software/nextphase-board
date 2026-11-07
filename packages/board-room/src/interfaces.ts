@@ -26,6 +26,7 @@ export interface MentionSource {
   clearNotices(board: string, generation: number): Promise<void>;
 }
 export interface RoomEnvironment {
+  lifecycle: import("./lifecycle.ts").LifecycleSource;
   mentions?: MentionSource;
   rows?: BoardRows;
   background?: Background;

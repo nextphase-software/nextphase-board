@@ -68,7 +68,7 @@ async function roomFixture() {
   const { Room } = await import("../packages/board-room/src/room.ts");
   const { NodeStorage } = await import("../apps/server/src/node-storage.ts");
   const storage = new NodeStorage(":memory:"), board = richBoard(), now = Date.now();
-  const environment = { storage, access: {
+  const environment = { storage, lifecycle: { lifecycle: async () => ({ state: "active", generation: 0 }) }, access: {
     async board() { return { id: board.boardId, title: board.title, workspaceId: crypto.randomUUID(), createdAt: new Date(now).toISOString() }; },
     async role() { return "editor"; }, async changes() { return { changes: [], latest: 7, lowestKept: 1 }; },
   }, now: () => now, fence: async () => 0, raiseFence: async () => 1,

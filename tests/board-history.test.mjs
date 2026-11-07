@@ -9,7 +9,7 @@ async function fixture() {
   const storage = new NodeStorage(':memory:'), board = randomUUID(), person = { id: randomUUID(), email:'ana@example.com', expiresAt:9000000000000 };
   let now = 1793955600000, generation = 0, role = 'editor', failCarry = false;
   const peers = [], messages = [], carries = [];
-  const env = { storage, now:()=>now, connections:()=>peers, schedule:async()=>{}, backupLimit:16777216,
+  const env = { storage, lifecycle: { lifecycle: async () => ({ state: "active", generation: 0 }) }, now:()=>now, connections:()=>peers, schedule:async()=>{}, backupLimit:16777216,
     access:{board:async()=>({id:board,title:'A',createdAt:new Date(now).toISOString()}),role:async()=>role,changes:async()=>({changes:[],latest:0,lowestKept:1})},
     fence:async()=>generation, raiseFence:async(min=0)=>generation=Math.max(generation,min)+1,
     hash:async data=>createHash('sha256').update(data).digest('hex'), randomId:randomUUID,randomTicket:randomUUID,verify:async()=>person,

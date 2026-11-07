@@ -15,7 +15,7 @@ export function roomEnvironment(state: DurableObjectState, env: WorkerEnv, board
     if (!response.ok) throw Error("Restore fence unavailable");
     return (await response.json() as { generation: number }).generation;
   };
-  return { storage: new WorkerStorage(state.storage), access: runtime.db, rows: runtime.db, mentions: runtime.db,
+  return { storage: new WorkerStorage(state.storage), lifecycle: runtime.db, access: runtime.db, rows: runtime.db, mentions: runtime.db,
     background: { run: (task) => state.waitUntil(task) }, now: Date.now,
     fence: () => fenceCall("read"), raiseFence: async (minimum = 0) => {
       // The independent fence has one durable increment operation. Never lower it.
@@ -55,6 +55,7 @@ export class WorkerRoom {
     }
     if (!board) throw new RoomError(404, "not_found");
     if (!this.room) {
+      this.discarded = false;
       this.room = new Room(board, this.environment(board));
     }
     return this.room;
@@ -72,15 +73,27 @@ export class WorkerRoom {
         return new Response(null, { status: 101, webSocket: pair[0] });
       }
       const { board, value } = await request.json() as { board: string; value: any };
+      if(url.pathname==='/lifecycle-floor') {
+        const exists=this.state.storage.sql.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='meta'").toArray().length;
+        const floor=exists?this.state.storage.sql.exec<{value:number}>("SELECT value FROM meta WHERE key='restore_generation'").toArray()[0]?.value??0:0;
+        return Response.json({generation:Number(floor)});
+      }
       if (url.pathname === "/discard") {
+        if (value?.generation !== undefined) {
+          const env=roomEnvironment(this.state,this.env,board);
+          const current=await env.fence();
+          if(current<value.generation && await env.raiseFence(value.generation-1)!==value.generation) throw new RoomError(503,"service_unavailable");
+        }
         const room = this.room;
-        if (room) await room.ordered(async () => {});
+        if (room) await room.discardLifecycle();
         while (this.tasks.size) await Promise.allSettled([...this.tasks]);
         const discard = async () => {
           for (const socket of this.state.getWebSockets()) socket.close(4403);
           this.discarded = true;
           this.room = undefined;
+          await this.state.storage.deleteAlarm();
           await this.state.storage.deleteAll();
+          if (this.state.storage.sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '_cf_%'").toArray().length) throw Error("Discard not confirmed");
         };
         if (room) await room.ordered(discard); else await discard();
         return Response.json({});
@@ -88,6 +101,8 @@ export class WorkerRoom {
       const room = await this.getRoom(board);
       let result: unknown;
       switch (url.pathname) {
+        case "/admit-lifecycle": result = await room.admitLifecycle(value); break;
+        case "/fence-lifecycle": await room.fenceLifecycle(value.row, value.ready); result = {}; break;
         case "/versions": result = await room.versions(value.person); break;
         case "/version": result = await room.version(value.person, value.id); break;
         case "/save-version": result = await room.saveVersion(value.person, value.input); break;
@@ -127,5 +142,5 @@ export class WorkerRoom {
     if (!this.discarded) await (await this.getRoom()).closed(connection(socket));
   }
   async webSocketError(socket: WebSocket) { socket.close(1011); if (!this.discarded) await (await this.getRoom()).closed(connection(socket)); }
-  async alarm() { await (await this.getRoom()).alarm(); }
+  async alarm() { if (!this.discarded) await (await this.getRoom()).alarm(); }
 }

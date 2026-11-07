@@ -390,6 +390,14 @@ export class BoardSession<T = unknown> {
     this.cancelHeartbeat?.();
     this.cancelHeartbeat = this.options.clock.after(15000, () => this.flushPresence());
   }
+  unavailable() {
+    if (this.ended) return;
+    this.endAttempt(); this.ended = true;
+    this.requests.clear(); this.commentRequests.clear(); this.threads.clear();
+    this.history.clear(); this.present.clear(); this.role = undefined; this.self = undefined;
+    this.adapter.destroy(); this.adapter = new Adapter();
+    this.epoch = 0; this.restoreGeneration = 0; this.revision = 0;
+  }
   close() {
     if (this.ended) return;
     this.drop("session_ended"); this.history.clear(); this.endAttempt();

@@ -1,4 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
+import { deliver } from "../../apps/server/src/delivery.ts";
+import { access } from "node:fs/promises";
+import { resolve } from "node:path";
+import { RoomError } from "../../packages/board-room/src/protocol.ts";
 import { readFile } from "node:fs/promises";
 import { Supabase } from "../../apps/server/src/supabase.ts";
 import { startNode } from "../../apps/server/src/start-node.ts";
@@ -6,7 +10,9 @@ import { checkSettings } from "../../apps/server/src/settings.ts";
 const settings = checkSettings(JSON.parse(await readFile(process.env.BOARD_SETTINGS!, "utf8")));
 let fixedNow: number | null = null;
 let offset = 0, unreachable: string[] = [];
-let failCreate = "", failCheckpoint = "", failHistory = "";
+let failCreate = "", failCheckpoint = "", failHistory = "", failLifecycle = "";
+let holdRoom = ""; const heldRoom = new Set<() => void>();
+const waitRoom = () => holdRoom ? new Promise<void>(resolve => heldRoom.add(resolve)) : Promise.resolve();
 const instrumented = new WeakSet<object>();
 const db = new Supabase(settings.supabaseUrl, settings.serviceKey);
 const documentGeneration = db.documentGeneration.bind(db), mentionGeneration = db.mentionGeneration.bind(db);
@@ -15,11 +21,16 @@ db.mentionGeneration = board => failCheckpoint === "mention" ? Promise.reject(Er
 const app = await startNode(settings, { db, now: () => fixedNow ?? Date.now() + offset, backupLimit: 16777216,
   deliveryIntervalMs: Number(process.env.BOARD_DELIVERY_INTERVAL_MS ?? 0) });
 const original = app.runtime.room;
+const discard=app.runtime.removeRoom.bind(app.runtime), guard=db.lifecycleGuard!;
+db.lifecycleGuard=async(...args)=>{if(failLifecycle==='ledger')throw new RoomError(503,'service_unavailable');await guard(...args);};
+app.runtime.removeRoom=async(...args)=>{if(failLifecycle==='discard')throw new RoomError(503,'service_unavailable');return discard(...args);};
 app.runtime.room = (board) => {
   const room = original(board);
   const entry = app.rooms.get(board)!;
   if (!instrumented.has(entry)) {
     instrumented.add(entry);
+    const message=entry.room.message.bind(entry.room);
+    entry.room.message=async(...args)=>{await waitRoom();return message(...args);};
     const exec = entry.storage.exec.bind(entry.storage), raise = entry.room.env.raiseFence;
     entry.storage.exec = (sql, ...args) => {
       if (failHistory === "capture" && sql.startsWith("INSERT INTO versions") ||
@@ -35,7 +46,7 @@ app.runtime.room = (board) => {
       return result;
     };
   }
-  return { versions: p => room.versions(p), version: (p,id) => room.version(p,id), saveVersion: (p,v) => room.saveVersion(p,v), nameVersion: (p,id,v) => room.nameVersion(p,id,v), restoreVersion: (p,id,v) => room.restoreVersion(p,id,v), async create(document) {
+  return { admitLifecycle: r => failLifecycle==='before' ? Promise.reject(new RoomError(503,r.operation==='move'?'move_failed':'restore_failed')) : room.admitLifecycle(r), fenceLifecycle: (r, ready) => failLifecycle==='room' ? Promise.reject(new RoomError(503,'service_unavailable')) : room.fenceLifecycle(r, ready), versions: p => room.versions(p), version: (p,id) => room.version(p,id), saveVersion: (p,v) => room.saveVersion(p,v), nameVersion: (p,id,v) => room.nameVersion(p,id,v), restoreVersion: (p,id,v) => room.restoreVersion(p,id,v), async create(document) {
     if (failCreate === "before") throw Error("Create unavailable");
     const entry = app.rooms.get(board)!;
     if (failCreate === "exists") await entry.room.ordered(() => entry.room.load());
@@ -55,6 +66,15 @@ process.on("message", async (message: any) => {
   try {
     let result: any = {};
     const value = message.value;
+    if(value.failLifecycle!==undefined)failLifecycle=value.failLifecycle;
+    if(value.holdRoom!==undefined)holdRoom=value.holdRoom;
+    if(value.releaseRoom){holdRoom='';for(const release of heldRoom)release();heldRoom.clear();}
+    if(value.scheduled)await deliver(app.runtime);
+    if(value.lifecycleStatus){result=await db.lifecycle(value.board);process.send?.({id:message.id,result});return;}
+    if(value.inventory){
+      const files=[];for(const suffix of ['', '-wal','-shm']){try{await access(resolve(settings.dataDir,'boards',value.board+'.sqlite'+suffix));files.push(suffix);}catch{}}
+      result={files,loaded:app.rooms.has(value.board),timer:!!app.rooms.get(value.board)?.timer};process.send?.({id:message.id,result});return;
+    }
     if (value.failHistory !== undefined) failHistory = value.failHistory;
     if (value.failCheckpoint !== undefined) failCheckpoint = value.failCheckpoint;
     if (value.fences) result = await app.fences.read(value.board);

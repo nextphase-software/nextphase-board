@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { BoardLifecycle, lifecycleNavigation } from "./lifecycle";
 import { BoardHistory, historyNavigation } from "./history";
 import { BoardSession, type Transport, type Role, type SessionEvent } from "nextphase-board-sync/session.ts";
 import type { BoardV10 } from "nextphase-board-rules/document.ts";
@@ -18,17 +19,20 @@ type Attempt = { outcome: Outcome | null; joined: boolean; cancelled: boolean; t
   socket?: WebSocket; acceptance: boolean };
 export type HostedSnapshot = {
   board?: BoardV10; role?: Role; connected: boolean; workspace: string; workspaceId: string;
-  outcome: Outcome | null; toast: string; toastId: number; generation: number;
+  workspaceOwner?: boolean; outcome: Outcome | null; toast: string; toastId: number; generation: number;
 };
 export type PresenceSnapshot = {
   self?: Presence; others: Presence[]; followed: string | null; showCursors: boolean;
 };
 export class HostedBoard {
+  readonly lifecycle = new BoardLifecycle();
   readonly history = new BoardHistory(this);
+  unavailable = false;
+  trashReturned = false;
   panReturning = false;
   private restoredGeneration?: number;
   historyChanged() { this.publish(); }
-  historyDenied() { this.history.clear(); this.clearDiscussion(); this.history.denied = true; this.ended = true; this.session?.discard("access_removed"); this.clearPresence(); this.publish({ board: undefined, connected: false }); }
+  historyDenied() { this.confirmUnavailable(); }
   get paintBoard() {
     const live = this.snapshot.board;
     return this.history.previewing && live ? this.history.document ?? { ...live, objects: [], retiredGenerations: [] } : live;
@@ -135,6 +139,9 @@ export class HostedBoard {
   boardId = "";
   constructor(link: TeamLink, local: () => void) {
     this.link = link;
+    this.lifecycle.subscribe(() => this.publish());
+    this.trashReturned = link.kind === "board" && lifecycleNavigation.restoredBoard === link.board;
+    delete lifecycleNavigation.restoredBoard;
     try { this.presence.showCursors = localStorage.getItem(SHOW_CURSORS_KEY) !== "false"; }
     catch { /* Unavailable storage defaults to showing cursors. */ }
     this.local = local;
@@ -185,7 +192,8 @@ export class HostedBoard {
       }, 15000) };
     this.attempt = attempt;
     this.clearPresence();
-    this.publish({ connected: false });
+    this.lifecycle.clear();
+    this.publish({ connected: false, workspaceOwner:false });
     return attempt;
   }
   private async ticket() {
@@ -203,9 +211,9 @@ export class HostedBoard {
       }
       const details = await api<{ workspaceId: string; role: Role }>(`/boards/${this.boardId}`);
       if (!this.current(attempt)) throw Error("Abandoned attempt");
-      const list = await api<{ workspaces: { id: string; name: string }[] }>("/workspaces");
+      const list = await api<{ workspaces: { id: string; name: string; role: string }[] }>("/workspaces");
       if (!this.current(attempt)) throw Error("Abandoned attempt");
-      this.publish({ workspaceId: details.workspaceId, role: details.role,
+      this.publish({ workspaceId: details.workspaceId, role: details.role, workspaceOwner: list.workspaces.some(workspace => workspace.id === details.workspaceId && workspace.role === "owner"),
         workspace: list.workspaces.find((workspace) => workspace.id === details.workspaceId)?.name ?? "Workspace" });
       const { data } = await auth.getSession();
       this.token = data.session ?? undefined;
@@ -266,6 +274,7 @@ export class HostedBoard {
   }
   private finish(attempt: Attempt, event: AttemptEvent) {
     if (!this.current(attempt) || attempt.outcome) return;
+    if (event.kind === "failure" && event.status === 404 && this.snapshot.board) { this.confirmUnavailable(); return; }
     const hadHistory = this.history.open || this.history.previewing;
     const outcome = attemptOutcome(attempt.outcome, event, !!this.snapshot.board, this.counts.waiting);
     attempt.outcome = outcome;
@@ -397,6 +406,17 @@ export class HostedBoard {
   }
   expire() { this.end("expired"); }
   signedOut() { this.end("signedOut"); }
+  confirmUnavailable() {
+    if (this.ended || this.stopped) return;
+    this.ended = true; this.unavailable = true;
+    if (this.attempt) { this.attempt.cancelled = true; clearTimeout(this.attempt.timer); }
+    clearTimeout(this.retry); clearTimeout(this.renewal);
+    this.session?.discard("access_removed"); this.session?.unavailable?.(); this.attempt?.socket?.close(1000);
+    this.clearDiscussion(); this.session = undefined; this.lifecycle.clear(); this.clearPresence();
+    this.losses = emptyLossRecord(); this.recoveringIds = []; this.token = undefined;
+    delete historyNavigation.open; delete historyNavigation.source; delete historyNavigation.returnBoard;
+    this.publish({ board: undefined, connected: false, role: undefined, workspaceOwner:false, workspace:"", workspaceId:"", toast:"", outcome:{name:"accessRemoved",retry:false} });
+  }
   private clearDiscussion() {
     this.history.clear();
     ++this.mentionRead;
@@ -420,6 +440,7 @@ export class HostedBoard {
     this.unreadMentions.clear();
     this.clearPresence();
     this.history.clear();
+    this.lifecycle.clear();
     this.stopped = true;
     if (this.attempt) { this.attempt.cancelled = true; clearTimeout(this.attempt.timer); }
     clearTimeout(this.retry); clearTimeout(this.renewal);

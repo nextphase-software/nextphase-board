@@ -62,10 +62,12 @@ export class History {
   }
   async automatic(reason: 'checkpoint' | 'last_close') {
     if (this.host.access.locked) return;
+    await this.host.lifecycle.active();
     const next = meta(this.s, 'history_next_at'), now = this.env.now();
     if (reason === 'checkpoint' && now < next) return;
     const prepared = await this.prepare(this.host.board);
     const same = this.s.all("SELECT value FROM meta WHERE key = 'history_capture_sha256'")[0]?.value === prepared.sha256 && meta(this.s, 'history_capture_bytes') === prepared.data.length;
+    await this.host.lifecycle.active();
     this.s.transaction(() => {
       if (!same) this.capture(prepared, meta(this.s, 'revision'), meta(this.s, 'restore_generation'), reason);
       this.prune();
@@ -73,6 +75,7 @@ export class History {
     });
   }
   async authorize(person: Person, mutate = false) {
+    await this.host.lifecycle.active();
     let role;
     try { role = await this.env.access.role(person.id, this.host.boardId); }
     catch { throw new RoomError(503, 'service_unavailable'); }
@@ -119,8 +122,9 @@ export class History {
     await this.ready(person, true); this.assignment(value);
     if (!historyId(value.requestId)) throw new RoomError(400, 'bad_request');
     const digest = await this.digest('save', value), old = this.receipt(person, value.requestId, digest);
-    if (old) return JSON.parse(String(old.result));
+    if (old) { await this.host.lifecycle.active(); return JSON.parse(String(old.result)); }
     const prepared = await this.prepare(this.host.board);
+    await this.host.lifecycle.active();
     return this.s.transaction(() => {
       const result = { version: this.capture(prepared, meta(this.s, 'revision'), meta(this.s, 'restore_generation'), 'manual', labelOf(person.email), value.name, value.description) };
       this.result(person.id, value.requestId, digest, 'save', result); return result;
@@ -192,6 +196,7 @@ export class History {
   }
   async resume(row = this.active()): Promise<RestoreResult | undefined> {
     if (!row) return;
+    await this.host.lifecycle.active();
     const intent: Intent = JSON.parse(String(row.result));
     if (!intent.phase) return intent as unknown as RestoreResult;
     this.host.access.locked = true;
@@ -225,6 +230,7 @@ export class History {
     }
     this.host.generation = intent.generation;
     if (intent.phase === 'reserved') {
+      await this.host.lifecycle.active();
       const adapter = new Adapter(); adapter.set(selected.board);
       try {
         this.s.transaction(() => {
@@ -249,6 +255,7 @@ export class History {
     // Replay may update grants/watermark, but cannot remove the durable user lock.
     await this.host.access.replay(this.host.boardId, intent.generation, true);
     if (this.host.access.reason === 'access_log_pruned') throw Error('access_log_pruned');
+    await this.host.lifecycle.active();
     this.s.transaction(() => {
       this.result(String(row!.person_id), String(row!.request_id), String(row!.digest), 'restore', intent.result);
       this.s.exec('DELETE FROM history_intent_chunks WHERE person_id = ? AND request_id = ?', row!.person_id, row!.request_id);

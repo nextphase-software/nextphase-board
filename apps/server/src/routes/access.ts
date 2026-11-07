@@ -9,7 +9,7 @@ export function accessRoutes(app: ServerApp, runtime: Runtime) {
       const workspace = id(c, "workspace");
       await authorize(runtime, c.get("person").id, workspace, "workspace", "owner");
       if (collection !== "invitations") return c.json({ [collection]: await accessList(runtime, workspace, collection) });
-      const rows = await runtime.db.rows("invitations", { workspace_id: workspace });
+      const rows = (await Promise.all((await runtime.db.rows("invitations", { workspace_id: workspace })).map(async row => !row.board_id || (await runtime.db.lifecycle(row.board_id))?.state === "active" ? row : null))).filter((row): row is NonNullable<typeof row> => row !== null);
       return c.json({ invitations: rows.map((row) => ({
         id: row.id, boardId: row.board_id, email: row.email, role: row.role,
         createdAt: new Date(row.created_at).toISOString(), expiresAt: new Date(row.expires_at).toISOString(),
@@ -45,8 +45,7 @@ export function accessRoutes(app: ServerApp, runtime: Runtime) {
   });
   app.delete("/boards/:board/grants/:person", async (c) => {
     const board = id(c, "board"), person = id(c, "person");
-    await authorize(runtime, c.get("person").id, board, "board", "owner");
-    await runtime.db.rpc("remove_grant", { board, person });
+    await runtime.db.rpc("revoke_unavailable_board_grant", { board, person, caller: c.get("person").id });
     await deliver(runtime);
     return c.json({ boardId: board, personId: person, removal: await removal(runtime, person, null, board) });
   });

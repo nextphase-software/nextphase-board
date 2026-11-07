@@ -127,7 +127,7 @@ export async function makeDriver(context: Context): Promise<Driver> {
       const copy = resolve(folder, "volume"); await cp(dataDir, copy, { recursive: true });
       await start();
       if (whileNewer) await whileNewer();
-      await ipc({ board, raiseFence: true }); // Make both the board and fence newer than the copy.
+      if((await ipc({board,lifecycleStatus:true}))?.state==='active')await ipc({ board, raiseFence: true }); // Make both the board and fence newer than the copy.
       await stop();
       await rm(dataDir, { recursive: true }); await cp(copy, dataDir, { recursive: true });
       execFileSync(process.execPath, ["apps/server/scripts/mark-restored-volume.mjs", dataDir], { cwd: root, stdio: "pipe" });

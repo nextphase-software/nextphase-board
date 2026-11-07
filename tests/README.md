@@ -282,3 +282,35 @@ both runners and the accepted unit/server/A–J/X1/C2/W5 regressions (V9–V13).
 Server checks being registered or typechecked is not evidence that they ran.
 No browser, Supabase CLI, schema application, deployment or broader test campaign
 is authorized by the implementer's V1–V8 command set.
+
+## Board Trash lifecycle (0006-W4 v1)
+
+`tests/board-lifecycle.test.mjs` runs with `npm test` without a browser or
+Supabase. L-U01–L-U10 import their subjects inside named cases. They cover exact
+Trash TeamLink parsing, strict elapsed deadlines/local times, immutable request
+identity, UTF-8 journal limits, ordered room freeze/history preservation, accepted
+history intent exclusion, discarded callbacks, independent ledger rollback refusal,
+late owner-response invalidation, GET-only resumed states and terminal clearing.
+The existing M-U14 role-change/draft assertions remain unchanged.
+
+`tests/server/lifecycle.test.ts` registers S195–S224 in both Vitest configurations.
+Each case prints PASS/FAIL by ID and `SUMMARY-LIFECYCLE` records runner, actual
+pass/fail counts and measured bytes/inventory. These checks use independent
+synthetic fixtures, real SQL/HTTP/socket paths and deterministic clock/phase/RPC
+failures. New test-only controls hold pre-queue room messages, release them after
+a lifecycle fence, fail admission/fencing/discard/ledger reads, run the minute
+pass and inspect physical discard without initializing a room. Node restart
+resets process-local controls; cases explicitly reapply clocks/failures afterward.
+Worker controls apply the deterministic clock to scheduled discovery as well.
+S215's physical marked-volume subcase is Node-only; logical/recovery guards run
+on both. Existing fixtures add only active lifecycle stubs, current table-count
+expectations and cleanup of the three service tables.
+
+The implementation session runs V1–V8 only. Registering/bundling server cases is
+not a server PASS. The fresh full-access independent check owns V9–V13, writes
+`tools/browser-compare/0006-w4-check.mjs` in its check tooling, runs T1 and the
+independently installed baseline negative control, then the accepted both-runner
+server, A–J-off, H1, C2, W5 and X1 ranges from the brief. Keep its explicit H1-S13/
+S50 and W5-S24 ending→Home amendments, menu/sidebar/Tab allowances, and every
+other functional assertion. No browser/Supabase CLI/schema application/deployment
+runs in the implementation session.

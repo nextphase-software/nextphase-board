@@ -294,7 +294,7 @@ test("a fresh room creates storage version 5 with no threads", async () => {
   const { meta } = await import("../packages/board-room/src/storage.ts");
   const storage = new NodeStorage(":memory:");
   try {
-    const room = new Room(randomUUID(), { storage, hash: async value => { const { createHash } = await import("node:crypto"); return createHash("sha256").update(value).digest("hex"); }, randomId: randomUUID, now: () => 0, connections: () => [], schedule: async () => {},
+    const room = new Room(randomUUID(), { storage, lifecycle: { lifecycle: async () => ({ state: "active", generation: 0 }) }, hash: async value => { const { createHash } = await import("node:crypto"); return createHash("sha256").update(value).digest("hex"); }, randomId: randomUUID, now: () => 0, connections: () => [], schedule: async () => {},
       access: { board: async () => ({ title: "Comments", createdAt: new Date(0).toISOString() }), changes: async () => ({ latest: 0, lowestKept: 1, changes: [] }) }, fence: async () => 0 });
     await room.load(); assert.equal(meta(storage, "storage_version"), 5); assert.deepEqual(storage.all("SELECT * FROM threads"), []);
   } finally { storage.close(); }
@@ -305,7 +305,7 @@ async function roomFixture() {
   const { Room } = await import("../packages/board-room/src/room.ts");
   const { NodeStorage } = await import("../apps/server/src/node-storage.ts");
   const storage = new NodeStorage(":memory:"), peers = [], boardId = randomUUID(); let now = 1000000;
-  const env = { storage, now: () => now, access: {
+  const env = { storage, lifecycle: { lifecycle: async () => ({ state: "active", generation: 0 }) }, now: () => now, access: {
     board: async () => ({ id: boardId, title: "Launch", createdAt: new Date(0).toISOString() }),
     role: async (person) => person === "viewer" ? "viewer" : "owner",
     changes: async () => ({ latest: 0, lowestKept: 1, changes: [] }),

@@ -20,7 +20,7 @@ test("delivery limits active rooms to ten and acknowledges only stored watermark
   const gates = boards.map(deferred), started = [], receipts = [];
   let active = 0, maximum = 0;
   const runtime = {
-    db: { async rpc(name, parameters) {
+    db: { lifecycle: async () => ({state:"active",generation:0}), async rpc(name, parameters) {
       if (name === "mention_boards") return [];
       if (name === "pending_access_boards") return boards;
       receipts.push(parameters);
@@ -48,7 +48,7 @@ test("delivery limits active rooms to ten and acknowledges only stored watermark
 test("a second delivery waits for the first attempt including its receipts", async () => {
   const gate = deferred(), entered = deferred();
   let reads = 0;
-  const runtime = { db: { async rpc(name) {
+  const runtime = { db: { lifecycle: async () => ({state:"active",generation:0}), async rpc(name) {
     if (name === "mention_boards") return [];
     if (name === "pending_access_boards") { reads++; return ["board"]; }
     entered.resolve(); await gate.promise;
@@ -64,7 +64,7 @@ test("a second delivery waits for the first attempt including its receipts", asy
 
 test("removal is scoped and pending on any outstanding change or read failure", async () => {
   let pending = [{ changeNumber: 1, boardId: "a" }, { changeNumber: 2, boardId: "b" }];
-  const runtime = { db: { async rpc(name, parameters) {
+  const runtime = { db: { lifecycle: async () => ({state:"active",generation:0}), async rpc(name, parameters) {
     assert.equal(name, "pending_deliveries");
     assert.deepEqual(parameters, { person: "person", workspace: "workspace", board: null });
     return pending;
@@ -87,7 +87,7 @@ async function fixture() {
   const storage = new NodeStorage(":memory:"), board = randomUUID(), person = randomUUID();
   let role = "editor", latest = 0;
   const connections = [], messages = [], closes = [];
-  const environment = { storage, now: Date.now, async fence() { return 0; }, async raiseFence() { return 1; },
+  const environment = { storage, lifecycle: { lifecycle: async () => ({ state: "active", generation: 0 }) }, now: Date.now, async fence() { return 0; }, async raiseFence() { return 1; },
     access: {
       async board() { return { id: board, workspaceId: randomUUID(), title: "Removal", createdAt: new Date().toISOString() }; },
       async role() { return role; },
@@ -171,7 +171,7 @@ test("delivery refuses an outage and does not initialize an unopened room", asyn
   } finally { f.storage.close(); }
   const storage = new NodeStorage(":memory:");
   try {
-    const room = new Room("unopened", { storage, access: { async changes() { return { latest: 42 }; } }, connections: () => [] });
+    const room = new Room("unopened", { storage, lifecycle: { lifecycle: async () => ({ state: "active", generation: 0 }) }, access: { async changes() { return { latest: 42 }; } }, connections: () => [] });
     assert.equal(await room.changed(), 42);
     assert.deepEqual(storage.all("SELECT * FROM meta"), []);
   } finally { storage.close(); }

@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import { active } from "./lifecycle.ts";
+import { uuid } from "./routes/common.ts";
+import { lifecycleRoutes } from "./routes/lifecycle.ts";
 import { Hono } from "hono";
 import { errorBody, RoomError } from "nextphase-board-room/protocol.ts";
 import type { Runtime, AppVariables } from "./runtime.ts";
@@ -30,6 +33,14 @@ export function createApp(runtime: Runtime) {
     if (!upgrade && !c.req.path.startsWith("/operator/")) c.set("person", await runtime.auth.bearer(c.req.header("Authorization")));
     await next();
   });
+  app.use("/boards/:board/*", async (c, next) => {
+    const board = c.req.param("board");
+    const lifecycle = /\/(?:trash|lifecycle)$/.test(c.req.path);
+    const revoke = c.req.method === "DELETE" && /\/grants\/[^/]+$/.test(c.req.path);
+    if (!lifecycle && !revoke && uuid.test(board)) await active(runtime, board, /\/join$/.test(c.req.path));
+    await next();
+  });
+  lifecycleRoutes(app, runtime);
   boards(app, runtime);
   historyRoutes(app, runtime);
   lists(app, runtime);

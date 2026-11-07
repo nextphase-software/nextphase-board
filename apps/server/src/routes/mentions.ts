@@ -10,6 +10,7 @@ export function mentions(app: ServerApp, runtime: Runtime) {
     const query = c.req.query('q') ?? '', page = Number(c.req.query('page') ?? 0);
     if (query.length>4000 || !Number.isSafeInteger(page) || page<0) throw new RoomError(400,'bad_request');
     const roster = await runtime.db.roster(board,caller);
+    await authorize(runtime,caller,board,'board');
     const found = candidatePage(roster,query,page);
     return c.json({ candidates: found.candidates.map(({person,label,suffix}) => ({person,label,suffix})), more: found.more });
   });
@@ -19,6 +20,7 @@ export function mentions(app: ServerApp, runtime: Runtime) {
     const workspaces = await runtime.db.workspaces(person.id);
     for (const ref of refs) {
       try {
+        await authorize(runtime,person.id,ref.board_id,'board');
         const current = await runtime.room(ref.board_id).discussion(person,ref.comment_id,ref.id);
         const board = await runtime.db.board(ref.board_id);
         if (!board) throw new RoomError(404,'not_found');

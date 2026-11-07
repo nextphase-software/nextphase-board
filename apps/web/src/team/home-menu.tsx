@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef } from "react";
 import { placeMenu } from "./home-rules";
 
 export type MenuEntry = { kind: "label"; text: string } | { kind: "divider" }
-  | { kind: "item"; text: string; run: () => void; checked?: boolean; initial?: boolean };
+  | { kind: "item"; text: string; run: () => void; checked?: boolean; initial?: boolean; danger?: boolean };
 export type MenuPosition = { point: { x: number; y: number }; opener: HTMLElement };
 
 export function HomeMenu({ entries, position, close, className = "" }: {
@@ -45,7 +45,7 @@ export function HomeMenu({ entries, position, close, className = "" }: {
     {entries.map((entry, index) => entry.kind === "label"
       ? <div className="home-menu-label" key={index}>{entry.text}</div>
       : entry.kind === "divider" ? <div role="separator" key={index} />
-      : <button key={index} role={entry.checked === undefined ? "menuitem" : "menuitemradio"}
+      : <button key={index} className={entry.danger ? "w4-danger" : undefined} role={entry.checked === undefined ? "menuitem" : "menuitemradio"}
         aria-checked={entry.checked} tabIndex={-1} onClick={() => { dismiss(true); entry.run(); }}>
         {entry.checked && <span className="home-menu-tick" aria-hidden="true">✓</span>}{entry.text}
       </button>)}

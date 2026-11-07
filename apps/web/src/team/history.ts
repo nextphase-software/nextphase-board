@@ -148,6 +148,8 @@ export class BoardHistory {
     this.life++; this.selectionEpoch++; this.open = false; this.previewing = false; this.document = undefined;
     this.versions = []; this.selected = undefined; this.naming = undefined; this.head = undefined; this.dialog = null;
     this.name = ''; this.description = ''; this.actor = null; this.kept = false; this.restored = '';
-    this.saveRequest = undefined; this.restoreRequest = undefined;
+    this.saveRequest = undefined; this.restoreRequest = undefined; this.restoreId = '';
+    this.opener = undefined; this.returnOpener = undefined; this.dialogOpener = undefined;
+    this.writing = false; this.writeFailed = false; this.rejoining = false; this.reviewedAt = undefined;
   }
 }

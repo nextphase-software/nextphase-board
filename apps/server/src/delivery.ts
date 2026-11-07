@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
+import { discoverLifecycle } from "./lifecycle.ts";
 import type { Runtime } from "./runtime.ts";
 
-type DeliveryRuntime = Pick<Runtime, "db" | "room">;
+type DeliveryRuntime = Pick<Runtime, "db" | "room"> & Partial<Pick<Runtime, "now" | "removeRoom">>;
 const deliveries = new WeakMap<Runtime["db"], Promise<void>>();
 
 async function attempt(runtime: DeliveryRuntime) {
+  if (runtime.now && runtime.removeRoom) { try { await discoverLifecycle(runtime as Runtime); } catch { /* Durable discovery retries at the next minute. */ } }
   try {
     const all = await runtime.db.rpc<string[]>("mention_boards", {});
     for (let offset = 0; offset < all.length; offset += 10) await Promise.allSettled(all.slice(offset, offset + 10).map(b => runtime.room(b).deliverNotices()));
@@ -14,6 +16,7 @@ async function attempt(runtime: DeliveryRuntime) {
   catch { return; }
   for (let offset = 0; offset < boards.length; offset += 10) {
     await Promise.allSettled(boards.slice(offset, offset + 10).map(async (board) => {
+      if ((await runtime.db.lifecycle(board))?.state !== "active") return;
       const watermark = await runtime.room(board).changed();
       if (!Number.isSafeInteger(watermark) || watermark < 0) return;
       await runtime.db.rpc("record_access_receipt", { board, through: watermark });

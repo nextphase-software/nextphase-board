@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { active } from "../lifecycle.ts";
 import { RoomError } from "nextphase-board-room/protocol.ts";
 import { deliver, removal } from "../delivery.ts";
 import type { Runtime } from "../runtime.ts";
@@ -9,6 +10,7 @@ export function operators(app: ServerApp, runtime: Runtime) {
     if (c.req.header("Board-Operator-Key") !== runtime.operatorKey) throw new RoomError(401, "operator_key_invalid");
     await next();
   });
+  app.use("/operator/boards/:board/*", async (c, next) => { await active(runtime, id(c, "board")); await next(); });
   app.post("/operator/boards/:board/backup", async (c) => c.json(await runtime.room(id(c, "board")).backup()));
   for (const action of ["disable", "enable"] as const) {
     app.post(`/operator/people/:person/${action}`, async (c) => {

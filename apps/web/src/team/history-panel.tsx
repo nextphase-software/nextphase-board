@@ -7,7 +7,7 @@ import { CommentIcon } from './comments/icons';
 export function HistoryDenied({ back }: { back: () => void }) {
   const title = useRef<HTMLHeadingElement>(null);
   useEffect(() => { title.current?.focus(); }, []);
-  return <div className="history-ending"><main className="history-denied"><h1 ref={title} tabIndex={-1}>This board is not available.</h1><p>You may not have access, or it may no longer be available.</p><button onClick={back}>Back to files</button></main></div>;
+  return <div className="history-ending"><section className="history-denied"><h1 ref={title} tabIndex={-1}>This board is not available.</h1><p>You may not have access, or it may no longer be available.</p><button onClick={back}>Back to files</button></section></div>;
 }
 function HistoryModal({ h, title, focus, children }: { h: BoardHistory; title: string; focus?: string; children: ReactNode }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -107,7 +107,7 @@ export function HistoryPanel({ hosted }: { hosted: HostedBoard }) {
       <div className="history-limit">Newest 50 versions · Up to 30 days<br />Named versions expire too.</div>
       {h.canManage && h.state === 'ready' && h.versions.length > 0 && <div className="history-actions"><button onClick={e => h.begin('save',e.currentTarget)}>Save version…</button></div>}
       {h.state !== 'ready' ? <div className={'history-state' + (h.state.includes('failed') ? ' error' : '')} role="status"><strong>{status}</strong>{message && <p>{message}</p>}{h.state.includes('failed') && <button onClick={() => void (h.state === 'failed' ? h.refresh() : h.selected && h.select(h.selected))}>Retry</button>}</div>
-      : !h.versions.length ? <div className="history-state"><strong>No versions yet</strong><p>Versions will appear after the first confirmed save.</p></div>
+      : !h.versions.length ? <div className="history-state"><strong>{hosted.trashReturned ? "No retained versions" : "No versions yet"}</strong><p>{hosted.trashReturned ? "Some older versions may have expired. Restoring access does not renew history." : "Versions will appear after the first confirmed save."}</p></div>
       : <div className="history-list">{h.versions.map(v => <div key={v.id} data-version={v.id} className={'history-row' + (v.id === h.selectedId && h.previewing ? ' current' : '')}>
         <button className="history-open" aria-label={versionHeading(v)} onClick={() => void h.select(v)}><strong>{versionHeading(v)}</strong><small>{historyTime(v.capturedAt)}</small><small>{versionSubtitle(v)}</small></button>
         {h.canManage && <button className="comment-icon" aria-label={`More options for ${versionHeading(v)}`} onClick={e => {

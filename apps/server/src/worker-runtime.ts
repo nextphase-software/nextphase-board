@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { ledgerRecord } from "./lifecycle.ts";
 import { Auth } from "./auth.ts";
 import { Supabase } from "./supabase.ts";
 import type { Runtime, RoomClient } from "./runtime.ts";
@@ -21,6 +22,10 @@ export function workerRuntime(env: WorkerEnv): Runtime {
   if (cached) return cached;
   const auth = new Auth({ supabaseUrl: env.SUPABASE_URL, issuer: env.SUPABASE_ISSUER, jwks: JSON.parse(env.JWKS) });
   const db = new Supabase(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
+  db.lifecycleGuard = async (board,row,request) => {
+    const response=await stub(env,"FENCES","lifecycle-ledger").fetch("http://fence/ledger",{method:"POST",body:JSON.stringify({board,row,record:row?ledgerRecord(row,request):null})});
+    if(!response.ok)throw new RoomError(503,"service_unavailable");
+  };
   function client(board: string): RoomClient {
     async function call(action: string, value?: unknown) {
       const response = await stub(env, "ROOMS", board).fetch("http://room/" + action, {
@@ -30,7 +35,7 @@ export function workerRuntime(env: WorkerEnv): Runtime {
       if (!response.ok) throw new RoomError(response.status, result.error.reason, result.error.needed);
       return result;
     }
-    return { versions: person => call("versions", { person }), version: (person, id) => call("version", { person, id }),
+    return { admitLifecycle: value => call("admit-lifecycle", value), fenceLifecycle: (row, ready) => call("fence-lifecycle", { row, ready }), versions: person => call("versions", { person }), version: (person, id) => call("version", { person, id }),
       saveVersion: (person, value) => call("save-version", { person, input: value }),
       nameVersion: (person, id, value) => call("name-version", { person, id, input: value }),
       restoreVersion: (person, id, value) => call("restore-version", { person, id, input: value }),
@@ -45,11 +50,18 @@ export function workerRuntime(env: WorkerEnv): Runtime {
         return result;
       } };
   }
-  const runtime: Runtime = { auth, db, allowedOrigin: env.ALLOWED_ORIGIN, operatorKey: env.OPERATOR_KEY,
+  const runtime: Runtime = { now: Date.now, async fenceGeneration(board){
+      const response=await stub(env,"FENCES",board).fetch("http://fence/read",{method:"POST"});
+      if(!response.ok)throw new RoomError(503,"service_unavailable");
+      const independent=(await response.json() as {generation:number}).generation;
+      const local=await stub(env,"ROOMS",board).fetch("http://room/lifecycle-floor",{method:"POST",body:JSON.stringify({board})});
+      if(!local.ok)throw new RoomError(503,"service_unavailable");
+      return Math.max(independent,(await local.json() as {generation:number}).generation);
+    }, auth, db, allowedOrigin: env.ALLOWED_ORIGIN, operatorKey: env.OPERATOR_KEY,
     room: client,
-    async removeRoom(board) {
+    async removeRoom(board, generation) {
       const response = await stub(env, "ROOMS", board).fetch("http://room/discard", {
-        method: "POST", body: JSON.stringify({ board }),
+        method: "POST", body: JSON.stringify({ board, value: { generation } }),
       });
       if (!response.ok) throw new RoomError(503, "service_unavailable");
     },

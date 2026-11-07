@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { requireActive } from "./lifecycle.ts";
 import type { BoardV10 } from "nextphase-board-rules/document.ts";
 import { hasRectangle } from "nextphase-board-rules/objects/registry.ts";
 import { anchorPoint, detachAnchor, nameObject, textProblem, type Anchor, type AnchorInput,
@@ -53,6 +54,7 @@ export class Comments {
     send(connection, { kind: "comments_snapshot", done: true });
   }
   async handle(connection: Connection, message: Record<string, unknown>) {
+    await requireActive(this.env, this.host.boardId);
     const refuse = (reason: string) => send(connection, { kind: "comment_refused", reason,
       ...(typeof message.requestId === "string" ? { requestId: message.requestId } : {}) });
     if (typeof message.requestId !== "string" || !message.requestId.length || [...message.requestId].length > 100 ||
@@ -64,6 +66,7 @@ export class Comments {
     if (message.restoreGeneration !== meta(storage, "restore_generation")) { refuse("restore_changed"); return; }
     // Hash the parsed operation, including its original key order and ignored fields.
     const digest = await this.env.hash(bytes("comment:" + JSON.stringify(op)));
+    await requireActive(this.env, this.host.boardId);
     const receipt = storage.all("SELECT * FROM receipts WHERE person_id = ? AND request_id = ?", value.id, message.requestId)[0];
     if (receipt) {
       if (receipt.kind !== "comment" || receipt.digest !== digest) refuse("request_id_reused");
@@ -126,6 +129,7 @@ export class Comments {
     if (count >= (posting ? 100 : 600) || times.length >= 10) { refuse("rate_limited"); return; }
     const sequence = meta(storage, "comment_sequence") + 1;
     const person = (await this.env.hash(bytes(`presence:${this.host.boardId}:${value.id}`))).slice(0, 32);
+    await requireActive(this.env, this.host.boardId);
     let changed: Record<string, unknown>;
     storage.transaction(() => {
       if (op.action === "start") {

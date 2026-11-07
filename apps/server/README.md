@@ -114,3 +114,64 @@ An oversized restore body returns 413 `body_too_large`. This is no universal bac
 fit guarantee. Current restart and supported recovery retain history age gates;
 no older-client, board/file conversion, schema application or deployment is part
 of implementation validation.
+
+## Workspace Trash and recovery
+
+The [lifecycle contract](../../docs/architecture/0006-board-lifecycle-v2.md) adds
+`board_lifecycle`, `board_lifecycle_requests` and `deleted_board_ids`: exactly 16
+service tables, all with RLS. The three lifecycle tables have no anon or authenticated
+privileges. Only the current workspace owner can read Trash or perform transitions.
+Ordinary access requires active authority and absence from the deleted register.
+An unreadable required authority or independent ledger fails closed.
+
+Move preserves the current document, discussion and original-age history. Its ordered
+room fence freezes captures before closing sockets with 4403; source mention delivery,
+projected notices and leases are cleared before confirming Trash. The server records
+one 2,592,000,000-ms deadline per cycle. Restore admission is strictly before that
+instant; an accepted restore may finish afterward. Restore preserves the ID, current
+rights, revision, original history ages/fingerprint and capture schedule. It creates
+no document replacement, history entry or old notification replay.
+
+Node's minute delivery pass and the Worker scheduled handler discover durable work in
+50-record batches. Each confirmed phase precedes the next external action. Failures
+keep denial and the accepted operation identity; a failed attempt is due again after
+60,000 ms. Relevant status reads also resume work. This is not a cleanup-time promise.
+Purge closes/drains rooms, cancels timers/alarms, removes SQLite/WAL/SHM or all Durable
+Object storage, then explicitly removes every board-dependent SQL row. The final
+transaction removes progress/requests and retains only board ID, workspace ID and
+generation. There is no Board-managed backup archive in this release.
+
+For logical room recovery, leave the independent stores live. Every backup, logical
+restore, load and intent replay checks current lifecycle authority. Node marked-volume
+recovery still requires stopping the process, replacing the volume and running
+`mark-restored-volume.mjs` before restart. Worker logical/time recovery similarly
+retains the separate live lifecycle authority and independent fence namespace. Neither
+path can revive a non-active or permanently deleted ID. Preserve original history and
+Trash deadlines; never reset them to recovery time.
+
+SQL recovery requires an independently preserved **current** deleted-ID register and
+unresolved lifecycle ledger, including request identity, phase and original deadlines.
+The runner mirrors bounded metadata in `lifecycle_ledger` in the Node fence database or
+the separate Worker fence namespace's `lifecycle-ledger` object. These records contain
+no document content; terminal records have only the two IDs and generation. A live
+record behind that ledger is refused with 503, not treated as an active recovered board.
+
+1. Stop listeners, room wakes and schedulers. Preserve the latest independent ledger,
+   register, unresolved lifecycle rows and matching request rows outside the SQL copy
+   being replaced. Preserve the runner fence stores independently of a volume rewind.
+2. Restore the SQL copy with serving still closed. Reapply the latest independent
+   records with the service-only `reapply_lifecycle(record)` function (one bounded
+   record per call), then verify every register/progress/request row against that
+   preserved inventory. Never reapply an older record over newer authority.
+3. Discard recovered rooms for registered deleted IDs and resume unresolved phases;
+   `cleanup_recovered_deleted` removes recovered dependent SQL rows behind an existing
+   marker. Minute discovery also finds those recovered SQL rows. Do not admit ordinary
+   requests until this reconciliation and the full independent inventory check finish.
+4. Start the runner only after the ledger is proven complete/readable. If the current
+   independent ledger or register is missing, remain closed; an older SQL copy cannot
+   establish that an absent marker means active. Keep original elapsed deadlines and
+   monotonic generations through all recovery steps.
+
+Serving-store deletion cannot erase downloaded files/envelopes, operator-held offline
+copies or provider recovery copies. Provider recovery policy and hosted schema
+application/deployment remain separate operator actions.

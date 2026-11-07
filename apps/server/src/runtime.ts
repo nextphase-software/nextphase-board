@@ -4,6 +4,8 @@ import type { Person } from "nextphase-board-room/protocol.ts";
 import type { Auth } from "./auth.ts";
 import type { Supabase } from "./supabase.ts";
 export interface RoomClient {
+  admitLifecycle(request: import("nextphase-board-room/lifecycle.ts").LifecycleRequest): Promise<import("nextphase-board-room/lifecycle.ts").Lifecycle>;
+  fenceLifecycle(row: import("nextphase-board-room/lifecycle.ts").Lifecycle, ready?: boolean): Promise<void>;
   versions(person: Person): Promise<any>;
   version(person: Person, id: string): Promise<any>;
   saveVersion(person: Person, value: import("nextphase-board-sync/history.ts").SaveVersion): Promise<any>;
@@ -21,12 +23,14 @@ export interface RoomClient {
   restoreToTime?(bookmark: string): Promise<unknown>;
 }
 export interface Runtime {
+  now(): number;
+  fenceGeneration(board:string):Promise<number>;
   auth: Auth;
   db: Supabase;
   allowedOrigin: string;
   operatorKey?: string;
   room(board: string): RoomClient;
-  removeRoom(board: string): Promise<void>;
+  removeRoom(board: string, generation?: number): Promise<void>;
   upgrade(board: string, ticket: string, request: Request): Promise<Response>;
 }
 export type AppVariables = { person: Person };

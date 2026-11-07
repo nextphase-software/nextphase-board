@@ -96,6 +96,7 @@ function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool
     if (landing) {
       const source=landing; delete notificationNavigation.target;
       void api<{notices:{id:string}[]}>("/notifications").then(result => {
+        if (hosted.unavailable || hosted.comments.ended) return;
         if(result.notices.some(n=>n.id===source.noticeId)){notificationNavigation.returnNotice=source.noticeId;location.hash=source.source;}
         else scene.current?.focus();
       }).catch(()=>scene.current?.focus()); return;

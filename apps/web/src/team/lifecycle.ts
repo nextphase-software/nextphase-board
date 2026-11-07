@@ -14,9 +14,10 @@ export class BoardLifecycle {
   private epoch=0;
   private listeners=new Set<()=>void>();
   private opener?:()=>void;
+  private returnFocus?:()=>void;
   subscribe(fn:()=>void){this.listeners.add(fn);return()=>{this.listeners.delete(fn);};}
   private emit(){for(const fn of this.listeners)fn();}
-  clear(){this.epoch++;this.rows=[];this.target=undefined;this.operation=undefined;this.dialog=null;this.rowOperations.clear();this.opener=undefined;}
+  clear(){this.epoch++;this.rows=[];this.target=undefined;this.operation=undefined;this.dialog=null;this.rowOperations.clear();this.opener=undefined;this.returnFocus=undefined;}
   deny(){this.clear();this.state='denied';this.emit();}
   async load(workspace:string) {
     const epoch=++this.epoch;this.rows=[];this.rowOperations.clear();this.state='loading';this.emit();
@@ -41,7 +42,8 @@ export class BoardLifecycle {
       this.dialog='confirm';this.emit();
     }catch(error){if(epoch!==this.epoch)return;if(error instanceof ApiError&&[401,403,404].includes(error.status))this.deny();else{this.state='failed';this.emit();}}
   }
-  cancel(){if(this.dialog!=='confirm'&&this.dialog!=='delete-confirm'&&this.dialog!=='move-failed')return;this.dialog=null;this.emit();this.opener?.();}
+  cancel(){if(this.dialog!=='confirm'&&this.dialog!=='delete-confirm'&&this.dialog!=='move-failed')return;this.returnFocus=this.opener;this.dialog=null;this.emit();}
+  restoreFocus(){const focus=this.returnFocus;this.returnFocus=undefined;focus?.();}
   async confirmMove(done:(workspace:string,board:string)=>void) {
     if(!this.operation||!this.target||this.dialog==='moving')return;
     const epoch=this.epoch,op=this.operation,target=this.target;

@@ -127,6 +127,19 @@ CREATE INDEX IF NOT EXISTS lifecycle_trash ON nextphase_board.board_lifecycle(wo
 ALTER TABLE nextphase_board.board_lifecycle ENABLE ROW LEVEL SECURITY;
 ALTER TABLE nextphase_board.board_lifecycle_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE nextphase_board.deleted_board_ids ENABLE ROW LEVEL SECURITY;
+-- Every directory insertion establishes authority in that same transaction, including
+-- service-side bulk creation. A missing row later still fails closed; this is not backfill.
+CREATE OR REPLACE FUNCTION nextphase_board.initialize_board_lifecycle() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  IF EXISTS(SELECT 1 FROM nextphase_board.deleted_board_ids d WHERE d.board_id=NEW.id) THEN RAISE EXCEPTION 'not_found'; END IF;
+  INSERT INTO nextphase_board.board_lifecycle VALUES(NEW.id,NEW.workspace_id,'active',0,0,NULL,NULL,NULL,'idle',NULL)
+    ON CONFLICT(board_id) DO NOTHING;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS initialize_board_lifecycle ON nextphase_board.boards;
+CREATE TRIGGER initialize_board_lifecycle AFTER INSERT ON nextphase_board.boards
+  FOR EACH ROW EXECUTE FUNCTION nextphase_board.initialize_board_lifecycle();
 CREATE OR REPLACE FUNCTION nextphase_board.board_active(board uuid) RETURNS boolean
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_life nextphase_board.board_lifecycle;
@@ -173,7 +186,6 @@ DECLARE v_result nextphase_board.boards;
 BEGIN
   INSERT INTO nextphase_board.boards(workspace_id,created_by,title) VALUES(create_board.workspace,create_board.person,create_board.title) RETURNING * INTO v_result;
   IF EXISTS(SELECT 1 FROM nextphase_board.deleted_board_ids d WHERE d.board_id=v_result.id) THEN RAISE EXCEPTION 'service_unavailable'; END IF;
-  INSERT INTO nextphase_board.board_lifecycle VALUES(v_result.id,create_board.workspace,'active',0,0,NULL,NULL,NULL,'idle',NULL);
   RETURN v_result;
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.write_member_role(workspace uuid, person uuid, role text) RETURNS text
@@ -759,12 +771,12 @@ DECLARE v_result jsonb;
 BEGIN
   PERFORM nextphase_board.lifecycle_owner(trash_page.caller,trash_page.workspace,NULL);
   SELECT coalesce(jsonb_agg(page.row ORDER BY page.group_key,page.time_key DESC,page.board_id),'[]') INTO v_result FROM (
-    SELECT l.board_id,CASE WHEN l.state='trashed' THEN 1 ELSE 0 END group_key,coalesce(l.deleted_at,0) time_key,
+    SELECT l.board_id,CASE WHEN l.state='trashed' THEN 1 ELSE 0 END group_key,CASE WHEN l.state='trashed' THEN l.deleted_at ELSE 0 END time_key,
       jsonb_build_object('boardId',l.board_id,'workspaceId',l.workspace_id,'state',l.state,'cycle',l.cycle,'generation',l.generation) ||
       CASE WHEN l.state='trashed' THEN jsonb_build_object('title',b.title,'deletedAt',l.deleted_at,'restoreBefore',l.restore_before) ELSE '{}'::jsonb END row
     FROM nextphase_board.board_lifecycle l LEFT JOIN nextphase_board.boards b ON b.id=l.board_id
     WHERE l.workspace_id=trash_page.workspace AND l.state<>'active' AND NOT EXISTS(SELECT 1 FROM nextphase_board.deleted_board_ids d WHERE d.board_id=l.board_id)
-      AND (trash_page.after_id IS NULL OR (CASE WHEN l.state='trashed' THEN 1 ELSE 0 END,-coalesce(l.deleted_at,0),l.board_id)>
+      AND (trash_page.after_id IS NULL OR (CASE WHEN l.state='trashed' THEN 1 ELSE 0 END,-CASE WHEN l.state='trashed' THEN l.deleted_at ELSE 0 END,l.board_id)>
         (CASE WHEN trash_page.pending THEN 0 ELSE 1 END,-coalesce(trash_page.deleted_at,0),trash_page.after_id))
     ORDER BY group_key,time_key DESC,l.board_id LIMIT 51) page;
   RETURN v_result;

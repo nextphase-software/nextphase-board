@@ -24,6 +24,7 @@ export function workerRuntime(env: WorkerEnv): Runtime {
   const db = new Supabase(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
   db.lifecycleGuard = async (board,row,request) => {
     const response=await stub(env,"FENCES","lifecycle-ledger").fetch("http://fence/ledger",{method:"POST",body:JSON.stringify({board,row,record:row?ledgerRecord(row,request):null})});
+    await response.arrayBuffer();
     if(!response.ok)throw new RoomError(503,"service_unavailable");
   };
   function client(board: string): RoomClient {
@@ -63,6 +64,7 @@ export function workerRuntime(env: WorkerEnv): Runtime {
       const response = await stub(env, "ROOMS", board).fetch("http://room/discard", {
         method: "POST", body: JSON.stringify({ board, value: { generation } }),
       });
+      await response.arrayBuffer();
       if (!response.ok) throw new RoomError(503, "service_unavailable");
     },
     upgrade: (board, ticket, request) => stub(env, "ROOMS", board).fetch(

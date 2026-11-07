@@ -34,7 +34,11 @@ export class RoomLifecycle {
     if (this.discarded) throw new RoomError(404,'not_found');
     let row:Lifecycle|null;
     try { row=await this.host.env.lifecycle.lifecycle(this.host.boardId); }
-    catch { this.host.access.locked=true; throw new RoomError(503,'service_unavailable'); }
+    catch(error) {
+      this.host.access.locked=true;
+      if(error instanceof RoomError && error.message==='room_locked')throw error;
+      throw new RoomError(503,'service_unavailable');
+    }
     if (!row || row.state!=='active') {
       this.freeze();
       throw new RoomError(404,'not_found');

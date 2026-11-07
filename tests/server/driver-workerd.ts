@@ -58,7 +58,7 @@ export async function makeDriver(context: Context): Promise<Driver> {
       }
       if (value.scheduled) {
         const execution = createExecutionContext();
-        worker.scheduled(createScheduledController({ cron: "* * * * *" }), bindings, execution);
+        await worker.scheduled(createScheduledController({ cron: "* * * * *" }), bindings, execution);
         await waitOnExecutionContext(execution);
         return {};
       }
@@ -88,8 +88,8 @@ export async function makeDriver(context: Context): Promise<Driver> {
     async rows(board, table) {
       return runInDurableObject(roomStub(board), async (instance: any) => {
         const room = await instance.getRoom(board);
-        return room.env.storage.all(`SELECT * FROM "${table}"`).map((row: any) => Object.fromEntries(
-          Object.entries(row).map(([key, value]) => [key, value instanceof Uint8Array ? { bytes: value.byteLength } : value])));
+        return room.ordered(async () => room.env.storage.all(`SELECT * FROM "${table}"`).map((row: any) => Object.fromEntries(
+          Object.entries(row).map(([key, value]) => [key, value instanceof Uint8Array ? { bytes: value.byteLength } : value]))));
       });
     },
     async close() {

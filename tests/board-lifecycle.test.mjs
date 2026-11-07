@@ -87,3 +87,29 @@ test('L-U10 confirmed unavailability terminally clears requests and ignores late
   const session=await BoardSession.join({ticket:async()=>'',open:async()=>({send(){},close(){},listen(h){handlers=h;h.message(JSON.stringify({kind:'joined',role:'editor',epoch:1,revision:0,restoreGeneration:0,update:encode(Y.encodeStateAsUpdate(adapter.doc)),present:[]}));}}),clock:{now:Date.now,after(){return()=>{};}}});
   session.commentRequests.set('draft',{state:'unconfirmed',text:'protected',epoch:1,restoreGeneration:0});handlers.close(4403);assert.equal(session.commentRequests.size,1);session.unavailable();assert.doesNotMatch(JSON.stringify(session.doc.toJSON()),/Protected/);assert.equal(session.commentRequests.size,0);assert.equal(session.requests.size,0);handlers.message(JSON.stringify({kind:'comments_snapshot',done:true}));assert.equal(session.commentsReady,false);adapter.destroy();
 });
+
+test('Worker purge consumes success and failure response bodies before allowing eviction',async()=>{
+  const {workerRuntime}=await import('../apps/server/src/worker-runtime.ts');
+  for(const status of [200,503]){
+    const response=Response.json(status===200?{}:{error:{reason:'service_unavailable'}},{status});
+    const binding={idFromName:id=>id,get:()=>({fetch:async()=>response})};
+    const runtime=workerRuntime({ROOMS:binding,FENCES:binding,SUPABASE_URL:'http://127.0.0.1',SUPABASE_SERVICE_KEY:'synthetic',JWKS:'{"keys":[]}',ALLOWED_ORIGIN:'http://127.0.0.1'});
+    if(status===200)await runtime.removeRoom(board,1);else await assert.rejects(runtime.removeRoom(board,1),/service_unavailable/);
+    assert.equal(response.bodyUsed,true,'the internal discard response must release its body reference');
+  }
+});
+
+test('lifecycle Cancel restores focus only at the post-unmount boundary and invalidation cancels it',async()=>{
+  const {c}=await controller();let focused=0;
+  const row={boardId:board,workspaceId:workspace,title:'Synthetic',cycle:1,state:'trashed'};
+  c.delete(row,'Workspace',()=>focused++);c.cancel();assert.equal(c.dialog,null);assert.equal(focused,0);
+  c.restoreFocus();assert.equal(focused,1);c.restoreFocus();assert.equal(focused,1);
+  c.delete(row,'Workspace',()=>focused++);c.cancel();c.clear();c.restoreFocus();assert.equal(focused,1);
+});
+
+test('Worker discarded rooms drop late socket callbacks without reopening storage',async()=>{
+  const {WorkerRoom}=await import('../apps/server/src/worker-room.ts');
+  const room=new WorkerRoom({},{}),closed=[];room.discarded=true;
+  await room.webSocketMessage({close:code=>closed.push(code)},'{}');
+  assert.deepEqual(closed,[4403]);assert.equal(room.room,undefined);
+});

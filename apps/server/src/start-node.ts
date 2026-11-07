@@ -77,7 +77,7 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
     },
   };
   db.lifecycleGuard = async (board,row,request) => {
-    await access(fenceFile,4);
+    try { await access(fenceFile,4); } catch { throw new RoomError(503,"room_locked"); }
     const storage=openFence();
     const saved=storage.all("SELECT record FROM lifecycle_ledger WHERE board_id=?",board)[0];
     const previous=saved?JSON.parse(String(saved.record)) as RecoveryRecord:null;
@@ -193,7 +193,7 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
         });
         websocket.on("close", () => {
           entry.connections.delete(connection);
-          if (rooms.get(accepted.board) === entry) void entry.room.closed(connection);
+          if (rooms.get(accepted.board) === entry) void entry.room.closed(connection).catch(() => {});
         });
         websocket.on("error", () => {});
         void entry.room.connected(connection).catch(() => websocket.close(1011));

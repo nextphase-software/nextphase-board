@@ -8,6 +8,7 @@ export function LifecycleDialog({controller:c,moved}:{controller:BoardLifecycle;
     if(!kind)return;const node=dialog.current!;node.showModal();
     (node.querySelector<HTMLElement>('button:not([disabled])')??node).focus();return()=>node.close();
   },[kind]);
+  useEffect(()=>{if(!kind)c.restoreFocus();},[kind,c]);
   if(!kind)return null;
   const cancel=()=>c.cancel();
   const title=kind==='confirm'?'Move to trash?':kind==='moving'?'Moving to Trash…':kind==='move-failed'?'Couldn’t move board':kind==='move-uncertain'?'Move not confirmed':kind==='delete-confirm'?'Permanently delete?':'Permanently deleting…';

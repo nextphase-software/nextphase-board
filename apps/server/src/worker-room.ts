@@ -135,7 +135,9 @@ export class WorkerRoom {
     }
   }
   async webSocketMessage(socket: WebSocket, message: string | ArrayBuffer) {
-    await (await this.getRoom()).message(connection(socket), typeof message === "string" ? message : "");
+    if (this.discarded) { socket.close(4403); return; }
+    try { await (await this.getRoom()).message(connection(socket), typeof message === "string" ? message : ""); }
+    catch (error) { socket.close(error instanceof RoomError && error.status === 404 ? 4403 : 1011); }
   }
   async webSocketClose(socket: WebSocket, code: number) {
     socket.close(code === 1006 ? 1001 : code);

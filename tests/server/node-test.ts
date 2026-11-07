@@ -102,7 +102,7 @@ process.on("message", async (message: any) => {
         try { const {initialize}=await import("../../packages/board-room/src/storage.ts"); initialize(entry.storage); } finally { entry.storage.exec=execute; }
       }
       if (value.deliverMentions) await entry.room.deliverNotices();
-      if (value.rows) result = entry.storage.all(`SELECT * FROM "${value.rows}"`).map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v instanceof Uint8Array ? { bytes: v.byteLength } : v])));
+      if (value.rows) result = await entry.room.ordered(async () => entry.storage.all(`SELECT * FROM "${value.rows}"`).map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v instanceof Uint8Array ? { bytes: v.byteLength } : v]))));
       if (value.raiseFence) result = await entry.room.lock();
       if (value.fileSnapshot) entry.storage.exec("VACUUM INTO ?", value.fileSnapshot);
       if (value.alarm) await entry.room.alarm();

@@ -480,3 +480,98 @@ source inspection was the fallback. Both mandatory public-boundary commit hooks
 passed. Git emitted a sandbox `packed-refs.lock` maintenance warning after the
 source commit; the expected milestone ref, parent and source commit were verified.
 No hook was bypassed and no unrelated files or checkpoints changed.
+
+### Fix round 1 — SQL name resolution (2026-11-07)
+
+- Branch: `codex/0006-W4-delete-and-restore-boards-from-trash`.
+- Validated source/test revision: `baef687a87935066abd0ef0c403ce7c77e22e7cd`.
+  This later implementation-record append is committed separately; the final tip
+  is reported in the handoff.
+- Independent check 1's V11 diagnostic identified the introduced installation
+  failure: `lifecycle_recovery_request` compared UUID `r.operation_id` with the
+  request table's text `operation` column instead of the UUID argument.
+- `apps/server/supabase/nextphase_board.sql`: W4 function parameters are now
+  function-qualified and local variables use `v_`. RPC signatures, argument names,
+  argument types, defaults and server callers remain unchanged. No casts conceal
+  the UUID/text error. No table, stored value, journal, runner limit, privilege or
+  lifecycle transition changed.
+- `tests/server/lifecycle.test.ts:S206`: added exact recovery-receipt assertions
+  for a matching operation UUID, another board, an unknown operation UUID and the
+  original UUID after a second operation on the same board. These assertions are
+  registered on both runners, bundled successfully, and **not executed** here.
+
+Audit covered every function added or changed since the prerequisite base (27):
+`board_active`, `board_role`, `create_board`, `write_board_grant`,
+`create_invitation`, `accept_invitation`, `record_board_open`, `copy_saved_board`,
+`project_mentions`, `carry_board_mentions`, `mention_boards`, `lifecycle_value`,
+`lifecycle_owner`, `admit_lifecycle`, `lifecycle_step`, `lifecycle_delivery_clear`,
+`lifecycle_cleanup`, `lifecycle_due`, `lifecycle_tick`, `lifecycle_retry`,
+`trash_page`, `revoke_unavailable_board_grant`, `lifecycle_recovery_request`,
+`reapply_lifecycle`, `cleanup_recovered_deleted`, `lifecycle_request_status`,
+`lifecycle_raise`. `mention_boards` has no parameters or locals and needed no edit.
+Reviewed read/write table columns, aliases, INSERT/ON CONFLICT column lists and
+UPDATE targets separately from value references. UUID comparisons use UUID
+parameters/fields; operation/state/phase/digest comparisons use text; cycle,
+generation, time and revision comparisons use bigint, with explicit JSON scalar
+casts retained. Trash cursor tuples retain integer/bigint/UUID types. A scratch
+source-token comparison confirmed that all function headers are unchanged and
+body edits consist only of parameter qualification and local-variable renaming;
+functions outside this audit set are byte-identical to the preceding tip.
+
+**PostgreSQL proof: static audit only.** Attempted the permitted fresh cluster:
+
+```sh
+initdb -D .worktrees/w4-fix-1-pg/data -A trust --no-locale -U postgres
+```
+
+The installed Homebrew libpq 18.6_2 tool reported: `program "postgres" is needed
+by initdb but was not found in the same directory`. No PostgreSQL server package
+was present alongside it. The folder was verified ignored before the attempt and
+removed afterward; its absence was checked. No cluster/server started, no auth
+stubs were installed, and no schema parse, application or reapplication occurred.
+Installation and reapplication therefore remain unproven pending independent
+full-access verification. No Supabase CLI or browser was started.
+
+| Validation | Fix-round result |
+| --- | --- |
+| V1 | PASS. All 20 manifest/lock/dependency-inventory/runtime-notice inputs equal `cffffbdaf54d6286339a8ce3063775cfb2b820da`; zero new dependencies. |
+| V2 | PASS. `npm ci --ignore-scripts --no-audit --no-fund` exits 0 for candidate and freshly archived independent base; Node 26.13.0, npm 11.20.0. |
+| V3 | PASS. `npm run typecheck` exits 0 for all five workspaces. |
+| V4 | PASS. `npm test` exits 0: 923 passed, zero failed/skipped. No unit assertions changed this round. |
+| V5 | PASS. Off build and license audit exit 0; index/notices equal independent base; meta inputs contain neither team source nor Supabase packages. |
+| V6 | PASS. Fixture build, on build and license audit exit 0; on index/notices equal independent base and notices equal runtime notices v3. |
+| V7 | PASS. Server build, license audit and Wrangler 4.156.0 Worker dry run exit 0 without deployment. |
+| V8 | PASS. Complete prerequisite-base-to-validated revision remains within the permitted 59 files and append-only prior implementation record. This round changes only the SQL schema and S206; signatures and unrelated functions remain unchanged. Exact committed-range `git diff --check` exits 0. |
+
+Commands ran from the repository root with the pinned toolchain; the same web
+build variables were used in the fresh independent `git archive` base, installed
+without candidate dependency links:
+
+```sh
+npm ci --ignore-scripts --no-audit --no-fund
+npm run typecheck
+npm test
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+npm run audit:licenses
+npm run build:fixtures
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+npm run audit:licenses
+npm run build:server
+npm run audit:licenses
+WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=<scratch-log> npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json
+node_modules/.bin/esbuild tests/server/lifecycle.test.ts --bundle --platform=node --external:board-test-driver --external:vitest --outfile=<scratch>/lifecycle-test.cjs
+git diff --name-status cffffbdaf54d6286339a8ce3063775cfb2b820da..baef687a87935066abd0ef0c403ce7c77e22e7cd
+git diff --check cffffbdaf54d6286339a8ce3063775cfb2b820da..baef687a87935066abd0ef0c403ce7c77e22e7cd
+```
+
+Fresh artifact comparisons reproduced the four SHA-256 receipts above exactly:
+off index `66f0d8d097b0c1b88dba01e2fe87c1233b576b3d0019e81401434a7f58a74c8e`,
+off notices `3367640f4a3b473755079ad41dc46c67bd65ed2dd21a0ca47edcd14944d3a91d`,
+on index `9829ba305ce746513c6c6bcd3735b505123b2eecd96962d2573b3ef0a65886ee`,
+on notices `2c7ff36a2ae55948ac01928c713c7f203d1771198cfde411a845693750368c76`.
+
+V9–V13, both full server suites, new S206 assertions, T1, the negative control,
+accepted regressions and SQL runtime behavior were not run or claimed passed.
+There was no deployment, push, external message, checkpoint edit or next milestone.
+Both mandatory source-commit boundary hooks passed; Git again emitted the sandbox
+`packed-refs.lock` maintenance warning after creating the expected commit.

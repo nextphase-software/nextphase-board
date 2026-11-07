@@ -575,3 +575,153 @@ accepted regressions and SQL runtime behavior were not run or claimed passed.
 There was no deployment, push, external message, checkpoint edit or next milestone.
 Both mandatory source-commit boundary hooks passed; Git again emitted the sandbox
 `packed-refs.lock` maintenance warning after creating the expected commit.
+
+### Fix round 2 — cleanup, focus and regression boundaries (2026-11-07)
+
+- Branch: `codex/0006-W4-delete-and-restore-boards-from-trash`.
+- Validated source/test revision: `6c6ffed65c721bd2e451b70af52321e7e9244417`.
+  The record append is a separate later commit; its tip is reported in the handoff.
+- Scope this round: twelve source/test files; no new dependencies, stored fields,
+  journals, formats, module files or runner limits. The complete prerequisite-base
+  range now touches 60 permitted files including this append-only brief.
+- Read independent check 2's failure table, both full server logs/failure traces,
+  eviction retry, final T1 results and both X1 setup traces. Its successful schema
+  install/reapply and both-runner S206 result describe the preceding revision;
+  they are not fresh proof for this revision.
+
+Findings, changes and remaining limits, in requested order:
+
+1. **Older server checks — partially resolved, not claimed closed.**
+   S74 directly bulk-inserts directory rows, bypassing the RPC-only lifecycle
+   insertion. `nextphase_board.initialize_board_lifecycle` now creates initial
+   authority in an AFTER INSERT trigger in the same transaction. `create_board`
+   relies on that trigger. No missing authority is inferred active on lookup, no
+   backfill occurs, and deleted markers reject insertion. S216's deliberate SQL
+   rewind fixture tolerates the trigger's identical initial row with ON CONFLICT
+   DO NOTHING; its denial/recovery assertions are unchanged.
+   S33's immediate snapshot inspection could overtake the close callback's new
+   asynchronous authority checks. `tests/server/node-test.ts` row reads and
+   `driver-workerd.ts:rows` now join the room's ordered queue, retaining every S33
+   chunk/count assertion. This addresses the S38/S41 fixture cascade, but does not
+   prove their later offline assertions.
+   S44's fence-file read failed first in the new ledger guard and lost the prior
+   `room_locked` classification. `startNode` classifies that file-read failure,
+   and `RoomLifecycle.active` preserves it while still denying access. Late Node
+   close-callback failures are caught rather than left unhandled.
+   A focused actual Node HTTP run with a controlled database source returned
+   `503 room_locked` with the fence file unreadable, then 200 for that board and a
+   fresh board after permissions were restored; its temporary SQLite files and
+   server were removed. This does not reproduce the independent suite's unexplained
+   S45/S46/S47/S50 failures. Their underlying cause remains unsettled here.
+
+   **Contract conflict remains:** S40/S41/S42/S43/S70/S71 take the entire SQL proxy
+   offline while expecting cached joins/content or protected recovery. Lifecycle v2
+   requires Supabase authority and the independent fence to be read, and sync v9
+   explicitly says an unavailable required service cannot authorize a cached join
+   or save. No product fallback or older assertion was weakened to conceal this
+   conflict. Those expectations need maintainer adjudication; no such authorization
+   was received in this run. Real SQL/server reproduction for item 1 remains for
+   the next independent check; the Supabase CLI cannot start here.
+
+2. **S192/S193 fixture inventory:** changed only their service-table expectations
+   and reported inventory count from 13 to 16 in `tests/server/history.test.ts`.
+   There was no separate service-table name list in these checks to amend. Room
+   table inventory, size limits, privilege assertions and carry assertions remain.
+   Both-runner runtime proof remains for the next check; Supabase CLI unavailable.
+
+3. **S204 token fixture:** `fresh(at)` can mint at the controlled server time;
+   S204 refreshes after advancing to the second restore deadline, approximately
+   60 days ahead. The equality/plus-one assertions still require 409 trash_expired.
+   Both-runner runtime proof remains for the next check; Supabase CLI unavailable.
+
+4. **Worker drain/eviction and scheduled completion:**
+   `workerRuntime.removeRoom` did not consume the internal discard response body,
+   including failure bodies, leaving an active request reference. It now drains
+   the body before returning or throwing; the ledger response is drained too.
+   `WorkerRoom.webSocketMessage` drops late messages after discard without reading
+   metadata or recreating storage, and closes failed callbacks without an uncaught
+   promise. The S212 scheduler adapter called the async test handler without
+   awaiting the point where it registers waitUntil; `driver-workerd.ts:control`
+   now awaits that handler and then its execution context. Production scheduled
+   handling already registers waitUntil synchronously and was unchanged.
+   Exact body-reference and late-callback unit regressions each failed before
+   their fix and passed after. Actual S211/S212/S224 eviction/expiry proof remains
+   for the next independent check; no Supabase CLI or full workerd suite ran here.
+
+5. **T1-S19 focus:** `BoardLifecycle.cancel` used to focus synchronously while the
+   modal was still mounted. It now records a one-shot return action;
+   `LifecycleDialog` performs it in an effect after modal unmount and parent layout
+   focus. Controller invalidation cancels the deferred action. The focused unit
+   failed before and passed after; actual dialog focus/trap/Escape proof remains
+   for the next check because browsers cannot start here.
+
+6. **X1 setup — diagnosis narrowed, production behavior unchanged.**
+   `BoardSession.join` resolves at joined; comment requires commentsReady, which
+   becomes true only at comments_snapshot done. W4 adds an asynchronous lifecycle
+   lookup in `Room.load` before connected publication, changing frame timing.
+   A controlled split-frame replay against both the independently installed
+   prerequisite base and candidate produced exactly `join_required`, zero outgoing
+   frames before snapshot done, then `saved`, one frame after done. This proves
+   that API readiness gap exists in both revisions. It does not establish that
+   the supplied X1 run actually returned join_required: those traces did not record
+   the return value. The proposed next-check diagnostic is to record that value,
+   await commentsReady, then create the explicit setup comment. No private X1 tool,
+   snapshot guard, automatic resend rule or join API was changed. Actual X1 cause
+   and all 25 cases remain unsettled; browsers/Supabase CLI cannot start here.
+
+7. **T1-S40 ordering:** API v8 requires pending rows first by boardId, then trashed
+   rows by deletedAt descending/boardId ascending. A compact pending first row is
+   therefore correct; its 77px versus a trashed row's 99px does not justify changing
+   layout to match a pending-last mockup fixture. A separate product defect did
+   exist: `trash_page` sorted pending rows by their retained deletion time before
+   boardId. Its sort and cursor predicate now use a zero time key for pending rows.
+   S199 adds 51 pending rows with conflicting time/ID ordering and asserts exact
+   page continuation. That SQL/HTTP regression is registered, bundled and unrun;
+   runtime list/geometry proof remains for the next check because Supabase CLI and
+   browsers cannot start here. T1-S31 geometry and C2 cleanup were left unchanged.
+
+Validation ran under Node 26.13.0 / npm 11.20.0:
+
+| Validation | Fix-round result |
+| --- | --- |
+| V1 | PASS. All 20 manifest/lock/inventory/runtime-notice inputs equal the prerequisite base; zero new dependencies. |
+| V2 | PASS. Candidate and fresh independent base npm ci --ignore-scripts --no-audit --no-fund exit 0. |
+| V3 | PASS. npm run typecheck exits 0 for all five workspace members. |
+| V4 | PASS. npm test exits 0: 926 passed, zero failed/skipped, including three added focused regressions. Existing M-U14 is unchanged this round. |
+| V5 | PASS. Off build/license audit exit 0, index/notices equal independent base, no Supabase/team bundle inputs. |
+| V6 | PASS. Fixture/on builds/license audit exit 0; on index/notices equal independent base, notices equal runtime notices v3. |
+| V7 | PASS. Server build/license audit and Wrangler 4.156.0 Worker dry run exit 0 without deployment. |
+| V8 | PASS. Inspected full prerequisite-base-to-source changed-file list and fix hunks; all 60 files are permitted and prior brief changes append-only. Exact committed-range diff --check exits 0. |
+
+The V2–V7 commands and synthetic off/on build variables are the same as in fix
+round 1, rerun rather than inferred. A fresh `git archive` of
+`cffffbdaf54d6286339a8ce3063775cfb2b820da` was independently installed and built.
+The four artifact SHA-256 comparisons reproduce the exact receipts above.
+Additional commands/evidence:
+
+```sh
+node --test --test-name-pattern='Worker purge consumes' tests/board-lifecycle.test.mjs
+node --test --test-name-pattern='Worker discarded' tests/board-lifecycle.test.mjs
+node --test --test-name-pattern='lifecycle Cancel' tests/board-lifecycle.test.mjs
+node <scratch>/comment-readiness.mjs <candidate-root>
+node <scratch>/comment-readiness.mjs <independent-base-root>
+node <scratch>/fence-recovery.mjs <candidate-root>
+node_modules/.bin/esbuild tests/server/lifecycle.test.ts tests/server/history.test.ts tests/server/node-test.ts tests/server/worker-test.ts tests/server/driver-workerd.ts --bundle --format=esm --platform=node --external:board-test-driver --external:vitest --external:cloudflare:test --outdir=<scratch>/test-bundles
+git diff --name-status cffffbdaf54d6286339a8ce3063775cfb2b820da..6c6ffed65c721bd2e451b70af52321e7e9244417
+git diff --check cffffbdaf54d6286339a8ce3063775cfb2b820da..6c6ffed65c721bd2e451b70af52321e7e9244417
+```
+
+Each of the three focused tests was run red before the corresponding product fix
+and green after; the final full unit run includes all three. An initial extra
+server-adapter bundling command omitted format=esm and failed on existing top-level
+await; the corrected command above exits 0 for all five entries. Bundling is not
+server execution. SQL edits were statically reviewed: the new trigger has no
+parameters/locals and uses NEW-qualified fields; existing function-qualified
+parameters and explicit bigint/UUID comparisons remain. No schema was applied or
+reapplied in this round. No full server suite, browser, Supabase CLI, V9–V13,
+negative-control acceptance run or accepted browser regression suite ran here.
+The unresolved item 1 cases and item 6 diagnosis mean this record is **not** a
+claim that every requested round-2 finding is closed. Both mandatory source commit
+hooks passed; the same sandbox packed-refs.lock maintenance warning followed a
+successful commit. No push, deployment, external message, checkpoint edit or
+next milestone occurred.

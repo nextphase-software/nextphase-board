@@ -231,3 +231,43 @@ test('H-U20 live effective roles browse history, viewer mutations refuse, and ou
     f.env.access.role=async()=>{throw Error('service unavailable');};await assert.rejects(f.list(),error=>error.status===503&&error.message==='service_unavailable');assert.equal(f.storage.all('SELECT * FROM versions').length,1);assert.equal(f.storage.all('SELECT * FROM history_requests').length,0);
   }finally{f.close();}
 });
+test('H-U21 actual history modal traps forward/reverse Tab, including confirmation, fields and pending states',async()=>{
+  const {build}=await import('esbuild'),{mkdtemp,readFile,writeFile,rm}=await import('node:fs/promises');
+  const {join}=await import('node:path'),{tmpdir}=await import('node:os'),{fileURLToPath,pathToFileURL}=await import('node:url');
+  // Expose the private component only in this test bundle; execute its real key
+  // handler with driven focus targets, without a browser or a new public export.
+  const result=await build({stdin:{contents:"export {HistoryModal} from './apps/web/src/team/history-panel.tsx';",resolveDir:fileURLToPath(new URL('../',import.meta.url)),loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',jsx:'automatic',plugins:[{name:'history-modal-focus-ports',setup(b){
+    b.onLoad({filter:/\/team\/history-panel\.tsx$/},async args=>({contents:await readFile(args.path,'utf8')+'\nexport {HistoryModal};',loader:'tsx'}));
+    b.onResolve({filter:/^react$/},args=>args.importer.endsWith('/team/history-panel.tsx')?{path:'hooks',namespace:'modal-focus'}:undefined);
+    b.onLoad({filter:/.*/,namespace:'modal-focus'},()=>({contents:'export const useRef=()=>({current:null}); export const useEffect=()=>{}; export const useLayoutEffect=()=>{}; export const useState=()=>[null,()=>{}];',loader:'js'}));
+  }}]});
+  const folder=await mkdtemp(join(tmpdir(),'board-history-focus-')),previous=Object.getOwnPropertyDescriptor(globalThis,'document');
+  const doc={activeElement:null};Object.defineProperty(globalThis,'document',{configurable:true,value:doc});
+  try{
+    const modulePath=join(folder,'modal.mjs');await writeFile(modulePath,result.outputFiles[0].text);const {HistoryModal}=await import(pathToFileURL(modulePath).href);
+    const modal=HistoryModal({h:{cancel(){}},title:'Restore this version?',children:null});
+    const control=(name,{disabled=false,hidden=false}={})=>({name,disabled,hidden,focus(){doc.activeElement=this;},getClientRects(){return hidden?[]:[{}];}});
+    let controls=[];
+    const dialog={querySelectorAll:()=>controls.filter(c=>!c.disabled),focus(){doc.activeElement=this;}};
+    function press(shiftKey=false,key='Tab'){
+      const event={key,shiftKey,currentTarget:dialog,prevented:false,stopped:false,preventDefault(){this.prevented=true;},stopPropagation(){this.stopped=true;}};
+      modal.props.onKeyDown(event);assert.equal(event.stopped,true);
+      if(!event.prevented&&key==='Tab'){
+        const index=controls.indexOf(doc.activeElement);doc.activeElement=controls[index+(shiftKey?-1:1)]??null;
+      }
+      return event;
+    }
+    const cancel=control('Cancel'),restore=control('Restore this version');controls=[cancel,restore];cancel.focus();
+    press();assert.equal(doc.activeElement,restore);
+    assert.equal(press().prevented,true);assert.equal(doc.activeElement,cancel,'Restore → Tab must wrap to Cancel');
+    assert.equal(press(true).prevented,true);assert.equal(doc.activeElement,restore,'Cancel → Shift+Tab must wrap to Restore');
+    press(true);assert.equal(doc.activeElement,cancel);
+    const name=control('Name (optional)'),description=control('Description (optional)'),save=control('Save version');controls=[name,description,cancel,save];name.focus();
+    for(const expected of [description,cancel,save]){assert.equal(press().prevented,false);assert.equal(doc.activeElement,expected);}
+    assert.equal(press().prevented,true);assert.equal(doc.activeElement,name);press(true);assert.equal(doc.activeElement,save);
+    const retry=control('Retry');controls=[control('disabled',{disabled:true}),retry,control('hidden',{hidden:true})];retry.focus();
+    assert.equal(press().prevented,true);assert.equal(doc.activeElement,retry);assert.equal(press(true).prevented,true);assert.equal(doc.activeElement,retry);
+    controls=[control('Restoring…',{disabled:true})];doc.activeElement=dialog;assert.equal(press().prevented,true);assert.equal(doc.activeElement,dialog);
+    assert.equal(press(false,'ArrowLeft').prevented,false);
+  }finally{if(previous)Object.defineProperty(globalThis,'document',previous);else delete globalThis.document;await rm(folder,{recursive:true,force:true});}
+});

@@ -19,6 +19,15 @@ function HistoryModal({ h, title, focus, children }: { h: BoardHistory; title: s
   return <dialog ref={dialog} className="team-dialog history-dialog" aria-label={title} tabIndex={-1}
     onCancel={e => { e.preventDefault(); h.cancel(); }} onKeyDown={e => {
       e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); h.cancel(); }
+      if (e.key === 'Tab') {
+        const controls = [...e.currentTarget.querySelectorAll<HTMLElement>(
+          'button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex="0"],a[href]',
+        )].filter(node => node.getClientRects().length > 0);
+        const first = controls[0], last = controls.at(-1);
+        if (!first) { e.preventDefault(); e.currentTarget.focus(); }
+        else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last!.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
     }}><h1>{title}</h1>{children}</dialog>;
 }
 function HistoryQuestion({ h }: { h: BoardHistory }) {

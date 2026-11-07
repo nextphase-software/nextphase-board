@@ -393,3 +393,24 @@ These versions govern retained document history, layout 5, same-board restore wi
 current discussion/notices, live rights, generation fences and concrete history rendering with
 viewer-local timestamps. Saved document 10, identity v4, presence v1, storage v3, board file v2
 and toolchain/lock/inventory v5/runtime notices v3 remain unchanged. Trash/deletion are 0006-W4.
+
+For [0006-W4 v1 — Delete and restore boards from Trash](../briefs/0006-W4-delete-and-restore-boards-from-trash.md) (draft), use:
+
+- [0006-board-lifecycle-v2](0006-board-lifecycle-v2.md).
+- [0003-hosted-storage-v8](0003-hosted-storage-v8.md).
+- [0003-hosted-persistence-v8](0003-hosted-persistence-v8.md).
+- [0003-api-v8](0003-api-v8.md).
+- [0003-access-v8](0003-access-v8.md).
+- [0003-sync-v9](0003-sync-v9.md).
+- [0003-self-host-runner-v4](0003-self-host-runner-v4.md).
+- [0005-comments-v4](0005-comments-v4.md).
+- [0001-interaction-v34](0001-interaction-v34.md).
+- [0001-web-modules-v32](0001-web-modules-v32.md).
+- [0001-document-v13](0001-document-v13.md).
+
+These eleven new versions add current-owner-only workspace Trash, exact 30-elapsed-day
+restore admission, same-ID availability restoration, durable purge/retry and the content-free
+deleted-ID register outside room recovery. Interaction v34 specifies the owner sidebar rows,
+confirmation-palette success note and Returning to Home… ending. Current document 10/layout 5,
+identity v4, presence v1, local storage v3, board file v2 and toolchain/lock/inventory v5/runtime
+notices v3 remain; no dependency is added. Prior contract files remain unchanged.

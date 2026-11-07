@@ -367,3 +367,9 @@ An amendment retains the ID and increments the version. All requirements and
 build inputs must be available in this repository or documented public sources.
 Record the revision validation ran against; a subsequent implementation-record
 commit has a different hash. UI briefs include approved design references.
+
+[0006-W4 v1 — Delete and restore boards from Trash](0006-W4-delete-and-restore-boards-from-trash.md)
+(draft) specifies current-owner-only 30-elapsed-day workspace Trash, same-board restore,
+irreversible deny-first cleanup and recovery guards. Its eleven new contracts provide exact
+sidebar/confirmation/ending rendering values, lifecycle state outside room recovery and bounded
+journals. Saved document 10, room layout 5 and dependencies remain unchanged.

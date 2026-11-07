@@ -129,22 +129,22 @@ ALTER TABLE nextphase_board.board_lifecycle_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE nextphase_board.deleted_board_ids ENABLE ROW LEVEL SECURITY;
 CREATE OR REPLACE FUNCTION nextphase_board.board_active(board uuid) RETURNS boolean
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE life nextphase_board.board_lifecycle;
+DECLARE v_life nextphase_board.board_lifecycle;
 BEGIN
-  IF EXISTS(SELECT 1 FROM nextphase_board.deleted_board_ids d WHERE d.board_id=board) THEN RETURN false; END IF;
-  SELECT * INTO life FROM nextphase_board.board_lifecycle l WHERE l.board_id=board;
-  IF NOT FOUND AND EXISTS(SELECT 1 FROM nextphase_board.boards b WHERE b.id=board) THEN RAISE EXCEPTION 'service_unavailable'; END IF;
-  RETURN coalesce(life.state='active',false);
+  IF EXISTS(SELECT 1 FROM nextphase_board.deleted_board_ids d WHERE d.board_id=board_active.board) THEN RETURN false; END IF;
+  SELECT * INTO v_life FROM nextphase_board.board_lifecycle l WHERE l.board_id=board_active.board;
+  IF NOT FOUND AND EXISTS(SELECT 1 FROM nextphase_board.boards b WHERE b.id=board_active.board) THEN RAISE EXCEPTION 'service_unavailable'; END IF;
+  RETURN coalesce(v_life.state='active',false);
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.board_role(person uuid, board uuid) RETURNS text
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
-  SELECT CASE WHEN (auth.role() = 'service_role' OR person = auth.uid())
-    AND EXISTS(SELECT 1 FROM nextphase_board.people p WHERE p.id = person AND NOT p.disabled)
-    AND nextphase_board.board_active(board) THEN (
+  SELECT CASE WHEN (auth.role() = 'service_role' OR board_role.person = auth.uid())
+    AND EXISTS(SELECT 1 FROM nextphase_board.people p WHERE p.id = board_role.person AND NOT p.disabled)
+    AND nextphase_board.board_active(board_role.board) THEN (
     SELECT role FROM (
       SELECT m.role FROM nextphase_board.boards b JOIN nextphase_board.workspace_members m ON m.workspace_id = b.workspace_id
-      WHERE b.id = board AND m.person_id = person AND m.role <> 'guest'
-      UNION ALL SELECT g.role FROM nextphase_board.board_grants g WHERE g.board_id = board AND g.person_id = person
+      WHERE b.id = board_role.board AND m.person_id = board_role.person AND m.role <> 'guest'
+      UNION ALL SELECT g.role FROM nextphase_board.board_grants g WHERE g.board_id = board_role.board AND g.person_id = board_role.person
     ) roles ORDER BY nextphase_board.role_rank(role) DESC LIMIT 1
   ) ELSE NULL END
 $$;
@@ -169,12 +169,12 @@ BEGIN
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.create_board(workspace uuid, person uuid, title text) RETURNS nextphase_board.boards
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE result nextphase_board.boards;
+DECLARE v_result nextphase_board.boards;
 BEGIN
-  INSERT INTO nextphase_board.boards(workspace_id,created_by,title) VALUES(workspace,person,title) RETURNING * INTO result;
-  IF EXISTS(SELECT 1 FROM nextphase_board.deleted_board_ids d WHERE d.board_id=result.id) THEN RAISE EXCEPTION 'service_unavailable'; END IF;
-  INSERT INTO nextphase_board.board_lifecycle VALUES(result.id,workspace,'active',0,0,NULL,NULL,NULL,'idle',NULL);
-  RETURN result;
+  INSERT INTO nextphase_board.boards(workspace_id,created_by,title) VALUES(create_board.workspace,create_board.person,create_board.title) RETURNING * INTO v_result;
+  IF EXISTS(SELECT 1 FROM nextphase_board.deleted_board_ids d WHERE d.board_id=v_result.id) THEN RAISE EXCEPTION 'service_unavailable'; END IF;
+  INSERT INTO nextphase_board.board_lifecycle VALUES(v_result.id,create_board.workspace,'active',0,0,NULL,NULL,NULL,'idle',NULL);
+  RETURN v_result;
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.write_member_role(workspace uuid, person uuid, role text) RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
@@ -192,26 +192,26 @@ BEGIN
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.write_board_grant(board uuid, person uuid, role text) RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE workspace uuid; old_role text;
+DECLARE v_workspace uuid; v_old_role text;
 BEGIN
-  SELECT b.workspace_id INTO workspace FROM nextphase_board.boards b WHERE b.id = board;
-  PERFORM 1 FROM nextphase_board.workspaces w WHERE w.id = workspace FOR UPDATE;
-  IF NOT nextphase_board.board_active(board) THEN RAISE EXCEPTION 'not_found'; END IF;
-  IF NOT EXISTS(SELECT 1 FROM nextphase_board.people p WHERE p.id = person) THEN RAISE EXCEPTION 'person_not_found'; END IF;
-  IF role NOT IN ('editor','viewer') THEN RAISE EXCEPTION 'bad_request'; END IF;
-  SELECT g.role INTO old_role FROM nextphase_board.board_grants g WHERE g.board_id = board AND g.person_id = person;
+  SELECT b.workspace_id INTO v_workspace FROM nextphase_board.boards b WHERE b.id = write_board_grant.board;
+  PERFORM 1 FROM nextphase_board.workspaces w WHERE w.id = v_workspace FOR UPDATE;
+  IF NOT nextphase_board.board_active(write_board_grant.board) THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF NOT EXISTS(SELECT 1 FROM nextphase_board.people p WHERE p.id = write_board_grant.person) THEN RAISE EXCEPTION 'person_not_found'; END IF;
+  IF write_board_grant.role NOT IN ('editor','viewer') THEN RAISE EXCEPTION 'bad_request'; END IF;
+  SELECT g.role INTO v_old_role FROM nextphase_board.board_grants g WHERE g.board_id = write_board_grant.board AND g.person_id = write_board_grant.person;
   IF EXISTS(SELECT 1 FROM nextphase_board.workspace_members m
-    WHERE m.workspace_id = workspace AND m.person_id = person AND m.role = 'owner') THEN
+    WHERE m.workspace_id = v_workspace AND m.person_id = write_board_grant.person AND m.role = 'owner') THEN
     RAISE EXCEPTION 'owner_row_immutable';
   END IF;
-  IF old_role = role THEN RETURN role; END IF;
-  IF NOT EXISTS(SELECT 1 FROM nextphase_board.workspace_members m WHERE m.workspace_id = workspace AND m.person_id = person) THEN
-    INSERT INTO nextphase_board.workspace_members VALUES(workspace,person,'guest');
-    INSERT INTO nextphase_board.access_changes(workspace_id,person_id,kind,role) VALUES(workspace,person,'member','guest');
+  IF v_old_role = write_board_grant.role THEN RETURN write_board_grant.role; END IF;
+  IF NOT EXISTS(SELECT 1 FROM nextphase_board.workspace_members m WHERE m.workspace_id = v_workspace AND m.person_id = write_board_grant.person) THEN
+    INSERT INTO nextphase_board.workspace_members VALUES(v_workspace,write_board_grant.person,'guest');
+    INSERT INTO nextphase_board.access_changes(workspace_id,person_id,kind,role) VALUES(v_workspace,write_board_grant.person,'member','guest');
   END IF;
-  INSERT INTO nextphase_board.board_grants VALUES(board,person,role) ON CONFLICT(board_id,person_id) DO UPDATE SET role = excluded.role;
-  INSERT INTO nextphase_board.access_changes(workspace_id,board_id,person_id,kind,role) VALUES(workspace,board,person,'grant',role);
-  RETURN role;
+  INSERT INTO nextphase_board.board_grants VALUES(write_board_grant.board,write_board_grant.person,write_board_grant.role) ON CONFLICT(board_id,person_id) DO UPDATE SET role = excluded.role;
+  INSERT INTO nextphase_board.access_changes(workspace_id,board_id,person_id,kind,role) VALUES(v_workspace,write_board_grant.board,write_board_grant.person,'grant',write_board_grant.role);
+  RETURN write_board_grant.role;
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.remove_member(workspace uuid, person uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
@@ -300,15 +300,15 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
 $$;
 CREATE OR REPLACE FUNCTION nextphase_board.create_invitation(workspace uuid, board uuid, email text, role text, "by" uuid)
 RETURNS nextphase_board.invitations LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE result nextphase_board.invitations;
+DECLARE v_result nextphase_board.invitations;
 BEGIN
-  PERFORM 1 FROM nextphase_board.workspaces w WHERE w.id = workspace FOR UPDATE;
-  IF board IS NOT NULL AND NOT EXISTS(SELECT 1 FROM nextphase_board.boards b WHERE b.id = board AND b.workspace_id = workspace AND nextphase_board.board_active(board)) THEN
+  PERFORM 1 FROM nextphase_board.workspaces w WHERE w.id = create_invitation.workspace FOR UPDATE;
+  IF create_invitation.board IS NOT NULL AND NOT EXISTS(SELECT 1 FROM nextphase_board.boards b WHERE b.id = create_invitation.board AND b.workspace_id = create_invitation.workspace AND nextphase_board.board_active(create_invitation.board)) THEN
     RAISE EXCEPTION 'not_found';
   END IF;
   INSERT INTO nextphase_board.invitations(workspace_id,board_id,email,role,created_by)
-    VALUES(workspace,board,lower(email),role,"by") RETURNING * INTO result;
-  RETURN result;
+    VALUES(create_invitation.workspace,create_invitation.board,lower(create_invitation.email),create_invitation.role,create_invitation."by") RETURNING * INTO v_result;
+  RETURN v_result;
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.cancel_invitation(invitation uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
@@ -320,39 +320,39 @@ BEGIN
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.accept_invitation(invitation uuid, person uuid, email text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE offer nextphase_board.invitations; old_role text; result jsonb;
+DECLARE v_offer nextphase_board.invitations; v_old_role text; v_result jsonb;
 BEGIN
-  SELECT * INTO offer FROM nextphase_board.invitations i WHERE i.id = invitation;
+  SELECT * INTO v_offer FROM nextphase_board.invitations i WHERE i.id = accept_invitation.invitation;
   IF NOT FOUND THEN RAISE EXCEPTION 'not_found'; END IF;
-  PERFORM 1 FROM nextphase_board.workspaces w WHERE w.id = offer.workspace_id FOR UPDATE;
-  SELECT * INTO offer FROM nextphase_board.invitations i WHERE i.id = invitation FOR UPDATE;
-  IF EXISTS(SELECT 1 FROM nextphase_board.people p WHERE p.id = person AND p.disabled) THEN
+  PERFORM 1 FROM nextphase_board.workspaces w WHERE w.id = v_offer.workspace_id FOR UPDATE;
+  SELECT * INTO v_offer FROM nextphase_board.invitations i WHERE i.id = accept_invitation.invitation FOR UPDATE;
+  IF EXISTS(SELECT 1 FROM nextphase_board.people p WHERE p.id = accept_invitation.person AND p.disabled) THEN
     RAISE EXCEPTION 'account_disabled';
   END IF;
-  IF offer.board_id IS NOT NULL AND NOT nextphase_board.board_active(offer.board_id) THEN RAISE EXCEPTION 'not_found'; END IF;
-  IF lower(email) <> offer.email THEN RAISE EXCEPTION 'invitation_email_mismatch'; END IF;
-  result := jsonb_build_object('workspaceId',offer.workspace_id,'boardId',offer.board_id,'role',offer.role);
-  IF offer.accepted_by = person THEN RETURN result; END IF;
-  IF offer.accepted_at IS NOT NULL THEN RAISE EXCEPTION 'invitation_used'; END IF;
-  IF offer.cancelled_at IS NOT NULL THEN RAISE EXCEPTION 'invitation_cancelled'; END IF;
-  IF offer.expires_at <= now() THEN RAISE EXCEPTION 'invitation_expired'; END IF;
-  PERFORM nextphase_board.remember_person(person,email);
-  SELECT m.role INTO old_role FROM nextphase_board.workspace_members m WHERE m.workspace_id = offer.workspace_id AND m.person_id = person;
-  IF old_role IS NULL THEN
-    old_role := CASE WHEN offer.board_id IS NULL THEN offer.role ELSE 'guest' END;
-    INSERT INTO nextphase_board.workspace_members VALUES(offer.workspace_id,person,old_role);
-    INSERT INTO nextphase_board.access_changes(workspace_id,person_id,kind,role) VALUES(offer.workspace_id,person,'member',old_role);
-  ELSIF offer.board_id IS NULL AND nextphase_board.role_rank(offer.role) > nextphase_board.role_rank(old_role) THEN
-    PERFORM nextphase_board.write_member_role(offer.workspace_id,person,offer.role);
+  IF v_offer.board_id IS NOT NULL AND NOT nextphase_board.board_active(v_offer.board_id) THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF lower(accept_invitation.email) <> v_offer.email THEN RAISE EXCEPTION 'invitation_email_mismatch'; END IF;
+  v_result := jsonb_build_object('workspaceId',v_offer.workspace_id,'boardId',v_offer.board_id,'role',v_offer.role);
+  IF v_offer.accepted_by = accept_invitation.person THEN RETURN v_result; END IF;
+  IF v_offer.accepted_at IS NOT NULL THEN RAISE EXCEPTION 'invitation_used'; END IF;
+  IF v_offer.cancelled_at IS NOT NULL THEN RAISE EXCEPTION 'invitation_cancelled'; END IF;
+  IF v_offer.expires_at <= now() THEN RAISE EXCEPTION 'invitation_expired'; END IF;
+  PERFORM nextphase_board.remember_person(accept_invitation.person,accept_invitation.email);
+  SELECT m.role INTO v_old_role FROM nextphase_board.workspace_members m WHERE m.workspace_id = v_offer.workspace_id AND m.person_id = accept_invitation.person;
+  IF v_old_role IS NULL THEN
+    v_old_role := CASE WHEN v_offer.board_id IS NULL THEN v_offer.role ELSE 'guest' END;
+    INSERT INTO nextphase_board.workspace_members VALUES(v_offer.workspace_id,accept_invitation.person,v_old_role);
+    INSERT INTO nextphase_board.access_changes(workspace_id,person_id,kind,role) VALUES(v_offer.workspace_id,accept_invitation.person,'member',v_old_role);
+  ELSIF v_offer.board_id IS NULL AND nextphase_board.role_rank(v_offer.role) > nextphase_board.role_rank(v_old_role) THEN
+    PERFORM nextphase_board.write_member_role(v_offer.workspace_id,accept_invitation.person,v_offer.role);
   END IF;
-  IF offer.board_id IS NOT NULL AND old_role <> 'owner' THEN
-    SELECT g.role INTO old_role FROM nextphase_board.board_grants g WHERE g.board_id = offer.board_id AND g.person_id = person;
-    IF nextphase_board.role_rank(offer.role) > nextphase_board.role_rank(old_role) THEN
-      PERFORM nextphase_board.write_board_grant(offer.board_id,person,offer.role);
+  IF v_offer.board_id IS NOT NULL AND v_old_role <> 'owner' THEN
+    SELECT g.role INTO v_old_role FROM nextphase_board.board_grants g WHERE g.board_id = v_offer.board_id AND g.person_id = accept_invitation.person;
+    IF nextphase_board.role_rank(v_offer.role) > nextphase_board.role_rank(v_old_role) THEN
+      PERFORM nextphase_board.write_board_grant(v_offer.board_id,accept_invitation.person,v_offer.role);
     END IF;
   END IF;
-  UPDATE nextphase_board.invitations i SET accepted_at = now(), accepted_by = person WHERE i.id = invitation;
-  RETURN result;
+  UPDATE nextphase_board.invitations i SET accepted_at = now(), accepted_by = accept_invitation.person WHERE i.id = accept_invitation.invitation;
+  RETURN v_result;
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.access_changes_after(board uuid, "after" bigint) RETURNS jsonb
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
@@ -366,20 +366,20 @@ $$;
 
 CREATE OR REPLACE FUNCTION nextphase_board.record_board_open(person uuid, board uuid, opened_at timestamptz)
 RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$
-  INSERT INTO nextphase_board.board_opens SELECT person, board, opened_at WHERE nextphase_board.board_role(person,board) IS NOT NULL
+  INSERT INTO nextphase_board.board_opens SELECT record_board_open.person, record_board_open.board, record_board_open.opened_at WHERE nextphase_board.board_role(record_board_open.person,record_board_open.board) IS NOT NULL
   ON CONFLICT(person_id, board_id) DO UPDATE
     SET opened_at = greatest(nextphase_board.board_opens.opened_at, excluded.opened_at)
 $$;
 CREATE OR REPLACE FUNCTION nextphase_board.copy_saved_board(board uuid, title text, edited_at timestamptz, generation bigint, revision bigint)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE w uuid;
+DECLARE v_w uuid;
 BEGIN
-  SELECT b.workspace_id INTO w FROM nextphase_board.boards b WHERE b.id=board;
-  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=w FOR UPDATE;
-  PERFORM 1 FROM nextphase_board.board_lifecycle l WHERE l.board_id=board FOR UPDATE;
-  IF NOT nextphase_board.board_active(board) THEN RETURN; END IF;
-  UPDATE nextphase_board.boards b SET title=copy_saved_board.title,edited_at=coalesce(copy_saved_board.edited_at,b.edited_at),document_generation=generation,document_revision=revision
-  WHERE b.id=board AND generation>=(SELECT l.generation FROM nextphase_board.board_lifecycle l WHERE l.board_id=board) AND (generation,revision)>=(b.document_generation,b.document_revision);
+  SELECT b.workspace_id INTO v_w FROM nextphase_board.boards b WHERE b.id=copy_saved_board.board;
+  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=v_w FOR UPDATE;
+  PERFORM 1 FROM nextphase_board.board_lifecycle l WHERE l.board_id=copy_saved_board.board FOR UPDATE;
+  IF NOT nextphase_board.board_active(copy_saved_board.board) THEN RETURN; END IF;
+  UPDATE nextphase_board.boards b SET title=copy_saved_board.title,edited_at=coalesce(copy_saved_board.edited_at,b.edited_at),document_generation=copy_saved_board.generation,document_revision=copy_saved_board.revision
+  WHERE b.id=copy_saved_board.board AND copy_saved_board.generation>=(SELECT l.generation FROM nextphase_board.board_lifecycle l WHERE l.board_id=copy_saved_board.board) AND (copy_saved_board.generation,copy_saved_board.revision)>=(b.document_generation,b.document_revision);
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.list_workspaces(person uuid)
 RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
@@ -491,54 +491,54 @@ BEGIN
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.project_mentions(board uuid, generation bigint, source_order bigint, active jsonb, creates jsonb)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE checkpoint nextphase_board.mention_delivery; item jsonb; who uuid;
+DECLARE v_checkpoint nextphase_board.mention_delivery; v_item jsonb; v_who uuid;
 BEGIN
-  PERFORM 1 FROM nextphase_board.boards b WHERE b.id=board FOR UPDATE;
-  IF NOT nextphase_board.board_active(board) THEN RAISE EXCEPTION 'not_found'; END IF;
-  IF generation < (SELECT l.generation FROM nextphase_board.board_lifecycle l WHERE l.board_id=board) THEN RETURN; END IF;
-  SELECT * INTO checkpoint FROM nextphase_board.mention_delivery d WHERE d.board_id=board;
-  IF FOUND AND (checkpoint.generation, checkpoint.source_order)>=(generation,source_order) THEN RETURN; END IF;
-  IF checkpoint.generation IS NOT NULL AND checkpoint.generation<>generation THEN
-    DELETE FROM nextphase_board.mention_inbox n WHERE n.board_id=board;
+  PERFORM 1 FROM nextphase_board.boards b WHERE b.id=project_mentions.board FOR UPDATE;
+  IF NOT nextphase_board.board_active(project_mentions.board) THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF project_mentions.generation < (SELECT l.generation FROM nextphase_board.board_lifecycle l WHERE l.board_id=project_mentions.board) THEN RETURN; END IF;
+  SELECT * INTO v_checkpoint FROM nextphase_board.mention_delivery d WHERE d.board_id=project_mentions.board;
+  IF FOUND AND (v_checkpoint.generation, v_checkpoint.source_order)>=(project_mentions.generation,project_mentions.source_order) THEN RETURN; END IF;
+  IF v_checkpoint.generation IS NOT NULL AND v_checkpoint.generation<>project_mentions.generation THEN
+    DELETE FROM nextphase_board.mention_inbox n WHERE n.board_id=project_mentions.board;
   END IF;
-  PERFORM nextphase_board.refresh_mention_leases(board);
-  DELETE FROM nextphase_board.mention_inbox n WHERE n.board_id=board AND NOT EXISTS
-    (SELECT 1 FROM jsonb_array_elements(active) a WHERE (a->>'occurrence')::uuid=n.id AND (a->>'lease')::uuid=n.lease);
-  FOR who IN SELECT DISTINCT (c->>'recipient')::uuid FROM jsonb_array_elements(creates) c ORDER BY 1 LOOP
-    PERFORM 1 FROM nextphase_board.people p WHERE p.id=who FOR UPDATE;
+  PERFORM nextphase_board.refresh_mention_leases(project_mentions.board);
+  DELETE FROM nextphase_board.mention_inbox n WHERE n.board_id=project_mentions.board AND NOT EXISTS
+    (SELECT 1 FROM jsonb_array_elements(project_mentions.active) a WHERE (a->>'occurrence')::uuid=n.id AND (a->>'lease')::uuid=n.lease);
+  FOR v_who IN SELECT DISTINCT (c->>'recipient')::uuid FROM jsonb_array_elements(project_mentions.creates) c ORDER BY 1 LOOP
+    PERFORM 1 FROM nextphase_board.people p WHERE p.id=v_who FOR UPDATE;
   END LOOP;
-  FOR item IN SELECT * FROM jsonb_array_elements(creates) ORDER BY (value->>'source_order')::bigint, value->>'occurrence' LOOP
-    IF (checkpoint.generation IS NULL OR checkpoint.generation<>generation OR (item->>'source_order')::bigint>checkpoint.source_order) AND EXISTS (SELECT 1 FROM nextphase_board.mention_leases l WHERE l.board_id=board AND l.person_id=(item->>'recipient')::uuid AND l.lease=(item->>'lease')::uuid)
-      AND nextphase_board.board_role((item->>'recipient')::uuid,board) IS NOT NULL THEN
+  FOR v_item IN SELECT * FROM jsonb_array_elements(project_mentions.creates) ORDER BY (value->>'source_order')::bigint, value->>'occurrence' LOOP
+    IF (v_checkpoint.generation IS NULL OR v_checkpoint.generation<>project_mentions.generation OR (v_item->>'source_order')::bigint>v_checkpoint.source_order) AND EXISTS (SELECT 1 FROM nextphase_board.mention_leases l WHERE l.board_id=project_mentions.board AND l.person_id=(v_item->>'recipient')::uuid AND l.lease=(v_item->>'lease')::uuid)
+      AND nextphase_board.board_role((v_item->>'recipient')::uuid,project_mentions.board) IS NOT NULL THEN
       INSERT INTO nextphase_board.mention_inbox(id,recipient,board_id,thread_id,comment_id,lease,generation,source_order,created_at)
-        VALUES ((item->>'occurrence')::uuid,(item->>'recipient')::uuid,board,(item->>'thread_id')::uuid,(item->>'comment_id')::uuid,(item->>'lease')::uuid,generation,(item->>'source_order')::bigint,(item->>'created_at')::bigint)
+        VALUES ((v_item->>'occurrence')::uuid,(v_item->>'recipient')::uuid,project_mentions.board,(v_item->>'thread_id')::uuid,(v_item->>'comment_id')::uuid,(v_item->>'lease')::uuid,project_mentions.generation,(v_item->>'source_order')::bigint,(v_item->>'created_at')::bigint)
         ON CONFLICT DO NOTHING;
-      DELETE FROM nextphase_board.mention_inbox n WHERE n.recipient=(item->>'recipient')::uuid AND n.id IN
+      DELETE FROM nextphase_board.mention_inbox n WHERE n.recipient=(v_item->>'recipient')::uuid AND n.id IN
         (SELECT x.id FROM nextphase_board.mention_inbox x WHERE x.recipient=n.recipient ORDER BY x.created_at DESC, x.delivered_order DESC OFFSET 50);
     END IF;
   END LOOP;
-  INSERT INTO nextphase_board.mention_delivery VALUES(board,generation,source_order)
+  INSERT INTO nextphase_board.mention_delivery VALUES(project_mentions.board,project_mentions.generation,project_mentions.source_order)
     ON CONFLICT(board_id) DO UPDATE SET generation=excluded.generation,source_order=excluded.source_order;
 END $$;
 -- User document restore preserves the delivered cutoff and every retained read state.
 CREATE OR REPLACE FUNCTION nextphase_board.carry_board_mentions(board uuid, from_generation bigint, to_generation bigint)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE checkpoint nextphase_board.mention_delivery;
+DECLARE v_checkpoint nextphase_board.mention_delivery;
 BEGIN
-  IF NOT nextphase_board.board_active(board) THEN RAISE EXCEPTION 'not_found'; END IF;
-  IF from_generation IS NULL OR to_generation IS NULL OR from_generation < 0 OR to_generation <= from_generation OR to_generation > 9007199254740991 THEN RAISE EXCEPTION 'bad_request'; END IF;
-  PERFORM 1 FROM nextphase_board.boards b WHERE b.id=board FOR UPDATE;
+  IF NOT nextphase_board.board_active(carry_board_mentions.board) THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF carry_board_mentions.from_generation IS NULL OR carry_board_mentions.to_generation IS NULL OR carry_board_mentions.from_generation < 0 OR carry_board_mentions.to_generation <= carry_board_mentions.from_generation OR carry_board_mentions.to_generation > 9007199254740991 THEN RAISE EXCEPTION 'bad_request'; END IF;
+  PERFORM 1 FROM nextphase_board.boards b WHERE b.id=carry_board_mentions.board FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'not_found'; END IF;
-  SELECT * INTO checkpoint FROM nextphase_board.mention_delivery d WHERE d.board_id=board;
+  SELECT * INTO v_checkpoint FROM nextphase_board.mention_delivery d WHERE d.board_id=carry_board_mentions.board;
   IF FOUND THEN
-    IF checkpoint.generation=to_generation THEN RETURN; END IF;
-    IF checkpoint.generation<>from_generation THEN RAISE EXCEPTION 'generation_conflict'; END IF;
-    UPDATE nextphase_board.mention_delivery d SET generation=to_generation WHERE d.board_id=board;
+    IF v_checkpoint.generation=carry_board_mentions.to_generation THEN RETURN; END IF;
+    IF v_checkpoint.generation<>carry_board_mentions.from_generation THEN RAISE EXCEPTION 'generation_conflict'; END IF;
+    UPDATE nextphase_board.mention_delivery d SET generation=carry_board_mentions.to_generation WHERE d.board_id=carry_board_mentions.board;
   ELSE
-    INSERT INTO nextphase_board.mention_delivery VALUES(board,to_generation,-1);
+    INSERT INTO nextphase_board.mention_delivery VALUES(carry_board_mentions.board,carry_board_mentions.to_generation,-1);
   END IF;
-  UPDATE nextphase_board.mention_inbox n SET generation=to_generation WHERE n.board_id=board;
-  PERFORM nextphase_board.refresh_mention_leases(board);
+  UPDATE nextphase_board.mention_inbox n SET generation=carry_board_mentions.to_generation WHERE n.board_id=carry_board_mentions.board;
+  PERFORM nextphase_board.refresh_mention_leases(carry_board_mentions.board);
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.clear_board_mentions(board uuid, generation bigint)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
@@ -581,280 +581,281 @@ ALTER TABLE nextphase_board.mention_leases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE nextphase_board.mention_delivery ENABLE ROW LEVEL SECURITY;
 ALTER TABLE nextphase_board.mention_inbox ENABLE ROW LEVEL SECURITY;
 
+-- Function parameters are function-qualified; local variables use v_ to avoid SQL column capture.
 -- Service-only lifecycle calls. Workspace lock precedes lifecycle and board locks.
 CREATE OR REPLACE FUNCTION nextphase_board.lifecycle_value(board uuid) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE l nextphase_board.board_lifecycle; d nextphase_board.deleted_board_ids;
+DECLARE v_l nextphase_board.board_lifecycle; v_d nextphase_board.deleted_board_ids;
 BEGIN
-  SELECT * INTO d FROM nextphase_board.deleted_board_ids x WHERE x.board_id=board;
-  IF FOUND THEN RETURN jsonb_build_object('boardId',board,'workspaceId',d.workspace_id,'state','deleted','cycle',NULL,'generation',d.generation,'deletedAt',NULL,'restoreBefore',NULL); END IF;
-  SELECT * INTO l FROM nextphase_board.board_lifecycle x WHERE x.board_id=board;
+  SELECT * INTO v_d FROM nextphase_board.deleted_board_ids x WHERE x.board_id=lifecycle_value.board;
+  IF FOUND THEN RETURN jsonb_build_object('boardId',lifecycle_value.board,'workspaceId',v_d.workspace_id,'state','deleted','cycle',NULL,'generation',v_d.generation,'deletedAt',NULL,'restoreBefore',NULL); END IF;
+  SELECT * INTO v_l FROM nextphase_board.board_lifecycle x WHERE x.board_id=lifecycle_value.board;
   IF NOT FOUND THEN
-    IF EXISTS(SELECT 1 FROM nextphase_board.boards b WHERE b.id=board) THEN RAISE EXCEPTION 'service_unavailable'; END IF;
+    IF EXISTS(SELECT 1 FROM nextphase_board.boards b WHERE b.id=lifecycle_value.board) THEN RAISE EXCEPTION 'service_unavailable'; END IF;
     RETURN NULL;
   END IF;
-  RETURN jsonb_build_object('boardId',board,'workspaceId',l.workspace_id,'state',l.state,'cycle',l.cycle,'generation',l.generation,
-    'deletedAt',l.deleted_at,'restoreBefore',l.restore_before,'operationId',l.operation_id,'phase',l.phase,'nextAttemptAt',l.next_attempt_at);
+  RETURN jsonb_build_object('boardId',lifecycle_value.board,'workspaceId',v_l.workspace_id,'state',v_l.state,'cycle',v_l.cycle,'generation',v_l.generation,
+    'deletedAt',v_l.deleted_at,'restoreBefore',v_l.restore_before,'operationId',v_l.operation_id,'phase',v_l.phase,'nextAttemptAt',v_l.next_attempt_at);
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.lifecycle_owner(caller uuid, workspace uuid, board uuid DEFAULT NULL) RETURNS uuid
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE actual uuid; member_role text;
+DECLARE v_actual uuid; v_member_role text;
 BEGIN
-  IF NOT EXISTS(SELECT 1 FROM nextphase_board.people p WHERE p.id=caller AND NOT p.disabled) THEN RAISE EXCEPTION 'not_found'; END IF;
-  IF board IS NOT NULL THEN
-    SELECT l.workspace_id INTO actual FROM nextphase_board.board_lifecycle l WHERE l.board_id=board;
-    IF actual IS NULL THEN SELECT d.workspace_id INTO actual FROM nextphase_board.deleted_board_ids d WHERE d.board_id=board; END IF;
-    IF actual IS NULL THEN
-      IF EXISTS(SELECT 1 FROM nextphase_board.boards b WHERE b.id=board) THEN RAISE EXCEPTION 'service_unavailable'; END IF;
+  IF NOT EXISTS(SELECT 1 FROM nextphase_board.people p WHERE p.id=lifecycle_owner.caller AND NOT p.disabled) THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF lifecycle_owner.board IS NOT NULL THEN
+    SELECT l.workspace_id INTO v_actual FROM nextphase_board.board_lifecycle l WHERE l.board_id=lifecycle_owner.board;
+    IF v_actual IS NULL THEN SELECT d.workspace_id INTO v_actual FROM nextphase_board.deleted_board_ids d WHERE d.board_id=lifecycle_owner.board; END IF;
+    IF v_actual IS NULL THEN
+      IF EXISTS(SELECT 1 FROM nextphase_board.boards b WHERE b.id=lifecycle_owner.board) THEN RAISE EXCEPTION 'service_unavailable'; END IF;
       RAISE EXCEPTION 'not_found';
     END IF;
-    IF workspace IS NOT NULL AND workspace<>actual THEN RAISE EXCEPTION 'not_found'; END IF;
-  ELSE actual:=workspace;
+    IF lifecycle_owner.workspace IS NOT NULL AND lifecycle_owner.workspace<>v_actual THEN RAISE EXCEPTION 'not_found'; END IF;
+  ELSE v_actual:=lifecycle_owner.workspace;
   END IF;
-  SELECT m.role INTO member_role FROM nextphase_board.workspace_members m WHERE m.workspace_id=actual AND m.person_id=caller;
-  IF member_role='owner' THEN RETURN actual; END IF;
-  IF member_role IS NOT NULL OR EXISTS(SELECT 1 FROM nextphase_board.board_grants g WHERE g.board_id=board AND g.person_id=caller) THEN RAISE EXCEPTION 'role_too_low'; END IF;
+  SELECT m.role INTO v_member_role FROM nextphase_board.workspace_members m WHERE m.workspace_id=v_actual AND m.person_id=lifecycle_owner.caller;
+  IF v_member_role='owner' THEN RETURN v_actual; END IF;
+  IF v_member_role IS NOT NULL OR EXISTS(SELECT 1 FROM nextphase_board.board_grants g WHERE g.board_id=lifecycle_owner.board AND g.person_id=lifecycle_owner.caller) THEN RAISE EXCEPTION 'role_too_low'; END IF;
   RAISE EXCEPTION 'not_found';
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.admit_lifecycle(board uuid, caller uuid, workspace uuid, operation text,
   request uuid, expected_cycle bigint, digest text, at_ms bigint, floor_generation bigint) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE w uuid; l nextphase_board.board_lifecycle; old nextphase_board.board_lifecycle_requests; op uuid; next_state text; g bigint;
+DECLARE v_w uuid; v_l nextphase_board.board_lifecycle; v_old nextphase_board.board_lifecycle_requests; v_op uuid; v_next_state text; v_g bigint;
 BEGIN
-  w:=nextphase_board.lifecycle_owner(caller,workspace,board);
-  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=w FOR UPDATE;
-  PERFORM nextphase_board.lifecycle_owner(caller,w,board);
-  SELECT * INTO l FROM nextphase_board.board_lifecycle x WHERE x.board_id=board FOR UPDATE;
-  IF EXISTS(SELECT 1 FROM nextphase_board.deleted_board_ids d WHERE d.board_id=board) THEN
-    IF operation IN ('move','purge') THEN RETURN nextphase_board.lifecycle_value(board); END IF;
+  v_w:=nextphase_board.lifecycle_owner(admit_lifecycle.caller,admit_lifecycle.workspace,admit_lifecycle.board);
+  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=v_w FOR UPDATE;
+  PERFORM nextphase_board.lifecycle_owner(admit_lifecycle.caller,v_w,admit_lifecycle.board);
+  SELECT * INTO v_l FROM nextphase_board.board_lifecycle x WHERE x.board_id=admit_lifecycle.board FOR UPDATE;
+  IF EXISTS(SELECT 1 FROM nextphase_board.deleted_board_ids d WHERE d.board_id=admit_lifecycle.board) THEN
+    IF admit_lifecycle.operation IN ('move','purge') THEN RETURN nextphase_board.lifecycle_value(admit_lifecycle.board); END IF;
     RAISE EXCEPTION 'trash_expired';
   END IF;
-  IF l.board_id IS NULL THEN RAISE EXCEPTION 'not_found'; END IF;
-  IF operation NOT IN ('move','restore','purge') OR request IS NULL OR expected_cycle IS NULL OR expected_cycle NOT BETWEEN 0 AND 9007199254740991
-    OR digest IS NULL OR digest !~ '^[0-9a-f]{64}$' OR at_ms IS NULL OR at_ms NOT BETWEEN 0 AND 9007196662740991
-    OR floor_generation IS NULL OR floor_generation NOT BETWEEN 0 AND 9007199254740990 THEN RAISE EXCEPTION 'bad_request'; END IF;
-  SELECT * INTO old FROM nextphase_board.board_lifecycle_requests r WHERE r.board_id=board AND r.person_id=caller AND r.request_id=request;
+  IF v_l.board_id IS NULL THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF admit_lifecycle.operation NOT IN ('move','restore','purge') OR admit_lifecycle.request IS NULL OR admit_lifecycle.expected_cycle IS NULL OR admit_lifecycle.expected_cycle NOT BETWEEN 0 AND 9007199254740991
+    OR admit_lifecycle.digest IS NULL OR admit_lifecycle.digest !~ '^[0-9a-f]{64}$' OR admit_lifecycle.at_ms IS NULL OR admit_lifecycle.at_ms NOT BETWEEN 0 AND 9007196662740991
+    OR admit_lifecycle.floor_generation IS NULL OR admit_lifecycle.floor_generation NOT BETWEEN 0 AND 9007199254740990 THEN RAISE EXCEPTION 'bad_request'; END IF;
+  SELECT * INTO v_old FROM nextphase_board.board_lifecycle_requests r WHERE r.board_id=admit_lifecycle.board AND r.person_id=admit_lifecycle.caller AND r.request_id=admit_lifecycle.request;
   IF FOUND THEN
-    IF old.digest<>digest OR old.operation<>operation OR old.expected_cycle<>expected_cycle THEN RAISE EXCEPTION 'request_id_reused'; END IF;
-    IF old.accepted_cycle<>l.cycle THEN RAISE EXCEPTION 'lifecycle_changed'; END IF;
-    RETURN nextphase_board.lifecycle_value(board);
+    IF v_old.digest<>admit_lifecycle.digest OR v_old.operation<>admit_lifecycle.operation OR v_old.expected_cycle<>admit_lifecycle.expected_cycle THEN RAISE EXCEPTION 'request_id_reused'; END IF;
+    IF v_old.accepted_cycle<>v_l.cycle THEN RAISE EXCEPTION 'lifecycle_changed'; END IF;
+    RETURN nextphase_board.lifecycle_value(admit_lifecycle.board);
   END IF;
-  IF l.cycle<>expected_cycle THEN RAISE EXCEPTION 'lifecycle_changed'; END IF;
-  IF operation='restore' AND l.state='purging' THEN RAISE EXCEPTION 'trash_expired'; END IF;
-  IF l.state IN ('moving','restoring','purging') THEN RAISE EXCEPTION 'lifecycle_pending'; END IF;
-  IF operation='move' THEN
-    IF l.state<>'active' THEN RAISE EXCEPTION 'lifecycle_changed'; END IF;
-    next_state:='moving';
-  ELSIF operation='restore' THEN
-    IF l.state<>'trashed' OR at_ms>=l.restore_before THEN RAISE EXCEPTION 'trash_expired'; END IF;
-    next_state:='restoring';
+  IF v_l.cycle<>admit_lifecycle.expected_cycle THEN RAISE EXCEPTION 'lifecycle_changed'; END IF;
+  IF admit_lifecycle.operation='restore' AND v_l.state='purging' THEN RAISE EXCEPTION 'trash_expired'; END IF;
+  IF v_l.state IN ('moving','restoring','purging') THEN RAISE EXCEPTION 'lifecycle_pending'; END IF;
+  IF admit_lifecycle.operation='move' THEN
+    IF v_l.state<>'active' THEN RAISE EXCEPTION 'lifecycle_changed'; END IF;
+    v_next_state:='moving';
+  ELSIF admit_lifecycle.operation='restore' THEN
+    IF v_l.state<>'trashed' OR admit_lifecycle.at_ms>=v_l.restore_before THEN RAISE EXCEPTION 'trash_expired'; END IF;
+    v_next_state:='restoring';
   ELSE
-    IF l.state<>'trashed' THEN RAISE EXCEPTION 'lifecycle_changed'; END IF;
-    next_state:='purging';
+    IF v_l.state<>'trashed' THEN RAISE EXCEPTION 'lifecycle_changed'; END IF;
+    v_next_state:='purging';
   END IF;
-  op:=gen_random_uuid();
-  SELECT greatest(l.generation,floor_generation,b.document_generation,coalesce(d.generation,0))+1 INTO g
-    FROM nextphase_board.boards b LEFT JOIN nextphase_board.mention_delivery d ON d.board_id=b.id WHERE b.id=board FOR UPDATE OF b;
-  IF g IS NULL OR g>9007199254740991 THEN RAISE EXCEPTION 'service_unavailable'; END IF;
-  UPDATE nextphase_board.board_lifecycle x SET state=next_state,generation=g,operation_id=op,phase='admitted',next_attempt_at=at_ms,
-    cycle=l.cycle+CASE WHEN operation='move' THEN 1 ELSE 0 END,
-    deleted_at=CASE WHEN operation='move' THEN at_ms WHEN operation='purge' THEN NULL ELSE l.deleted_at END,
-    restore_before=CASE WHEN operation='move' THEN at_ms+2592000000 WHEN operation='purge' THEN NULL ELSE l.restore_before END WHERE x.board_id=board;
-  IF operation='purge' THEN UPDATE nextphase_board.board_lifecycle_requests r SET result='{}' WHERE r.board_id=board; END IF;
-  INSERT INTO nextphase_board.board_lifecycle_requests VALUES(board,caller,request,op,operation,expected_cycle,
-    l.cycle+CASE WHEN operation='move' THEN 1 ELSE 0 END,digest,'{}');
-  RETURN nextphase_board.lifecycle_value(board);
+  v_op:=gen_random_uuid();
+  SELECT greatest(v_l.generation,admit_lifecycle.floor_generation,b.document_generation,coalesce(d.generation,0))+1 INTO v_g
+    FROM nextphase_board.boards b LEFT JOIN nextphase_board.mention_delivery d ON d.board_id=b.id WHERE b.id=admit_lifecycle.board FOR UPDATE OF b;
+  IF v_g IS NULL OR v_g>9007199254740991 THEN RAISE EXCEPTION 'service_unavailable'; END IF;
+  UPDATE nextphase_board.board_lifecycle x SET state=v_next_state,generation=v_g,operation_id=v_op,phase='admitted',next_attempt_at=admit_lifecycle.at_ms,
+    cycle=v_l.cycle+CASE WHEN admit_lifecycle.operation='move' THEN 1 ELSE 0 END,
+    deleted_at=CASE WHEN admit_lifecycle.operation='move' THEN admit_lifecycle.at_ms WHEN admit_lifecycle.operation='purge' THEN NULL ELSE v_l.deleted_at END,
+    restore_before=CASE WHEN admit_lifecycle.operation='move' THEN admit_lifecycle.at_ms+2592000000 WHEN admit_lifecycle.operation='purge' THEN NULL ELSE v_l.restore_before END WHERE x.board_id=admit_lifecycle.board;
+  IF admit_lifecycle.operation='purge' THEN UPDATE nextphase_board.board_lifecycle_requests r SET result='{}' WHERE r.board_id=admit_lifecycle.board; END IF;
+  INSERT INTO nextphase_board.board_lifecycle_requests VALUES(admit_lifecycle.board,admit_lifecycle.caller,admit_lifecycle.request,v_op,admit_lifecycle.operation,admit_lifecycle.expected_cycle,
+    v_l.cycle+CASE WHEN admit_lifecycle.operation='move' THEN 1 ELSE 0 END,admit_lifecycle.digest,'{}');
+  RETURN nextphase_board.lifecycle_value(admit_lifecycle.board);
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.lifecycle_step(board uuid, operation uuid, generation bigint, before_phase text, after_phase text, at_ms bigint) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE l nextphase_board.board_lifecycle; w uuid; result jsonb;
+DECLARE v_l nextphase_board.board_lifecycle; v_w uuid; v_result jsonb;
 BEGIN
-  SELECT x.workspace_id INTO w FROM nextphase_board.board_lifecycle x WHERE x.board_id=board;
-  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=w FOR UPDATE;
-  SELECT * INTO l FROM nextphase_board.board_lifecycle x WHERE x.board_id=board FOR UPDATE;
-  IF l.board_id IS NULL THEN RETURN nextphase_board.lifecycle_value(board); END IF;
-  IF l.operation_id IS DISTINCT FROM operation OR l.generation<>generation THEN RAISE EXCEPTION 'lifecycle_pending'; END IF;
-  IF l.phase<>before_phase THEN RETURN nextphase_board.lifecycle_value(board); END IF;
-  IF NOT ((l.state='moving' AND (before_phase,after_phase) IN (('admitted','room_fenced'),('room_fenced','delivery_cleared'),('delivery_cleared','idle'))) OR
-    (l.state='restoring' AND (before_phase,after_phase) IN (('admitted','room_fenced'),('room_fenced','access_ready'),('access_ready','idle'))) OR
-    (l.state='purging' AND (before_phase,after_phase) IN (('admitted','room_removed'),('room_removed','sql_removed'),('sql_removed','deleted')))) THEN RAISE EXCEPTION 'bad_request'; END IF;
-  IF after_phase='deleted' THEN
-    INSERT INTO nextphase_board.deleted_board_ids VALUES(board,w,generation) ON CONFLICT(board_id) DO UPDATE SET generation=greatest(nextphase_board.deleted_board_ids.generation,excluded.generation);
-    DELETE FROM nextphase_board.board_lifecycle_requests r WHERE r.board_id=board;
-    DELETE FROM nextphase_board.board_lifecycle x WHERE x.board_id=board;
+  SELECT x.workspace_id INTO v_w FROM nextphase_board.board_lifecycle x WHERE x.board_id=lifecycle_step.board;
+  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=v_w FOR UPDATE;
+  SELECT * INTO v_l FROM nextphase_board.board_lifecycle x WHERE x.board_id=lifecycle_step.board FOR UPDATE;
+  IF v_l.board_id IS NULL THEN RETURN nextphase_board.lifecycle_value(lifecycle_step.board); END IF;
+  IF v_l.operation_id IS DISTINCT FROM lifecycle_step.operation OR v_l.generation<>lifecycle_step.generation THEN RAISE EXCEPTION 'lifecycle_pending'; END IF;
+  IF v_l.phase<>lifecycle_step.before_phase THEN RETURN nextphase_board.lifecycle_value(lifecycle_step.board); END IF;
+  IF NOT ((v_l.state='moving' AND (lifecycle_step.before_phase,lifecycle_step.after_phase) IN (('admitted','room_fenced'),('room_fenced','delivery_cleared'),('delivery_cleared','idle'))) OR
+    (v_l.state='restoring' AND (lifecycle_step.before_phase,lifecycle_step.after_phase) IN (('admitted','room_fenced'),('room_fenced','access_ready'),('access_ready','idle'))) OR
+    (v_l.state='purging' AND (lifecycle_step.before_phase,lifecycle_step.after_phase) IN (('admitted','room_removed'),('room_removed','sql_removed'),('sql_removed','deleted')))) THEN RAISE EXCEPTION 'bad_request'; END IF;
+  IF lifecycle_step.after_phase='deleted' THEN
+    INSERT INTO nextphase_board.deleted_board_ids VALUES(lifecycle_step.board,v_w,lifecycle_step.generation) ON CONFLICT(board_id) DO UPDATE SET generation=greatest(nextphase_board.deleted_board_ids.generation,excluded.generation);
+    DELETE FROM nextphase_board.board_lifecycle_requests r WHERE r.board_id=lifecycle_step.board;
+    DELETE FROM nextphase_board.board_lifecycle x WHERE x.board_id=lifecycle_step.board;
   ELSE
-    UPDATE nextphase_board.board_lifecycle x SET phase=after_phase,
-      state=CASE WHEN after_phase='idle' THEN CASE WHEN l.state='moving' THEN 'trashed' ELSE 'active' END ELSE l.state END,
-      operation_id=CASE WHEN after_phase='idle' THEN NULL ELSE operation END,
-      next_attempt_at=CASE WHEN after_phase='idle' THEN NULL ELSE at_ms END,
-      deleted_at=CASE WHEN after_phase='idle' AND l.state='restoring' THEN NULL ELSE l.deleted_at END,
-      restore_before=CASE WHEN after_phase='idle' AND l.state='restoring' THEN NULL ELSE l.restore_before END WHERE x.board_id=board;
-    result:=nextphase_board.lifecycle_value(board);
-    UPDATE nextphase_board.board_lifecycle_requests r SET result=(result-'operationId'-'phase'-'nextAttemptAt')::text WHERE r.board_id=board AND r.accepted_cycle=l.cycle;
+    UPDATE nextphase_board.board_lifecycle x SET phase=lifecycle_step.after_phase,
+      state=CASE WHEN lifecycle_step.after_phase='idle' THEN CASE WHEN v_l.state='moving' THEN 'trashed' ELSE 'active' END ELSE v_l.state END,
+      operation_id=CASE WHEN lifecycle_step.after_phase='idle' THEN NULL ELSE lifecycle_step.operation END,
+      next_attempt_at=CASE WHEN lifecycle_step.after_phase='idle' THEN NULL ELSE lifecycle_step.at_ms END,
+      deleted_at=CASE WHEN lifecycle_step.after_phase='idle' AND v_l.state='restoring' THEN NULL ELSE v_l.deleted_at END,
+      restore_before=CASE WHEN lifecycle_step.after_phase='idle' AND v_l.state='restoring' THEN NULL ELSE v_l.restore_before END WHERE x.board_id=lifecycle_step.board;
+    v_result:=nextphase_board.lifecycle_value(lifecycle_step.board);
+    UPDATE nextphase_board.board_lifecycle_requests r SET result=(v_result-'operationId'-'phase'-'nextAttemptAt')::text WHERE r.board_id=lifecycle_step.board AND r.accepted_cycle=v_l.cycle;
   END IF;
-  RETURN nextphase_board.lifecycle_value(board);
+  RETURN nextphase_board.lifecycle_value(lifecycle_step.board);
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.lifecycle_delivery_clear(board uuid, operation uuid, generation bigint) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE w uuid;
+DECLARE v_w uuid;
 BEGIN
-  SELECT x.workspace_id INTO w FROM nextphase_board.board_lifecycle x WHERE x.board_id=board;
-  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=w FOR UPDATE;
-  PERFORM 1 FROM nextphase_board.board_lifecycle l WHERE l.board_id=board AND l.operation_id=operation AND l.generation=generation AND l.state IN ('moving','restoring') FOR UPDATE;
+  SELECT x.workspace_id INTO v_w FROM nextphase_board.board_lifecycle x WHERE x.board_id=lifecycle_delivery_clear.board;
+  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=v_w FOR UPDATE;
+  PERFORM 1 FROM nextphase_board.board_lifecycle l WHERE l.board_id=lifecycle_delivery_clear.board AND l.operation_id=lifecycle_delivery_clear.operation AND l.generation=lifecycle_delivery_clear.generation AND l.state IN ('moving','restoring') FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'lifecycle_pending'; END IF;
-  PERFORM 1 FROM nextphase_board.boards b WHERE b.id=board FOR UPDATE;
-  DELETE FROM nextphase_board.mention_inbox n WHERE n.board_id=board;
-  DELETE FROM nextphase_board.mention_leases n WHERE n.board_id=board;
-  INSERT INTO nextphase_board.mention_delivery VALUES(board,generation,-1) ON CONFLICT(board_id)
+  PERFORM 1 FROM nextphase_board.boards b WHERE b.id=lifecycle_delivery_clear.board FOR UPDATE;
+  DELETE FROM nextphase_board.mention_inbox n WHERE n.board_id=lifecycle_delivery_clear.board;
+  DELETE FROM nextphase_board.mention_leases n WHERE n.board_id=lifecycle_delivery_clear.board;
+  INSERT INTO nextphase_board.mention_delivery VALUES(lifecycle_delivery_clear.board,lifecycle_delivery_clear.generation,-1) ON CONFLICT(board_id)
     DO UPDATE SET generation=greatest(nextphase_board.mention_delivery.generation,excluded.generation);
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.lifecycle_cleanup(board uuid, operation uuid, generation bigint) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE w uuid;
+DECLARE v_w uuid;
 BEGIN
-  SELECT x.workspace_id INTO w FROM nextphase_board.board_lifecycle x WHERE x.board_id=board;
-  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=w FOR UPDATE;
-  PERFORM 1 FROM nextphase_board.board_lifecycle l WHERE l.board_id=board AND l.operation_id=operation AND l.generation=generation AND l.state='purging' AND l.phase='room_removed' FOR UPDATE;
+  SELECT x.workspace_id INTO v_w FROM nextphase_board.board_lifecycle x WHERE x.board_id=lifecycle_cleanup.board;
+  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=v_w FOR UPDATE;
+  PERFORM 1 FROM nextphase_board.board_lifecycle l WHERE l.board_id=lifecycle_cleanup.board AND l.operation_id=lifecycle_cleanup.operation AND l.generation=lifecycle_cleanup.generation AND l.state='purging' AND l.phase='room_removed' FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'lifecycle_pending'; END IF;
-  DELETE FROM nextphase_board.mention_inbox x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.mention_leases x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.mention_delivery x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.access_deliveries x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.access_changes x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.board_opens x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.invitations x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.board_grants x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.boards x WHERE x.id=board;
+  DELETE FROM nextphase_board.mention_inbox x WHERE x.board_id=lifecycle_cleanup.board;
+  DELETE FROM nextphase_board.mention_leases x WHERE x.board_id=lifecycle_cleanup.board;
+  DELETE FROM nextphase_board.mention_delivery x WHERE x.board_id=lifecycle_cleanup.board;
+  DELETE FROM nextphase_board.access_deliveries x WHERE x.board_id=lifecycle_cleanup.board;
+  DELETE FROM nextphase_board.access_changes x WHERE x.board_id=lifecycle_cleanup.board;
+  DELETE FROM nextphase_board.board_opens x WHERE x.board_id=lifecycle_cleanup.board;
+  DELETE FROM nextphase_board.invitations x WHERE x.board_id=lifecycle_cleanup.board;
+  DELETE FROM nextphase_board.board_grants x WHERE x.board_id=lifecycle_cleanup.board;
+  DELETE FROM nextphase_board.boards x WHERE x.id=lifecycle_cleanup.board;
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.lifecycle_due(at_ms bigint) RETURNS jsonb
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT coalesce(jsonb_agg(page.board_id ORDER BY page.due,page.board_id),'[]') FROM (
     SELECT l.board_id,coalesce(l.next_attempt_at,l.restore_before) due FROM nextphase_board.board_lifecycle l
-    WHERE (l.state IN ('moving','restoring','purging') AND l.next_attempt_at<=at_ms) OR (l.state='trashed' AND l.restore_before<=at_ms)
+    WHERE (l.state IN ('moving','restoring','purging') AND l.next_attempt_at<=lifecycle_due.at_ms) OR (l.state='trashed' AND l.restore_before<=lifecycle_due.at_ms)
     UNION ALL SELECT d.board_id,0 due FROM nextphase_board.deleted_board_ids d JOIN nextphase_board.boards b ON b.id=d.board_id
     ORDER BY due,board_id LIMIT 50) page
 $$;
 CREATE OR REPLACE FUNCTION nextphase_board.lifecycle_tick(board uuid, at_ms bigint) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE l nextphase_board.board_lifecycle; w uuid; g bigint;
+DECLARE v_l nextphase_board.board_lifecycle; v_w uuid; v_g bigint;
 BEGIN
-  SELECT x.workspace_id INTO w FROM nextphase_board.board_lifecycle x WHERE x.board_id=board;
-  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=w FOR UPDATE;
-  SELECT * INTO l FROM nextphase_board.board_lifecycle x WHERE x.board_id=board FOR UPDATE;
-  IF l.state IN ('moving','trashed') AND l.restore_before<=at_ms THEN
-    SELECT greatest(l.generation,b.document_generation,coalesce(d.generation,0))+1 INTO g FROM nextphase_board.boards b LEFT JOIN nextphase_board.mention_delivery d ON d.board_id=b.id WHERE b.id=board FOR UPDATE OF b;
-    UPDATE nextphase_board.board_lifecycle x SET state='purging',phase='admitted',generation=g,operation_id=gen_random_uuid(),deleted_at=NULL,restore_before=NULL,next_attempt_at=at_ms WHERE x.board_id=board;
-    UPDATE nextphase_board.board_lifecycle_requests r SET result='{}' WHERE r.board_id=board;
+  SELECT x.workspace_id INTO v_w FROM nextphase_board.board_lifecycle x WHERE x.board_id=lifecycle_tick.board;
+  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=v_w FOR UPDATE;
+  SELECT * INTO v_l FROM nextphase_board.board_lifecycle x WHERE x.board_id=lifecycle_tick.board FOR UPDATE;
+  IF v_l.state IN ('moving','trashed') AND v_l.restore_before<=lifecycle_tick.at_ms THEN
+    SELECT greatest(v_l.generation,b.document_generation,coalesce(d.generation,0))+1 INTO v_g FROM nextphase_board.boards b LEFT JOIN nextphase_board.mention_delivery d ON d.board_id=b.id WHERE b.id=lifecycle_tick.board FOR UPDATE OF b;
+    UPDATE nextphase_board.board_lifecycle x SET state='purging',phase='admitted',generation=v_g,operation_id=gen_random_uuid(),deleted_at=NULL,restore_before=NULL,next_attempt_at=lifecycle_tick.at_ms WHERE x.board_id=lifecycle_tick.board;
+    UPDATE nextphase_board.board_lifecycle_requests r SET result='{}' WHERE r.board_id=lifecycle_tick.board;
   END IF;
-  RETURN nextphase_board.lifecycle_value(board);
+  RETURN nextphase_board.lifecycle_value(lifecycle_tick.board);
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.lifecycle_retry(board uuid, operation uuid, at_ms bigint) RETURNS void
 LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$
-  UPDATE nextphase_board.board_lifecycle l SET next_attempt_at=at_ms+60000 WHERE l.board_id=board AND l.operation_id=operation AND l.state IN ('moving','restoring','purging')
+  UPDATE nextphase_board.board_lifecycle l SET next_attempt_at=lifecycle_retry.at_ms+60000 WHERE l.board_id=lifecycle_retry.board AND l.operation_id=lifecycle_retry.operation AND l.state IN ('moving','restoring','purging')
 $$;
 CREATE OR REPLACE FUNCTION nextphase_board.trash_page(caller uuid, workspace uuid, pending boolean DEFAULT NULL, deleted_at bigint DEFAULT NULL, after_id uuid DEFAULT NULL) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE result jsonb;
+DECLARE v_result jsonb;
 BEGIN
-  PERFORM nextphase_board.lifecycle_owner(caller,workspace,NULL);
-  SELECT coalesce(jsonb_agg(page.row ORDER BY page.group_key,page.time_key DESC,page.board_id),'[]') INTO result FROM (
+  PERFORM nextphase_board.lifecycle_owner(trash_page.caller,trash_page.workspace,NULL);
+  SELECT coalesce(jsonb_agg(page.row ORDER BY page.group_key,page.time_key DESC,page.board_id),'[]') INTO v_result FROM (
     SELECT l.board_id,CASE WHEN l.state='trashed' THEN 1 ELSE 0 END group_key,coalesce(l.deleted_at,0) time_key,
       jsonb_build_object('boardId',l.board_id,'workspaceId',l.workspace_id,'state',l.state,'cycle',l.cycle,'generation',l.generation) ||
       CASE WHEN l.state='trashed' THEN jsonb_build_object('title',b.title,'deletedAt',l.deleted_at,'restoreBefore',l.restore_before) ELSE '{}'::jsonb END row
     FROM nextphase_board.board_lifecycle l LEFT JOIN nextphase_board.boards b ON b.id=l.board_id
-    WHERE l.workspace_id=workspace AND l.state<>'active' AND NOT EXISTS(SELECT 1 FROM nextphase_board.deleted_board_ids d WHERE d.board_id=l.board_id)
-      AND (after_id IS NULL OR (CASE WHEN l.state='trashed' THEN 1 ELSE 0 END,-coalesce(l.deleted_at,0),l.board_id)>
-        (CASE WHEN pending THEN 0 ELSE 1 END,-coalesce(trash_page.deleted_at,0),after_id))
+    WHERE l.workspace_id=trash_page.workspace AND l.state<>'active' AND NOT EXISTS(SELECT 1 FROM nextphase_board.deleted_board_ids d WHERE d.board_id=l.board_id)
+      AND (trash_page.after_id IS NULL OR (CASE WHEN l.state='trashed' THEN 1 ELSE 0 END,-coalesce(l.deleted_at,0),l.board_id)>
+        (CASE WHEN trash_page.pending THEN 0 ELSE 1 END,-coalesce(trash_page.deleted_at,0),trash_page.after_id))
     ORDER BY group_key,time_key DESC,l.board_id LIMIT 51) page;
-  RETURN result;
+  RETURN v_result;
 END $$;
 CREATE OR REPLACE FUNCTION nextphase_board.revoke_unavailable_board_grant(board uuid, person uuid, caller uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE w uuid; state text;
+DECLARE v_w uuid; v_state text;
 BEGIN
-  w:=nextphase_board.lifecycle_owner(caller,NULL,board);
-  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=w FOR UPDATE;
-  PERFORM nextphase_board.lifecycle_owner(caller,w,board);
-  SELECT l.state INTO state FROM nextphase_board.board_lifecycle l WHERE l.board_id=board AND l.workspace_id=w FOR UPDATE;
-  IF state IS NULL OR state NOT IN ('active','moving','trashed','restoring') OR EXISTS(SELECT 1 FROM nextphase_board.deleted_board_ids d WHERE d.board_id=board) THEN RAISE EXCEPTION 'not_found'; END IF;
-  PERFORM nextphase_board.remove_grant(board,person);
+  v_w:=nextphase_board.lifecycle_owner(revoke_unavailable_board_grant.caller,NULL,revoke_unavailable_board_grant.board);
+  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=v_w FOR UPDATE;
+  PERFORM nextphase_board.lifecycle_owner(revoke_unavailable_board_grant.caller,v_w,revoke_unavailable_board_grant.board);
+  SELECT l.state INTO v_state FROM nextphase_board.board_lifecycle l WHERE l.board_id=revoke_unavailable_board_grant.board AND l.workspace_id=v_w FOR UPDATE;
+  IF v_state IS NULL OR v_state NOT IN ('active','moving','trashed','restoring') OR EXISTS(SELECT 1 FROM nextphase_board.deleted_board_ids d WHERE d.board_id=revoke_unavailable_board_grant.board) THEN RAISE EXCEPTION 'not_found'; END IF;
+  PERFORM nextphase_board.remove_grant(revoke_unavailable_board_grant.board,revoke_unavailable_board_grant.person);
 END $$;
 
 CREATE OR REPLACE FUNCTION nextphase_board.lifecycle_recovery_request(board uuid, operation uuid) RETURNS jsonb
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
-  SELECT to_jsonb(r) FROM nextphase_board.board_lifecycle_requests r WHERE r.board_id=board AND r.operation_id=operation
+  SELECT to_jsonb(r) FROM nextphase_board.board_lifecycle_requests r WHERE r.board_id=lifecycle_recovery_request.board AND r.operation_id=lifecycle_recovery_request.operation
 $$;
 -- Only an operator preserving the current independent ledger may invoke this during SQL recovery.
 -- Listeners and schedulers stay stopped until every independently preserved row is reapplied.
 CREATE OR REPLACE FUNCTION nextphase_board.reapply_lifecycle(record jsonb) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE a jsonb; r jsonb; board uuid; w uuid; g bigint;
+DECLARE v_a jsonb; v_r jsonb; v_board uuid; v_w uuid; v_g bigint;
 BEGIN
-  IF octet_length(record::text)>=131072 OR jsonb_typeof(record)<>'object' THEN RAISE EXCEPTION 'bad_request'; END IF;
-  a:=coalesce(record->'authority',record);board:=(a->>'boardId')::uuid;w:=(a->>'workspaceId')::uuid;g:=(a->>'generation')::bigint;
-  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=w FOR UPDATE;
-  IF NOT FOUND OR board IS NULL OR g IS NULL OR g NOT BETWEEN 0 AND 9007199254740991 THEN RAISE EXCEPTION 'bad_request'; END IF;
-  IF NOT record ? 'authority' THEN
+  IF octet_length(reapply_lifecycle.record::text)>=131072 OR jsonb_typeof(reapply_lifecycle.record)<>'object' THEN RAISE EXCEPTION 'bad_request'; END IF;
+  v_a:=coalesce(reapply_lifecycle.record->'authority',reapply_lifecycle.record);v_board:=(v_a->>'boardId')::uuid;v_w:=(v_a->>'workspaceId')::uuid;v_g:=(v_a->>'generation')::bigint;
+  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=v_w FOR UPDATE;
+  IF NOT FOUND OR v_board IS NULL OR v_g IS NULL OR v_g NOT BETWEEN 0 AND 9007199254740991 THEN RAISE EXCEPTION 'bad_request'; END IF;
+  IF NOT reapply_lifecycle.record ? 'authority' THEN
     -- Reapply denial first. Normal phase work then drains any recovered room and SQL rows.
-    INSERT INTO nextphase_board.deleted_board_ids VALUES(board,w,g) ON CONFLICT(board_id) DO UPDATE SET generation=greatest(nextphase_board.deleted_board_ids.generation,excluded.generation);
-    DELETE FROM nextphase_board.board_lifecycle_requests x WHERE x.board_id=board;
-    DELETE FROM nextphase_board.board_lifecycle x WHERE x.board_id=board;
+    INSERT INTO nextphase_board.deleted_board_ids VALUES(v_board,v_w,v_g) ON CONFLICT(board_id) DO UPDATE SET generation=greatest(nextphase_board.deleted_board_ids.generation,excluded.generation);
+    DELETE FROM nextphase_board.board_lifecycle_requests x WHERE x.board_id=v_board;
+    DELETE FROM nextphase_board.board_lifecycle x WHERE x.board_id=v_board;
     RETURN;
   END IF;
-  IF EXISTS(SELECT 1 FROM nextphase_board.deleted_board_ids d WHERE d.board_id=board) THEN RETURN; END IF;
-  INSERT INTO nextphase_board.board_lifecycle VALUES(board,w,a->>'state',(a->>'cycle')::bigint,g,(a->>'deletedAt')::bigint,(a->>'restoreBefore')::bigint,(a->>'operationId')::uuid,a->>'phase',(a->>'nextAttemptAt')::bigint)
+  IF EXISTS(SELECT 1 FROM nextphase_board.deleted_board_ids d WHERE d.board_id=v_board) THEN RETURN; END IF;
+  INSERT INTO nextphase_board.board_lifecycle VALUES(v_board,v_w,v_a->>'state',(v_a->>'cycle')::bigint,v_g,(v_a->>'deletedAt')::bigint,(v_a->>'restoreBefore')::bigint,(v_a->>'operationId')::uuid,v_a->>'phase',(v_a->>'nextAttemptAt')::bigint)
     ON CONFLICT(board_id) DO UPDATE SET state=excluded.state,cycle=excluded.cycle,generation=excluded.generation,deleted_at=excluded.deleted_at,restore_before=excluded.restore_before,operation_id=excluded.operation_id,phase=excluded.phase,next_attempt_at=excluded.next_attempt_at
     WHERE nextphase_board.board_lifecycle.generation<=excluded.generation;
-  r:=record->'request';
-  IF r IS NOT NULL AND r<>'null'::jsonb THEN
-    INSERT INTO nextphase_board.board_lifecycle_requests SELECT * FROM jsonb_populate_record(NULL::nextphase_board.board_lifecycle_requests,r) ON CONFLICT DO NOTHING;
+  v_r:=reapply_lifecycle.record->'request';
+  IF v_r IS NOT NULL AND v_r<>'null'::jsonb THEN
+    INSERT INTO nextphase_board.board_lifecycle_requests SELECT * FROM jsonb_populate_record(NULL::nextphase_board.board_lifecycle_requests,v_r) ON CONFLICT DO NOTHING;
   END IF;
 END $$;
 
 CREATE OR REPLACE FUNCTION nextphase_board.cleanup_recovered_deleted(board uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE w uuid;
+DECLARE v_w uuid;
 BEGIN
-  SELECT d.workspace_id INTO w FROM nextphase_board.deleted_board_ids d WHERE d.board_id=board;
-  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=w FOR UPDATE;
-  IF w IS NULL THEN RAISE EXCEPTION 'not_found'; END IF;
-  DELETE FROM nextphase_board.mention_inbox x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.mention_leases x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.mention_delivery x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.access_deliveries x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.access_changes x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.board_opens x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.invitations x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.board_grants x WHERE x.board_id=board;
-  DELETE FROM nextphase_board.boards x WHERE x.id=board;
+  SELECT d.workspace_id INTO v_w FROM nextphase_board.deleted_board_ids d WHERE d.board_id=cleanup_recovered_deleted.board;
+  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=v_w FOR UPDATE;
+  IF v_w IS NULL THEN RAISE EXCEPTION 'not_found'; END IF;
+  DELETE FROM nextphase_board.mention_inbox x WHERE x.board_id=cleanup_recovered_deleted.board;
+  DELETE FROM nextphase_board.mention_leases x WHERE x.board_id=cleanup_recovered_deleted.board;
+  DELETE FROM nextphase_board.mention_delivery x WHERE x.board_id=cleanup_recovered_deleted.board;
+  DELETE FROM nextphase_board.access_deliveries x WHERE x.board_id=cleanup_recovered_deleted.board;
+  DELETE FROM nextphase_board.access_changes x WHERE x.board_id=cleanup_recovered_deleted.board;
+  DELETE FROM nextphase_board.board_opens x WHERE x.board_id=cleanup_recovered_deleted.board;
+  DELETE FROM nextphase_board.invitations x WHERE x.board_id=cleanup_recovered_deleted.board;
+  DELETE FROM nextphase_board.board_grants x WHERE x.board_id=cleanup_recovered_deleted.board;
+  DELETE FROM nextphase_board.boards x WHERE x.id=cleanup_recovered_deleted.board;
 END $$;
 
 CREATE OR REPLACE FUNCTION nextphase_board.lifecycle_request_status(board uuid, caller uuid, request uuid, digest text, operation text, expected_cycle bigint) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE r nextphase_board.board_lifecycle_requests; current jsonb;
+DECLARE v_r nextphase_board.board_lifecycle_requests; v_current jsonb;
 BEGIN
-  PERFORM nextphase_board.lifecycle_owner(caller,NULL,board);
-  SELECT * INTO r FROM nextphase_board.board_lifecycle_requests x WHERE x.board_id=board AND x.person_id=caller AND x.request_id=request;
+  PERFORM nextphase_board.lifecycle_owner(lifecycle_request_status.caller,NULL,lifecycle_request_status.board);
+  SELECT * INTO v_r FROM nextphase_board.board_lifecycle_requests x WHERE x.board_id=lifecycle_request_status.board AND x.person_id=lifecycle_request_status.caller AND x.request_id=lifecycle_request_status.request;
   IF NOT FOUND THEN RETURN NULL; END IF;
-  IF r.digest<>digest OR r.operation<>operation OR r.expected_cycle<>expected_cycle THEN RAISE EXCEPTION 'request_id_reused'; END IF;
-  current:=nextphase_board.lifecycle_value(board);
-  IF r.accepted_cycle<>(current->>'cycle')::bigint THEN RAISE EXCEPTION 'lifecycle_changed'; END IF;
-  RETURN current;
+  IF v_r.digest<>lifecycle_request_status.digest OR v_r.operation<>lifecycle_request_status.operation OR v_r.expected_cycle<>lifecycle_request_status.expected_cycle THEN RAISE EXCEPTION 'request_id_reused'; END IF;
+  v_current:=nextphase_board.lifecycle_value(lifecycle_request_status.board);
+  IF v_r.accepted_cycle<>(v_current->>'cycle')::bigint THEN RAISE EXCEPTION 'lifecycle_changed'; END IF;
+  RETURN v_current;
 END $$;
 
 CREATE OR REPLACE FUNCTION nextphase_board.lifecycle_raise(board uuid, operation uuid, minimum bigint) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE w uuid; l nextphase_board.board_lifecycle; g bigint;
+DECLARE v_w uuid; v_l nextphase_board.board_lifecycle; v_g bigint;
 BEGIN
-  SELECT x.workspace_id INTO w FROM nextphase_board.board_lifecycle x WHERE x.board_id=board;
-  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=w FOR UPDATE;
-  SELECT * INTO l FROM nextphase_board.board_lifecycle x WHERE x.board_id=board AND x.operation_id=operation FOR UPDATE;
-  IF l.board_id IS NULL OR l.state NOT IN ('moving','restoring','purging') THEN RAISE EXCEPTION 'lifecycle_pending'; END IF;
-  PERFORM 1 FROM nextphase_board.boards b WHERE b.id=board FOR UPDATE;
-  SELECT greatest(l.generation,minimum,coalesce((SELECT b.document_generation FROM nextphase_board.boards b WHERE b.id=board),0),coalesce((SELECT d.generation FROM nextphase_board.mention_delivery d WHERE d.board_id=board),0))+1 INTO g;
-  IF minimum IS NULL OR minimum<0 OR g IS NULL OR g>9007199254740991 THEN RAISE EXCEPTION 'bad_request'; END IF;
-  UPDATE nextphase_board.board_lifecycle x SET generation=g WHERE x.board_id=board;
-  RETURN nextphase_board.lifecycle_value(board);
+  SELECT x.workspace_id INTO v_w FROM nextphase_board.board_lifecycle x WHERE x.board_id=lifecycle_raise.board;
+  PERFORM 1 FROM nextphase_board.workspaces x WHERE x.id=v_w FOR UPDATE;
+  SELECT * INTO v_l FROM nextphase_board.board_lifecycle x WHERE x.board_id=lifecycle_raise.board AND x.operation_id=lifecycle_raise.operation FOR UPDATE;
+  IF v_l.board_id IS NULL OR v_l.state NOT IN ('moving','restoring','purging') THEN RAISE EXCEPTION 'lifecycle_pending'; END IF;
+  PERFORM 1 FROM nextphase_board.boards b WHERE b.id=lifecycle_raise.board FOR UPDATE;
+  SELECT greatest(v_l.generation,lifecycle_raise.minimum,coalesce((SELECT b.document_generation FROM nextphase_board.boards b WHERE b.id=lifecycle_raise.board),0),coalesce((SELECT d.generation FROM nextphase_board.mention_delivery d WHERE d.board_id=lifecycle_raise.board),0))+1 INTO v_g;
+  IF lifecycle_raise.minimum IS NULL OR lifecycle_raise.minimum<0 OR v_g IS NULL OR v_g>9007199254740991 THEN RAISE EXCEPTION 'bad_request'; END IF;
+  UPDATE nextphase_board.board_lifecycle x SET generation=v_g WHERE x.board_id=lifecycle_raise.board;
+  RETURN nextphase_board.lifecycle_value(lifecycle_raise.board);
 END $$;
 
 -- Repeated runs replace policies without widening privileges.

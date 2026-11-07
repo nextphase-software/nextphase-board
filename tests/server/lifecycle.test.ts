@@ -106,7 +106,16 @@ check(205,'restore/expiry and restore/purge admissions have one locked winner',a
   await move(1);const outcomes=await Promise.all([req(mutatePath('restore'),'owner','POST',identity(2)),req(mutatePath('delete'),'owner','POST',identity(2))]);assert(outcomes.some(r=>r.status===200||r.status===202));const end=await ok(statusPath());assert(['active','deleted'].includes(end.state));assert.equal((await dbRows('deleted_board_ids')).length,end.state==='deleted'?1:0);void request;
 });
 check(206,'lost answers use cycle-bound identical receipts and stale requests cannot act later',async()=>{
-  const request=identity(0);await helper('proxy',{rpc:'admit_lifecycle',failAfter:true});assert.equal((await req(mutatePath('move'),'owner','POST',request)).status,503);await helper('proxy',{rpc:'admit_lifecycle',failAfter:false});await driver.wake(f.a);const moved=await ok(mutatePath('move'),'owner','POST',request);assert.equal(moved.cycle,1);await refused(await req(mutatePath('move'),'owner','POST',{...request,expectedCycle:1}),409,'request_id_reused');await restore();assert.equal((await ok(mutatePath('move'),'owner','POST',request)).state,'active');await move(1);await refused(await req(mutatePath('move'),'owner','POST',request),409,'lifecycle_changed');await purge(2);assert.equal((await ok(mutatePath('move'),'owner','POST',request)).state,'deleted');assert.deepEqual(await dbRows('board_lifecycle_requests'),[]);
+  const request=identity(0);await helper('proxy',{rpc:'admit_lifecycle',failAfter:true});assert.equal((await req(mutatePath('move'),'owner','POST',request)).status,503);await helper('proxy',{rpc:'admit_lifecycle',failAfter:false});await driver.wake(f.a);const moved=await ok(mutatePath('move'),'owner','POST',request);assert.equal(moved.cycle,1);
+  const receipt=(await dbRows('board_lifecycle_requests'))[0];
+  assert.deepEqual(await rpc('lifecycle_recovery_request',{board:f.a,operation:receipt.operation_id}),receipt);
+  assert.equal(await rpc('lifecycle_recovery_request',{board:f.b,operation:receipt.operation_id}),null);
+  assert.equal(await rpc('lifecycle_recovery_request',{board:f.a,operation:crypto.randomUUID()}),null);
+  await refused(await req(mutatePath('move'),'owner','POST',{...request,expectedCycle:1}),409,'request_id_reused');await restore();
+  assert.equal((await dbRows('board_lifecycle_requests')).length,2);
+  assert.deepEqual(await rpc('lifecycle_recovery_request',{board:f.a,operation:receipt.operation_id}),
+    (await dbRows('board_lifecycle_requests')).find((row:any)=>row.operation_id===receipt.operation_id));
+  assert.equal((await ok(mutatePath('move'),'owner','POST',request)).state,'active');await move(1);await refused(await req(mutatePath('move'),'owner','POST',request),409,'lifecycle_changed');await purge(2);assert.equal((await ok(mutatePath('move'),'owner','POST',request)).state,'deleted');assert.deepEqual(await dbRows('board_lifecycle_requests'),[]);
 });
 check(207,'live owner replacement rejects confirmation/status/receipt metadata',async()=>{
   await move();await sql(`UPDATE nextphase_board.workspace_members SET role='editor' WHERE workspace_id='${f.workspace}' AND person_id='${f.people.owner.id}';UPDATE nextphase_board.workspace_members SET role='owner' WHERE workspace_id='${f.workspace}' AND person_id='${f.people.editor.id}';`);

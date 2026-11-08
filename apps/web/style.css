@@ -1323,7 +1323,7 @@ button.w4-destructive,button.w4-destructive:hover:not(:disabled):not([aria-disab
 .w4-modal::backdrop { background:#29272e66; }
 .w4-modal h1 { font-size:20px; font-weight:700; margin:0 0 12px; }
 .home .w4-modal p,.w4-modal p { margin:14px 0; font-size:14px; line-height:1.5; }
-.w4-modal .comment-note { padding:8px 10px; font:13px/1.4 system-ui; border:1px solid #e9e7ed; border-radius:8px; }
+.home .w4-modal .comment-note,.w4-modal .comment-note { margin:12px 0; padding:8px 10px; font:13px/1.4 system-ui; border:1px solid #e9e7ed; border-radius:8px; }
 .w4-modal .comment-note.error { border-color:#f2cdd5; color:#a32940; background:#fdf0f2; }
 .w4-modal .comment-note.amber { color:#936000; background:#fff5da; }
 .w4-title h2:focus,.w4-state strong:focus,.history-denied h1:focus,.w4-modal:focus,.home-toast:focus { outline:3px solid #7051cf; outline-offset:3px; }

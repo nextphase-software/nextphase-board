@@ -414,3 +414,25 @@ deleted-ID register outside room recovery. Interaction v34 specifies the owner s
 confirmation-palette success note and Returning to Home… ending. Current document 10/layout 5,
 identity v4, presence v1, local storage v3, board file v2 and toolchain/lock/inventory v5/runtime
 notices v3 remain; no dependency is added. Prior contract files remain unchanged.
+
+For [0007-W1 v1 — Run a shared workshop timer](../briefs/0007-W1-run-a-shared-workshop-timer.md) (draft), use:
+
+- [0007-workshop-timer-v1](0007-workshop-timer-v1.md).
+- [0003-sync-v10](0003-sync-v10.md).
+- [0003-access-v9](0003-access-v9.md).
+- [0003-api-v9](0003-api-v9.md).
+- [0003-hosted-persistence-v9](0003-hosted-persistence-v9.md).
+- [0003-self-host-runner-v5](0003-self-host-runner-v5.md).
+- [0003-hosted-storage-v9](0003-hosted-storage-v9.md).
+- [0001-interaction-v35](0001-interaction-v35.md).
+- [0001-web-modules-v33](0001-web-modules-v33.md).
+- [0006-board-lifecycle-v3](0006-board-lifecycle-v3.md).
+- [0001-document-v14](0001-document-v14.md).
+- [0006-board-file-v3](0006-board-file-v3.md).
+
+Timer v1 owns exact clock/state/commands, bounds, singleton room storage and
+concrete panel/toolbar/focus values. These versions add room layout 6, explicitly
+exclude timer state from logical backups, distinguish restart from recovery and
+keep timer control independent of document editing. Presence v1, comments v4,
+identity v4, local storage v3 and toolchain/lock/inventory v5/runtime notices v3
+remain. Saved document 10/fileVersion2/backup envelope 1 stay; no dependency is added.

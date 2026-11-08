@@ -373,3 +373,10 @@ commit has a different hash. UI briefs include approved design references.
 irreversible deny-first cleanup and recovery guards. Its eleven new contracts provide exact
 sidebar/confirmation/ending rendering values, lifecycle state outside room recovery and bounded
 journals. Saved document 10, room layout 5 and dependencies remain unchanged.
+
+[0007-W1 v1 — Run a shared workshop timer](0007-W1-run-a-shared-workshop-timer.md)
+(draft) specifies a server-clock timer for all admitted hosted-board roles,
+version-ordered commands, restart persistence, explicit recovery clearing and a
+timer-only panel with no personal attribution. Twelve prerequisite contracts
+define the state/protocol, bounded room layout 6 and exact interface values.
+Document10/fileVersion2 and dependencies remain unchanged.

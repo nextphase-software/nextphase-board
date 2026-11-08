@@ -591,3 +591,61 @@ server change requires fresh Node-then-workerd proof on the new revision before
 check1. Supabase/schema setup, both server suites, browsers and V9–V13 remain
 unrun in this sandbox; simulated recovery is not hosted provider PITR evidence.
 No push, merge, main/private-artifact edit or further milestone was performed.
+
+### Review fix round 1 — 2026-11-08
+
+This is the first post-review fix round; the preceding Workers recovery entry was
+the separately authorized escalation fix. Branch:
+`codex/0007-W1-run-a-shared-workshop-timer`.
+Validated source/test revision: `7f087803f505ba24fa3490aac6085a0ce94eda93`.
+The record-inclusive tip is reported separately in the handoff.
+
+1. **Z1-S14 — product fix.** [BoardTimer](../../apps/web/src/team/timer.ts)
+   schedules mutation readback at the command's monotonic deadline +2,000 ms,
+   independently of rendering. Read failure, 15,000 ms sampling, 30,000 ms clock
+   health and zero/end+2,500 presentation/read deadlines also use cancellable
+   timeouts; the one-second interval only renders. W1-U36/U37/U40 prove exact
+   boundaries, correlated read completion, no mutation replay and cleanup.
+2. **Z1-S12 — existing reachable case, no shell redesign.**
+   [TeamApp](../../apps/web/src/team/team-app.tsx) renders TeamPage until
+   `snapshot.board` exists; [HostedBoard.joined](../../apps/web/src/team/hosted-board.ts)
+   publishes that board after a valid joined frame, then calls timer.joined and
+   requests the first sample. Holding joined therefore leaves no board toolbar.
+   To drive Connecting timer, release valid joined while holding its first
+   correlated timer_sample, and inspect before the 2,000 ms unanswered-read
+   timeout (hold the controlled clock there). The trigger is
+   `Timer, Connecting timer`, digits `--:--`, base title, disabled mutations;
+   opening focuses the Timer heading and only Close is in panel traversal.
+   Releasing that sample enables the current card. W1-U38 proves the controller
+   and [TimerControl](../../apps/web/src/team/timer-panel.tsx) component seam.
+   A previously confirmed reconnect retains the disconnected presentation until
+   its new sample, rather than pretending to be an initial connecting state.
+3. **Z1-S27 — product fix.** TimerControl remembers the focused control's semantic
+   identity as well as its DOM node. React can reuse Cancel's enabled button as
+   +1 when replacing the confirmation; that is no longer mistaken for matching
+   focus. Remote Pause/Extend/End/new Start falls back to the heading from reused
+   Cancel or removed Stop, retains matching enabled Close/Pause–Resume controls,
+   and leaves canvas focus alone. W1-U39 exercises those real layout effects.
+
+The new timing/health/focus regressions failed before their fixes; all 40 timer
+units now pass. W1-U26 retains every assertion with a controlled timer clock
+instead of manually advancing only its monotonic getter. Test ranges are updated
+in [tests/README](../../tests/README.md); no check tool or assertion was weakened.
+
+**V1–V8: PASS.** Repeated the validation command set above with Node 26.13.0/
+npm 11.20.0: independent candidate/baseline clean installs; five-workspace
+typecheck; full `npm test` (**967 pass**, fail/cancel/skip 0); off build/audit;
+fixtures/on build/audit; server build/audit; Worker dry run without deployment.
+All commands exited 0. Twenty dependency files are byte-identical to prerequisite
+`20365d3`; preserved off HTML/notices and on HTML match the independent baseline,
+on notices match v3, and off inputs exclude team/Supabase/timer. App.tsx, module/
+hook counts, requirements/contracts and dependency set remain unchanged. Full
+prerequisite-range scope/whitespace inspection and mandatory privacy hooks pass.
+
+This round changes four source/test/documentation files plus this separate record.
+**No server or shared-package file changed**, so check-1's server source/tests
+remain identical to the accepted server-run revision. Browsers, server suites,
+Supabase/schema setup and V9–V13 were not rerun in this sandbox; browser confirmation
+of these fixes belongs to the independent check. No unrelated reported fixture or
+baseline failure was changed. Added dependencies: none. No push, merge, main edit,
+private-artifact edit or next milestone.

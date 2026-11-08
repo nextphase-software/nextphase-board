@@ -3,20 +3,36 @@ import type { HostedBoard, TimerSnapshot, TimerAction, TimerFrame } from './host
 import { defaultDraft, draftMs, padDraft, shiftDraft, timeParts, remainingMs, sampleAnchor, serverTime, transitionSpeech,
   type TimerAnchor, type TimerDraft, type SpeechWatermark, MAX_TIME } from './timer-rules.ts';
 type Health='connecting'|'ready'|'checking'|'disconnected';
+type Deadline='mutation'|'read'|'sample'|'health'|'zero';
 export class BoardTimer {
   open=false; draft=defaultDraft(); snapshot?:TimerSnapshot; health:Health='connecting';
   generation=0; announcement=''; announcementId=0; shake=0; confirmation:{timerId:string|null;version:number}|null=null;
   private anchor?:TimerAnchor; private frozen='--:--';private lastDisplay='--:--'; private frozenTitle='NextPhase Board';
   private pending?:{id:string;at:number;readback?:boolean}; private read?:{id:string;sent:number};
-  private lastSample=-Infinity;private lastSampleSent=-Infinity;private nextSample=Infinity;
+  private lastSample=-Infinity;private lastSampleSent=-Infinity;
   private loss=false;private everJoined=false;private disposed=false;private zeroVersion=-1;private zeroRead=-1;
   private speech:SpeechWatermark={baseline:-1,version:-1,cause:null};
   private interval?:ReturnType<typeof setInterval>;private listeners=new Set<()=>void>();
+  private deadlines=new Map<Deadline,ReturnType<typeof setTimeout>>();
   private host:HostedBoard; private monotonic:()=>number;
   constructor(host:HostedBoard,monotonic:()=>number=()=>performance.now()) { this.host=host;this.monotonic=monotonic; }
   subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
   private speak(text:string){if(text){this.announcement=text;this.announcementId++;}}
   private emit(){if(typeof document!=='undefined')document.title=this.title;for(const listener of this.listeners)listener();}
+  private cancelDeadline(name:Deadline){clearTimeout(this.deadlines.get(name));this.deadlines.delete(name);}
+  private at(name:Deadline,time:number,run:()=>void){
+    this.cancelDeadline(name);
+    const timer=setTimeout(()=>{if(this.deadlines.get(name)!==timer)return;this.deadlines.delete(name);if(!this.disposed)run();},Math.max(0,time-this.monotonic()));
+    this.deadlines.set(name,timer);
+  }
+  private clearDeadlines(){for(const name of this.deadlines.keys())this.cancelDeadline(name);}
+  private scheduleZero(){
+    this.cancelDeadline('zero');
+    if(this.health!=='ready'||this.snapshot?.status!=='running'||!this.anchor)return;
+    const end=this.anchor.midpoint+this.snapshot.endsAtServerMs!-this.anchor.serverMs;
+    if(this.monotonic()<end)this.at('zero',end,()=>{this.tick();this.scheduleZero();});
+    else if(this.zeroRead!==this.snapshot.version)this.at('zero',end+2500,()=>{this.zeroRead=this.snapshot!.version;this.sample();});
+  }
   get now(){return this.anchor?serverTime(this.anchor,this.monotonic()):0;}
   get remaining(){return this.snapshot?remainingMs(this.snapshot,this.now):0;}
   get zero(){return this.snapshot?.status==='running'&&this.remaining===0;}
@@ -46,19 +62,24 @@ export class BoardTimer {
     if(!this.canMutate||this.pending)return;
     const duration=draftMs(this.draft);if(action==='start'&&(!duration||!this.editable))return;
     const id=crypto.randomUUID();this.frozenTitle=this.title;this.frozen=this.display;this.pending={id,at:this.monotonic()};this.health='checking';this.confirmation=null;
+    this.cancelDeadline('zero');
+    this.at('mutation',this.pending.at+2000,()=>{if(this.pending?.id===id){this.pending.readback=true;this.sample();}});
     this.emit();if(!this.host.sendTimer(id,action,this.snapshot!,duration??undefined))this.disconnect();
   }
   private sample(){
     if(this.disposed||this.read||!this.host.snapshot.connected)return;
-    const id=crypto.randomUUID();this.read={id,sent:this.monotonic()};this.nextSample=this.monotonic()+15000;
+    const id=crypto.randomUUID();this.read={id,sent:this.monotonic()};
+    this.at('read',this.read.sent+2000,()=>{if(this.read?.id===id)this.disconnect();});
+    this.at('sample',this.read.sent+15000,()=>this.sample());
     if(!this.host.readTimer(id)){this.read=undefined;this.disconnect();}
   }
   private foreground=()=>{if(document.visibilityState==='visible'){if(this.zero)this.zeroVersion=this.snapshot?.version??-1;this.sample();}};
   joined(snapshot:TimerSnapshot|undefined,generation:number){
+    this.clearDeadlines();this.lastSample=-Infinity;this.lastSampleSent=-Infinity;
     this.disposed=false;this.snapshot=snapshot;this.generation=generation;this.pending=undefined;this.read=undefined;this.anchor=undefined;
     this.confirmation=null;this.health=this.loss?'disconnected':'connecting';this.zeroVersion=-1;
     this.speech={baseline:snapshot?.version??-1,version:snapshot?.version??-1,cause:null};
-    if(!this.interval){this.interval=setInterval(()=>this.tick(),100);document.addEventListener('visibilitychange',this.foreground);}
+    if(!this.interval){this.interval=setInterval(()=>this.tick(),1000);document.addEventListener('visibilitychange',this.foreground);}
     this.everJoined=true;this.sample();this.emit();
   }
   receive(frame:TimerFrame|{kind:'timer_invalid'}|{kind:'timer_closed'}){
@@ -79,45 +100,42 @@ export class BoardTimer {
       if(frame.cause==='start')this.zeroVersion=-1;
     }
     if(frame.kind==='timer_sample'&&this.read?.id===frame.requestId){
-      const {sent}=this.read;this.read=undefined;
+      const {sent}=this.read;this.read=undefined;this.cancelDeadline('read');
       if(sent>=this.lastSampleSent){
         const anchor=sampleAnchor(frame.serverNowMs,sent,this.monotonic());
         if(anchor){const freshClock=!this.anchor||this.loss;this.anchor=anchor;
           if(freshClock&&snapshot.status==='running'&&serverTime(anchor,anchor.received)>=snapshot.endsAtServerMs!)this.zeroVersion=snapshot.version;this.lastSample=anchor.received;this.lastSampleSent=sent;
+          this.at('health',this.lastSample+30000,()=>this.disconnect());
           if(!this.pending||sent>=this.pending.at)this.pending=undefined;
           if(this.loss){this.speak('Timer reconnected');this.loss=false;this.speech={baseline:snapshot.version,version:snapshot.version,cause:null};}
           this.health=this.pending?'checking':'ready';
           if(this.pending?.readback&&sent<this.pending.at)this.sample();}
       }
     }else if((frame.kind==='timer_result'||frame.kind==='timer_refused')&&this.pending?.id===frame.requestId){this.pending=undefined;if(this.anchor)this.health='ready';else this.sample();}
+    if(!this.pending)this.cancelDeadline('mutation');
     if(was?.timerId!==snapshot.timerId)this.zeroRead=-1;
-    this.tick();this.emit();
+    this.tick();this.scheduleZero();this.emit();
   }
   disconnect(){
     if(this.disposed)return;
     if(this.health==='ready')this.frozen=this.display;
     this.health=this.everJoined?'disconnected':'connecting';this.pending=undefined;this.read=undefined;this.confirmation=null;
+    for(const name of ['mutation','read','health','zero'] as const)this.cancelDeadline(name);
     if(this.everJoined&&!this.loss){this.loss=true;this.speak('Timer disconnected. Reconnecting…');}
     this.emit();
   }
   private tick(){
-    const now=this.monotonic();
-    if(this.pending&&!this.pending.readback&&now-this.pending.at>=2000){this.pending.readback=true;this.sample();}
-    if(this.read&&now-this.read.sent>=2000){this.disconnect();}
-    if(this.anchor&&this.health!=='disconnected'&&now-this.lastSample>=30000)this.disconnect();
-    if(now>=this.nextSample)this.sample();
     if(this.health==='ready'&&this.zero&&this.zeroVersion!==this.snapshot!.version){
       this.zeroVersion=this.snapshot!.version;
       if(document.visibilityState==='visible'&&this.now-this.snapshot!.endsAtServerMs!<300)this.shake++;
     }
-    if(this.health==='ready'&&this.zero&&this.now>=this.snapshot!.endsAtServerMs!+2500&&this.zeroRead!==this.snapshot!.version){this.zeroRead=this.snapshot!.version;this.sample();}
     const display=this.display;if(display!==this.lastDisplay){this.lastDisplay=display;this.emit();}
     document.title=this.title;
   }
   clear(){
-    this.disposed=true;clearInterval(this.interval);this.interval=undefined;if(typeof document!=='undefined')document.removeEventListener('visibilitychange',this.foreground);
+    this.disposed=true;this.clearDeadlines();clearInterval(this.interval);this.interval=undefined;if(typeof document!=='undefined')document.removeEventListener('visibilitychange',this.foreground);
     this.open=false;this.draft=defaultDraft();this.snapshot=undefined;this.anchor=undefined;this.pending=undefined;this.read=undefined;this.confirmation=null;
-    this.frozen='--:--';this.health='connecting';this.announcement='';this.loss=false;this.everJoined=false;this.lastSample=-Infinity;this.lastSampleSent=-Infinity;this.nextSample=Infinity;
+    this.frozen='--:--';this.health='connecting';this.announcement='';this.loss=false;this.everJoined=false;this.lastSample=-Infinity;this.lastSampleSent=-Infinity;
     this.speech={baseline:-1,version:-1,cause:null};if(typeof document!=='undefined')document.title='NextPhase Board';this.emit();
   }
 }

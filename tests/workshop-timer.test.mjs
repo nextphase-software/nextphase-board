@@ -44,7 +44,7 @@ unit(22,'explicit marker reserves/reset once and malformed reservation fails clo
 unit(23,'maximal legal encoded row, frames and marker rows remain bounded',async()=>{const t=await import(path),{NodeStorage}=await import('../apps/server/src/node-storage.ts'),{initialize}=await import('../packages/board-room/src/storage.ts'),{writeTimer,timerRow}=await import('../packages/board-room/src/timer.ts');const s=new NodeStorage(':memory:');try{initialize(s);const n=Number.MAX_SAFE_INTEGER,timer={status:'running',durationMs:n,endsAtServerMs:n-2500,remainingMs:null,version:n,timerId:randomUUID()};writeTimer(s,timer,randomUUID());const measure={row:Buffer.byteLength(JSON.stringify(timerRow(s)))};const stamp={timer:{...timer,endsAtServerMs:n},serverNowMs:n,restoreGeneration:n};for(const frame of [{kind:'timer_result',requestId:randomUUID(),...stamp,cause:'extend'},{kind:'timer_state',...stamp,cause:'expire'},{kind:'timer_sample',requestId:randomUUID(),...stamp},{kind:'timer_refused',requestId:randomUUID(),reason:'timer_message_too_large',...stamp}]){assert(t.checkTimerFrame(frame,Buffer.byteLength(JSON.stringify(frame))));measure[frame.kind]=Buffer.byteLength(JSON.stringify(frame));}for(const key of ['explicit_recovery_pending','explicit_recovery_generation']){s.exec('INSERT INTO meta VALUES (?,?)',key,key.endsWith('generation')?n:1);measure[key]=Buffer.byteLength(JSON.stringify(s.all('SELECT * FROM meta WHERE key=?',key)[0]));}for(const field of ['timerTimes','timerReadTimes'])measure[field]=Buffer.byteLength(JSON.stringify({[field]:Array.from({length:5},(_,i)=>n-4+i)}));for(const value of Object.values(measure))assert(value<=1024);console.log('TIMER ENCODED SIZES '+JSON.stringify(measure));}finally{s.close();}});
 unit(24,'ordinary accepted history intent restart preserves the running/paused timer',async()=>{for(const pause of [false,true]){const f=await fixture();try{const c=await f.open();await f.send(c,'start');if(pause)await f.send(c,'pause');const t=f.room.timer.snapshot(),person=await f.env.verify(),v=(await f.room.versions(person)).versions[0];const raise=f.env.raiseFence;f.env.raiseFence=async()=>{throw Error('held intent');};await assert.rejects(f.room.restoreVersion(person,v.id,{requestId:randomUUID(),expectedRevision:0,expectedGeneration:0}),/restore_pending/);assert(f.room.history.active());f.env.raiseFence=raise;f.restart();await f.room.export(person);assert.deepEqual(f.room.timer.snapshot(),t);assert.equal(f.s.all('SELECT * FROM history_intent_chunks').length,0);}finally{f.close();}}});
 unit(25,'explicit marker beats real intent before resume, persists reset reservation and never resets twice',async()=>{const f=await fixture();try{const {markExplicitRecovery}=await import('../packages/board-room/src/timer.ts');const c=await f.open();await f.send(c,'start');const person=await f.env.verify(),v=(await f.room.versions(person)).versions[0];const raise=f.env.raiseFence;f.env.raiseFence=async()=>{throw Error('held intent');};await assert.rejects(f.room.restoreVersion(person,v.id,{requestId:randomUUID(),expectedRevision:0,expectedGeneration:0}),/restore_pending/);f.env.raiseFence=raise;markExplicitRecovery(f.s);let resets=0;const exec=f.s.exec.bind(f.s);f.s.exec=(sql,...args)=>{if(sql.startsWith('INSERT INTO workshop_timer'))resets++;if(sql.startsWith('INSERT INTO versions')&&args[5]==='before_restore')throw Error('after reset');exec(sql,...args);};f.restart();await assert.rejects(f.room.export(person));assert.equal(f.room.timer.snapshot().status,'idle');assert.equal(resets,1);assert(f.s.all("SELECT * FROM meta WHERE key='explicit_recovery_generation'").length);assert(f.room.history.active());await assert.rejects(f.room.export(person));assert.equal(resets,1);f.s.exec=exec;await f.room.export(person);assert.equal(f.room.timer.snapshot().status,'idle');assert.equal(f.room.history.active(),undefined);assert.equal(f.s.all("SELECT * FROM meta WHERE key LIKE 'explicit_recovery_%'").length,0);}finally{f.close();}});
-unit(26,'controller freezes pending input, reads after 2s without replay and ignores tick time for speech',async()=>{const {BoardTimer}=await import('../apps/web/src/team/timer.ts');const {idleTimer}=await import(path);const old=globalThis.document;let mono=0;globalThis.document={visibilityState:'visible',title:'NextPhase Board',addEventListener(){},removeEventListener(){}};const reads=[],commands=[],host={snapshot:{connected:true},hideTimerPeers(){},readTimer(id){reads.push(id);return true;},sendTimer(...args){commands.push(args);return true;}};const t=new BoardTimer(host,()=>mono);try{t.joined(idleTimer(),0);mono=20;t.receive({kind:'timer_sample',requestId:reads[0],timer:idleTimer(),serverNowMs:100000,restoreGeneration:0});assert.equal(t.health,'ready');t.command('start');assert.equal(t.health,'checking');assert.equal(document.title,'NextPhase Board');mono=2020;t.tick();assert.equal(reads.length,2);assert.equal(commands.length,1);const active={status:'running',durationMs:1000,endsAtServerMs:101000,remainingMs:null,version:1,timerId:randomUUID()};t.receive({kind:'timer_sample',requestId:reads[1],timer:active,serverNowMs:100500,restoreGeneration:0});assert.equal(t.announcement,'');mono+=2000;t.tick();assert.equal(t.announcement,'');t.receive({kind:'timer_state',timer:idleTimer(2),serverNowMs:110000,restoreGeneration:0,cause:'end'});assert.equal(t.announcement,'Timer stopped');t.receive({kind:'timer_result',requestId:commands[0][0],timer:idleTimer(2),serverNowMs:110100,restoreGeneration:0,cause:'end'});assert.equal(t.announcement,'Timer stopped');assert.equal(commands.length,1);t.disconnect();assert.equal(document.title,'NextPhase Board');t.joined(idleTimer(2),0);t.receive({kind:'timer_sample',requestId:reads.at(-1),timer:idleTimer(2),serverNowMs:110200,restoreGeneration:0});assert.equal(t.announcement,'Timer reconnected');t.receive({kind:'timer_state',timer:idleTimer(2),serverNowMs:110300,restoreGeneration:0,cause:'end'});assert.equal(t.announcement,'Timer reconnected');}finally{t.clear();globalThis.document=old;}});
+unit(26,'controller freezes pending input, reads after 2s without replay and ignores tick time for speech',async()=>{const {BoardTimer}=await import('../apps/web/src/team/timer.ts');const {idleTimer}=await import(path);const old=globalThis.document,clock=controlledTimerClock();globalThis.document={visibilityState:'visible',title:'NextPhase Board',addEventListener(){},removeEventListener(){}};const reads=[],commands=[],host={snapshot:{connected:true},hideTimerPeers(){},readTimer(id){reads.push(id);return true;},sendTimer(...args){commands.push(args);return true;}};const t=new BoardTimer(host,clock.now);try{t.joined(idleTimer(),0);clock.advance(20);t.receive({kind:'timer_sample',requestId:reads[0],timer:idleTimer(),serverNowMs:100000,restoreGeneration:0});assert.equal(t.health,'ready');t.command('start');assert.equal(t.health,'checking');assert.equal(document.title,'NextPhase Board');clock.advance(2020);t.tick();assert.equal(reads.length,2);assert.equal(commands.length,1);const active={status:'running',durationMs:1000,endsAtServerMs:101000,remainingMs:null,version:1,timerId:randomUUID()};t.receive({kind:'timer_sample',requestId:reads[1],timer:active,serverNowMs:100500,restoreGeneration:0});assert.equal(t.announcement,'');clock.advance(clock.now()+2000);t.tick();assert.equal(t.announcement,'');t.receive({kind:'timer_state',timer:idleTimer(2),serverNowMs:110000,restoreGeneration:0,cause:'end'});assert.equal(t.announcement,'Timer stopped');t.receive({kind:'timer_result',requestId:commands[0][0],timer:idleTimer(2),serverNowMs:110100,restoreGeneration:0,cause:'end'});assert.equal(t.announcement,'Timer stopped');assert.equal(commands.length,1);t.disconnect();assert.equal(document.title,'NextPhase Board');t.joined(idleTimer(2),0);t.receive({kind:'timer_sample',requestId:reads.at(-1),timer:idleTimer(2),serverNowMs:110200,restoreGeneration:0});assert.equal(t.announcement,'Timer reconnected');t.receive({kind:'timer_state',timer:idleTimer(2),serverNowMs:110300,restoreGeneration:0,cause:'end'});assert.equal(t.announcement,'Timer reconnected');}finally{t.clear();clock.restore();globalThis.document=old;}});
 unit(27,'late malformed timer refusal carries normalized idle state before replying',async()=>{const f=await fixture();try{const c=await f.open();await f.send(c,'start',{durationMs:1000});f.advance(3500);const r=await f.send(c,'start',{unexpected:true});assert.equal(r.reason,'timer_bad_message');assert.equal(r.timer.status,'idle');assert.equal(r.timer.version,2);assert.equal(c.messages.findLast(m=>m.kind==='timer_state').cause,'expire');}finally{f.close();}});
 unit(28,'real stopped-volume marking script writes the distinct marker atomically and preserves reservation on repeat',async()=>{const {mkdtemp,mkdir,rm}=await import('node:fs/promises');const {tmpdir}=await import('node:os');const {join}=await import('node:path');const {execFileSync}=await import('node:child_process');const {NodeStorage}=await import('../apps/server/src/node-storage.ts');const {initialize,setMeta}=await import('../packages/board-room/src/storage.ts');const folder=await mkdtemp(join(tmpdir(),'board-timer-marker-'));try{await mkdir(join(folder,'boards'));const file=join(folder,'boards',randomUUID()+'.sqlite'),s=new NodeStorage(file);initialize(s);setMeta(s,'restore_pending',1);setMeta(s,'explicit_recovery_generation',37);s.close();const script=new URL('../apps/server/scripts/mark-restored-volume.mjs',import.meta.url);for(let i=0;i<2;i++)execFileSync(process.execPath,[script.pathname,folder],{stdio:'pipe'});const reopened=new NodeStorage(file);try{const rows=reopened.all('SELECT * FROM meta'),value=key=>rows.find(r=>r.key===key)?.value;assert.equal(value('explicit_recovery_pending'),1);assert.equal(value('restore_pending'),1);assert.equal(value('explicit_recovery_generation'),37);}finally{reopened.close();}}finally{await rm(folder,{recursive:true,force:true});}});
 unit(29,'timer deadlines share the earliest scheduler with existing presence and history work',async()=>{const f=await fixture();try{let next;f.env.schedule=async at=>{next=at;};const c=await f.open();await f.send(c,'start');assert.equal(next,130000);await f.send(c,'end');f.advance(1001);await f.send(c,'start',{durationMs:1000});const end=f.room.timer.snapshot().endsAtServerMs;assert.equal(next,end);f.now(end);await f.room.alarm();assert.equal(next,end+2500);f.now(end+2500);await f.room.alarm();assert.equal(f.room.timer.snapshot().status,'idle');}finally{f.close();}});
@@ -139,4 +139,126 @@ unit(35,'Worker time entry persists the independent signal before provider sched
     const next={status:'paused',durationMs:180000,endsAtServerMs:null,remainingMs:123456,version:17,timerId:randomUUID()};writeTimer(f.s,next,null);
     const reopened=await f.adapter().getRoom(f.board);await reopened.export(await f.env.verify());assert.deepEqual(reopened.timer.snapshot(),next);
   }finally{f.close();}
+});
+
+function controlledTimerClock() {
+  const saved=Object.fromEntries(['setTimeout','clearTimeout','setInterval','clearInterval','document'].map(key=>[key,globalThis[key]]));
+  let now=0,sequence=0;const tasks=new Map();
+  const after=(run,delay,interval=0)=>{const id=++sequence;tasks.set(id,{run,at:now+delay,interval});return id;};
+  globalThis.setTimeout=(run,delay)=>after(run,delay);
+  globalThis.setInterval=(run,delay)=>after(run,delay,delay);
+  globalThis.clearTimeout=globalThis.clearInterval=id=>tasks.delete(id);
+  globalThis.document={visibilityState:'visible',title:'NextPhase Board',body:{},addEventListener(){},removeEventListener(){}};
+  return {now:()=>now,tasks,advance(to){
+    assert(to>=now);
+    for(;;){const next=[...tasks].filter(([,task])=>task.at<=to).sort((a,b)=>a[1].at-b[1].at||a[0]-b[0])[0];if(!next)break;
+      const [id,task]=next;now=task.at;if(task.interval)task.at+=task.interval;else tasks.delete(id);task.run();}
+    now=to;
+  },restore(){Object.assign(globalThis,saved);}};
+}
+unit(36,'unanswered mutation reads at exactly 2000ms off the display cadence and never replays',async()=>{
+  const {BoardTimer}=await import('../apps/web/src/team/timer.ts'),{idleTimer}=await import(path),clock=controlledTimerClock();
+  const reads=[],commands=[],host={snapshot:{connected:true},hideTimerPeers(){},readTimer(id){reads.push({id,at:clock.now()});return true;},sendTimer(...args){commands.push(args);return true;}};
+  const t=new BoardTimer(host,clock.now);
+  try{
+    t.joined(idleTimer(),0);clock.advance(13);t.receive({kind:'timer_sample',requestId:reads[0].id,timer:idleTimer(),serverNowMs:100000,restoreGeneration:0});
+    clock.advance(60);t.command('start');clock.advance(2059);assert.equal(reads.length,1);assert.equal(t.health,'checking');
+    clock.advance(2060);assert.equal(reads.length,2);assert.equal(reads[1].at,2060);assert.equal(commands.length,1);
+    clock.advance(2080);t.receive({kind:'timer_sample',requestId:reads[1].id,timer:idleTimer(),serverNowMs:102000,restoreGeneration:0});
+    assert.equal(t.health,'ready');clock.advance(5000);assert.equal(reads.length,2);assert.equal(commands.length,1);
+    t.command('start');clock.advance(6999);assert.equal(reads.length,2);clock.advance(7000);assert.equal(reads.length,3);
+    clock.advance(8999);assert.equal(t.health,'checking');clock.advance(9000);assert.equal(t.health,'disconnected');assert.equal(commands.length,2);
+    t.clear();assert.equal(clock.tasks.size,0);
+  }finally{t.clear();clock.restore();}
+});
+unit(37,'sample cadence and clock-health deadline are scheduled exactly and cancelled on clear',async()=>{
+  const {BoardTimer}=await import('../apps/web/src/team/timer.ts'),{idleTimer}=await import(path),clock=controlledTimerClock();
+  const reads=[],host={snapshot:{connected:true},hideTimerPeers(){},readTimer(id){reads.push({id,at:clock.now()});return true;},sendTimer(){return true;}};
+  const t=new BoardTimer(host,clock.now);
+  try{
+    t.joined(idleTimer(),0);clock.advance(13);t.receive({kind:'timer_sample',requestId:reads[0].id,timer:idleTimer(),serverNowMs:100000,restoreGeneration:0});
+    clock.advance(14999);assert.equal(reads.length,1);clock.advance(15000);assert.equal(reads[1].at,15000);
+    clock.advance(15017);t.receive({kind:'timer_sample',requestId:reads[1].id,timer:idleTimer(),serverNowMs:115000,restoreGeneration:0});
+    host.snapshot.connected=false;clock.advance(45016);assert.equal(t.health,'ready');clock.advance(45017);assert.equal(t.health,'disconnected');
+    t.clear();assert.equal(clock.tasks.size,0);clock.advance(100000);assert.equal(reads.length,2);
+  }finally{t.clear();clock.restore();}
+});
+
+// Drive the real component's layout effects and native props at the DOM seam.
+// Reuse a focused Cancel button as +1, as React may do for the unkeyed card rows.
+async function timerPanelHarness() {
+  const {build}=await import('esbuild'),{fileURLToPath,pathToFileURL}=await import('node:url');
+  const {mkdtemp,writeFile,rm}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path');
+  const result=await build({stdin:{contents:"export {TimerControl} from './apps/web/src/team/timer-panel.tsx';export {render,commit} from 'timer-focus-hooks';",resolveDir:fileURLToPath(new URL('../',import.meta.url)),loader:'ts'},bundle:true,write:false,format:'esm',platform:'node',jsx:'automatic',plugins:[{name:'timer-focus-ports',setup(b){
+    b.onResolve({filter:/^(react|timer-focus-hooks)$/},args=>args.path==='timer-focus-hooks'||args.importer.endsWith('/team/timer-panel.tsx')?{path:'hooks',namespace:'timer-focus'}:undefined);
+    b.onLoad({filter:/.*/,namespace:'timer-focus'},()=>({contents:`let refs=[],index=0,effects=[];export const useRef=value=>refs[index++]??=( {current:value} );export const useState=value=>[value,()=>{}];export const useEffect=()=>{};export const useLayoutEffect=run=>effects.push(run);export function render(component,props){index=0;effects=[];return component(props);}export function commit(){for(const run of effects)run();}`,loader:'js'}));
+  }}]});
+  const folder=await mkdtemp(join(tmpdir(),'board-timer-focus-')),file=join(folder,'panel.mjs');await writeFile(file,result.outputFiles[0].text);
+  const mod=await import(pathToFileURL(file).href),doc=globalThis.document;
+  let tree,nodes=[],elements=[],pool=new Map(),panel;
+  const walk=(node)=>Array.isArray(node)?node.flatMap(walk):node&&typeof node==='object'&&node.props?[node,...walk(node.props.children)]:[];
+  const key=node=>node.props['data-timer']??node.props['aria-label']??node.props.id;
+  const control=(element)=>({props:element.props,tagName:element.type.toUpperCase(),isConnected:true,disabled:!!element.props.disabled,tabIndex:element.props.tabIndex??0,
+    getAttribute(name){return this.props[name]??null;},closest(){return null;},focus(){doc.activeElement=this;panel?.props.onFocusCapture({target:this});}});
+  const root={contains:node=>nodes.includes(node),querySelector(selector){return nodes.find(n=>selector==='h2'?n.tagName==='H2':selector==='[data-timer="toggle"]'?n.props['data-timer']==='toggle':selector==='[data-timer="cancel"]'?n.props['data-timer']==='cancel':selector==='[aria-label="Minutes"]'?n.props['aria-label']==='Minutes':n.props['aria-label']==='End timer');}};
+  return {render(timer,{reuseCancel=false}={}){
+    const cancel=pool.get('cancel'),activeWasControl=nodes.includes(doc.activeElement);for(const node of nodes)node.isConnected=false;
+    tree=mod.render(mod.TimerControl,{timer});elements=walk(tree);panel=elements.find(n=>n.props.id==='w1-panel');
+    nodes=elements.filter(n=>['button','input','h2'].includes(n.type)).map(element=>{
+      const id=key(element)??(element.props.className==='w1-add'?'add':element.props.children==='Stop timer'?'stop':undefined);
+      const node=reuseCancel&&element.props.className==='w1-add'?cancel:pool.get(id)??control(element);
+      Object.assign(node,{props:element.props,isConnected:true,disabled:!!element.props.disabled,tabIndex:element.props.tabIndex??0});pool.set(id,node);if(element.props.ref)element.props.ref.current=node;return node;
+    });
+    if(panel)panel.props.ref.current=root;
+    if(activeWasControl&&!nodes.includes(doc.activeElement))doc.activeElement=doc.body;
+    mod.commit();return elements;
+  },get(label){return nodes.find(n=>n.props['aria-label']===label||n.props['data-timer']===label||n.props.children===label||n.tagName==='H2'&&label==='heading');},
+  outside(node){panel.props.onBlurCapture({relatedTarget:node,currentTarget:root});doc.activeElement=node;},async close(){await rm(folder,{recursive:true,force:true});}};
+}
+unit(38,'joined with its first sample held shows Connecting timer, heading focus and only Close enabled',async()=>{
+  const {BoardTimer}=await import('../apps/web/src/team/timer.ts'),{idleTimer}=await import(path),clock=controlledTimerClock();
+  const reads=[],host={snapshot:{connected:true},hideTimerPeers(){},readTimer(id){reads.push(id);return true;},sendTimer(){throw Error('No mutation before sample');}};
+  const t=new BoardTimer(host,clock.now),h=await timerPanelHarness();
+  try{
+    t.joined(idleTimer(),0);t.show();const elements=h.render(t);
+    assert.equal(t.display,'--:--');assert.equal(t.status,'Connecting timer…');assert.equal(document.title,'NextPhase Board');
+    assert.equal(h.get('Timer, Connecting timer').props['aria-expanded'],true);assert.equal(document.activeElement,h.get('heading'));
+    const panel=elements.find(n=>n.props.id==='w1-panel'),inside=elements.slice(elements.indexOf(panel)+1);
+    assert.deepEqual(inside.filter(n=>n.type==='button'&&!n.props.disabled).map(n=>n.props['aria-label']),['Close timer']);
+    for(const input of inside.filter(n=>n.type==='input')){assert.equal(input.props.readOnly,true);assert.equal(input.props.tabIndex,-1);assert.equal(input.props.value,'--');}
+    t.command('start');clock.advance(23);t.receive({kind:'timer_sample',requestId:reads[0],timer:idleTimer(),serverNowMs:100000,restoreGeneration:0});h.render(t);
+    assert.equal(t.health,'ready');assert.equal(t.display,'03:00');assert.equal(document.activeElement,h.get('heading'));
+  }finally{t.clear();await h.close();clock.restore();}
+});
+unit(39,'remote confirmation changes fall back from reused Cancel or removed Stop, preserve matching controls and leave canvas focus alone',async()=>{
+  const {BoardTimer}=await import('../apps/web/src/team/timer.ts'),{idleTimer}=await import(path),clock=controlledTimerClock();
+  const reads=[],host={snapshot:{connected:true},hideTimerPeers(){},readTimer(id){reads.push(id);return true;},sendTimer(){throw Error('Remote transitions send no command');}};
+  const t=new BoardTimer(host,clock.now),h=await timerPanelHarness(),running={status:'running',durationMs:180000,endsAtServerMs:280000,remainingMs:null,version:1,timerId:randomUUID()};
+  try{
+    for(const cause of ['pause','extend','end','start']){
+      t.clear();h.render(t);t.joined(running,0);t.receive({kind:'timer_sample',requestId:reads.at(-1),timer:running,serverNowMs:100000,restoreGeneration:0});t.show();h.render(t);t.confirm();h.render(t);
+      const cancel=h.get('cancel');assert.equal(document.activeElement,cancel);
+      const next=cause==='end'?idleTimer(2):{...running,version:2,...(cause==='pause'?{status:'paused',endsAtServerMs:null,remainingMs:180000}:cause==='start'?{timerId:randomUUID()}:{endsAtServerMs:340000})};
+      t.receive({kind:'timer_state',timer:next,serverNowMs:100000,restoreGeneration:0,cause});assert.equal(t.confirmation,null);h.render(t,{reuseCancel:true});
+      assert.equal(cancel.isConnected,true);assert.equal(cancel.props.className,'w1-add');assert.equal(document.activeElement,h.get('heading'),cause+' must not retain Cancel as +1');
+    }
+    t.receive({kind:'timer_state',timer:{...running,version:3},serverNowMs:100000,restoreGeneration:0,cause:'start'});h.render(t);t.confirm();h.render(t);
+    const stop=h.get('Stop timer');stop.focus(); // A removed confirmation control falls to the heading too.
+    t.receive({kind:'timer_state',timer:{...running,version:4},serverNowMs:100000,restoreGeneration:0,cause:'extend'});h.render(t);assert.equal(document.activeElement,h.get('heading'));
+    const close=h.get('Close timer');close.focus();t.receive({kind:'timer_state',timer:{...running,version:5},serverNowMs:100000,restoreGeneration:0,cause:'extend'});h.render(t);assert.equal(document.activeElement,close);
+    const toggle=h.get('Pause timer');toggle.focus();t.receive({kind:'timer_state',timer:{...running,status:'paused',endsAtServerMs:null,remainingMs:180000,version:6},serverNowMs:100000,restoreGeneration:0,cause:'pause'});h.render(t);assert.equal(document.activeElement,toggle);assert.equal(toggle.props['aria-label'],'Resume timer');
+    const canvas={};h.outside(canvas);t.receive({kind:'timer_state',timer:idleTimer(7),serverNowMs:100000,restoreGeneration:0,cause:'end'});h.render(t);assert.equal(document.activeElement,canvas);
+  }finally{t.clear();await h.close();clock.restore();}
+});
+unit(40,'zero and zero-window read use their monotonic deadlines independently of display ticks',async()=>{
+  const {BoardTimer}=await import('../apps/web/src/team/timer.ts'),clock=controlledTimerClock();
+  const reads=[],host={snapshot:{connected:true},hideTimerPeers(){},readTimer(id){reads.push({id,at:clock.now()});return true;},sendTimer(){return true;}};
+  const t=new BoardTimer(host,clock.now),running={status:'running',durationMs:1000,endsAtServerMs:101000,remainingMs:null,version:1,timerId:randomUUID()};
+  try{
+    t.joined(running,0);clock.advance(26);t.receive({kind:'timer_sample',requestId:reads[0].id,timer:running,serverNowMs:100000,restoreGeneration:0});
+    clock.advance(1012);assert.equal(t.shake,0);clock.advance(1013);assert.equal(t.shake,1);assert.equal(t.display,'00:00');
+    clock.advance(3512);assert.equal(reads.length,1);clock.advance(3513);assert.equal(reads[1].at,3513);assert.equal(t.announcement,'');
+    t.receive({kind:'timer_sample',requestId:reads[1].id,timer:{...running,status:'paused',endsAtServerMs:null,remainingMs:1000,version:2},serverNowMs:103500,restoreGeneration:0});
+    clock.advance(10000);assert.equal(reads.length,2);assert.equal(t.shake,1);t.clear();assert.equal(clock.tasks.size,0);
+  }finally{t.clear();clock.restore();}
 });

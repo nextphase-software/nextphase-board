@@ -318,7 +318,7 @@ runs in the implementation session.
 
 ## Shared workshop timer (0007-W1 v1)
 
-`tests/workshop-timer.test.mjs` adds W1-U01–W1-U35 to `npm test`, importing
+`tests/workshop-timer.test.mjs` adds W1-U01–W1-U40 to `npm test`, importing
 capabilities inside each named case. They cover strict actor-free wire shapes and
 causes, bounded rolling budgets, input/monotonic clocks, queue races, expiry,
 rollback, content isolation, restart and logical/explicit recovery. The paired
@@ -330,6 +330,10 @@ against independent SQLite stores: atomic SQL/KV reservation rollback, bounded
 counters, marker-before-intent ordering, reset-once retry, ordinary-fence preservation
 and acknowledgement of retained signals. Module guards require exactly 40 team
 modules, 22 state hooks and unchanged App.tsx.
+Controlled-clock cases cover exact mutation readback, sample/health and zero
+deadlines independently of display ticks. Component layout-effect cases cover
+post-joined/pre-sample connecting focus and confirmation control reuse/removal,
+matching enabled focus and canvas focus preservation without a browser claim.
 
 `tests/server/timer.test.ts` registers S225–S256 (32 common checks) on both runners,
 printing PASS/FAIL per ID and `SUMMARY-TIMER` with actual runner counts and sizes.

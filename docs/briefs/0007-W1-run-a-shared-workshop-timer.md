@@ -552,3 +552,42 @@ are unrun. The fresh independent check authors `0007-w1-check.mjs`. T1-S38/S39 a
 Node S181 remain caveats requiring source/test comparison, not waivers. No private
 artifact, tracker, mirror, main branch, push or merge was changed. No next milestone
 is authorized. Added dependencies: none.
+
+### Fix round 1 — 2026-11-08
+
+Maintainer ruling: **“Allow worker.ts”** (2026-11-08), solely for the Workers
+point-in-time recovery guard. This resolves the entry-path/file-list conflict
+reported above. Branch: `codex/0007-W1-run-a-shared-workshop-timer`.
+Validated source/test revision: `a08c2f7305d6be20b164809e32be0d574dee7d77`;
+the record-inclusive tip is reported separately in the handoff.
+
+The existing independent RestoreFence atomically retains the recovery generation
+before provider scheduling. A reconstructed room checks it before load/history
+resume, stamps the distinct marker, and uses the existing floor reservation,
+reset-once retry and strict-replay denial. Ordinary fence raises do not mark
+recovery; an acknowledged retained signal does not reset a later live timer.
+No new store, namespace, dependency or client surface was introduced.
+
+V1–V8 were repeated with Node 26.13.0/npm 11.20.0: clean candidate and independent
+baseline `npm ci --ignore-scripts --no-audit --no-fund`; `npm run typecheck`;
+`npm test` (**962 pass**, fail/cancel/skip 0); off build/audit, fixtures/on
+build/audit, server build/audit and Worker dry run using the command set above
+all exited 0. The 20 dependency files, off HTML/notices and on HTML comparisons
+pass; on notices equal v3, off inputs exclude team/Supabase/timer, App.tsx is
+unchanged. Full prerequisite-range scope and whitespace checks pass with the
+single ruled file exception. Eight files changed in this source commit, plus
+this separate append-only record; mandatory privacy hooks passed normally.
+
+W1-U31–U35 add independent fence rollback/bounds, running/paused accepted intents,
+post-reservation failure/retry, ordinary preservation and time-entry ordering
+proof (35 focused timer units pass). S252 adds an independent-signal/actual
+workerd-eviction simulation with both timer states and timer writes blocked
+through retry; all original assertions remain. The new server test bundles and
+its focused TypeScript check pass; server cases were not executed here.
+
+The supplied REC-046 results at `b8bcb50` were Node 252/0/0 and workerd 248 pass,
+0 fail, 2 declared skips (S70/S168), with S225–S256 passing on both. This reachable
+server change requires fresh Node-then-workerd proof on the new revision before
+check1. Supabase/schema setup, both server suites, browsers and V9–V13 remain
+unrun in this sandbox; simulated recovery is not hosted provider PITR evidence.
+No push, merge, main/private-artifact edit or further milestone was performed.

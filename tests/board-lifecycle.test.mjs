@@ -113,3 +113,25 @@ test('Worker discarded rooms drop late socket callbacks without reopening storag
   await room.webSocketMessage({close:code=>closed.push(code)},'{}');
   assert.deepEqual(closed,[4403]);assert.equal(room.room,undefined);
 });
+
+test('recovery inspection stays nonblocking while an explicit settle barrier waits for held room work',async()=>{
+  const {build}=await import('esbuild'),{mkdtemp,writeFile,rm}=await import('node:fs/promises');
+  const {tmpdir}=await import('node:os'),{join}=await import('node:path'),{fileURLToPath,pathToFileURL}=await import('node:url');
+  const output=await build({stdin:{contents:`export {makeDriver} from './tests/server/driver-workerd.ts';export {setInstance} from 'cloudflare:test';`,resolveDir:fileURLToPath(new URL('../',import.meta.url)),loader:'ts'},bundle:true,write:false,format:'esm',platform:'node',plugins:[{name:'driver-test-ports',setup(b){
+    b.onResolve({filter:/^cloudflare:test$/},()=>({path:'driver-ports',namespace:'test'}));
+    b.onLoad({filter:/.*/,namespace:'test'},()=>({contents:`let instance;export function setInstance(value){instance=value;}export const env={ROOMS:{idFromName:id=>id,get:id=>id}};export const SELF={};export async function runInDurableObject(_id,read){return read(instance);}export async function evictDurableObject(){}export function createExecutionContext(){}export function createScheduledController(){}export async function waitOnExecutionContext(){}`,loader:'js'}));
+    b.onLoad({filter:/\/tests\/server\/worker-test\.ts$/},()=>({contents:'export default {};',loader:'js'}));
+  }}]});
+  const folder=await mkdtemp(join(tmpdir(),'board-recovery-inspection-')),f=await fixture();let release;
+  try{
+    const file=join(folder,'driver.mjs');await writeFile(file,output.outputFiles[0].text);const {makeDriver,setInstance}=await import(pathToFileURL(file).href);
+    await f.room.load();setInstance({getRoom:async()=>f.room});const driver=await makeDriver({});
+    let entered;const started=new Promise(r=>entered=r);
+    const held=f.room.ordered(async()=>{entered();await new Promise(r=>release=r);});await started;
+    const observed=await Promise.race([driver.rows(board,'meta'),new Promise(r=>setImmediate(()=>r(null)))]);
+    assert(observed?.some(row=>row.key==='restore_pending'),'progress inspection must not wait behind the recovery it needs to release');
+    let settled=false;const barrier=driver.control({board,settled:true}).then(()=>settled=true);
+    await new Promise(r=>setImmediate(r));assert.equal(settled,false);
+    release();await held;await barrier;assert.equal(settled,true);
+  }finally{release?.();await f.room.ordered(async()=>{});f.close();await rm(folder,{recursive:true,force:true});}
+});

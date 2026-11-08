@@ -21,7 +21,7 @@ beforeAll(async () => {
 });
 afterEach(async () => {
   for (const p of peers.splice(0)) await p.close();
-  await helper("proxy", { offline: false });
+  await helper("proxy", { offline: false, rpc: "access_changes_after", fail: false });
   if (runner !== "docker") await driver.control({ offset: 0, fenceUnreadable: false, unreachable: [], backupLimit: 16777216, noOperator: false });
 });
 afterAll(async () => {
@@ -394,6 +394,7 @@ check(33, "exact 2 MiB board persists in bounded chunks", async () => {
   const f = await fixture(), c = await join(f.a), board = largeBoard(f.a);
   for (let n = 5; n <= 250; n += 5) await setBoard(c, { ...board, objects: board.objects.slice(0, n) });
   const expected = canonical(board); await c.peer.close();
+  await driver.control({ board: f.a, settled: true });
   const chunks = await driver.rows(f.a, "snapshot_chunks");
   const jsonChunks = chunks.filter((r) => r.kind === "json" && r.snapshot_revision === 50).length;
   const yjsChunks = chunks.filter((r) => r.kind === "yjs" && r.snapshot_revision === 50).length;
@@ -483,9 +484,14 @@ check(39, "hosted image edits are refused", async () => {
   c.peer.send({ kind: "edit", restoreGeneration: c.joined.restoreGeneration, epoch: c.epoch, requestId: "image", update: encoded(Y.encodeStateAsUpdate(c.doc, vector)) });
   assert.equal((await c.peer.next("refused")).reason, "images_not_supported");
 });
-check(40, "ordinary wakes retain cached access during outage", async () => {
+check(40, "ordinary wakes fail closed without lifecycle authority and recover cached access", async () => {
   const f = await fixture(); for (const name of ["owner", "editor", "viewer"]) await join(f.a, name);
   await helper("proxy", { offline: true }); await driver.wake(f.a);
+  for (const name of names) for (const suffix of ["join-tickets", "export"]) {
+    await refused(await request(`/boards/${f.a}/${suffix}`, name, suffix === "export" ? "GET" : "POST"), 503, "service_unavailable");
+  }
+  // Lifecycle authority is live again; isolate the older access-replay outage.
+  await helper("proxy", { offline: false, rpc: "access_changes_after", fail: true });
   for (const name of ["owner", "editor"]) await edit(await join(f.a, name));
   const viewer = await join(f.a, "viewer"); viewer.peer.send({ kind: "edit", restoreGeneration: viewer.joined.restoreGeneration, epoch: viewer.epoch, requestId: "outage", update: change(viewer.doc, "No") });
   assert.equal((await viewer.peer.next("refused")).reason, "role_too_low");
@@ -496,14 +502,21 @@ check(41, "large logical restore locks until replay and clears tickets", async (
   const c = await join(board, "owner"), before = await ticket(board, "owner");
   await refused(await request(`/boards/${board}/join-tickets`, "outsider", "POST"), 404, "not_found");
   const envelope = await backup(board); assert(new TextEncoder().encode(JSON.stringify(envelope)).length > 1048576);
-  await helper("proxy", { offline: true }); const restored = await operator(board, "restore", envelope);
+  await helper("proxy", { offline: true });
+  await refused(await operator(board, "restore", envelope), 503, "service_unavailable");
+  await refused(await driver.request(`/boards/${board}/join?ticket=${before.ticket}`, { headers: { Origin: context.origin } }), 503, "service_unavailable");
+  for (const name of ["owner", "outsider"]) for (const suffix of ["join-tickets", "export"]) {
+    await refused(await request(`/boards/${board}/${suffix}`, name, suffix === "export" ? "GET" : "POST"), 503, "service_unavailable");
+  }
+  await helper("proxy", { offline: false, rpc: "access_changes_after", fail: true });
+  const restored = await operator(board, "restore", envelope);
   assert.equal(restored.status, 200); assert.equal((await restored.json() as any).locked, true); await untilClosed(c.peer, 4423);
   await refused(await driver.request(`/boards/${board}/join?ticket=${before.ticket}`, { headers: { Origin: context.origin } }), 401, "ticket_invalid");
   for (const suffix of ["join-tickets", "export"]) {
     await refused(await request(`/boards/${board}/${suffix}`, "owner", suffix === "export" ? "GET" : "POST"), 503, "room_locked");
     await refused(await request(`/boards/${board}/${suffix}`, "outsider", suffix === "export" ? "GET" : "POST"), 404, "not_found");
   }
-  await helper("proxy", { offline: false }); await join(board, "owner");
+  await helper("proxy", { rpc: "access_changes_after", fail: false }); await join(board, "owner");
   assert.equal(await (await request(`/boards/${board}/export`)).text(), large.json);
   const tooLarge = await driver.request(`/operator/boards/${board}/restore`, { method: "POST", headers: { "Board-Operator-Key": context.operatorKey }, body: " ".repeat(16777217) });
   await refused(tooLarge, 413, "body_too_large");
@@ -511,18 +524,27 @@ check(41, "large logical restore locks until replay and clears tickets", async (
 check(42, "physical rewind respects an external fence", async () => {
   const f = await fixture(), client = await join(f.a, "owner"); const envelope = await backup(f.a);
   await edit(client, "Newer than the point-in-time copy");
-  await helper("proxy", { offline: true }); await driver.restoreFile(f.a, envelope, true);
+  await helper("proxy", { offline: true });
+  await assert.rejects(driver.restoreFile(f.a, envelope, true), /service_unavailable/);
+  await refused(await request(`/boards/${f.a}/export`), 503, "service_unavailable");
+  await helper("proxy", { offline: false, rpc: "access_changes_after", fail: true });
+  await driver.restoreFile(f.a, envelope, true);
   await refused(await request(`/boards/${f.a}/export`), 503, "room_locked");
-  await helper("proxy", { offline: false }); assert.equal((await success(`/boards/${f.a}/export`) as any).title, "Synthetic board A");
+  await helper("proxy", { rpc: "access_changes_after", fail: false }); assert.equal((await success(`/boards/${f.a}/export`) as any).title, "Synthetic board A");
   const ordinary = await backup(f.a);
   await edit(await join(f.a, "owner"), "Newer than the ordinary copy");
   await helper("proxy", { offline: true }); await driver.restoreFile(f.a, ordinary, false);
+  await refused(await request(`/boards/${f.a}/export`), 503, "service_unavailable");
+  await helper("proxy", { offline: false });
   assert.equal((await success(`/boards/${f.a}/export`) as any).title, "Synthetic board A");
 });
 check(43, "copied Node volume requires replay after marking", async () => {
   const f = await fixture(); await join(f.a, "owner"); await helper("proxy", { offline: true });
-  await driver.volumeCopy!(f.a); await refused(await request(`/boards/${f.a}/export`), 503, "room_locked");
-  await helper("proxy", { offline: false }); await success(`/boards/${f.a}/export`);
+  await refused(await request(`/boards/${f.a}/export`), 503, "service_unavailable");
+  await helper("proxy", { offline: false });
+  await driver.volumeCopy!(f.a, async () => { await helper("proxy", { rpc: "access_changes_after", fail: true }); });
+  await refused(await request(`/boards/${f.a}/export`), 503, "room_locked");
+  await helper("proxy", { rpc: "access_changes_after", fail: false }); await success(`/boards/${f.a}/export`);
 });
 check(44, "unreadable fence fails closed independently of Supabase", async () => {
   const f = await fixture(); await join(f.a, "owner"); await driver.control({ fenceUnreadable: true });

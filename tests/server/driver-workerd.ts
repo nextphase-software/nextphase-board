@@ -48,9 +48,10 @@ export async function makeDriver(context: Context): Promise<Driver> {
         // S121 calls wake() next; it owns eviction before the next storage open.
         return {};
       }
-      if (value.board && (value.roomSQL || value.failInitialization || value.deliverMentions)) {
+      if (value.board && (value.roomSQL || value.failInitialization || value.deliverMentions || value.settled)) {
         return runInDurableObject(roomStub(String(value.board)), async (instance:any) => {
           const room=await instance.getRoom(String(value.board)), storage=room.env.storage;
+          if(value.settled)await room.ordered(async()=>{});
           if(value.roomSQL)await room.ordered(async()=>{for(const item of value.roomSQL)storage.exec(item.sql,...(item.bindings??[]));});
           if(value.failInitialization){const execute=storage.exec.bind(storage);storage.exec=(sql:string,...args:any[])=>{if(sql.includes("CREATE TABLE IF NOT EXISTS mention_pending"))throw Error("initialization rollback");execute(sql,...args);};try{const {initialize}=await import("../../packages/board-room/src/storage.ts");initialize(storage);}finally{storage.exec=execute;}}
           if(value.deliverMentions)await room.deliverNotices();
@@ -88,8 +89,9 @@ export async function makeDriver(context: Context): Promise<Driver> {
     async rows(board, table) {
       return runInDurableObject(roomStub(board), async (instance: any) => {
         const room = await instance.getRoom(board);
-        return room.ordered(async () => room.env.storage.all(`SELECT * FROM "${table}"`).map((row: any) => Object.fromEntries(
-          Object.entries(row).map(([key, value]) => [key, value instanceof Uint8Array ? { bytes: value.byteLength } : value]))));
+        // Read progress without waiting behind a held recovery operation.
+        return room.env.storage.all(`SELECT * FROM "${table}"`).map((row: any) => Object.fromEntries(
+          Object.entries(row).map(([key, value]) => [key, value instanceof Uint8Array ? { bytes: value.byteLength } : value])));
       });
     },
     async close() {

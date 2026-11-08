@@ -19,6 +19,7 @@ afterEach(async () => {
   for (const peer of peers.splice(0)) await peer.close();
   await helper("proxy", { offline: false, rpc: "copy_saved_board" });
   await helper("proxy", { rpc: "record_board_open" });
+  await helper("proxy", { rpc: "access_changes_after", fail: false });
   await driver.control({ offset: 0, fixedNow: null });
 });
 afterAll(async () => {
@@ -366,9 +367,15 @@ check(70, "marked Node volume raises above row generation and stays locked offli
     await rpc("copy_saved_board", { board: f.a, title: "Volume Y", edited_at: null, generation: 5, revision: 0 });
     newer = await row(f.a);
     await helper("proxy", { offline: true });
+    await refused(await request(`/boards/${f.a}`, "owner", "PATCH", { title: "No" }), 503, "service_unavailable");
+    // Complete protected recovery only after lifecycle authority returns.
+    await helper("proxy", { offline: false });
   });
+  await helper("proxy", { offline: true });
+  await refused(await request(`/boards/${f.a}`, "owner", "PATCH", { title: "No" }), 503, "service_unavailable");
+  await helper("proxy", { offline: false, rpc: "access_changes_after", fail: true });
   await refused(await request(`/boards/${f.a}`, "owner", "PATCH", { title: "No" }), 503, "room_locked");
-  await helper("proxy", { offline: false });
+  await helper("proxy", { rpc: "access_changes_after", fail: false });
   assert.equal((await success(`/boards/${f.a}/export`)).title, "Volume X");
   const restored = await copiedTitle(f.a, "Volume X"); assert(restored.document_generation > newer.document_generation);
   const stored = (await driver.rows(f.a, "meta")).find((m) => m.key === "restore_generation");
@@ -376,7 +383,13 @@ check(70, "marked Node volume raises above row generation and stays locked offli
 });
 check(71, "locked rename hides boards from outsiders and stores no edit", async () => {
   const f = await fixture(); await ticket(f.a); const envelope = await operator(f.a, "backup");
-  await helper("proxy", { offline: true }); await operator(f.a, "restore", envelope);
+  await helper("proxy", { offline: true });
+  const unavailable = await driver.request(`/operator/boards/${f.a}/restore`, { method: "POST",
+    headers: { "Board-Operator-Key": context.operatorKey, "Content-Type": "application/json" }, body: JSON.stringify(envelope) });
+  await refused(unavailable, 503, "service_unavailable");
+  for (const name of ["owner", "outsider"]) await refused(await request(`/boards/${f.a}`, name, "PATCH", { title: "Locked" }), 503, "service_unavailable");
+  await helper("proxy", { offline: false, rpc: "access_changes_after", fail: true });
+  await operator(f.a, "restore", envelope);
   const before = await driver.rows(f.a, "receipts");
   await refused(await request(`/boards/${f.a}`, "owner", "PATCH", { title: "Locked" }), 503, "room_locked");
   await refused(await request(`/boards/${f.a}`, "outsider", "PATCH", { title: "Hidden" }), 404, "not_found");

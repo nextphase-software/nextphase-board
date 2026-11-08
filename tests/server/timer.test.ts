@@ -75,8 +75,46 @@ check(252,'explicit recovery wins over intent, retries once, logical restore can
  const failed=await req(`/boards/${f.a}/export`);assert.equal(failed.status,503);assert.equal((await row()).status,'idle');const reservation=(await driver.rows(f.a,'meta')).find(r=>r.key==='explicit_recovery_generation');assert(reservation);assert((await driver.rows(f.a,'history_intent_chunks')).length>0);await driver.wake(f.a);await driver.control({failHistory:'',fixedNow:at});await historyRestore(v,input);const next=await join();assert.equal(next.j.timer.status,'idle');assert.equal(next.j.timer.version,0);assert(!((await driver.rows(f.a,'meta')).some(r=>r.key==='explicit_recovery_pending')));assert.equal((await driver.rows(f.a,'history_intent_chunks')).length,0);
  await accepted(next,'start');if(paused)await accepted(next,'pause');assert.equal((await operator('restore',b)).status,200);assert.equal((await join()).j.timer.status,'idle');}
  measure.explicitRecovery=runner==='node'?'real stopped volume copy and mark-restored-volume.mjs, running and paused intents':'explicit marker before evicted object load, running and paused intents';
+ if(runner==='workerd')await providerRecoveryCases();
 });
 check(253,'Trash reset/restore and purge erase timer files/tables/alarms without late recreation',async()=>{const c=await join(),other=await join('owner',f.b);await accepted(c,'start');await move();assert.equal((await row()).status,'idle');await ok(`/workspaces/${f.workspace}/trash/${f.a}/restore`,'owner','POST',{requestId:crypto.randomUUID(),expectedCycle:1});assert.equal((await join()).j.timer.status,'idle');await ok(`/boards/${f.a}/trash`,'owner','POST',{requestId:crypto.randomUUID(),expectedCycle:1});await ok(`/workspaces/${f.workspace}/trash/${f.a}/delete`,'owner','POST',{requestId:crypto.randomUUID(),expectedCycle:2});const inventory=await driver.control({board:f.a,inventory:true});if(runner==='node'){assert.deepEqual(inventory.files,[]);assert.equal(inventory.timer,false);}else{assert.deepEqual(inventory.tables,[]);assert.equal(inventory.alarm,null);}assert.equal((await read(other)).kind,'timer_sample');});
 check(254,'actual runner row, bounded attachments/markers and maximal exact frames; atomic failure',async()=>{const {checkTimerFrame}=await import('../../packages/board-sync/src/timer.ts');const c=await join(),before=await snapshot();await driver.control({failTimer:'write'});assert.equal((await command(c,'start')).reason,'timer_unavailable');assert.deepEqual(await snapshot(),before);await driver.control({failTimer:''});const r=await accepted(c,'start');const n=Number.MAX_SAFE_INTEGER;await sql('UPDATE workshop_timer SET duration_ms=?,ends_at_server_ms=?,version=?',[n,n-2500,n-1]);const actual=await row(),rowBytes=new TextEncoder().encode(JSON.stringify(actual)).length;assert(rowBytes<=1024);const sample=await read(c);const t={...sample.timer,endsAtServerMs:n,version:n};const stamped={timer:t,serverNowMs:n,restoreGeneration:n};const sizes:any={row:rowBytes};for(const frame of [{kind:'timer_result',requestId:r.requestId,...stamped,cause:'extend'},{kind:'timer_state',...stamped,cause:'expire'},{kind:'timer_sample',requestId:r.requestId,...stamped},{kind:'timer_refused',requestId:r.requestId,reason:'timer_message_too_large',...stamped}]){const size=new TextEncoder().encode(JSON.stringify(frame)).length;assert(checkTimerFrame(frame,size));assert(size<=1024);sizes[frame.kind]=size;}for(const key of ['explicit_recovery_pending','explicit_recovery_generation']){const marker={key,value:key.endsWith('generation')?n:1};sizes[key]=new TextEncoder().encode(JSON.stringify(marker)).length;assert(sizes[key]<=1024);}const attachments=await driver.control({board:f.a,timerAttachments:true});for(const a of attachments)for(const key of ['timerTimes','timerReadTimes'])assert(new TextEncoder().encode(JSON.stringify(a[key])).length<=1024);measure.bytes=sizes;console.log('MEASURE-S254 '+JSON.stringify({runner,...sizes}));});
 check(255,'timer-only work leaves canonical/revision/edited-at/identifiers/history unchanged',async()=>{const c=await join();await edit(c,'Confirmed content');const content=await(await req(`/boards/${f.a}/export`)).text(),b=await backup();for(const action of ['start','pause','resume','extend','end']){await accepted(c,action);await read(c);}assert.equal(await(await req(`/boards/${f.a}/export`)).text(),content);const after=await backup();for(const table of ['identifiers','versions','version_chunks','receipts','edits'])assert.deepEqual(after.tables[table],b.tables[table]);for(const key of ['revision','last_edit_at','history_capture_sha256','history_capture_bytes'])assert.deepEqual(after.tables.meta.find((r:any)=>r.key===key),b.tables.meta.find((r:any)=>r.key===key));});
 check(256,'actual document-history replacement retains current live timer and refreshes generation',async()=>{for(const paused of [false,true]){if(paused){f=await helper('removal-fixture');await clock(Date.now());await freshTokens();}const c=await join(),v=(await versions()).versions[0];await edit(c,'New content');await accepted(c,'start');if(paused)await accepted(c,'pause');const t=await snapshot(),head=(await versions()).head;await historyRestore(v,{requestId:crypto.randomUUID(),expectedRevision:head.revision,expectedGeneration:head.generation});const next=await join();assert(next.j.restoreGeneration>c.j.restoreGeneration);assert.deepEqual(next.j.timer,t);await driver.wake(f.a);await driver.control({fixedNow:at});const rejoined=await join();assert.deepEqual(rejoined.j.timer,t);assert.equal((await command(rejoined,'end')).kind,'timer_result');assert(!JSON.stringify(await backup()).includes('workshop_timer'));}});
+
+
+async function providerRecoveryCases() {
+ for(const paused of [false,true]) {
+  f=await helper('removal-fixture');await clock(Date.now());await freshTokens();
+  const c=await join();await accepted(c,'start');if(paused)await accepted(c,'pause');
+  const {v,input}=await intent(c),chunks=await driver.rows(f.a,'history_intent_chunks');
+  const pending=(await driver.rows(f.a,'history_requests')).find(r=>JSON.parse(r.result).phase);
+  assert.equal(JSON.parse(pending.result).phase,'intent');
+  await driver.control({failHistory:'local'});
+  const signal=await driver.control({board:f.a,providerRecovery:true});
+  assert(signal.recoveryGeneration>0);
+  assert(!(await driver.rows(f.a,'meta')).some(r=>r.key==='explicit_recovery_pending'));
+  await driver.wake(f.a); // Existing timer/intent copy plus only the separate fence signal.
+  assert.equal((await req(`/boards/${f.a}/export`)).status,503);
+  assert.equal((await row()).status,'idle');assert.equal((await row()).version,0);
+  assert.deepEqual(await driver.rows(f.a,'history_intent_chunks'),chunks);
+  const reservation=(await driver.rows(f.a,'meta')).find(r=>r.key==='explicit_recovery_generation');
+  assert(reservation.value>signal.generation);
+  // A second reset would now fail. Keep this failure active through successful
+  // completion/rejoin, proving retry uses the existing reset reservation.
+  await driver.control({failTimer:'write'});await driver.wake(f.a);
+  assert.equal((await req(`/boards/${f.a}/export`)).status,503);
+  await driver.control({failHistory:''});
+  await helper('proxy',{rpc:'access_changes_after',fail:true});
+  assert.equal((await req(`/boards/${f.a}/export`)).status,503);
+  assert((await driver.rows(f.a,'meta')).some(r=>r.key==='explicit_recovery_pending'));
+  await helper('proxy',{rpc:'access_changes_after',fail:false});
+  await historyRestore(v,input);const next=await join();
+  assert.equal(next.j.timer.status,'idle');assert.equal(next.j.timer.version,0);
+  assert.equal((await driver.rows(f.a,'history_intent_chunks')).length,0);
+  assert(!(await driver.rows(f.a,'meta')).some(r=>r.key==='explicit_recovery_pending'));
+  assert.equal((await driver.rows(f.a,'versions')).length,3);
+  await driver.control({failTimer:''});
+ }
+ measure.providerRecovery='independent recover fence raise, actual workerd eviction, running/paused accepted intents, post-reservation failure, strict replay denial and write-blocked retry';
+}

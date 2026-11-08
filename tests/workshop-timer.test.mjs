@@ -49,3 +49,94 @@ unit(27,'late malformed timer refusal carries normalized idle state before reply
 unit(28,'real stopped-volume marking script writes the distinct marker atomically and preserves reservation on repeat',async()=>{const {mkdtemp,mkdir,rm}=await import('node:fs/promises');const {tmpdir}=await import('node:os');const {join}=await import('node:path');const {execFileSync}=await import('node:child_process');const {NodeStorage}=await import('../apps/server/src/node-storage.ts');const {initialize,setMeta}=await import('../packages/board-room/src/storage.ts');const folder=await mkdtemp(join(tmpdir(),'board-timer-marker-'));try{await mkdir(join(folder,'boards'));const file=join(folder,'boards',randomUUID()+'.sqlite'),s=new NodeStorage(file);initialize(s);setMeta(s,'restore_pending',1);setMeta(s,'explicit_recovery_generation',37);s.close();const script=new URL('../apps/server/scripts/mark-restored-volume.mjs',import.meta.url);for(let i=0;i<2;i++)execFileSync(process.execPath,[script.pathname,folder],{stdio:'pipe'});const reopened=new NodeStorage(file);try{const rows=reopened.all('SELECT * FROM meta'),value=key=>rows.find(r=>r.key===key)?.value;assert.equal(value('explicit_recovery_pending'),1);assert.equal(value('restore_pending'),1);assert.equal(value('explicit_recovery_generation'),37);}finally{reopened.close();}}finally{await rm(folder,{recursive:true,force:true});}});
 unit(29,'timer deadlines share the earliest scheduler with existing presence and history work',async()=>{const f=await fixture();try{let next;f.env.schedule=async at=>{next=at;};const c=await f.open();await f.send(c,'start');assert.equal(next,130000);await f.send(c,'end');f.advance(1001);await f.send(c,'start',{durationMs:1000});const end=f.room.timer.snapshot().endsAtServerMs;assert.equal(next,end);f.now(end);await f.room.alarm();assert.equal(next,end+2500);f.now(end+2500);await f.room.alarm();assert.equal(f.room.timer.snapshot().status,'idle');}finally{f.close();}});
 unit(30,'joining before expiry cues the future zero once; joining at zero never replays motion',async()=>{const {BoardTimer}=await import('../apps/web/src/team/timer.ts');const old=globalThis.document;globalThis.document={visibilityState:'visible',title:'NextPhase Board',addEventListener(){},removeEventListener(){}};try{for(const late of [false,true]){let mono=0;const reads=[],host={snapshot:{connected:true},readTimer(id){reads.push(id);return true;},sendTimer(){return true;},hideTimerPeers(){}};const t=new BoardTimer(host,()=>mono),snapshot={status:'running',durationMs:1000,endsAtServerMs:101000,remainingMs:null,version:1,timerId:randomUUID()};try{t.joined(snapshot,0);t.receive({kind:'timer_sample',requestId:reads[0],timer:snapshot,serverNowMs:late?101000:100000,restoreGeneration:0});mono=1000;t.tick();assert.equal(t.shake,late?0:1);t.tick();assert.equal(t.shake,late?0:1);}finally{t.clear();}}}finally{globalThis.document=old;}});
+
+// Exercise the production Worker entry/guard against two independent SQLite
+// stores. This is adapter unit proof, not hosted provider PITR execution.
+async function workerRecoveryFixture() {
+  const {BoardRoom,RestoreFence}=await import('../apps/server/src/worker.ts');
+  const {NodeStorage}=await import('../apps/server/src/node-storage.ts');
+  const f=await fixture(),independent=new NodeStorage(':memory:');
+  independent.exec('CREATE TABLE test_kv (key TEXT PRIMARY KEY,value TEXT NOT NULL)');
+  const fault={kv:false,read:false};
+  const storage={
+    sql:{exec(sql,...bindings){const rows=/^\s*(SELECT|PRAGMA)\b/i.test(sql)?independent.all(sql,...bindings):(independent.exec(sql,...bindings),[]);return {toArray:()=>rows};}},
+    kv:{get(key){const row=independent.all('SELECT value FROM test_kv WHERE key=?',key)[0];return row?JSON.parse(row.value):undefined;},put(key,value){if(fault.kv)throw Error('signal write');independent.exec('INSERT INTO test_kv VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',key,JSON.stringify(value));}},
+    transactionSync:run=>independent.transaction(run),
+  };
+  let fence=new RestoreFence({storage});
+  const call=async(path='read')=>{if(fault.read)throw Error('fence read');return fence.fetch(new Request('http://fence/'+path,{method:'POST'}));};
+  const read=async()=>{const response=await call();assert.equal(response.status,200);return response.json();};
+  f.env.fence=async()=>(await read()).generation;
+  f.env.raiseFence=async(minimum=0)=>{let value;do{const response=await call('raise');assert.equal(response.status,200);value=(await response.json()).generation;}while(value<=minimum);return value;};
+  const env={FENCES:{idFromName:board=>board,get:()=>({fetch:(url,init)=>call(new URL(url).pathname.slice(1))})}};
+  const roomStorage={sql:{exec(sql,...bindings){return {toArray:()=>f.s.all(sql,...bindings)};}}};
+  class Adapter extends BoardRoom {environment(){return f.env;}}
+  const adapter=()=>new Adapter({storage:roomStorage},env);
+  return {...f,independent,storage,roomStorage,fault,call,read,adapter,reopenFence(){fence=new RestoreFence({storage});},close(){f.close();independent.close();}};
+}
+unit(31,'independent Worker fence atomically retains only explicit recovery generations and refuses overflow',async()=>{
+  const f=await workerRecoveryFixture();try{
+    assert.deepEqual(await f.read(),{generation:0,recoveryGeneration:0});
+    assert.equal((await f.call('raise')).status,200);assert.deepEqual(await f.read(),{generation:1,recoveryGeneration:0});
+    f.fault.kv=true;assert.equal((await f.call('recover')).status,503);f.fault.kv=false;
+    assert.deepEqual(await f.read(),{generation:1,recoveryGeneration:0});
+    assert.equal((await f.call('recover')).status,200);f.reopenFence();assert.deepEqual(await f.read(),{generation:2,recoveryGeneration:2});
+    await f.call('raise');assert.deepEqual(await f.read(),{generation:3,recoveryGeneration:2});
+    f.independent.exec('UPDATE fence SET generation=?',Number.MAX_SAFE_INTEGER);
+    for(const path of ['raise','recover'])assert.equal((await f.call(path)).status,503);
+    assert.deepEqual(await f.read(),{generation:Number.MAX_SAFE_INTEGER,recoveryGeneration:2});
+    f.storage.kv.put('time_recovery_generation',null);assert.equal((await f.call()).status,503);
+  }finally{f.close();}
+});
+for(const paused of [false,true])unit(paused?33:32,`Worker startup detects retained recovery before ${paused?'paused':'running'} timer/history resume and retries without another reset`,async()=>{
+  const f=await workerRecoveryFixture();try{
+    const c=await f.open();await f.send(c,'start');if(paused)await f.send(c,'pause');
+    const person=await f.env.verify(),version=(await f.room.versions(person)).versions[0],raise=f.env.raiseFence;
+    f.env.raiseFence=async()=>{throw Error('held intent');};
+    await assert.rejects(f.room.restoreVersion(person,version.id,{requestId:randomUUID(),expectedRevision:0,expectedGeneration:0}),/restore_pending/);
+    f.env.raiseFence=raise;
+    const intentBefore=f.room.history.active(),chunks=f.s.all('SELECT * FROM history_intent_chunks');assert(chunks.length);
+    // The room copy has no marker: only the independent object survives rewind.
+    assert.equal(f.s.all("SELECT * FROM meta WHERE key='explicit_recovery_pending'").length,0);
+    const signal=await(await f.call('recover')).json();f.reopenFence();
+    f.env.mentions={documentGeneration:async()=>7,mentionGeneration:async()=>9,carryNotices:async()=>{},clearNotices:async()=>{},project:async()=>{},roster:async()=>[],validTargets:async()=>[]};
+    let resets=0,failLocal=true;const execute=f.s.exec.bind(f.s);
+    f.s.exec=(sql,...args)=>{if(sql.startsWith('INSERT INTO workshop_timer'))resets++;if(failLocal&&sql.startsWith('INSERT INTO versions')&&args[5]==='before_restore')throw Error('after reservation');execute(sql,...args);};
+    const first=await f.adapter().getRoom(f.board);
+    assert.equal(JSON.parse(first.history.active().result).phase,'intent');assert.equal(first.history.active().result,intentBefore.result);
+    assert.equal(f.s.all("SELECT value FROM meta WHERE key='explicit_recovery_pending'")[0].value,1);
+    await assert.rejects(first.export(person));assert.equal(first.timer.snapshot().status,'idle');assert.equal(resets,1);
+    assert.deepEqual(f.s.all('SELECT * FROM history_intent_chunks'),chunks);
+    const reserved=Number(f.s.all("SELECT value FROM meta WHERE key='explicit_recovery_generation'")[0].value);
+    assert(reserved>Math.max(signal.generation,7,9));assert(first.access.locked);
+    const retry=await f.adapter().getRoom(f.board);await assert.rejects(retry.export(person));assert.equal(resets,1);
+    failLocal=false;f.offline(true);await assert.rejects(retry.export(person));assert.equal(resets,1);
+    assert(retry.access.locked);assert(f.s.all("SELECT * FROM meta WHERE key='explicit_recovery_pending'").length);
+    f.offline(false);const completed=await f.adapter().getRoom(f.board);await completed.export(person);
+    assert.equal(completed.timer.snapshot().status,'idle');assert.equal(completed.timer.snapshot().version,0);assert.equal(resets,1);
+    assert.equal(completed.history.active(),undefined);assert.equal(f.s.all('SELECT * FROM history_intent_chunks').length,0);
+    assert.equal(f.s.all("SELECT * FROM meta WHERE key LIKE 'explicit_recovery_%'").length,0);
+    assert.equal(f.s.all('SELECT * FROM versions').length,3);
+  }finally{f.close();}
+});
+unit(34,'ordinary Worker fence raise with an accepted history intent preserves its live timer',async()=>{
+  const f=await workerRecoveryFixture();try{
+    const c=await f.open();await f.send(c,'start');await f.send(c,'pause');const timer=f.room.timer.snapshot();
+    const person=await f.env.verify(),version=(await f.room.versions(person)).versions[0],raise=f.env.raiseFence;
+    f.env.raiseFence=async()=>{throw Error('intent');};await assert.rejects(f.room.restoreVersion(person,version.id,{requestId:randomUUID(),expectedRevision:0,expectedGeneration:0}),/restore_pending/);f.env.raiseFence=raise;
+    await f.call('raise');const room=await f.adapter().getRoom(f.board);await room.export(person);
+    assert.deepEqual(room.timer.snapshot(),timer);assert.equal((await f.read()).recoveryGeneration,0);
+  }finally{f.close();}
+});
+unit(35,'Worker time entry persists the independent signal before provider scheduling and acknowledged signals do not reset new timers',async()=>{
+  const f=await workerRecoveryFixture();try{
+    await f.open();let scheduled=false;
+    f.roomStorage.onNextSessionRestoreBookmark=async bookmark=>{assert.equal(bookmark,'synthetic-bookmark');const signal=await f.read();assert(signal.recoveryGeneration>0);assert.equal(f.s.all("SELECT value FROM meta WHERE key='explicit_recovery_pending'")[0].value,1);scheduled=true;return 'synthetic-undo';};
+    const adapter=f.adapter(),response=await adapter.fetch(new Request('http://room/restore-to-time',{method:'POST',body:JSON.stringify({board:f.board,value:'synthetic-bookmark'})}));
+    assert.equal(response.status,200);assert(scheduled);const result=await response.json();assert.equal(result.undoBookmark,'synthetic-undo');
+    const room=await adapter.getRoom(f.board);await room.export(await f.env.verify());
+    const {writeTimer}=await import('../packages/board-room/src/timer.ts');
+    const next={status:'paused',durationMs:180000,endsAtServerMs:null,remainingMs:123456,version:17,timerId:randomUUID()};writeTimer(f.s,next,null);
+    const reopened=await f.adapter().getRoom(f.board);await reopened.export(await f.env.verify());assert.deepEqual(reopened.timer.snapshot(),next);
+  }finally{f.close();}
+});

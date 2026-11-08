@@ -435,10 +435,10 @@ export class Room {
       return { boardId: this.boardId, restoreGeneration: generation, locked: true };
     });
   }
-  lock() {
+  lock(reserve?: () => Promise<number>) {
     return this.ordered(async () => {
       await this.lifecycle.active();
-      const generation = await this.env.raiseFence();
+      const generation = await (reserve ? reserve() : this.env.raiseFence());
       this.copies?.suspend();
       this.closeAll(4423);
       this.env.storage.exec("DELETE FROM tickets");

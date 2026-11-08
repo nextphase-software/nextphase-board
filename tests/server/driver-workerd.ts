@@ -25,6 +25,14 @@ export async function makeDriver(context: Context): Promise<Driver> {
       return result;
     },
     async control(value) {
+      if(value.board && value.providerRecovery) {
+        // Stand in for the independent reservation surviving a provider rewind;
+        // deliberately do not write a marker into the room being recovered.
+        const fence=bindings.FENCES.get(bindings.FENCES.idFromName(String(value.board)));
+        const response=await fence.fetch('http://fence/recover',{method:'POST'});
+        if(!response.ok)throw Error('Recovery fence unavailable');
+        return response.json();
+      }
       if(value.board&&value.timerAttachments)return runInDurableObject<DurableObject,any>(roomStub(String(value.board)),async(instance:any)=>instance.state.getWebSockets().map((s:any)=>{const a=s.deserializeAttachment();return {timerTimes:a.timerTimes??[],timerReadTimes:a.timerReadTimes??[]};}));
       if(value.board&&value.inventory){return runInDurableObject(roomStub(String(value.board)),async(instance:any)=>({tables:instance.state.storage.sql.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '_cf_%'").toArray(),alarm:await instance.state.storage.getAlarm()}));}
       if (value.board && value.fences) {

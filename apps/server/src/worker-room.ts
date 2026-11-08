@@ -60,6 +60,7 @@ export class WorkerRoom {
     }
     return this.room;
   }
+  protected reserveTimeRecovery(room: Room) { return room.lock(); }
   async fetch(request: Request) {
     try {
       const url = new URL(request.url);
@@ -118,7 +119,7 @@ export class WorkerRoom {
         case "/backup": result = await room.backup(); break;
         case "/restore": result = await room.restore(value); break;
         case "/restore-to-time": {
-          const generation = await room.lock();
+          const generation = await this.reserveTimeRecovery(room);
           const undoBookmark = await this.state.storage.onNextSessionRestoreBookmark(value);
           // Return the undo bookmark to the calling Worker before it requests
           // a separate abort. Aborting this request could lose the reply.

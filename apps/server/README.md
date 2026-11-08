@@ -204,9 +204,16 @@ An ordinary restart with only a pending history intent preserves the live timer.
 Trash clears it before socket closure; purge/discard drains callbacks and removes
 its storage and alarm. User document-history replacement preserves it.
 
-Production Workers point-in-time recovery still needs an independently retained
-explicit-recovery signal that survives the provider rewind and stamps the recovered
-room before load. As the [provider storage API](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/)
-rewinds both SQL and KV, a marker written only into the room being rewound is insufficient.
-That entry-path integration remains unresolved in this implementation candidate;
-common marked-load tests do not establish hosted provider recovery.
+Workers time recovery atomically raises the existing independent `RestoreFence`
+generation and retains that generation as `time_recovery_generation` in its
+synchronous KV store before scheduling provider recovery. The signal is one bounded
+integer, separate from the room and its backups; ordinary history/lifecycle fence
+raises do not change it. A reconstructed room checks the signal before load or
+history-intent resume and stamps the existing explicit marker when its restored
+generation is behind. The common reset/reservation and strict replay procedure
+above then applies. The retained signal is not cleared after completion, so a later
+rewind still detects it; an ordinary restart at or above it preserves the live timer.
+The [provider storage API](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/)
+rewinds the room's SQL and KV together, while the separate fence object stays live.
+Local tests simulate that boundary with an independent recovery fence raise and
+object reconstruction/eviction; they do not claim actual hosted provider PITR.

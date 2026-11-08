@@ -318,21 +318,28 @@ runs in the implementation session.
 
 ## Shared workshop timer (0007-W1 v1)
 
-`tests/workshop-timer.test.mjs` adds W1-U01–W1-U30 to `npm test`, importing
+`tests/workshop-timer.test.mjs` adds W1-U01–W1-U35 to `npm test`, importing
 capabilities inside each named case. They cover strict actor-free wire shapes and
 causes, bounded rolling budgets, input/monotonic clocks, queue races, expiry,
 rollback, content isolation, restart and logical/explicit recovery. The paired
 accepted-history-intent units distinguish ordinary preservation from marker-first
 reset/reservation/retry. Controller checks cover pending readback without replay,
 delayed End speech, result/state deduplication and reconnect suppression.
-Module guards require exactly 40 team modules, 22 state hooks and unchanged App.tsx.
+The Worker adapter units exercise the production fence and startup/time-entry guard
+against independent SQLite stores: atomic SQL/KV reservation rollback, bounded
+counters, marker-before-intent ordering, reset-once retry, ordinary-fence preservation
+and acknowledgement of retained signals. Module guards require exactly 40 team
+modules, 22 state hooks and unchanged App.tsx.
 
 `tests/server/timer.test.ts` registers S225–S256 (32 common checks) on both runners,
 printing PASS/FAIL per ID and `SUMMARY-TIMER` with actual runner counts and sizes.
 S252's stopped-volume copy/real marking-script subcase is Node-only. The workerd
 common case explicitly marks before eviction/load; it is not a claim of hosted
-provider point-in-time recovery. Production Workers time-recovery entry integration
-remains unresolved and requires a separate ruling before acceptance.
+provider point-in-time recovery. S252 additionally simulates provider rewind using
+only an independent `RestoreFence` recovery raise and actual workerd eviction,
+with running/paused timers and accepted history intents. It retains the original
+marked-load assertions, adds post-reservation/strict-replay failures, and completes
+retry with timer writes blocked to prove no second reset.
 
 New test-only controls inspect bounded timer attachment windows, reconstruct a
 Node Room over its existing SQLite/connections, mark explicit recovery and inject

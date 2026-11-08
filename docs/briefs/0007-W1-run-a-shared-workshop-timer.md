@@ -477,3 +477,78 @@ boundary hooks remain mandatory. Source validation is not independent acceptance
 ## Implementation record
 
 (Appended by the implementer.)
+
+
+### Implementation candidate — 2026-11-08
+
+Branch: `codex/0007-W1-run-a-shared-workshop-timer`.
+Actual prerequisite base: `20365d38a1255ab06ec7cc18f1e618494b67f7ae`.
+Validated source/test revision: `717efbfca5cbb31d465c47ad2f76946240795de4`.
+This record is a separate commit; its final tip is reported in the handoff.
+Source validation is not independent acceptance. The candidate has the unresolved
+Workers time-recovery entry-path issue below.
+
+Node 26.13.0 / npm 11.20.0 were used for final validation. An initial install under
+the shell's older toolchain emitted engine warnings; the install was repeated with
+the contracted toolchain. Baseline web builds used an independent source export
+of the prerequisite revision and its own clean dependency installation.
+
+| Gate | Command / inspection | Result |
+| --- | --- | --- |
+| V1 | Byte-compare every manifest, lock, dependency inventory and runtime notice to the prerequisite base | PASS: 20 files unchanged; zero added dependency. |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` in candidate and independent baseline | PASS, exit 0 for both contracted-toolchain installs. |
+| V3 | `npm run typecheck` | PASS, exit 0 for all five workspace members. |
+| V4 | `npm test` | PASS: 957 tests, fail/cancel/skip 0; 30 named workshop-timer units. Guards retain 40 team modules, 22 state hooks and byte-identical App.tsx. |
+| V5 | `BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build`; `npm run audit:licenses` | PASS, exit 0; HTML/notices byte-identical to independent off baseline; off metafile excludes team/Supabase/timer inputs. |
+| V6 | `npm run build:fixtures`; same build environment as V5 with `BOARD_TEAM_FEATURES=on`; `npm run audit:licenses` | PASS, exit 0; on HTML byte-identical to independent on baseline; notices equal runtime notices v3. Off output was preserved before rebuilding on. |
+| V7 | `npm run build:server`; `npm run audit:licenses`; `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` | PASS, exit 0; no deployment. |
+| V8 | Inspect every staged hunk and `git diff --name-status 20365d3..717efbf`; `git diff --check` / staged check | PASS: 40 source/test/configuration/documentation files in the implementation allowlist; this record adds only the brief's append-only record. No requirement, contract, index, App.tsx, dependency or service-schema edit. Mandatory public-boundary hooks passed normally. |
+
+Additional focused checks: timer units were run during development; the new server
+file bundled with esbuild. A temporary TypeScript check of the new server cases,
+Node bootstrap and Node driver passed. An additional cross-runner test-driver
+static check reported TS2589 in the existing workerd inventory helper and TS18046
+in its existing roomSQL helper; the independent prerequisite source reports the
+same errors. These are outside the workspace typecheck and do not count as server
+execution. Graph discovery/indexing tools were unavailable under the approval
+policy, so code discovery fell back to file reads. Git reported a sandbox
+permission warning for packed-refs housekeeping after the successful source
+commit; the branch commit exists and hooks were not bypassed.
+
+Measured by the Node SQLite unit fixture, encoded UTF-8 bytes including keys:
+maximal legal timer row 251; maximal complete timer_result 347, timer_state 295,
+timer_sample 330, timer_refused 366; explicit marker/reservation rows 45/63;
+maximal encoded timerTimes/timerReadTimes attachment windows 101/105. These are
+unit measurements, not measurements from both running server adapters. S254 is
+registered to record actual runner rows and maximal exact frame serialization.
+
+The read-2 corrections have focused unit proof: the real stopped-volume script
+writes the distinct marker and preserves a reservation on repeated marking;
+accepted-history-intent restart preserves the live timer, whereas marked recovery
+resets before resume, retains denial/reservation through failure and resets once.
+Committed actor-free causes drive speech, with generation/version deduplication,
+silent snapshots/reset, delayed End classified as stopped, and reconnect suppression.
+The byline and its gap are absent; Paused/Timer finished status remains. Browser
+geometry, focus, motion and two-context clock tolerance still require independent
+runtime evidence.
+
+Unresolved contract/file-list conflict: production Workers provider point-in-time
+recovery rewinds both SQL and KV, including a marker written only in that room.
+It needs an independently retained recovery signal, stamped into the recovered
+room before load/history-intent resume. The existing independent RestoreFence is
+in `apps/server/src/worker.ts`, outside this brief's implementation allowlist.
+That file is unchanged; no alternative recovery store was introduced. The allowed
+common marker path and Node marking are implemented, but the provider entry path
+must be settled before acceptance. The workerd S252 common marked-load control
+is explicitly not a hosted provider-recovery claim.
+
+Handoff: a fresh full-access server-only run must clean-install this candidate,
+install and reapply the local schema, then run `npm run test:server:node` followed
+by `npm run test:server:workerd`, with no browsers. Return failures to this session
+before check1. S225–S256 are registered (32 common cases, physical S252 subcase
+Node-only); neither full suite was run here. Browsers, Supabase CLI/schema setup,
+V9–V13, the independent scenario/baseline negative and accepted browser regressions
+are unrun. The fresh independent check authors `0007-w1-check.mjs`. T1-S38/S39 and
+Node S181 remain caveats requiring source/test comparison, not waivers. No private
+artifact, tracker, mirror, main branch, push or merge was changed. No next milestone
+is authorized. Added dependencies: none.

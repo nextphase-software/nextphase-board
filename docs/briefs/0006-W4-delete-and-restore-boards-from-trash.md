@@ -857,3 +857,44 @@ inferred from that probe. No full server suite, V9–V13, browser/acceptance run
 Supabase CLI, schema application, deployment, push, external message, checkpoint
 edit or next milestone occurred. Both mandatory source-commit hooks passed;
 Git's sandbox packed-refs.lock maintenance warning followed a successful commit.
+
+### Fix round 4 — scoped Move note CSS (2026-11-08)
+
+G3 authorized “Extra CSS fix, then merge”; this implementation performs only the
+CSS fix and milestone-branch commits. Branch:
+`codex/0006-W4-delete-and-restore-boards-from-trash`. Validated source revision:
+`db2d47914eab763acc0a55e5b65a69db3e4b4f9a`; the later record-inclusive tip is
+reported separately.
+
+Read check 4's T1-S38/S39 failures, interaction v34's dialog note values, and both
+move-failed/move-uncertain approved PNGs. Home's paragraph selector outweighed the
+note rule. The sole product hunk in `apps/web/style.css` raises only the note
+selector's specificity with `.home .w4-modal .comment-note` and explicitly sets
+its existing history-note margin. Home notes change 14px/21px → 13px/18.2px
+(13px × 1.4), margin14px 0 → 12px 0. Preserve padding8px 10px/radius8 and exact
+palettes: error #a32940 on #fdf0f2, border #f2cdd5; uncertain #936000 on #fff5da,
+border #e9e7ed, both 1px. Ordinary dialog paragraphs remain 14px/1.5/margin14px 0.
+No other product, test or checker tool file changed; zero dependencies added.
+
+| Validation | Actual result |
+| --- | --- |
+| V1 | PASS — all 20 dependency inputs equal prerequisite base. |
+| V2 | PASS — clean candidate/independent-base installs; Node 26.13.0/npm 11.20.0. |
+| V3 | PASS — typecheck exits 0 for all five workspaces. |
+| V4 | PASS — npm test exits 0: 927 passed, zero failed/skipped. |
+| V5 | PASS — off build/audit; index/notices equal independent base; no team/Supabase inputs. |
+| V6 | PASS — fixtures/on build/audit; index equals base, notices equal runtime notices v3. |
+| V7 | PASS — server build/audit and Worker dry run exit 0 without deployment. |
+| V8 | PASS — full cffffbd-to-validated scope remains 61 allowed files with append-only prior records; exact committed-range diff --check exits 0. This round's source change is one CSS line. |
+
+Reran the same V2–V7 commands/synthetic build variables recorded in round 3,
+using a fresh independent git archive/install of cffffbd. All four index/notices
+SHA-256 comparisons reproduce the receipts above. A scratch check using the
+existing PostCSS parser confirms the note specificity, font arithmetic, margins,
+padding, borders, palettes and unchanged paragraph rule; distributed CSS retains
+the override. No existing focused unit assertion covers these note styles, and
+no new test/tool change was introduced. Browsers cannot start here: actual dialog
+geometry and T1-S38/S39 browser proof remain for the independent check. No server
+suite, Supabase CLI/schema application, V9–V13, merge, deployment, external message
+or push ran. Both mandatory source-commit hooks passed; the sandbox packed-refs.lock
+maintenance warning followed a successful milestone commit.

@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import { checkTimerFrame, timerSnapshot, timerInteger, type TimerSnapshot, type TimerFrame, type TimerAction } from "./timer.ts";
+export { checkTimerFrame, timerSnapshot, timerInteger } from "./timer.ts";
+export type { TimerSnapshot, TimerFrame, TimerAction, TimerCause } from "./timer.ts";
 import * as Y from "yjs";
 import { type BoardV10 } from "nextphase-board-rules/document.ts";
 import { Adapter } from "./document-adapter.ts";
@@ -74,6 +77,19 @@ export class BoardSession<T = unknown> {
   readonly present = new Map<string, Presence>();
   readonly threads = new Map<string, CommentThread>();
   readonly commentRequests = new Map<string, CommentRequest>();
+  timerSnapshot?: TimerSnapshot;
+  timerServerNowMs?: number;
+  private timerListeners = new Set<(event: SessionEvent) => void>();
+  subscribeTimer(listener: (event: SessionEvent) => void) { this.timerListeners.add(listener); return () => { this.timerListeners.delete(listener); }; }
+  private reportTimer(event: SessionEvent) { for (const listener of this.timerListeners) listener(event); }
+  timerRead(requestId: string) {
+    if (!this.joined) return false;
+    return this.send(JSON.stringify({kind:"timer_read",requestId,epoch:this.epoch,restoreGeneration:this.restoreGeneration}));
+  }
+  timerCommand(requestId: string, action: TimerAction, timer: TimerSnapshot, durationMs?: number) {
+    if (!this.joined) return false;
+    return this.send(JSON.stringify({kind:"timer_command",requestId,epoch:this.epoch,restoreGeneration:this.restoreGeneration,timerId:timer.timerId,expectedVersion:timer.version,action,...(action==="start"?{durationMs}:{})}));
+  }
   commentsReady = false;
   readonly history = new SharedUndo();
   private adapter = new Adapter();
@@ -134,6 +150,7 @@ export class BoardSession<T = unknown> {
       if (request.state === "sent") { request.state = "unconfirmed"; request.reason = "connection_lost"; }
       this.cancelDeadline(id);
     }
+    this.timerSnapshot = undefined; this.timerServerNowMs = undefined; this.reportTimer({kind:"timer_closed"});
     this.commentsReady = false;
     this.timers(); this.present.clear();
     const reject = this.rejectJoin; this.rejectJoin = undefined;
@@ -181,6 +198,11 @@ export class BoardSession<T = unknown> {
     void this.reconnect().catch((error) => this.report({ kind: "join_failed", reason: String(error) }));
   }
   private apply(message: any) {
+    if (typeof message?.kind === "string" && message.kind.startsWith("timer_")) {
+      if (!checkTimerFrame(message,sizeOf(JSON.stringify(message)))) { this.reportTimer({kind:"timer_invalid"}); return; }
+      if (message.restoreGeneration !== undefined && message.restoreGeneration !== this.restoreGeneration) return;
+      this.reportTimer(message); return;
+    }
     if (message.kind.startsWith("comment")) {
       this.applyComment(message);
       this.report(message);
@@ -202,6 +224,8 @@ export class BoardSession<T = unknown> {
       Y.applyUpdate(this.doc, decode(message.update));
       this.role = message.role; this.epoch = message.epoch; this.revision = message.revision; this.self = message.self;
       this.restoreGeneration = message.restoreGeneration;
+      this.timerSnapshot = timerSnapshot(message.timer) ? message.timer : undefined;
+      this.timerServerNowMs = timerInteger(message.serverNowMs) ? message.serverNowMs : undefined;
       this.present.clear(); for (const presence of message.present) this.present.set(presence.connection, presence);
       this.joined = true; this.accepted = true;
       const board = this.board;

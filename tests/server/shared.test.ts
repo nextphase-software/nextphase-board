@@ -598,16 +598,16 @@ async function longCommentTokens() {
     person.token = await helper("token", { person, options: { now, exp: Math.floor(now / 1000) + 172800 } });
   }
 }
-check(121, "current layout 5 creation is idempotent across restart with edits and receipts kept", async () => {
+check(121, "current layout 6 creation is idempotent across restart with edits and receipts kept", async () => {
   const a = await discussionJoin(); await commentsReady(a); await seed(a);
-  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 5);
+  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 6);
   const before = await exported(), edits = await driver.rows(f.a, "edits"), receipts = await driver.rows(f.a, "receipts");
   const envelope = await backupComments();
   await a.peer.close();
   for (let attempt = 0; attempt < 2; attempt++) {
     await driver.wake(f.a);
     const reopened = await discussionJoin(); await commentsReady(reopened);
-    assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 5);
+    assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 6);
     assert.equal(await exported(), before); assert.deepEqual(await driver.rows(f.a, "edits"), edits);
     assert.deepEqual(await driver.rows(f.a, "receipts"), receipts);
     assert((await driver.rows(f.a, "receipts")).every((row) => row.kind === "edit"));
@@ -617,7 +617,7 @@ check(121, "current layout 5 creation is idempotent across restart with edits an
   assert.deepEqual(await driver.rows(f.a, "meta"), once);
   await restoreComments(envelope); const restored = await discussionJoin(); await commentsReady(restored);
   assert.equal(await exported(), before); assert.equal(restored.session.threads.size, 0);
-  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 5);
+  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 6);
 });
 check(122, "every comment action broadcasts once before its answer and leaves board edits alone", async () => {
   const [a, b, c] = await discussionAll(); await Promise.all([a, b, c].map(commentsReady)); await seed(a); await equal([a, b, c]);
@@ -883,7 +883,7 @@ check(134, "import creates an independent rich board at revision zero with durab
   const rows = await orderedIdentifiers(details.id); assert.deepEqual(rows, identifierRows(expected));
   const metadata = await driver.rows(details.id, "meta");
   const values = Object.fromEntries(metadata.map((row) => [row.key, row.value]));
-  assert.equal(values.storage_version, 5); assert.equal(values.revision, 0); assert.equal(values.board_id, details.id);
+  assert.equal(values.storage_version, 6); assert.equal(values.revision, 0); assert.equal(values.board_id, details.id);
   client.session.close(); for (const peer of client.peers) await peer.close();
   await driver.wake(details.id);
   const reopened = await join("editor", details.id);

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { resetTimer } from './timer.ts';
 import { RoomError } from './protocol.ts';
 import type { Room } from './room.ts';
 import { meta, setMeta } from './storage.ts';
@@ -40,13 +41,15 @@ export class RoomLifecycle {
       throw new RoomError(503,'service_unavailable');
     }
     if (!row || row.state!=='active') {
-      this.freeze();
+      this.freeze(row?.generation);
       throw new RoomError(404,'not_found');
     }
     return row;
   }
-  freeze() {
+  freeze(generation?:number) {
     this.host.access.locked=true;
+    const s=this.host.env.storage;
+    if(meta(s,"storage_version"))s.transaction(()=>{resetTimer(s);if(generation!==undefined)setMeta(s,"restore_generation",Math.max(meta(s,"restore_generation"),generation));});
     this.host.lifecyclePause();
   }
   async admit(request:LifecycleRequest) {
@@ -61,11 +64,11 @@ export class RoomLifecycle {
       if (current?.cycle===request.expectedCycle && current.state===(request.operation==='move'?'active':'trashed')) throw new RoomError(503,request.operation==='move'?'move_failed':'restore_failed');
       throw error;
     }
-    if (result.state!=='active') this.freeze();
+    if (result.state!=='active') this.freeze(result.generation);
     return result;
   }
   async fence(row:Lifecycle) {
-    this.freeze();
+    this.freeze(row.generation);
     const current=await this.host.env.lifecycle.lifecycle(this.host.boardId);
     if (!current || current.operationId!==row.operationId || current.generation!==row.generation) throw new RoomError(503,'lifecycle_pending');
     const s=this.host.env.storage;

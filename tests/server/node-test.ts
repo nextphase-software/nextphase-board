@@ -2,6 +2,7 @@
 import { deliver } from "../../apps/server/src/delivery.ts";
 import { access } from "node:fs/promises";
 import { resolve } from "node:path";
+import { Room } from "../../packages/board-room/src/room.ts";
 import { RoomError } from "../../packages/board-room/src/protocol.ts";
 import { readFile } from "node:fs/promises";
 import { Supabase } from "../../apps/server/src/supabase.ts";
@@ -10,6 +11,7 @@ import { checkSettings } from "../../apps/server/src/settings.ts";
 const settings = checkSettings(JSON.parse(await readFile(process.env.BOARD_SETTINGS!, "utf8")));
 let fixedNow: number | null = null;
 let offset = 0, unreachable: string[] = [];
+let failTimer = "";
 let failCreate = "", failCheckpoint = "", failHistory = "", failLifecycle = "";
 let holdRoom = ""; const heldRoom = new Set<() => void>();
 const waitRoom = () => holdRoom ? new Promise<void>(resolve => heldRoom.add(resolve)) : Promise.resolve();
@@ -33,6 +35,7 @@ app.runtime.room = (board) => {
     entry.room.message=async(...args)=>{await waitRoom();return message(...args);};
     const exec = entry.storage.exec.bind(entry.storage), raise = entry.room.env.raiseFence;
     entry.storage.exec = (sql, ...args) => {
+      if (failTimer === "write" && sql.startsWith("INSERT INTO workshop_timer")) throw Error("Timer storage unavailable");
       if (failHistory === "capture" && sql.startsWith("INSERT INTO versions") ||
         failHistory === "intent" && sql.startsWith("INSERT INTO history_requests") ||
         failHistory === "local" && sql.startsWith("INSERT INTO versions") && args[5] === "before_restore" ||
@@ -75,6 +78,7 @@ process.on("message", async (message: any) => {
       const files=[];for(const suffix of ['', '-wal','-shm']){try{await access(resolve(settings.dataDir,'boards',value.board+'.sqlite'+suffix));files.push(suffix);}catch{}}
       result={files,loaded:app.rooms.has(value.board),timer:!!app.rooms.get(value.board)?.timer};process.send?.({id:message.id,result});return;
     }
+    if (value.failTimer !== undefined) failTimer = value.failTimer;
     if (value.failHistory !== undefined) failHistory = value.failHistory;
     if (value.failCheckpoint !== undefined) failCheckpoint = value.failCheckpoint;
     if (value.fences) result = await app.fences.read(value.board);
@@ -87,6 +91,8 @@ process.on("message", async (message: any) => {
       // Resolve the room through the same lazy factory as production.
       original(value.board);
       const entry = app.rooms.get(value.board)!;
+      if(value.reconstructTimerRoom)await entry.room.ordered(async()=>{entry.room=new Room(value.board,entry.room.env);});
+      if(value.timerAttachments)result=[...entry.connections].map(c=>({timerTimes:c.attachment().timerTimes??[],timerReadTimes:c.attachment().timerReadTimes??[]}));
       if (value.legacyStorage !== undefined) {
         entry.storage.transaction(() => {
           for (const table of ["threads", "comments", "comment_ids", "comment_counts"]) entry.storage.exec(`DROP TABLE IF EXISTS "${table}"`);
@@ -96,6 +102,7 @@ process.on("message", async (message: any) => {
         });
         entry.room.initialized = false;
       }
+      if(value.markRecovery)await entry.room.ordered(async()=>{const {markExplicitRecovery}=await import("../../packages/board-room/src/timer.ts");markExplicitRecovery(entry.storage);entry.room.initialized=false;});
       if (value.roomSQL) await entry.room.ordered(async () => { for (const item of value.roomSQL) entry.storage.exec(item.sql, ...(item.bindings ?? [])); });
       if (value.failInitialization) {
         const execute=entry.storage.exec.bind(entry.storage); entry.storage.exec=(sql,...args)=>{if(sql.includes("CREATE TABLE IF NOT EXISTS mention_pending"))throw Error("initialization rollback");execute(sql,...args);};

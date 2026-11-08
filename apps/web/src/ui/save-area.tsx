@@ -32,6 +32,7 @@ export function SaveArea({
       >
         {status === "Save failed" ? "Retry save" : "Save"}
       </button>}
+      {team?.timerControl}
       {team?.saveControl}
     </section>
   );

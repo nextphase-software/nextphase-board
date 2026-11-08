@@ -8,6 +8,7 @@ export interface Storage {
 }
 // The same SQL and columns are used by node:sqlite and Durable Object SQLite.
 export const tables: Record<string, string[]> = {
+  workshop_timer: ["singleton", "status", "duration_ms", "ends_at_server_ms", "remaining_ms", "version", "timer_id", "last_actor"],
   meta: ["key", "value"],
   edits: ["revision", "person_id", "request_id", "update"],
   receipts: ["person_id", "request_id", "digest", "revision", "kind"],
@@ -52,8 +53,9 @@ export function initialize(storage: Storage) {
     storage.exec('CREATE TABLE IF NOT EXISTS version_chunks (version_id TEXT, chunk_index INTEGER, bytes BLOB NOT NULL, PRIMARY KEY(version_id, chunk_index))');
     storage.exec('CREATE TABLE IF NOT EXISTS history_requests (person_id TEXT, request_id TEXT, digest TEXT NOT NULL, operation TEXT NOT NULL, result TEXT NOT NULL, PRIMARY KEY(person_id, request_id))');
     storage.exec('CREATE TABLE IF NOT EXISTS history_intent_chunks (person_id TEXT, request_id TEXT, kind TEXT, chunk_index INTEGER, bytes BLOB NOT NULL, PRIMARY KEY(person_id, request_id, kind, chunk_index))');
+    storage.exec("CREATE TABLE IF NOT EXISTS workshop_timer (singleton INTEGER PRIMARY KEY CHECK(singleton=1), status TEXT NOT NULL, duration_ms INTEGER NOT NULL, ends_at_server_ms INTEGER, remaining_ms INTEGER, version INTEGER NOT NULL, timer_id TEXT, last_actor TEXT)");
     const version = meta(storage, "storage_version");
-    if (version !== 0 && version !== 5) throw Error("storage_unsupported");
+    if (version !== 0 && version !== 6) throw Error("storage_unsupported");
   });
 }
 export function meta(storage: Storage, key: string): number {

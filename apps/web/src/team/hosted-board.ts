@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
+import { BoardTimer } from "./timer";
 import { BoardLifecycle, lifecycleNavigation } from "./lifecycle";
 import { BoardHistory, historyNavigation } from "./history";
-import { BoardSession, type Transport, type Role, type SessionEvent } from "nextphase-board-sync/session.ts";
+import { BoardSession, type Transport, type Role, type SessionEvent, type TimerSnapshot, type TimerFrame, type TimerAction } from "nextphase-board-sync/session.ts";
 import type { BoardV10 } from "nextphase-board-rules/document.ts";
 import type { CommentOperation } from "./comments/rules";
 import { api, ApiError } from "./api";
@@ -15,6 +16,8 @@ import { attemptOutcome, isSpecialClose, renewalDelay, retryDelay, saveState, wo
   changeCounts, countChanges, dismissNotice, emptyLossRecord, isOutstanding, lossNotices, updateLossRecord,
   type AttemptEvent, type NoticeReason, type Outcome } from "./notices";
 
+export type { TimerSnapshot, TimerFrame, TimerAction, TimerCause } from "nextphase-board-sync/session.ts";
+
 type Attempt = { outcome: Outcome | null; joined: boolean; cancelled: boolean; timer: ReturnType<typeof setTimeout>;
   socket?: WebSocket; acceptance: boolean };
 export type HostedSnapshot = {
@@ -27,6 +30,19 @@ export type PresenceSnapshot = {
 export class HostedBoard {
   readonly lifecycle = new BoardLifecycle();
   readonly history = new BoardHistory(this);
+  readonly timer = new BoardTimer(this);
+  surface: 'timer'|'history'|'comments'|'share'|null = null;
+  hideComments?: () => void;
+  showSurface(surface: 'timer'|'history'|'comments'|'share') {
+    this.surface = surface;
+    if(surface !== 'timer')this.timer.hide();
+    if(surface !== 'history')this.history.open = false;
+    if(surface !== 'comments')this.hideComments?.();
+    this.publish();
+  }
+  hideTimerPeers() { this.showSurface('timer'); }
+  readTimer(id:string) { return this.snapshot.connected && !!this.session?.timerRead(id); }
+  sendTimer(id:string,action:TimerAction,timer:TimerSnapshot,duration?:number) { return this.snapshot.connected && !!this.session?.timerCommand(id,action,timer,duration); }
   unavailable = false;
   trashReturned = false;
   panReturning = false;
@@ -191,6 +207,7 @@ export class HostedBoard {
         this.finish(attempt, { kind: "failure", reason: "no_answer" });
       }, 15000) };
     this.attempt = attempt;
+    this.timer.disconnect();
     this.clearPresence();
     this.lifecycle.clear();
     this.publish({ connected: false, workspaceOwner:false });
@@ -280,6 +297,7 @@ export class HostedBoard {
     attempt.outcome = outcome;
     clearTimeout(attempt.timer);
     clearTimeout(this.renewal);
+    this.timer.disconnect();
     if (outcome.retry) this.session?.interrupt();
     else {
       this.ended = true;
@@ -307,6 +325,7 @@ export class HostedBoard {
       this.session = session;
       for (const [id, request] of notificationRequests(this.boardId)) session.commentRequests.set(id, request);
       session.subscribe((event) => this.changed(session, event));
+      session.subscribeTimer(event => { if(!this.stopped && !this.ended && session===this.session)this.timer.receive(event as TimerFrame|{kind:"timer_invalid"|"timer_closed"}); });
       this.joined(session);
     } catch {
       // The route, timeout, or transport already classified the attempt. In
@@ -324,13 +343,14 @@ export class HostedBoard {
     this.publishPresence({ self: session.self, others: [...session.present.values()], followed: null });
     this.publish({ board: session.board, role: session.role, connected: true, outcome: null,
       generation: this.snapshot.generation + 1 });
+    this.timer.joined(session.timerSnapshot,session.restoreGeneration);
     this.updateSession(this.token ?? null);
     void this.refreshMentions();
     if (historyNavigation.open === this.boardId) { delete historyNavigation.open; this.history.show(); }
   }
   private changed(session: BoardSession<string>, event: SessionEvent) {
     if (this.stopped || this.ended || session !== this.session) return;
-    if (event.kind === "history_restoring") { this.history.restoring(typeof event.actor === "string" ? event.actor : null); return; }
+    if (event.kind === "history_restoring") { this.timer.disconnect(); this.history.restoring(typeof event.actor === "string" ? event.actor : null); return; }
     if (event.kind.startsWith("comment")) { this.publishComments(event); if (event.kind === "comment_changed" || event.kind === "comments_snapshot" && event.done) void this.refreshMentions(); return; }
     if (event.kind === "present" || event.kind === "left") {
       const connection = String(event.connection);
@@ -418,6 +438,7 @@ export class HostedBoard {
     this.publish({ board: undefined, connected: false, role: undefined, workspaceOwner:false, workspace:"", workspaceId:"", toast:"", outcome:{name:"accessRemoved",retry:false} });
   }
   private clearDiscussion() {
+    this.timer.clear(); this.surface = null;
     this.history.clear();
     ++this.mentionRead;
     this.commentDrafts.clear(); this.unreadMentions.clear(); clearNotificationMemory(this.boardId);
@@ -440,6 +461,7 @@ export class HostedBoard {
     this.unreadMentions.clear();
     this.clearPresence();
     this.history.clear();
+    this.timer.clear();
     this.lifecycle.clear();
     this.stopped = true;
     if (this.attempt) { this.attempt.cancelled = true; clearTimeout(this.attempt.timer); }

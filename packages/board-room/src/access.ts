@@ -64,7 +64,7 @@ export class Access {
       }
       setMeta(this.storage, "watermark", page.latest);
       setMeta(this.storage, "restore_generation", generation);
-      if (!keepLock) setMeta(this.storage, "restore_pending", 0);
+      if (!keepLock && !meta(this.storage,"explicit_recovery_pending")) setMeta(this.storage, "restore_pending", 0);
     });
     for (const connection of this.connections()) {
       const attachment = connection.attachment(), grant = this.get(attachment.id);
@@ -73,7 +73,7 @@ export class Access {
         connection.close(closeCode(grant?.role ?? null, attachment.role ?? null));
       }
     }
-    this.locked = keepLock;
+    this.locked = keepLock || !!meta(this.storage,"explicit_recovery_pending");
     this.reason = "room_locked";
   }
   async lookup(person: string, board: string, strict = false): Promise<Grant> {

@@ -50,7 +50,7 @@ function maximalBoard(): BoardV10 {
 }
 
 check(169,'atomic initial/imported capture and idempotent current-layout restart',async()=>{
-  let value=await list();assert.equal(value.versions.length,1);assert.equal(value.versions[0].reason,'initial');assert.equal(value.versions[0].revision,0);assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,5);
+  let value=await list();assert.equal(value.versions.length,1);assert.equal(value.versions[0].reason,'initial');assert.equal(value.versions[0].revision,0);assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,6);
   await driver.wake(f.a);assert.deepEqual((await list()).versions,value.versions);
   const document={schemaVersion:10,boardId:crypto.randomUUID(),title:'Import',objects:[],retiredGenerations:[]};
   const imported=await ok(`/workspaces/${f.workspace}/boards`,'owner','POST',{title:'Import',document},201);
@@ -190,13 +190,14 @@ check(191,'whole serialized backup counts base64/metadata and explicitly refuses
   const response=await driver.request(`/operator/boards/${f.a}/restore`,{method:'POST',headers:{'Board-Operator-Key':context.operatorKey,'Content-Type':'application/json'},body:' '.repeat(16777217)});assert.equal(response.status,413);
 });
 check(192,'inventory reports every room/history row and independent fence without global bound claim',async()=>{
-  await list();await save();const tables:any={};for(const table of ['meta','edits','receipts','waiting','snapshot_chunks','grants','identifiers','threads','comments','comment_ids','comment_counts','mention_targets','mention_pending','tickets','versions','version_chunks','history_requests','history_intent_chunks']){
+  await list();await save();const tables:any={};for(const table of ['workshop_timer','meta','edits','receipts','waiting','snapshot_chunks','grants','identifiers','threads','comments','comment_ids','comment_counts','mention_targets','mention_pending','tickets','versions','version_chunks','history_requests','history_intent_chunks']){
     const all=await rows(table);const serializedRowBytes=all.map(row=>{
       let binaryBytes=0;const serial=Object.fromEntries(Object.entries(row).map(([key,value]:[string,any])=>{
         if(value&&typeof value==='object'&&typeof value.bytes==='number'){binaryBytes+=4*Math.ceil(value.bytes/3);return[key,''];}return[key,value];
       }));return new TextEncoder().encode(JSON.stringify(serial)).length+binaryBytes;
     });tables[table]={rows:all.length,serializedRowBytes,serializedBytes:serializedRowBytes.reduce((n,v)=>n+v,0)};assert(serializedRowBytes.every(n=>n<2000000));for(const row of all)for(const value of Object.values(row))if(value&&typeof value==='object'&&'bytes'in value)assert(Number(value.bytes)<=1048576);
   }
+  assert.equal(tables.workshop_timer.rows,1);assert(tables.workshop_timer.serializedRowBytes.every((n:number)=>n<=1024));assert(!('workshop_timer' in (await backup()).tables));
   const count=await helper('sql',{sql:"SELECT count(*) FROM pg_tables WHERE schemaname='nextphase_board'"});assert.equal(Number(String(count).trim()),16);measure.inventory={tables,fence:await driver.control({board:f.a,fences:true}),serviceTables:16,globallyBounded:false};console.log('MEASURE-S192 '+JSON.stringify(measure.inventory));
   await freshTokens();const version=(await list()).versions[0];await driver.control({fixedNow:version.capturedAt+2592000000});await driver.control({board:f.a,alarm:true});assert.equal((await rows('versions')).length,0);assert.equal((await rows('version_chunks')).length,0);assert.equal((await rows('history_intent_chunks')).length,0);
 });

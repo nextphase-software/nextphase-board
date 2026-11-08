@@ -9,7 +9,10 @@ for (const name of await readdir(resolve(folder, "boards"))) {
   if (!/^[0-9a-f-]{36}\.sqlite$/.test(name)) continue;
   const db = new DatabaseSync(resolve(folder, "boards", name));
   try {
+    db.exec("BEGIN IMMEDIATE");
+    db.prepare("INSERT INTO meta(key,value) VALUES ('explicit_recovery_pending',1) ON CONFLICT(key) DO UPDATE SET value=1").run();
     db.prepare("INSERT INTO meta(key,value) VALUES ('restore_pending',1) ON CONFLICT(key) DO UPDATE SET value=1").run();
+    db.exec("COMMIT");
     count++;
   } finally { db.close(); }
 }

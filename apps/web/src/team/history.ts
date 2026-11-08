@@ -36,6 +36,7 @@ export class BoardHistory {
   private emit(paint = false) { if (paint) this.paintEpoch++; this.host.historyChanged(); }
   private focus(selector: string) { requestAnimationFrame(() => document.querySelector<HTMLElement>(selector)?.focus()); }
   show(opener?: HTMLElement, returnOpener?: () => void) {
+    this.host.showSurface("history");
     this.opener = opener; this.returnOpener = returnOpener; this.open = true; this.emit(); void this.refresh();
   }
   close() {

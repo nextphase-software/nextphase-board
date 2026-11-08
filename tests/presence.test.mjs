@@ -117,13 +117,13 @@ for (const created of [true, false]) test(`current storage initialization is ide
   const storage = new NodeStorage(":memory:");
   try {
     initialize(storage);
-    if (created) setMeta(storage, "storage_version", 5);
+    if (created) setMeta(storage, "storage_version", 6);
     assert(storage.all("PRAGMA table_info(tickets)").some((c) => c.name === "label"));
     assert.deepEqual(storage.all("SELECT * FROM tickets"), []);
-    assert.equal(meta(storage, "storage_version"), created ? 5 : 0);
+    assert.equal(meta(storage, "storage_version"), created ? 6 : 0);
     storage.exec("INSERT INTO tickets VALUES ('new', 'person', 1, 1, 'label')"); initialize(storage);
     assert.equal(storage.all("SELECT * FROM tickets").length, 1);
-    assert.equal(meta(storage, "storage_version"), created ? 5 : 0);
+    assert.equal(meta(storage, "storage_version"), created ? 6 : 0);
   } finally { storage.close(); }
 });
 

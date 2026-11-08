@@ -278,9 +278,9 @@ for (const layout of ["created", "uncreated"]) test(`current storage initializat
   const storage = new NodeStorage(":memory:");
   try {
     initialize(storage);
-    if (layout === "created") setMeta(storage, "storage_version", 5);
+    if (layout === "created") setMeta(storage, "storage_version", 6);
     storage.exec("INSERT INTO receipts VALUES ('p', 'r', 'digest', 4, 'edit')");
-    assert.equal(meta(storage, "storage_version"), layout === "uncreated" ? 0 : 5);
+    assert.equal(meta(storage, "storage_version"), layout === "uncreated" ? 0 : 6);
     assert.equal(storage.all("SELECT * FROM receipts")[0].kind, "edit");
     for (const table of ["threads", "comments", "comment_ids", "comment_counts", "mention_targets", "mention_pending"]) assert.deepEqual(storage.all(`SELECT * FROM ${table}`), []);
     const before = storage.all("SELECT * FROM sqlite_master ORDER BY name"); initialize(storage);
@@ -288,7 +288,7 @@ for (const layout of ["created", "uncreated"]) test(`current storage initializat
     assert.equal(storage.all("SELECT * FROM receipts").length, 1);
   } finally { storage.close(); }
 });
-test("a fresh room creates storage version 5 with no threads", async () => {
+test("a fresh room creates storage version 6 with no threads", async () => {
   await import("../packages/board-sync/src/comments.ts");
   const { Room } = await import("../packages/board-room/src/room.ts"), { NodeStorage } = await import("../apps/server/src/node-storage.ts");
   const { meta } = await import("../packages/board-room/src/storage.ts");
@@ -296,7 +296,7 @@ test("a fresh room creates storage version 5 with no threads", async () => {
   try {
     const room = new Room(randomUUID(), { storage, lifecycle: { lifecycle: async () => ({ state: "active", generation: 0 }) }, hash: async value => { const { createHash } = await import("node:crypto"); return createHash("sha256").update(value).digest("hex"); }, randomId: randomUUID, now: () => 0, connections: () => [], schedule: async () => {},
       access: { board: async () => ({ title: "Comments", createdAt: new Date(0).toISOString() }), changes: async () => ({ latest: 0, lowestKept: 1, changes: [] }) }, fence: async () => 0 });
-    await room.load(); assert.equal(meta(storage, "storage_version"), 5); assert.deepEqual(storage.all("SELECT * FROM threads"), []);
+    await room.load(); assert.equal(meta(storage, "storage_version"), 6); assert.deepEqual(storage.all("SELECT * FROM threads"), []);
   } finally { storage.close(); }
 });
 

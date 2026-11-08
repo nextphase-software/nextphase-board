@@ -22,7 +22,7 @@ export type NodeOptions = {
 };
 export async function recoveryGeneration(board: string, storage: NodeStorage, db: Supabase, fences: NonNullable<NodeOptions['fence']>) {
   let generation = await fences.read(board);
-  if (meta(storage, "restore_pending") && !storage.all("SELECT result FROM history_requests WHERE operation = 'restore'").some(r => JSON.parse(String(r.result)).phase)) {
+  if (!meta(storage,"explicit_recovery_pending") && meta(storage, "restore_pending") && !storage.all("SELECT result FROM history_requests WHERE operation = 'restore'").some(r => JSON.parse(String(r.result)).phase)) {
     // A successful mention clear can be newer than a delayed document copy.
     // Neither failed checkpoint read may become an absent/zero checkpoint.
     const document = await db.documentGeneration(board);
@@ -109,7 +109,7 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
         if (!current) return;
         clearTimeout(current.timer);
         if (at !== null && !room.lifecycle.discarded) {
-          current.timer = setTimeout(() => { void room.alarm().catch(() => {}); }, Math.max(1, at - now()));
+          current.timer = setTimeout(() => { void current.room.alarm().catch(() => {}); }, Math.max(1, at - now()));
           current.timer.unref();
         }
       },

@@ -17,11 +17,12 @@ import { EndBoardDialog, UnavailableEnding, LeaveBoardQuestion, TeamPage, type P
 import { clearNotificationMemory } from "./notification-navigation";
 import { HistoryPanel, HistoryDenied } from "./history-panel";
 import { historyNavigation } from "./history";
+import { TimerControl } from "./timer-panel";
 import { Home } from "./home";
 import { holdName, type HeldNames } from "./home-rules";
 
 export type TeamParts = {
-  hosted?: HostedBoard; saveControl?: ReactNode; account?: ReactNode; banner?: ReactNode;
+  hosted?: HostedBoard; timerControl?: ReactNode; saveControl?: ReactNode; account?: ReactNode; banner?: ReactNode;
   people?: ReactNode; presenceLayer?: typeof PresenceLayer; backToFiles?: () => void;
   nameSent?: (title: string) => void;
   commentTool?: typeof CommentTool; commentsLayer?: typeof CommentsLayer;
@@ -158,7 +159,8 @@ function HostedRoute({ link, session, active, account, close, signInAgain, resta
   const notices = board.notices;
   return <><App team={{ hosted: board, account, backToFiles: session ? close : undefined, people: <People hosted={board} />, presenceLayer: PresenceLayer, commentTool: CommentTool, commentsLayer: CommentsLayer,
     nameSent: (title) => { sentTitles.current.add(title); },
-    saveControl: <button className="primary" onClick={() => setShare(true)}>Share</button>,
+    timerControl: <TimerControl timer={board.timer} />,
+    saveControl: <button className="primary" onClick={() => { board.showSurface("share"); setShare(true); }}>Share</button>,
     banner: notices.length || banner ? <div className="team-notice-column">
       {notices.map((notice) => <div className="team-loss-notice" role="status" key={notice.reason}>
         <span>{notice.message}</span><button onClick={() => {

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { WorkshopTimer, resetTimer, markExplicitRecovery } from "./timer.ts";
 import { RoomLifecycle, type Lifecycle, type LifecycleRequest } from "./lifecycle.ts";
 import * as Y from "yjs";
 import { Adapter } from "nextphase-board-sync/document-adapter.ts";
@@ -27,6 +28,7 @@ export class Room {
   comments: Comments;
   history: History;
   lifecycle: RoomLifecycle;
+  timer: WorkshopTimer;
   doc = new Y.Doc();
   board!: BoardV10;
   initialized = false;
@@ -42,6 +44,7 @@ export class Room {
     this.presence = new Presences(env, boardId);
     this.history = new History(this);
     this.lifecycle = new RoomLifecycle(this);
+    this.timer = new WorkshopTimer(this);
     this.comments = new Comments(env, this.access, this);
     if (env.rows && env.background) this.copies = new Copies(env.storage, env.rows, env.now,
       () => this.ordered(() => this.schedule()));
@@ -79,7 +82,8 @@ export class Room {
       try {
         const prepared = await this.history.prepare(board);
         storage.transaction(() => {
-          setMeta(storage, "storage_version", 5);
+          setMeta(storage, "storage_version", 6);
+          resetTimer(storage);
           storage.exec("INSERT INTO meta VALUES ('board_id', ?)", this.boardId);
           setMeta(storage, "last_edit_at", Date.parse(details.createdAt));
           setMeta(storage, "revision", 0);
@@ -104,6 +108,7 @@ export class Room {
     this.board = readBoard(this.doc);
     this.initialized = true;
     try {
+      await this.timer.recover();
       this.generation = await this.env.fence();
       this.access.locked = this.generation > meta(storage, "restore_generation") || !!meta(storage, "restore_pending");
       if (this.access.locked) {
@@ -116,6 +121,7 @@ export class Room {
     if (this.access.locked) { try { await this.comments.mentions.restore(this.generation); } catch { return; } }
     try { await this.access.replay(this.boardId, this.generation); } catch { /* Ordinary wakes use their stored copy. */ }
     if (!this.access.locked) { try { await this.comments.mentions.prune(); } catch { /* Delivery retries require a successful prune. */ } }
+    try { await this.timer.completeRecovery(); } catch { this.access.locked = true; return; }
     this.saved();
     this.background(() => this.deliverNotices());
   }
@@ -143,7 +149,7 @@ export class Room {
   async refresh(strict = false) {
     await this.load();
     await this.creationTime();
-    try { this.generation = await this.env.fence(); }
+    try { await this.timer.recover(); this.generation = await this.env.fence(); }
     catch { this.access.locked = true; if (strict) throw new RoomError(503, "room_locked"); return; }
     if (this.history.active()) {
       try { await this.history.resume(); } catch { if (strict) throw new RoomError(503, "restore_pending"); return; }
@@ -155,6 +161,7 @@ export class Room {
     try { await this.access.replay(this.boardId, this.generation); }
     catch (error) { if (strict) throw error; /* A restore remains locked until replay succeeds. */ }
     if (!this.access.locked) { try { await this.comments.mentions.prune(); } catch (error) { if (strict) throw error; } }
+    try { await this.timer.completeRecovery(); } catch { this.access.locked = true; if(strict)throw new RoomError(503,"restore_pending");return; }
     this.saved();
   }
   ticket(person: Person) {
@@ -214,13 +221,15 @@ export class Room {
       if (!meta(this.env.storage, "storage_version")) throw new RoomError(401, "ticket_invalid");
       try { await this.lifecycle.active(); } catch (error) { if (error instanceof RoomError && error.status === 404) throw new RoomError(401, "ticket_invalid"); throw error; }
       await this.load();
+      const storedTicket = this.env.storage.all("SELECT * FROM tickets WHERE digest = ?",await this.env.hash(bytes(ticket)))[0];
+      if(!storedTicket || Number(storedTicket.expires_at)<=this.env.now() || Number(storedTicket.token_expires_at)<=this.env.now())throw new RoomError(401,"ticket_invalid");
+      try { await this.refresh(true); await this.timer.authority(); this.timer.snapshot(); } catch(error) { if(error instanceof RoomError)throw error;throw new RoomError(503,"service_unavailable"); }
       const person = await consumeTicket(this.env, ticket);
-      await this.refresh();
       const grant = await this.access.lookup(person.id, this.boardId);
       if (person.expiresAt <= this.env.now()) throw new RoomError(401, "ticket_invalid");
       const attachment = await this.presence.reserve(person, grant.role, grant.epoch);
       await this.schedule();
-      return attachment;
+      return { ...attachment, restoreGeneration: meta(this.env.storage,"restore_generation"), timerTimes: [], timerReadTimes: [] };
     });
   }
   connected(connection: Connection) {
@@ -228,13 +237,17 @@ export class Room {
       await this.load();
       const attachment = connection.attachment();
       if (!currentAttachment(attachment)) { this.close(connection, 1012); return; }
+      await this.timer.authority(connection);
+      await this.timer.normalize();
       if (!this.presence.open(connection)) return;
       await this.expire();
       if (attachment.expiresAt <= this.env.now()) return;
       const grant = this.access.get(attachment.id);
       if (!grant || attachment.epoch !== grant.epoch) { this.close(connection, closeCode(grant?.role ?? null, attachment.role)); return; }
+      await this.timer.authority(connection);
       send(connection, { kind: "joined", role: grant.role, epoch: grant.epoch,
         restoreGeneration: meta(this.env.storage, "restore_generation"),
+        timer: this.timer.snapshot(), serverNowMs: this.env.now(),
         revision: meta(this.env.storage, "revision"), update: base64(Y.encodeStateAsUpdate(this.doc)),
         self: connection.attachment().presence, present: this.presence.list(attachment.connectionId) });
       this.comments.snapshot(connection);
@@ -292,6 +305,10 @@ export class Room {
       if (bytes(text).length > MESSAGE_LIMIT) { send(connection, { kind: "refused", reason: "message_too_large" }); return; }
       let message;
       try { message = JSON.parse(text); } catch { send(connection, { kind: "refused", reason: "bad_message" }); return; }
+      if (message?.kind === "timer_command" || message?.kind === "timer_read") {
+        await this.timer.handle(connection,message,bytes(text).length);
+        await this.schedule(); return;
+      }
       if (message?.kind === "renew" && typeof message.token === "string") {
         try {
           const person = await this.env.verify(message.token);
@@ -335,6 +352,7 @@ export class Room {
   private async schedule(historyRetry = false) {
     const historyAt = meta(this.env.storage, "history_next_at");
     const deadlines = [historyRetry ? Math.max(historyAt, this.env.now() + 1000) : historyAt, ...this.env.connections().map((connection) => connection.attachment().expiresAt)];
+    const timerAt = this.timer.deadline(); if(timerAt !== null)deadlines.push(timerAt);
     deadlines.push(...this.presence.deadlines());
     for (const peer of this.env.connections()) if (peer.attachment().presence) deadlines.push(peer.attachment().presenceAt! + 30000);
     const waiting = this.env.storage.all("SELECT MIN(deadline) AS at FROM waiting")[0]?.at;
@@ -363,6 +381,7 @@ export class Room {
     return this.ordered(async () => {
       await this.load();
       await this.expire();
+      try { await this.timer.normalize(); } catch { await this.env.schedule(this.env.now()+1000); return; }
       try { await this.history.automatic("checkpoint"); }
       catch (error) { await this.schedule(true); throw error; }
       this.saved(true);
@@ -424,7 +443,7 @@ export class Room {
       this.closeAll(4423);
       this.env.storage.exec("DELETE FROM tickets");
       this.env.storage.exec("DELETE FROM waiting");
-      setMeta(this.env.storage, "restore_pending", 1);
+      markExplicitRecovery(this.env.storage);
       this.access.locked = true;
       return generation;
     });

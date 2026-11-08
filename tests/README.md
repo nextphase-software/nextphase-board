@@ -314,3 +314,51 @@ server, A–J-off, H1, C2, W5 and X1 ranges from the brief. Keep its explicit H1
 S50 and W5-S24 ending→Home amendments, menu/sidebar/Tab allowances, and every
 other functional assertion. No browser/Supabase CLI/schema application/deployment
 runs in the implementation session.
+
+
+## Shared workshop timer (0007-W1 v1)
+
+`tests/workshop-timer.test.mjs` adds W1-U01–W1-U30 to `npm test`, importing
+capabilities inside each named case. They cover strict actor-free wire shapes and
+causes, bounded rolling budgets, input/monotonic clocks, queue races, expiry,
+rollback, content isolation, restart and logical/explicit recovery. The paired
+accepted-history-intent units distinguish ordinary preservation from marker-first
+reset/reservation/retry. Controller checks cover pending readback without replay,
+delayed End speech, result/state deduplication and reconnect suppression.
+Module guards require exactly 40 team modules, 22 state hooks and unchanged App.tsx.
+
+`tests/server/timer.test.ts` registers S225–S256 (32 common checks) on both runners,
+printing PASS/FAIL per ID and `SUMMARY-TIMER` with actual runner counts and sizes.
+S252's stopped-volume copy/real marking-script subcase is Node-only. The workerd
+common case explicitly marks before eviction/load; it is not a claim of hosted
+provider point-in-time recovery. Production Workers time-recovery entry integration
+remains unresolved and requires a separate ruling before acceptance.
+
+New test-only controls inspect bounded timer attachment windows, reconstruct a
+Node Room over its existing SQLite/connections, mark explicit recovery and inject
+timer writes failing inside the real transaction. Workerd reconstruction uses
+`evictDurableObject` with existing WebSockets. Node process restart remains the
+separate S248 path; process-local clocks/failures are reapplied after restart.
+S254 reports actual runner rows and serialization of maximal exact frame shapes;
+these measurements are not server-suite results until the suite executes.
+
+The current joined envelope has actor-free `timer` and `serverNowMs`; current
+room fixtures expect layout 6, not an older-layout upgrade path. S121/S134/S159/
+S169 and mention initialization fixtures retain their existing functional checks.
+S160/S192 inspect the live singleton and verify backup exclusion. S40 retains
+lifecycle-outage refusals after wake, restores both authorities, freshly joins
+owner/editor/viewer, then disables access replay for cached existing-socket work
+and new-join 503 proof. No pre-wake Node socket is reused. Invalid/consumed ticket
+refusals and the locked recovery observations remain.
+
+Implementation validation is V1–V8 only. The server-only handoff requires a fresh clean
+candidate/install/local schema install+reapply, full Node then full workerd suites,
+no browsers; return failures to the implementation session before check1. The fresh
+independent check authors `tools/browser-compare/0007-w1-check.mjs` and owns V9–V13:
+Z1-S1–S29/S31–S36 on, S30 off, the named baseline negative, accepted full unit/server,
+A–J off, 0004-W2 recovery/presence and 0006-W4 T1 plus off sentinel. Removal remains
+inside the full suites. Only the brief's named toolbar stops/outage phases change;
+existing functional assertions stay. Baseline T1-S38/S39 and Node S181 require
+source/test comparison, never blanket waivers. Registered or bundled checks are
+not executed checks. No browser, Supabase CLI, deployment or extra campaign ran
+in the implementation sandbox.

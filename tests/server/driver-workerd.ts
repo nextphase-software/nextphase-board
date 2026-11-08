@@ -25,6 +25,7 @@ export async function makeDriver(context: Context): Promise<Driver> {
       return result;
     },
     async control(value) {
+      if(value.board&&value.timerAttachments)return runInDurableObject<DurableObject,any>(roomStub(String(value.board)),async(instance:any)=>instance.state.getWebSockets().map((s:any)=>{const a=s.deserializeAttachment();return {timerTimes:a.timerTimes??[],timerReadTimes:a.timerReadTimes??[]};}));
       if(value.board&&value.inventory){return runInDurableObject(roomStub(String(value.board)),async(instance:any)=>({tables:instance.state.storage.sql.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '_cf_%'").toArray(),alarm:await instance.state.storage.getAlarm()}));}
       if (value.board && value.fences) {
         const stub = bindings.FENCES.get(bindings.FENCES.idFromName(String(value.board)));
@@ -48,9 +49,10 @@ export async function makeDriver(context: Context): Promise<Driver> {
         // S121 calls wake() next; it owns eviction before the next storage open.
         return {};
       }
-      if (value.board && (value.roomSQL || value.failInitialization || value.deliverMentions || value.settled)) {
+      if (value.board && (value.markRecovery || value.roomSQL || value.failInitialization || value.deliverMentions || value.settled)) {
         return runInDurableObject(roomStub(String(value.board)), async (instance:any) => {
           const room=await instance.getRoom(String(value.board)), storage=room.env.storage;
+          if(value.markRecovery)await room.ordered(async()=>{const {markExplicitRecovery}=await import("../../packages/board-room/src/timer.ts");markExplicitRecovery(storage);room.initialized=false;});
           if(value.settled)await room.ordered(async()=>{});
           if(value.roomSQL)await room.ordered(async()=>{for(const item of value.roomSQL)storage.exec(item.sql,...(item.bindings??[]));});
           if(value.failInitialization){const execute=storage.exec.bind(storage);storage.exec=(sql:string,...args:any[])=>{if(sql.includes("CREATE TABLE IF NOT EXISTS mention_pending"))throw Error("initialization rollback");execute(sql,...args);};try{const {initialize}=await import("../../packages/board-room/src/storage.ts");initialize(storage);}finally{storage.exec=execute;}}
@@ -79,6 +81,7 @@ export async function makeDriver(context: Context): Promise<Driver> {
         if (fenced) await room.lock();
         await room.ordered(async () => {
           replace(room.env, decodeBackup(envelope, board));
+          if(fenced){const {markExplicitRecovery}=await import("../../packages/board-room/src/timer.ts");markExplicitRecovery(room.env.storage);}
           // A real point-in-time restore replaces storage at the next session.
           // Queued close callbacks must read that copy, not snapshot old RAM.
           room.initialized = false;

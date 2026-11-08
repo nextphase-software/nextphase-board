@@ -1336,3 +1336,38 @@ button.w4-destructive,button.w4-destructive:hover:not(:disabled):not([aria-disab
   .home .w4-explain { padding:10px; }
   .w4-state { padding:24px 10px; }
 }
+
+/* Shared workshop timer; all overrides stay within the timer slot. */
+button.w1-trigger { flex:none; width:98px; min-width:98px; height:40px; min-height:40px; padding:0; display:inline-flex; align-items:center; justify-content:center; gap:8px; background:#fff; color:#79737f; font:12px system-ui; font-variant-numeric:tabular-nums; border:1px solid #e8e7ed; border-radius:8px; }
+button.w1-trigger.active { width:62px; min-width:62px; background:#f5f0ff; color:#7051cf; }
+button.w1-trigger.paused,button.w1-trigger.uncertain { color:#79737f; }
+.w1-panel { position:fixed; right:12px; width:240px; max-width:calc(100vw - 24px); max-height:calc(100dvh - var(--w1-top) - 12px); top:var(--w1-top); overflow:auto; z-index:4; display:flex; flex-direction:column; gap:8px; padding:12px; background:#fff; border:1px solid #e9e7ed; border-radius:12px; box-shadow:0 2px 8px #29202e0a; color:#29272e; font:13px/1.5 system-ui; }
+.w1-head { display:flex; align-items:center; justify-content:space-between; gap:8px; height:40px; flex:none; }
+.w1-head h2,.w1-panel h3 { margin:0; font:600 13px/1.5 system-ui; }
+.w1-panel button.w1-close { position:absolute; top:12px; right:12px; display:grid; place-items:center; flex:none; width:40px; min-width:40px; height:40px; min-height:40px; padding:0; border:0; background:transparent; }
+.w1-fields { display:grid; grid-template-columns:79px 16px 79px; gap:8px; justify-content:center; align-items:end; }
+.w1-field-slot { display:contents; }
+.w1-fields label { display:flex; flex-direction:column; gap:4px; font:12px/1.45 system-ui; color:#79737f; }
+.w1-fields input { width:79px; height:68px; padding:0; border:1px solid #e9e7ed; border-radius:8px; background:white; color:#29272e; font:48px/1 system-ui; font-variant-numeric:tabular-nums; text-align:center; }
+.w1-fields .w1-colon { display:grid; place-items:center; height:68px; font:48px/1 system-ui; color:#79737f; }
+.w1-panel.paused .w1-fields input,.w1-panel.uncertain .w1-fields input { color:#79737f; }
+.w1-row { display:flex; justify-content:center; align-items:center; gap:8px; }
+.w1-panel button.w1-hit { display:grid; place-items:center; width:40px; min-width:40px; height:40px; min-height:40px; padding:0; border:0; background:transparent; border-radius:8px; }
+.w1-disc { display:grid; place-items:center; width:33px; height:33px; border-radius:50%; background:#fff; border:1px solid #e8e7ed; color:#29272e; }
+.w1-hit.primary .w1-disc { background:#7051cf; color:#fff; border:0; }
+.w1-panel button.w1-add { width:68px; min-width:68px; height:40px; min-height:40px; padding:0; border:0; background:transparent; border-radius:8px; font:12px system-ui; }
+.w1-add span { display:grid; place-items:center; width:68px; height:24px; border:1px solid #e8e7ed; border-radius:8px; background:#fff; }
+.w1-panel button:hover:not(:disabled) { background:#f1eff5; }
+.w1-panel .w1-hit:hover:not(:disabled) .w1-disc,.w1-add:hover:not(:disabled) span { background:#f1eff5; }
+.w1-panel .w1-hit.primary:hover:not(:disabled) .w1-disc { background:#6142be; }
+.w1-panel button:disabled { opacity:.45; }
+.w1-panel :focus-visible,.w1-trigger:focus-visible { outline:3px solid #7051cf; outline-offset:3px; }
+.w1-panel p.w1-status { margin:0; font:12px/1.45 system-ui; color:#79737f; text-align:center; overflow-wrap:anywhere; }
+.w1-panel p.w1-confirm-copy { margin:0; font:13px/1.5 system-ui; }
+.w1-confirm-row { display:flex; justify-content:flex-end; gap:8px; }
+.w1-confirm-row button { min-height:40px; padding:8px 12px; font:13px/1.5 system-ui; white-space:nowrap; border:1px solid #e8e7ed; border-radius:8px; }
+.w1-confirm-row .primary { background:#7051cf; border-color:#7051cf; color:#fff; }
+.w1-confirm-row .primary:hover:not(:disabled) { background:#6142be; }
+.w1-shake { animation:w1-zero 300ms linear 1; }
+@keyframes w1-zero { 0%,100% { transform:translateX(0); } 25%,75% { transform:translateX(2px); } 50% { transform:translateX(-2px); } }
+@media (prefers-reduced-motion:reduce) { .w1-shake { animation:none; } }

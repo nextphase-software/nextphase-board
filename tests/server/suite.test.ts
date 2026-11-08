@@ -490,12 +490,20 @@ check(40, "ordinary wakes fail closed without lifecycle authority and recover ca
   for (const name of names) for (const suffix of ["join-tickets", "export"]) {
     await refused(await request(`/boards/${f.a}/${suffix}`, name, suffix === "export" ? "GET" : "POST"), 503, "service_unavailable");
   }
-  // Lifecycle authority is live again; isolate the older access-replay outage.
-  await helper("proxy", { offline: false, rpc: "access_changes_after", fail: true });
-  for (const name of ["owner", "editor"]) await edit(await join(f.a, name));
-  const viewer = await join(f.a, "viewer"); viewer.peer.send({ kind: "edit", restoreGeneration: viewer.joined.restoreGeneration, epoch: viewer.epoch, requestId: "outage", update: change(viewer.doc, "No") });
+  // Restore both authorities before fresh post-wake sockets; Node wake is a process restart.
+  await helper("proxy", { offline: false, rpc: "access_changes_after", fail: false });
+  const owner = await join(f.a, "owner"), editor = await join(f.a, "editor"), viewer = await join(f.a, "viewer");
+  await helper("proxy", { rpc: "access_changes_after", fail: true });
+  for (const client of [owner, editor]) await edit(client);
+  for (const name of ["owner", "editor", "viewer"]) {
+    await success(`/boards/${f.a}/export`,name);
+    const issued = await ticket(f.a,name);
+    await refused(await driver.request(`/boards/${f.a}/join?ticket=${issued.ticket}`,{headers:{Origin:context.origin}}),503,"service_unavailable");
+  }
+  viewer.peer.send({ kind: "edit", restoreGeneration: viewer.joined.restoreGeneration, epoch: viewer.epoch, requestId: "outage", update: change(viewer.doc, "No") });
   assert.equal((await viewer.peer.next("refused")).reason, "role_too_low");
   for (const name of ["granted", "plain", "outsider"]) await refused(await request(`/boards/${f.a}/join-tickets`, name, "POST"), 404, "not_found");
+  await helper("proxy", { rpc: "access_changes_after", fail: false });
 });
 check(41, "large logical restore locks until replay and clears tickets", async () => {
   assert(large); const board = large.a;

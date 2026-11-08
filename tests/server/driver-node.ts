@@ -119,6 +119,7 @@ export async function makeDriver(context: Context): Promise<Driver> {
       const storage = new NodeStorage(file);
       initialize(storage);
       replace({ storage } as any, decodeBackup(envelope, board));
+      if(fenced){const {markExplicitRecovery}=await import("../../packages/board-room/src/timer.ts");markExplicitRecovery(storage);}
       storage.close();
       await cp(file, resolve(dataDir, "boards", board + ".sqlite")); await start();
     },

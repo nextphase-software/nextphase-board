@@ -60,7 +60,7 @@ Back up the data folder, including `restore-fences.sqlite`, and the Supabase
 database with enough access history for all retained backups. Supabase holds
 the mention leases, delivery checkpoints and reference-only account inboxes;
 these are separate stores, with no atomic distributed snapshot. Current rooms
-use layout 5; preview data may be reset and older-format conversion is not required.
+use layout 6; preview data may be reset and older-format conversion is not required.
 
 To restore a volume, stop the server, restore the files,
 run `node apps/server/scripts/mark-restored-volume.mjs <data folder>`, then start
@@ -91,7 +91,7 @@ for requests, refusals and operator controls.
 
 ## Document version history
 
-Current layout 5 stores canonical document versions in `versions` and
+Current layout 6 stores canonical document versions in `versions` and
 `version_chunks`, separately from recovery snapshots and discussion. Captures are
 initial, changed 30-minute checkpoints, changed last-collaborator close and manual.
 Every kind shares the newest-50 / 30-elapsed-day retention gates. The durable
@@ -175,3 +175,38 @@ record behind that ledger is refused with 503, not treated as an active recovere
 Serving-store deletion cannot erase downloaded files/envelopes, operator-held offline
 copies or provider recovery copies. Provider recovery policy and hosted schema
 application/deployment remain separate operator actions.
+
+
+## Shared workshop timer
+
+The [timer contract](../../docs/architecture/0007-workshop-timer-v1.md) adds one
+`workshop_timer` singleton to current room layout 6, with no service table or HTTP
+timer route. Current effective owners, editors and viewers control it through the
+admitted socket. Timer reads, commands and publications require live lifecycle,
+strict access replay, epoch, token and room generation checks. Ordinary cached
+HTTP/edit policies remain separate; a new socket refuses unavailable strict replay.
+
+Both adapters use the room clock, persisted end/remainder and earliest-deadline
+scheduler. Last-leave and ordinary restart/reconstruction preserve the record;
+paused time has no inactivity TTL. End and end+2,500 are deadlines, with no
+per-second server countdown. Timer work does not revise document/history content.
+Logical backups explicitly omit the table and recovery control keys. Current
+restore validation rejects timer/marker injections before a fence or replacement.
+
+The stopped-volume marking script transactionally writes
+`explicit_recovery_pending=1` and `restore_pending=1`, preserving an existing
+reservation on repeated marking. Room loading processes that distinct marker
+before any history-intent resume: reserve above every live/local/intent floor,
+commit the timer reset and `explicit_recovery_generation` together, preserve the
+accepted document intent/chunks, and retain denial through completion and strict
+replay. A failed later step retains the reservation and does not reset again.
+An ordinary restart with only a pending history intent preserves the live timer.
+Trash clears it before socket closure; purge/discard drains callbacks and removes
+its storage and alarm. User document-history replacement preserves it.
+
+Production Workers point-in-time recovery still needs an independently retained
+explicit-recovery signal that survives the provider rewind and stamps the recovered
+room before load. As the [provider storage API](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/)
+rewinds both SQL and KV, a marker written only into the room being rewound is insufficient.
+That entry-path integration remains unresolved in this implementation candidate;
+common marked-load tests do not establish hosted provider recovery.

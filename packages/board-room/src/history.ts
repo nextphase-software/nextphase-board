@@ -261,7 +261,7 @@ export class History {
       this.s.exec('DELETE FROM history_intent_chunks WHERE person_id = ? AND request_id = ?', row!.person_id, row!.request_id);
       setMeta(this.s, 'restore_pending', 0);
     });
-    this.host.access.locked = false; this.host.saved();
+    this.host.access.locked = !!meta(this.s,"explicit_recovery_pending"); this.host.saved();
     return intent.result;
   }
 }

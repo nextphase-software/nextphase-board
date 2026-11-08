@@ -725,3 +725,135 @@ claim that every requested round-2 finding is closed. Both mandatory source comm
 hooks passed; the same sandbox packed-refs.lock maintenance warning followed a
 successful commit. No push, deployment, external message, checkpoint edit or
 next milestone occurred.
+
+### Fix round 3 — fail-closed decision and recovery inspection (2026-11-07)
+
+- Branch: `codex/0006-W4-delete-and-restore-boards-from-trash`.
+- Validated source/test revision: `d899ce311c320933edaae217d73a42eae5a2c98a`.
+  This record is appended in a separate later commit; its final tip is reported
+  separately in the handoff.
+- Six test/adapter files change this round. Application, room, sync, schema,
+  dependency, format, journal and limit files are byte-identical to the preceding
+  tip. No new stored values or dependencies. The full prerequisite-base range is
+  61 permitted files including this append-only record.
+- Check 3 finished both server suites before the maintainer paused the independent
+  run: Node 212 passed/8 failed; workerd 211 passed/5 failed/2 skipped. Read both
+  failure outputs, diagnostic invocations, request logs and the additional X1
+  scenario/client/server network traces. These are preceding-revision results,
+  not fresh runtime acceptance for this revision.
+
+**Maintainer decision (2026-11-07): “Yes, fail closed.”** Lifecycle v2 and sync v9
+remain unchanged: unavailable SQL lifecycle authority returns retryable
+503 service_unavailable, with no cached join, content or save. This resolves the
+contract-adjudication item left open in the preceding record. `suite.test.ts`
+and `lists.test.ts` now distinguish a complete SQL outage from an access-replay
+RPC outage after lifecycle authority has returned. The latter isolates the older
+cached-role/restore-lock assertions without making authority unavailable.
+
+| Check / runners | Explicit amended outage expectation and retained recovery proof |
+| --- | --- |
+| S40 / Node, workerd | During complete outage after wake, all six role fixtures' ticket/export requests require 503 service_unavailable. Once lifecycle SQL returns, fail only access_changes_after and retain owner/editor saved edits, viewer role_too_low refusal and unknown/uncached-role 404 assertions. |
+| S41 / Node, workerd | Offline operator restore, old-ticket upgrade and owner/outsider ticket/export require 503 service_unavailable. Once lifecycle SQL returns, perform the original restore with access replay isolated as unavailable: retain 200/locked response, 4423 close, consumed/invalidated-ticket 401, stored-owner room_locked, outsider 404, exact large canonical recovery and oversized-body 413. |
+| S42 / Node, workerd | An offline fenced restore control must reject service_unavailable and export must return that 503. After lifecycle SQL returns, execute the same fenced rewind, retain room_locked during isolated replay failure, then the original recovered title. The ordinary unmarked rewind also denies export while SQL is offline and retains the original recovered-title assertion after it returns. |
+| S43 / Node | Offline export requires 503 service_unavailable. Run the marked-volume copy after lifecycle authority returns; retain room_locked while access replay alone is unavailable, followed by successful export after replay recovers. |
+| S70 / Node | Rename attempts while all SQL is unavailable require 503 service_unavailable, both inside the newer-state callback and after the marked rewind. Bring lifecycle SQL back before protected recovery; retain the original room_locked assertion under isolated replay failure, exact Volume X recovery, strictly higher generation and stored-generation equality. |
+| S71 / Node, workerd | Offline operator restore and owner/outsider rename require 503 service_unavailable. After lifecycle SQL returns, perform the original restore with replay unavailable; retain room_locked for owner, generic outsider 404 and unchanged receipts. |
+
+Both files reset the access_changes_after fault after each case. A scratch source
+comparison confirms that all 20 original assert/refused calls in those six cases
+remain, with the authorized outage expectations added and the older assertions
+executed in the corresponding recovered-authority/replay state. S45–S47/S50,
+S192/S193, S204 and S211/S212/S224 case bodies remain byte-identical to the preceding
+passing revision. Runtime proof for these amended checks remains for the next
+independent check; the Supabase CLI cannot start in this environment.
+
+**S199 — test SQL syntax, not an API/storage mismatch.** Both runner traces stop
+at the test helper SQL with `syntax error at or near "FROM"`, at the bare `at`
+alias after row_number(). The Node request log records that helper call returning
+500, before the pending-page requests can execute. `lifecycle.test.ts:S199` now
+uses `AS pending_time` and `x.pending_time`. All ordering, 50-row paging, cursor,
+foreign-workspace and filtering assertions remain; production `trash_page` and
+its API v8 pending-first/boardId ordering are unchanged. Actual SQL execution and
+both-runner S199 proof remain for the next check; no Supabase CLI/schema run here.
+
+**S168 — introduced adapter observation deadlock.** The two intentional checkpoint
+read failures correctly return room_locked. On the final retry, the request log
+shows clear_board_mentions held until its three-second HTTP timeout, followed by
+another room_locked ticket response. Round 2 had changed every adapter row read
+into an ordered room operation. S168 intentionally reads restore_pending while
+that same room queue is waiting for the held clear, and releases the clear only
+AFTER that read: the observation could not finish before the timeout.
+`node-test.ts` and `driver-workerd.ts:rows` now provide nonblocking, synchronous
+inspection again. A separate explicit `settled` barrier joins the room queue for
+S33's last-close snapshot inspection. No S168 assertion or product recovery code
+changed. The new regression uses the actual Room queue/storage and the actual
+workerd adapter with only platform ports replaced: it failed before the adapter
+fix, then passed with immediate pending-state inspection and a barrier that waits
+until held work is released. Real Node marked-volume/checkpoint/old-projection
+proof and S33's both-runner snapshot proof remain for the next check; Supabase CLI
+unavailable here. Existing Worker scheduler/body-drain fixes remain untouched.
+
+**X1 — check-caller readiness, with additional check-3 evidence.** The scenario
+again stops before X1-S1. The client network trace receives joined at
+22:12:38.437 UTC, then comments_snapshot reset/done at 22:12:38.441; the server
+trace contains no incoming comment frame between that join and the setup timeout.
+The helper awaits BoardSession.join and immediately calls comment, although join
+resolves on joined and comment requires snapshot completion. The separated frame
+callbacks expose that readiness gap; no comment is sent. A controlled replay on
+both candidate and fresh independent prerequisite base reproduces
+`join_required`, zero outgoing frames before snapshot done, then `saved`, one
+frame after done. No production snapshot guard, join semantics or resend behavior
+was weakened.
+
+The required correction is in the independent check's X1 setup helper, which is
+outside this brief's permitted public files. No private tool was edited. The next
+check must insert this wait between openRoom returning and the explicit comment:
+
+```js
+await until(() => room.commentsReady);
+```
+
+After creating the comment, it must assert that the returned ID exists in
+commentRequests before waiting for saved; capture that returned value, readiness,
+ordered joined/snapshot-done/comment-send/saved-or-refused frames and close codes.
+This gives a concrete setup amendment and detects any remaining product failure
+without waiting on a nonexistent request. All original X1 assertions remain
+required. Actual corrected X1 setup and X1-S1–S25 proof remain for the independent
+check: browsers and Supabase CLI cannot start here. The private tool amendment
+and its runtime result are explicitly outstanding, not reported as passed.
+
+| Validation | Fix-round result |
+| --- | --- |
+| V1 | PASS. All 20 manifests/locks/inventory/runtime-notice inputs match prerequisite base; zero new dependencies. |
+| V2 | PASS. Candidate and fresh independent base npm ci --ignore-scripts --no-audit --no-fund exit 0; Node 26.13.0/npm 11.20.0. |
+| V3 | PASS. npm run typecheck exits 0 for all five workspaces. |
+| V4 | PASS. npm test exits 0: 927 passed, zero failed/skipped, including the new nonblocking-inspection/barrier regression. |
+| V5 | PASS. Off build/license audit exit 0; index/notices equal independent base; no team/Supabase bundle inputs. |
+| V6 | PASS. Fixture/on builds/license audit exit 0; on index/notices equal independent base and notices equal runtime notices v3. |
+| V7 | PASS. Server build/license audit and Wrangler 4.156.0 Worker dry run exit 0 without deployment. |
+| V8 | PASS. Full prerequisite-base-to-validated changed-file list and all fix hunks inspected; only 61 permitted files including earlier append-only records. Exact committed-range diff --check exits 0. |
+
+The V2–V7 commands and synthetic off/on variables recorded above were rerun. The
+independent base was freshly extracted with git archive at
+`cffffbdaf54d6286339a8ce3063775cfb2b820da` and installed without candidate links.
+All four index/notices SHA-256 receipts reproduce the exact values above.
+Additional focused commands:
+
+```sh
+node --test --test-name-pattern='recovery inspection stays' tests/board-lifecycle.test.mjs
+node <scratch>/comment-readiness.mjs <candidate-root>
+node <scratch>/comment-readiness.mjs <independent-base-root>
+node_modules/.bin/esbuild tests/server/suite.test.ts tests/server/lists.test.ts tests/server/lifecycle.test.ts tests/server/mentions.test.ts tests/server/node-test.ts tests/server/driver-workerd.ts --bundle --format=esm --platform=node --external:board-test-driver --external:vitest --external:cloudflare:test --outdir=<scratch>/test-bundles
+git diff --name-status cffffbdaf54d6286339a8ce3063775cfb2b820da..d899ce311c320933edaae217d73a42eae5a2c98a
+git diff --check cffffbdaf54d6286339a8ce3063775cfb2b820da..d899ce311c320933edaae217d73a42eae5a2c98a
+```
+
+The focused inspection regression ran red then green. All six server test/adapter
+bundles compile; bundling is not server execution. An optional scratch assertion
+inventory probe first attempted the unavailable TypeScript compiler JS API; it was
+replaced with a balanced-call source comparison, which verified all retained
+assertions and the unchanged case bodies listed above. No production fix was
+inferred from that probe. No full server suite, V9–V13, browser/acceptance run,
+Supabase CLI, schema application, deployment, push, external message, checkpoint
+edit or next milestone occurred. Both mandatory source-commit hooks passed;
+Git's sandbox packed-refs.lock maintenance warning followed a successful commit.

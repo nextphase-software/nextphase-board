@@ -1407,7 +1407,8 @@ button.w1-trigger.paused,button.w1-trigger.uncertain { color:#79737f; }
 .vote-strip { position:fixed; z-index:3; left:12px; display:flex; align-items:center; flex-wrap:wrap; gap:8px; max-width:calc(100vw - 24px); padding:8px 12px; border:1px solid #e9e7ed; border-radius:12px; box-shadow:0 2px 8px #29202e0a; background:#fff; color:#29272e; font:13px/1.5 system-ui; }
 .vote-dot { position:fixed; width:12px; height:12px; border:2px solid white; border-radius:50%; z-index:2; pointer-events:none; }
 .vote-badge { position:fixed; z-index:2; pointer-events:none; }
-.vote-hover { position:fixed; border:2px solid #7051cf; z-index:1; pointer-events:none; }
+.vote-hover { position:fixed; outline:2px solid #7051cf; z-index:1; pointer-events:none; }
+main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
 .vote-tooltip { position:fixed; z-index:3; padding:4px 8px; border:1px solid #e9e7ed; border-radius:8px; background:#fff; color:#29272e; font:12px/1.45 system-ui; pointer-events:none; }
 .vote-tooltip.ineligible { color:#79737f; }
 @media(max-width:599.98px) {

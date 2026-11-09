@@ -5,7 +5,7 @@ import { VotingCard } from './voting-card';
 import type { BoardVoting } from './voting';
 import type { ItemV10 } from 'nextphase-board-rules/document.ts';
 import type { BoardTimer } from './timer';
-import { draftMs } from './timer-rules';
+import { draftMs, MAX_TIME } from './timer-rules';
 function Glyph({name}:{name:'timer'|'play'|'pause'|'stop'|'close'}) {
   return <svg aria-hidden="true" width={name==='close'?24:16} height={name==='close'?24:16} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
     {name==='timer'?<><circle cx="10" cy="11" r="6"/><path d="M8 2h4m-2 0v3m0 3v4l2 1"/></>:name==='play'?<path d="M7 4L15 10L7 16Z" fill="currentColor" stroke="none"/>:name==='pause'?<path d="M7 4v12m6-12v12"/>:name==='stop'?<rect x="5" y="5" width="10" height="10" rx="1" fill="currentColor" stroke="none"/>:<path d="M5 5L15 15M15 5L5 15"/>}
@@ -43,13 +43,16 @@ export function TimerControl({timer,voting,objects=[],preview=false}:{timer:Boar
   });
   const close=()=>{timer.hide();trigger.current?.focus();};
   const cancel=()=>{timer.cancel();requestAnimationFrame(()=>panel.current?.querySelector<HTMLElement>('[aria-label="End timer"]')?.focus());};
-  const uncertain=timer.health!=='ready',parts=timer.display.split(':'),idle=timer.editable;
+  const uncertain=timer.health!=='ready',display=timer.display,parts=display.split(':'),idle=timer.editable;
   const paused=timer.snapshot?.status==='paused';
   const fields=idle?timer.draft:{minutes:parts[0]??'--',seconds:parts[1]??'--'};
+  // Voting can repaint between timer ticks. Keep the visible ceiling disabled
+  // even when the live millisecond remainder has fallen within that last second.
+  const addDisabled=!timer.canAdd||!idle&&draftMs(fields)===MAX_TIME;
   const action=(name:string,glyph:'play'|'pause'|'stop',run:()=>void,disabled=false,primary=false)=><button type="button" className={'w1-hit'+(primary?' primary':'')} aria-label={name} data-timer={name==='Pause timer'||name==='Resume timer'?'toggle':undefined} disabled={disabled} onClick={run}><span className="w1-disc"><Glyph name={glyph}/></span></button>;
   return <>
-    <button ref={trigger} type="button" className={'w1-trigger'+(timer.active?' active':'')+(paused?' paused':'')+(uncertain?' uncertain':'')} aria-label={(timer.state==='Connecting timer'?'Timer and voting, Connecting timer':`Timer and voting, ${timer.state}, ${timer.display}`)+(voting?.running?', Voting in progress':'')} aria-haspopup="dialog" aria-expanded={timer.open} aria-controls="w1-panel" onClick={()=>timer.open?close():timer.show()}>
-      {!timer.active&&<Glyph name="timer"/>}<span>{timer.display}</span>
+    <button ref={trigger} type="button" className={'w1-trigger'+(timer.active?' active':'')+(paused?' paused':'')+(uncertain?' uncertain':'')} aria-label={(timer.state==='Connecting timer'?'Timer and voting, Connecting timer':`Timer and voting, ${timer.state}, ${display}`)+(voting?.running?', Voting in progress':'')} aria-haspopup="dialog" aria-expanded={timer.open} aria-controls="w1-panel" onClick={()=>timer.open?close():timer.show()}>
+      {!timer.active&&<Glyph name="timer"/>}<span>{display}</span>
     </button>
     {timer.open&&workshopPanel({panel,top,className:'w1-panel'+(paused?' paused':'')+(uncertain?' uncertain':''),
       onFocusCapture:e=>{const node=e.target as HTMLElement;focused.current=node.closest('.vote-card')?null:{node,key:focusKey(node)};},
@@ -63,7 +66,7 @@ export function TimerControl({timer,voting,objects=[],preview=false}:{timer:Boar
           if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();timer.shift((e.key==='ArrowUp'?1:-1)*(e.shiftKey?300000:60000));}
         }}/></label></span>)}</div>
         {timer.status&&<p className="w1-status">{timer.status}</p>}
-        <div className="w1-row"><button data-timer="add" className="w1-add" disabled={!timer.canAdd} onClick={()=>timer.add()}><span>+ 1 min</span></button>
+        <div className="w1-row"><button data-timer="add" className="w1-add" disabled={addDisabled} onClick={()=>timer.add()}><span>+ 1 min</span></button>
           {idle?action('Start timer','play',()=>timer.command('start'),!draftMs(timer.draft),true):<>{action('End timer','stop',()=>timer.confirm(),!timer.canMutate)}{action(paused?'Resume timer':'Pause timer',paused?'play':'pause',()=>timer.command(paused?'resume':'pause'),!timer.canMutate||timer.zero,true)}</>}
         </div>
       </>}

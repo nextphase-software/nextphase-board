@@ -201,9 +201,9 @@ async function timerPanelHarness() {
   const control=(element)=>({props:element.props,tagName:element.type.toUpperCase(),isConnected:true,disabled:!!element.props.disabled,tabIndex:element.props.tabIndex??0,
     getAttribute(name){return this.props[name]??null;},closest(){return null;},focus(){doc.activeElement=this;panel?.props.onFocusCapture({target:this});}});
   const root={contains:node=>nodes.includes(node),querySelector(selector){return nodes.find(n=>selector==='[data-timer="heading"]'?n.props['data-timer']==='heading':selector==='[data-timer="toggle"]'?n.props['data-timer']==='toggle':selector==='[data-timer="cancel"]'?n.props['data-timer']==='cancel':selector==='[aria-label="Minutes"]'?n.props['aria-label']==='Minutes':n.props['aria-label']==='End timer');}};
-  return {render(timer,{reuseCancel=false}={}){
+  return {render(timer,{reuseCancel=false,voting}={}){
     const cancel=pool.get('cancel'),activeWasControl=nodes.includes(doc.activeElement);for(const node of nodes)node.isConnected=false;
-    tree=mod.render(mod.TimerControl,{timer});elements=walk(tree);panel=elements.find(n=>n.props.id==='w1-panel');
+    tree=mod.render(mod.TimerControl,{timer,voting});elements=walk(tree);panel=elements.find(n=>n.props.id==='w1-panel');
     nodes=elements.filter(n=>['button','input','h2','h3'].includes(n.type)).map(element=>{
       const id=key(element)??(element.props.className==='w1-add'?'add':element.props.children==='Stop timer'?'stop':undefined);
       const node=reuseCancel&&element.props.className==='w1-add'?cancel:pool.get(id)??control(element);
@@ -261,4 +261,28 @@ unit(40,'zero and zero-window read use their monotonic deadlines independently o
     t.receive({kind:'timer_sample',requestId:reads[1].id,timer:{...running,status:'paused',endsAtServerMs:null,remainingMs:1000,version:2},serverNowMs:103500,restoreGeneration:0});
     clock.advance(10000);assert.equal(reads.length,2);assert.equal(t.shake,1);t.clear();assert.equal(clock.tasks.size,0);
   }finally{t.clear();clock.restore();}
+});
+unit(41,'shared-panel repaints keep extension disabled throughout displayed 99:59 without changing idle clamp',async()=>{
+  const {BoardTimer}=await import('../apps/web/src/team/timer.ts'),{idleTimer}=await import(path),clock=controlledTimerClock();
+  const reads=[],commands=[],host={snapshot:{connected:true},hideTimerPeers(){},readTimer(id){reads.push(id);return true;},sendTimer(...args){commands.push(args);return true;}};
+  const timer=new BoardTimer(host,clock.now),h=await timerPanelHarness(),voting={running:false,announcement:'',announcementId:0};
+  const running={status:'running',durationMs:5999000,endsAtServerMs:6099000,remainingMs:null,version:1,timerId:randomUUID()};
+  try{
+    timer.joined(running,0);timer.receive({kind:'timer_sample',requestId:reads[0],timer:running,serverNowMs:100000,restoreGeneration:0});timer.show();
+    for(const elapsed of [0,1,500,999]){
+      clock.advance(elapsed);voting.running=!voting.running;h.render(timer,{voting});
+      assert.equal(h.get('Minutes').props.value,'99');assert.equal(h.get('Seconds').props.value,'59');
+      assert.equal(h.get('add').disabled,true,`voting repaint at ${elapsed}ms must retain the visible cap`);
+      assert.equal(h.get('Pause timer').disabled,false);assert.equal(h.get('End timer').disabled,false);
+      assert.deepEqual(timer.snapshot,running);assert.equal(timer.remaining,5999000-elapsed);
+    }
+    clock.advance(1000);h.render(timer,{voting});assert.equal(h.get('Seconds').props.value,'58');assert.equal(h.get('add').disabled,false);
+    const paused={...running,status:'paused',endsAtServerMs:null,remainingMs:5998500,version:2};
+    timer.receive({kind:'timer_state',timer:paused,serverNowMs:101000,restoreGeneration:0,cause:'pause'});h.render(timer,{voting});
+    assert.equal(h.get('Seconds').props.value,'59');assert.equal(h.get('add').disabled,true);assert.equal(h.get('Resume timer').disabled,false);
+    timer.receive({kind:'timer_state',timer:idleTimer(3),serverNowMs:101000,restoreGeneration:0,cause:'end'});
+    timer.setDraft('minutes','99');timer.setDraft('seconds','30');h.render(timer,{voting});
+    assert.equal(h.get('add').disabled,false);h.get('add').props.onClick();h.render(timer,{voting});
+    assert.deepEqual(timer.draft,{minutes:'99',seconds:'59'});assert.equal(h.get('add').disabled,false);assert.equal(commands.length,0);
+  }finally{timer.clear();await h.close();clock.restore();}
 });

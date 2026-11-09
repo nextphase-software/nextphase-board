@@ -135,3 +135,38 @@ unit(39,'idle voting preserves comment hourly and connection limits through 600 
     for(const c of [a,other,next,b]){assert.equal(c.closed,undefined);assert(!c.frames.some(m=>m.kind.startsWith('vote_')));}
   }finally{f.close();}
 });
+unit(40,'eligible hover uses the specified outline below selection controls and ineligible hover has none',async()=>{
+  const {readFile,mkdtemp,writeFile,rm}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path'),{fileURLToPath,pathToFileURL}=await import('node:url');
+  const css=await readFile(new URL('../apps/web/style.css',import.meta.url),'utf8');
+  const rule=selector=>{
+    assert(css.includes(selector+' {'),`Missing CSS rule: ${selector}`);
+    const body=css.slice(css.indexOf(selector+' {')+selector.length+2).split('}')[0];
+    return Object.fromEntries(body.split(';').filter(s=>s.includes(':')).map(s=>s.split(':').map(v=>v.trim())));
+  };
+  const hover=rule('.vote-hover');assert.equal(hover.outline,'2px solid #7051cf');assert.equal(hover['z-index'],'1');assert.equal(hover['pointer-events'],'none');assert(!hover.border);
+  assert.equal(rule('main:has(> .vote-hover) > .scene > .resize-handle')['z-index'],'2');
+  // Context controls share z1 and occur after the hover in the root paint order.
+  assert.equal(rule('.context')['z-index'],'1');
+  const app=await readFile(new URL('../apps/web/src/App.tsx',import.meta.url),'utf8');assert(app.indexOf('<ContextBar')>app.indexOf('<team.votingLayer'));
+  const {build}=await import('esbuild');
+  const output=await build({stdin:{contents:"export {VotingOverlay} from './apps/web/src/team/voting-overlay.tsx';",resolveDir:fileURLToPath(new URL('../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'esm',platform:'node',jsx:'automatic',plugins:[{name:'voting-overlay-hooks',setup(b){
+    b.onResolve({filter:/^react$/},args=>args.importer.endsWith('/team/voting-overlay.tsx')?{path:'hooks',namespace:'voting-overlay-hooks'}:undefined);
+    b.onLoad({filter:/.*/,namespace:'voting-overlay-hooks'},()=>({contents:'export const useEffect=()=>{},useLayoutEffect=()=>{},useState=value=>[value,()=>{}];',loader:'js'}));
+  }}]});
+  const folder=await mkdtemp(join(tmpdir(),'board-vote-hover-'));try{
+    const file=join(folder,'overlay.mjs');await writeFile(file,output.outputFiles[0].text);const {VotingOverlay}=await import(pathToFileURL(file).href);
+    const {add,empty}=await import('../packages/board-rules/src/document.ts');let board=add(empty(),'sticky',-420,-200);board=add(board,'section',200,100);
+    Object.assign(board.objects[0],{x:-420,y:-200,width:240,height:240});
+    const objects=board.objects.map(o=>({...o,displayHeight:o.height})),target=objects[0];
+    const projection={session:{status:'running',sessionId:randomUUID(),sessionVersion:1,prompt:'Question',budget:3,targets:[[target.id,target.generation,0]],totals:null},own:{ballotVersion:0,colour:'#dc2626',targets:[],remaining:3}};
+    const voting={projection,mode:true,canInput:true,running:true,hover:target.id};
+    const props={hosted:{voting,timer:{open:false},history:{previewing:false}},objects,view:{x:0,y:0,z:1},size:{w:1280,h:800}};
+    const walk=node=>Array.isArray(node)?node.flatMap(walk):node?.props?[node,...walk(node.props.children)]:[];
+    let nodes=walk(VotingOverlay(props)),outline=nodes.find(n=>n.props.className==='vote-hover');
+    assert(outline);assert.equal(outline.props['aria-hidden'],'true');assert.deepEqual(outline.props.style,{left:220,top:200,width:240,height:240});
+    assert.equal(nodes.find(n=>n.props.className==='vote-tooltip').props.children,'Add vote');
+    voting.hover=objects[1].id;nodes=walk(VotingOverlay(props));assert(!nodes.some(n=>n.props.className==='vote-hover'));
+    assert.equal(nodes.find(n=>n.props.className==='vote-tooltip ineligible').props.children,'Not eligible for this vote');
+    assert.equal(rule('.vote-tooltip.ineligible').color,'#79737f');
+  }finally{await rm(folder,{recursive:true,force:true});}
+});

@@ -551,3 +551,90 @@ missing private-row cleanup. No runtime evidence is asserted by this draft.
 ## Implementation record
 
 (Appended by the implementer.)
+
+
+### Implementation — 2026-11-09
+
+- Branch: `codex/0007-W2-vote-and-reveal-workshop-results`.
+- Prerequisite base: `536487da100678d220192593cb6534782d5feabc`.
+- Validated source/test revision: `3807d4ba761c6019a8eb769932690b0d1e82b236`.
+  Validation ran on the identical source tree before this commit; only this record
+  remained uncommitted afterward. This append-only record is a separate commit;
+  its final branch tip is reported separately in the handoff.
+- Toolchain: Node 26.13.0 / npm 11.20.0. Added dependencies: none. All 20 tracked
+  manifests, lock/inventory and runtime-notice inputs are byte-identical to the
+  prerequisite base.
+
+Implemented dedicated room/protocol and web voting modules, strict personalized
+frames, split versions/account budgets, atomic private writes/reveal, access and
+target pruning, running spatial redaction, bounded storage and recovery resets.
+The shared shell retains Timer's controller/drafts/clock/focus and separate speech
+identity. Voting has its own native card, uncertainty/readback, input delegation,
+first-displayed-line geometry, measured badge width and narrow strip containment.
+The final access-cleanup follow-up clears protected voting state immediately
+on 4403, including draft/refusal text and pending speech, before fresh viewer
+admission restores public metadata only (W2-U37).
+The nine declared new source/test files are present. App remains composition-only
+at 264 lines, with 45 team modules and 22 state modules. No document/file field,
+service SQL table, dependency, voting route or persistent browser ballot is added.
+
+All commands below exited 0 on the validated source. Build environment for both
+web variants was `BOARD_SUPABASE_URL=http://127.0.0.1:55321`,
+`BOARD_SUPABASE_ANON_KEY=synthetic`, `BOARD_SERVER_URL=http://127.0.0.1:8796`.
+Off/on outputs were preserved separately before rebuilding. The clean baseline
+install/build comparison used a separate public Git archive of
+`752f79d3eb3c41f981673a1e512b581b9c72c919` and its own dependency install.
+It did not run the independent new-capability negative control.
+
+| Row | Commands / inspection | Result |
+| --- | --- | --- |
+| V1 | Byte comparison against prerequisite base for every tracked package manifest/lock, dependency inventory/lock and runtime notice | PASS: 20/20 unchanged; no added dependency |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` on candidate and separate clean baseline | PASS: both exit 0; 118 packages installed in each |
+| V3 | `npm run typecheck` | PASS: all five workspace members |
+| V4 | `npm test` | PASS: 1,004 tests, 1,004 passed, 0 failed/skipped; includes W2-U01–W2-U37 and all 967 inherited tests |
+| V5 | `BOARD_TEAM_FEATURES=off npm run build`; `npm run audit:licenses`; inspect preserved output and compare baseline | PASS: index/notices byte-identical to baseline off; 216 bundle inputs with no team/Supabase/voting module inputs |
+| V6 | `npm run build:fixtures`; `BOARD_TEAM_FEATURES=on npm run build`; `npm run audit:licenses`; compare preserved output | PASS: index/notices equal baseline on; notices equal runtime notices v3 |
+| V7 | `npm run build:server`; `npm run audit:licenses`; `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` | PASS: Node/Worker bundles and notices; dry run only, two unchanged Durable Object bindings |
+| V8 | Inspect every hunk; `git diff --name-status 536487da100678d220192593cb6534782d5feabc..3807d4ba761c6019a8eb769932690b0d1e82b236`; `git diff --check` over the same range; working-tree and revision public-boundary checks | PASS: 58 allowed source/test/documentation files; nine declared new files; requirements/contracts/indexes unchanged; this record only is appended afterward |
+
+Final command receipts and complete logs are retained in the implementation
+scratch artifact set `0007-w2-validation`: `final-commands.json`,
+`final-install.log`, `final-typecheck.log`, `final-unit.log`,
+`final-build-off.log`, `final-audit-off.log`, `final-fixtures.log`,
+`final-build-on.log`, `final-audit-on.log`, `final-server.log`,
+`final-audit-server.log`, `final-worker-dry-run.log`,
+`final-server-tests-node-typecheck.log`, `final-diff-check.log`,
+`final-boundary.log`, `source-name-status.txt`, and baseline install/build logs.
+Logs and generated bundles are not committed. An additional isolated TypeScript
+check of the new Node server tests and changed Node controls passed. Its initial
+attempt found two test typing issues, which were fixed; a combined DOM/Workers
+scratch configuration also lacked the runtime's `cloudflare:test` declarations
+and conflicted on globals. It is not Worker-runner evidence.
+
+Focused native SQLite measurements (W2-U23) were 23,503 bytes for the maximal
+running singleton, 24,103 for the revealed singleton, 1,844 per private ballot,
+and 115,703 aggregate running bytes with 50 maximal ballots. These include escaped
+JSON TEXT columns. All remain below the specified limits; actual measurements
+on both server runners and full attachment proof remain pending S271/S272.
+The 48 common S257–S304 tests and both includes are authored, with named result
+lines and SUMMARY-VOTING. Registration/source compilation is not a server pass.
+
+Unrun here: Supabase CLI, local-stack/schema installation and reapplication,
+full Node/workerd server suites (including S257–S304 on each), all browsers/Y1
+and 22 captures, the independent baseline capability negative, and accepted
+A–J/Z1/W2/T1 browser regressions (V9–V13). Browsers and Supabase CLI cannot start
+in this implementation sandbox. The next operator-launched run is the fresh
+full-access server-only clean candidate/install/unique local stack/schema
+install+reapply, Node then workerd, with owned cleanup and failures returned
+before the fresh independent check. No check tool, server run or agent is
+launched by this handoff. Existing W2-S7/S8/S9/S16/S20/S21 and T1-S38/S39
+baseline-failure caveats remain separately tracked; T1-S26/S29 remain unrun.
+No new privacy/reconnect failure is waived and no milestone acceptance is claimed.
+
+No contract/allowlist/dependency escalation was needed. Graph MCP discovery and
+indexing were blocked by the session's approval policy; source-file discovery
+was used as the permitted fallback. Git's hooks both passed on the source commit;
+Git also emitted a non-fatal `packed-refs.lock` permission warning. The commit,
+branch tip and clean worktree were verified; no shared-ref maintenance or hook
+bypass was attempted. Internal planning/design artifacts and the existing W1
+evidence summary were not edited. No main mutation, push, merge or deployment.

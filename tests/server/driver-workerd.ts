@@ -62,9 +62,10 @@ export async function makeDriver(context: Context): Promise<Driver> {
         // S121 calls wake() next; it owns eviction before the next storage open.
         return {};
       }
-      if (value.board && (value.markRecovery || value.roomSQL || value.failInitialization || value.deliverMentions || value.settled)) {
+      if (value.board && (value.raiseFence || value.markRecovery || value.roomSQL || value.failInitialization || value.deliverMentions || value.settled)) {
         return runInDurableObject(roomStub(String(value.board)), async (instance:any) => {
           const room=await instance.getRoom(String(value.board)), storage=room.env.storage;
+          if(value.raiseFence)return room.lock();
           if(value.markRecovery)await room.ordered(async()=>{const {markExplicitRecovery}=await import("../../packages/board-room/src/timer.ts");markExplicitRecovery(storage);room.initialized=false;});
           if(value.settled)await room.ordered(async()=>{});
           if(value.roomSQL)await room.ordered(async()=>{for(const item of value.roomSQL)storage.exec(item.sql,...(item.bindings??[]));});

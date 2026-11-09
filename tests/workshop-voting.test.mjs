@@ -98,3 +98,40 @@ unit(34,'empty reserved ballots advance once on processed voting-right loss and 
 unit(35,'Start metadata precedes redacted presence and live editing prunes each accepted target deletion',async()=>{const f=await fixture();try{const a=await f.open(),b=await f.open();await f.send(a,'start');const start=b.frames.findIndex(m=>m.kind==='vote_state'&&m.cause==='start'),redacted=b.frames.findIndex((m,i)=>i>start&&m.kind==='present'&&m.cursor===null);assert(start>=0&&redacted>start);await f.send(a,'vote');const before=f.board;f.room.board={...before,objects:before.objects.slice(1)};f.room.saved();f.room.board=before;f.room.saved();const p=(await f.read(a)).voting;assert.equal(p.own.remaining,3);assert.equal(p.session.targets.length,3);}finally{f.close();}});
 unit(36,'rapid own-budget speech coalesces and reveal cancels a queued old budget announcement',async()=>{const f=await controller();try{const target=[randomUUID(),randomUUID(),0],s={status:'running',sessionId:randomUUID(),sessionVersion:1,prompt:'Q',budget:3,targets:[target],totals:null},own={ballotVersion:0,colour:'#dc2626',targets:[],remaining:3};f.v.joined({session:s,own},0);for(const [version,targets] of [[1,[target.slice(0,2)]],[2,[]]])f.v.receive({kind:'vote_state',voting:{session:s,own:{...own,ballotVersion:version,targets,remaining:3-targets.length}},restoreGeneration:0,cause:version===1?'vote':'unvote'});assert.equal(f.v.announcementId,0);f.time.advance(100);assert.equal(f.v.announcement,'3 of 3 votes remaining');assert.equal(f.v.announcementId,1);f.v.receive({kind:'vote_state',voting:{session:s,own:{...own,ballotVersion:3,targets:[target.slice(0,2)],remaining:2}},restoreGeneration:0,cause:'vote'});f.v.receive({kind:'vote_state',voting:{session:{...s,status:'revealed',sessionVersion:2,totals:[1]},own:null},restoreGeneration:0,cause:'reveal'});f.time.advance(200);assert.equal(f.v.announcement,'Voting ended. Results revealed.');assert.equal(f.v.announcementId,2);}finally{f.close();}});
 unit(37,'4403 access change clears protected state immediately and fresh viewer admission restores metadata only',async()=>{const f=await controller();try{const target=[randomUUID(),randomUUID(),0],p={session:{status:'running',sessionId:randomUUID(),sessionVersion:1,prompt:'Private question',budget:3,targets:[target],totals:null},own:{ballotVersion:1,colour:'#dc2626',targets:[target.slice(0,2)],remaining:2}};f.v.joined(p,0);f.v.setDraft('Private draft',5);f.v.mode=true;f.v.error='No votes remaining';f.v.confirm('reveal');f.v.accessChanged();assert.equal(f.v.projection,undefined);assert.equal(f.v.question,'');assert.equal(f.v.budget,3);assert.equal(f.v.mode,false);assert.equal(f.v.confirmation,null);assert.equal(f.v.announcement,'');assert.equal(f.v.error,'');assert.equal(f.time.tasks.size,0);f.host.snapshot.role='viewer';f.v.joined({session:p.session,own:null},0);assert.equal(f.v.projection.own,null);assert.equal(f.v.canInput,false);assert.equal(f.v.announcement,'Voting reconnected');}finally{f.close();}});
+unit(38,'role/replay/lifecycle outages answer reads and mutations without cached projections or writes',async()=>{
+  const f=await fixture();try{
+    let c=await f.open();await f.send(c,'start');
+    for(const [source,key] of [[f.env.access,'role'],[f.env.access,'changes'],[f.env.lifecycle,'lifecycle']]){
+      const original=source[key],before=[f.room.voting.snapshot(),f.storage.all('SELECT * FROM workshop_vote_ballots')];
+      source[key]=async()=>{throw Error('Required source unavailable');};
+      try{for(const reply of [await f.read(c),await f.send(c,'vote')]){
+        assert.equal(reply.kind,'vote_refused');assert.equal(reply.reason,'vote_unavailable');
+        assert.deepEqual(Object.keys(reply).sort(),['kind','reason','requestId']);
+      }}finally{source[key]=original;}
+      assert.deepEqual([f.room.voting.snapshot(),f.storage.all('SELECT * FROM workshop_vote_ballots')],before);
+      c=await f.open('editor',c.person);assert.equal((await f.read(c)).kind,'vote_snapshot');
+    }
+  }finally{f.close();}
+});
+unit(39,'idle voting preserves comment hourly and connection limits through 600 ordered dispatches',async()=>{
+  const f=await fixture();try{
+    const a=await f.open(),other=await f.open('editor',a.person);
+    const start=(text='Synthetic comment')=>({action:'start',threadId:randomUUID(),commentId:randomUUID(),anchor:{objectId:null,u:0,v:0,x:0,y:0},text});
+    const comment=async(c,operation,reason)=>{
+      const reply=await f.answer(c,{kind:'comment',requestId:randomUUID(),epoch:c.c.attachment().epoch,restoreGeneration:c.c.attachment().restoreGeneration,operation});
+      assert.equal(reply.kind,reason?'comment_refused':'comment_saved',JSON.stringify(reply));
+      if(reason)assert.equal(reply.reason,reason);
+    };
+    for(let i=0;i<100;i++){if(i%10===0)f.advance(2000);await comment(i%2?other:a,start(String(i)));}
+    const before=f.storage.all('SELECT * FROM comment_counts');await comment(a,start(),'rate_limited');
+    assert.deepEqual(f.storage.all('SELECT * FROM comment_counts'),before);
+    f.advance(3600000);const next=await f.open('editor',a.person),post=start();await comment(next,post);
+    for(let i=0;i<600;i++){f.advance(110);await comment(next,{action:i%2?'resolve':'reopen',threadId:post.threadId});}
+    await comment(next,{action:'resolve',threadId:post.threadId},'rate_limited');
+    const b=await f.open();f.advance(4000);for(let i=0;i<10;i++)await comment(b,start());
+    await comment(b,start(),'rate_limited');const counts=f.storage.all('SELECT * FROM comment_counts');
+    await comment(b,start(''),'empty_text');assert.deepEqual(f.storage.all('SELECT * FROM comment_counts'),counts);
+    assert.equal(f.room.voting.snapshot().status,'idle');assert.deepEqual(f.storage.all('SELECT * FROM workshop_vote_ballots'),[]);
+    for(const c of [a,other,next,b]){assert.equal(c.closed,undefined);assert(!c.frames.some(m=>m.kind.startsWith('vote_')));}
+  }finally{f.close();}
+});

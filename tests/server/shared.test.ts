@@ -796,7 +796,18 @@ check(131, "hourly counts span connections and prune old hours; connection windo
   const threadId = [...next.session.threads.keys()][0];
   for (let index = 0; index < 600; index++) {
     await driver.control({ fixedNow: hour + 3600000 + 2000 + index * 110 });
-    await commentResult(next, { action: index % 2 ? "resolve" : "reopen", threadId });
+    try { await commentResult(next, { action: index % 2 ? "resolve" : "reopen", threadId }); }
+    catch (error) {
+      // Keep the five-second assertion. Record transport/dispatch evidence only;
+      // no content, token, person identifier or private voting state is logged.
+      console.log("DIAGNOSTIC-S131 " + JSON.stringify({ index, fixedNow: hour + 3600000 + 2000 + index * 110,
+        closed: next.peer.closed, commentsReady: next.session.commentsReady, generation: next.session.restoreGeneration,
+        requests: [...next.session.commentRequests.values()].reduce<Record<string, number>>((counts, r) => {
+          counts[r.state] = (counts[r.state] ?? 0) + 1; return counts;
+        }, {}), frames: next.peer.messages.slice(-8).map(({ kind, reason, sequence }) => ({ kind, reason, sequence })),
+      }));
+      throw error;
+    }
   }
   await rawComment(next, { action: "resolve", threadId }, "rate_limited");
   // Another person has a fresh hourly count and isolates the connection window.

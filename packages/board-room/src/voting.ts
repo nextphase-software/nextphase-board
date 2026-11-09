@@ -4,7 +4,7 @@ import { checkVoteRequest, idleVoting, sameTarget, voteBudget, voteBytes, voteCo
 import { timerInteger, timerKeys, timerUuid } from 'nextphase-board-sync/timer.ts';
 import { eligibleVote } from 'nextphase-board-rules/objects/registry.ts';
 import { meta, type Storage, type Row } from './storage.ts';
-import { bytes, rank, RoomError, send, type Connection } from './protocol.ts';
+import { bytes, MESSAGE_LIMIT, rank, RoomError, send, type Connection } from './protocol.ts';
 import { closeCode } from './access.ts';
 import type { Room } from './room.ts';
 export const voteColumns=['singleton','status','session_id','session_version','prompt','budget','targets','totals'];
@@ -111,6 +111,17 @@ export class WorkshopVoting {
     const projection={session,own};if(!voteProjection(projection))throw Error('Voting projection bounds');return projection;
   }
   private send(c:Connection,frame:object){if(voteBytes(frame)>VOTE_RESPONSE_LIMIT)throw Error('Voting frame bounds');send(c,frame);}
+  // Room loading checks lifecycle before dispatch. Required-source/storage failure
+  // there still owes a recognized voting request its projection-free refusal.
+  refuseLoadFailure(c:Connection,text:string,error:unknown) {
+    if(error instanceof RoomError&&error.status!==503||bytes(text).length>MESSAGE_LIMIT)return false;
+    let value;try{value=JSON.parse(text);}catch{return false;}
+    if(value?.kind!=='vote_read'&&value?.kind!=='vote_command')return false;
+    if(!this.host.env.connections().some(p=>p.attachment().connectionId===c.attachment().connectionId))return true;
+    if(c.attachment().expiresAt<=this.host.env.now()){c.close(4401);return true;}
+    this.send(c,{kind:'vote_refused',requestId:timerUuid(value.requestId)?value.requestId:null,reason:'vote_unavailable'});
+    return true;
+  }
   async stamp(c:Connection) {const restoreGeneration=await this.authority(c);this.reconcileTargets();return {voting:this.projection(c),restoreGeneration};}
   async publish(cause:VoteCause,person?:string) {
     for(const peer of this.host.env.connections()) {

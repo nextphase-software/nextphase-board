@@ -309,7 +309,11 @@ export class Room {
   }
   message(connection: Connection, text: string) {
     return this.ordered(async () => {
-      await this.load();
+      try { await this.load(); }
+      catch (error) {
+        if (this.voting.refuseLoadFailure(connection,text,error)) return;
+        throw error;
+      }
       if (!this.env.connections().some((peer) => peer.attachment().connectionId === connection.attachment().connectionId)) return;
       await this.expire();
       if (connection.attachment().expiresAt <= this.env.now()) return;

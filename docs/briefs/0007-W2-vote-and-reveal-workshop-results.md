@@ -700,3 +700,60 @@ No contract conflict or outside-allowlist change required escalation. Normal
 Git boundary hooks passed; the same non-fatal packed-refs.lock sandbox warning
 occurred, and the source commit was verified without a bypass. Internal
 artifacts remained read-only; no main mutation, push, merge or deployment.
+
+
+### Review fix round 1
+
+- Branch: `codex/0007-W2-vote-and-reveal-workshop-results`.
+- Original prerequisite base remains
+  `536487da100678d220192593cb6534782d5feabc`.
+- Incoming record tip: `4592b786f67e718590bf7ed8422c8aa51a3deb68`.
+- Validated source/test revision: `15b615190a9a65cc4a3b27b9f2138077e2030489`.
+  V3/V4 ran on the identical source tree before committing. This append-only
+  record is committed separately; its final tip is reported in the handoff.
+- Read the independent Y1-S7/Z1-S22 report sections, raw results/logs, baseline
+  cap comparison, approved guide/approval and hover/selected images first.
+  The incoming independent check reports V11 PASS (Node 300/0/0; workerd
+  296/0/2, all 48 voting checks). These are incoming-revision results, not a
+  server rerun on this fix.
+
+| Finding | Root cause and change | Focused proof |
+| --- | --- | --- |
+| F1 / Y1-S7 | The hover CSS drew a border, leaving outline-style none instead of voting v1's specified solid 2px #7051cf outline. Replace the border with that outline at z1; retain exact displayed target bounds and pointer-events none. Scope resize handles to z2 only while a voting hover exists, so the outside outline cannot paint over them. The existing context bar stays at z1 later in the same root paint order. Ineligible hover continues to omit the outline and show its grey reason. | New W2-U40 checks the exact CSS contract, scoped handle priority, context paint order and actual VotingOverlay output for eligible/ineligible synthetic targets. Displayed bounds remain 220/200/240/240 for the guide's note fixture. No browser overlap/computed-style result is claimed here. |
+| F2 / Z1-S22 | A shared-panel repaint combined ceil-rounded seconds with BoardTimer.canAdd's live millisecond comparison. Just 1ms after a maximal sample, remaining is below MAX_TIME while the display still reads 99:59. The added voting subscription permits these intervening repaints; the unchanged timer controller/rules and passing baseline do not prevent this presentation mismatch. Read the display once per render and use the displayed active value, together with the existing canAdd gate, to disable extension at the visible cap. Keep controller, clock, server arithmetic and idle clamping unchanged. | New W1-U41 drives the real TimerControl with the real BoardTimer and controlled monotonic clock. Repaints at 0/1/500/999ms keep +1 disabled at 99:59; at 1000ms/99:58 it enables. Paused fractional remaining that displays 99:59 stays disabled; Pause/Resume/End remain enabled. Idle 99:30 +1 clamps locally to 99:59 with no wire command. The old component fails at 1ms. |
+
+Both focused checks initially failed for their reported product defects. After
+correcting the new hover test's fixture origin (the generic Add operation centres
+its object, so the guide's top-left is set explicitly), both pass. Assertions were
+not weakened. Existing focus/speech/timer/voting assertions remain in the full
+suite. The existing panel harness only gains the optional voting prop so the
+real shared composition is exercised.
+
+| Row | Commands / inspection | Result |
+| --- | --- | --- |
+| V3 | `npm run typecheck` | PASS: all five workspace members; exit 0 |
+| V4 | `npm test` | PASS: 1,008/1,008 tests; 0 failures/skips; all prior 1,006 retained plus W1-U41 and W2-U40 |
+| V8 | Inspect every fix hunk; `git diff --name-status 536487da100678d220192593cb6534782d5feabc..15b615190a9a65cc4a3b27b9f2138077e2030489`; `git diff --check` over the same range; allowlist/append-only/byte comparisons and public-boundary checks | PASS: four allowed fix files; 59 allowed paths in the full milestone range including prior records; requirements/contracts/indexes unchanged; normal source-commit boundary hooks passed |
+
+Focused command:
+`node --test --test-name-pattern='W1-U41|W2-U40' tests/workshop-timer.test.mjs tests/workshop-voting.test.mjs`.
+Before: 0 passed / 2 failed. Final: 2 passed / 0 failed / 0 skipped.
+Toolchain remains Node 26.13.0 / npm 11.20.0; no dependency was added.
+
+Changed source/test paths are apps/web/src/team/timer-panel.tsx,
+apps/web/style.css, tests/workshop-timer.test.mjs and
+tests/workshop-voting.test.mjs; this brief is the fifth path for the round.
+No server, SQL, room, shared-package, configuration, browser-tool or design file
+changed. apps/web/src/team/timer.ts and timer-rules.ts are byte-identical to
+536487d. Y1-S13/Y1-S36/Z1-S26 and all baseline W2/T1 caveats were left alone.
+No contract conflict or outside-allowlist escalation was needed.
+
+Exact receipts/logs remain in the uncommitted scratch artifact set
+`0007-w2-review-fix-1`: commands.json, v3-typecheck.log, v4-unit.log,
+regression-before.log, regression-after.log, regression-after-fixture.log,
+diff-check.log, boundary.log, v8-allowlist.json, fix-files-changed.txt and
+milestone-files-changed.txt. Browser/Supabase/full-server execution remains
+unrun here. V1/V2/V5–V7 and V9–V13 were not rerun in this round. Independent
+browser revalidation of F1/F2 remains required; no new V9/V13 PASS or milestone
+acceptance is claimed. No run/agent was dispatched. Normal boundary hooks
+passed; the nonfatal packed-refs.lock sandbox warning persisted without bypass.

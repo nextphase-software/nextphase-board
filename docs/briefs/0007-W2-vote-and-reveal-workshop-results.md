@@ -638,3 +638,65 @@ Git also emitted a non-fatal `packed-refs.lock` permission warning. The commit,
 branch tip and clean worktree were verified; no shared-ref maintenance or hook
 bypass was attempted. Internal planning/design artifacts and the existing W1
 evidence summary were not edited. No main mutation, push, merge or deployment.
+
+
+### Fix round (server-only) — 2026-11-09
+
+- Branch: `codex/0007-W2-vote-and-reveal-workshop-results`.
+- Original prerequisite base remains
+  `536487da100678d220192593cb6534782d5feabc`.
+- Incoming record tip: `51dc3f8e69837be8ca05234ea0e7649e2b93e603`;
+  incoming validated source: `3807d4ba761c6019a8eb769932690b0d1e82b236`.
+- New validated source/test revision:
+  `42ba153fff84919cbfafd7104d2ea251cff9cfcb`.
+  V3/V4 ran on its identical source tree before committing; only this separate
+  append-only record follows. The record-inclusive tip is reported separately.
+- Reviewed the server-only report and both runner logs first. Incoming V11 failed:
+  Node 298 passed / 2 failed / 0 skipped; workerd 292 / 4 / 2. Those are prior
+  revision results, not results of a rerun on this fix. No dependency was added.
+
+| Check | Diagnosis against the brief/contracts | Change / remaining proof |
+| --- | --- | --- |
+| S131, workerd | Unresolved possible regression. The five-second wait expires while a comment request remains sent during the 600-operation loop. A nearby alarm reports lifecycle service_unavailable, but neither its ordering nor the timeout identifies the cause. Earlier W1 receipts pass S131 on both runners; this failure is not classified pre-existing or environmental. | Preserve every functional assertion and the five-second deadline. Add content-free DIAGNOSTIC-S131 transport/request-state/frame-kind evidence on failure. New W2-U39 exercises the room's idle-voting dispatch, hourly limits, 600 resolve/reopen saves and connection window on native SQLite; it passes, but does not reproduce or resolve the workerd timeout. No speculative product fix or waiver. |
+| S279, both | Product defect. Room.message calls load before voting dispatch; lifecycle-source failure there escapes WorkshopVoting.handle's catch and the request receives no voting refusal. Voting v1 requires vote_unavailable without cached state on required authority/storage failure. | Delegate failed-load voting classification to the dedicated voting module, returning only kind/requestId/reason. Retain terminal lifecycle/expired/closed-socket handling and outer malformed/oversize behavior. W2-U38 covers role/replay/lifecycle outages for both reads and mutations, exact projection-free keys, unchanged session/ballots and recovery. It failed on the old lifecycle path and passes after the fix. S279's assertions are unchanged. |
+| S287, workerd | Test-control defect. The common test calls raiseFence, but the workerd driver previously only stored that unhandled value in TestControls; no fence was raised or socket close triggered. Node already calls Room.lock. | Wire the workerd control to the same real ordered Room.lock. Strengthen S287 to assert the independent fence advances and the old socket closes 4423. Keep all downgrade, fresh-generation and idle assertions. Actual workerd execution remains pending. |
+| S303, both | Fixture defect. The accepted history intent restores the initial empty document. Start correctly refuses vote_ineligible because voting v1/AC01 forbids an empty round. The test's expected successful Start omitted its eligible-object precondition. | Assert the restored document is empty and Start refuses vote_ineligible, then reseed eligible objects before the successful Start. Keep reset reservation, failure/retry/version-zero and ordinary-restart live-state equality assertions. Server execution remains pending. |
+
+Tool teardown was inspected separately. The exact Node forks-worker termination
+timeout for removal.test.ts already appears in an earlier W1 independent check
+receipt, so W2 did not introduce that diagnostic. The workerd lists.test.ts pool
+termination timeout has no demonstrated cause in these logs; neither a W2 cause
+nor independence from W2 is established. No teardown implementation was changed.
+S131 and the workerd teardown attribution remain open for fresh server evidence.
+
+| Row | Commands / inspection | Result |
+| --- | --- | --- |
+| V3 | `npm run typecheck` | PASS: all five workspace members; exit 0 |
+| V4 | `npm test` | PASS: 1,006 tests / 1,006 passed / 0 failed / 0 skipped; W2-U01–W2-U39 plus all 967 inherited tests |
+| V8 | Inspect each fix hunk; `git diff --name-status 536487da100678d220192593cb6534782d5feabc..42ba153fff84919cbfafd7104d2ea251cff9cfcb`; `git diff --check` over that range; allowlist/append-only checks and public-boundary check | PASS: six allowed fix files; full milestone range remains 59 allowed files including prior record; requirements/contracts/indexes unchanged; normal commit boundary hooks passed |
+
+Focused regression command:
+`node --test --test-name-pattern='W2-U38|W2-U39' tests/workshop-voting.test.mjs`.
+Before the product fix: 1 passed / 1 failed (U38 lifecycle load rejection).
+After: 2 passed / 0 failed. Toolchain remained Node 26.13.0 / npm 11.20.0.
+An auxiliary strict compile including the older shared.test.ts reports 46
+existing diagnostics; a scratch copy of that file from incoming tip 51dc3f8
+produces the identical 46 diagnostic signatures, with no new diagnostic.
+The isolated voting/Node test-source compile passes. Neither is a server-suite
+or workerd runtime result, and no unrelated typing changes were made.
+
+Exact command receipts/logs are in the uncommitted scratch artifact set
+`0007-w2-fix-server-1`: `commands.json`, `v3-typecheck.log`, `v4-unit.log`,
+`regression-before.log`, `regression-after.log`, `diff-check.log`, `boundary.log`,
+`v8-allowlist.json`, `files-changed-fix.txt`, `milestone-files-changed.txt`,
+`auxiliary-comparison.json`, `node-test-source.log`,
+`node-test-source-before.log`, and `voting-test-source.log`.
+
+Unrun: both full server suites, Supabase CLI/local stack/schema work, browsers,
+V9–V13, and V1/V2/V5–V7 revalidation. A fresh server-only run must validate this
+exact candidate on Node then workerd and retain S131/teardown evidence; no V11
+PASS or milestone acceptance is claimed. No run or agent was launched here.
+No contract conflict or outside-allowlist change required escalation. Normal
+Git boundary hooks passed; the same non-fatal packed-refs.lock sandbox warning
+occurred, and the source commit was verified without a bypass. Internal
+artifacts remained read-only; no main mutation, push, merge or deployment.

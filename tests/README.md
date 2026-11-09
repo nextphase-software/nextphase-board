@@ -377,7 +377,7 @@ in the implementation sandbox.
 
 ## 0007-W2 voting checks
 
-`workshop-voting.test.mjs` adds W2-U01–W2-U36 for strict wire/projection rules,
+`workshop-voting.test.mjs` adds W2-U01–W2-U37 for strict wire/projection rules,
 Unicode/budget bounds, separate rates, account races, private publication,
 transaction rollback, reconciliation, reconstruction/recovery, backup exclusion,
 actual escaped SQLite row bounds, marker geometry, input decisions and client

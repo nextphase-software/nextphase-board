@@ -96,6 +96,7 @@ export class BoardVoting {
     if(this.now()-this.lastRead>=30000)this.disconnect();else this.emit();
     this.host.votingChanged(old?.session.status!==next.session.status);
   }
+  accessChanged(){this.clear();this.disposed=false;this.admitted=true;this.loss=true;this.health='disconnected';this.emit();}
   disconnect(){if(this.disposed)return;this.clearTimers();this.health=this.admitted?'disconnected':'connecting';this.pending=undefined;this.read=undefined;this.confirmation=null;this.press=undefined;if(this.admitted&&!this.loss){this.loss=true;this.speak('Voting disconnected. Reconnecting…');}if(this.host.snapshot.connected)this.at('sample',15000,()=>this.sample());this.emit();}
   key(e:{key:string;repeat?:boolean;altKey?:boolean;ctrlKey?:boolean;metaKey?:boolean;shiftKey?:boolean;nativeEvent:{isComposing?:boolean};preventDefault():void;stopPropagation():void},selected:Iterable<string>){
     if(!this.mode)return false;
@@ -110,5 +111,5 @@ export class BoardVoting {
   pointerMove(e:{clientX:number;clientY:number},o?:ItemV10){if(!this.mode)return false;if(this.press&&Math.hypot(e.clientX-this.press.x,e.clientY-this.press.y)>=3)this.press=undefined;const id=o?.id??'';if(id!==this.hover){this.hover=id;this.emit();}return true;}
   pointerUp(e:{clientX:number;clientY:number;pointerId:number},o?:ItemV10){if(!this.mode)return false;const p=this.press;this.press=undefined;if(p&&p.pointer===e.pointerId&&p.id===o?.id&&Math.hypot(e.clientX-p.x,e.clientY-p.y)<3)this.toggleTarget(o);return true;}
   cancelPointer(){this.press=undefined;this.hover='';this.emit();}
-  clear(){this.disposed=true;this.clearTimers();if(typeof document!=='undefined')document.removeEventListener('visibilitychange',this.foreground);this.projection=undefined;this.health='connecting';this.mode=false;this.setup=false;this.question='';this.budget=3;this.selected='';this.hover='';this.confirmation=null;this.announcement='';this.pending=undefined;this.read=undefined;this.loss=false;this.admitted=false;this.press=undefined;this.seed();this.emit();}
+  clear(){this.disposed=true;this.clearTimers();if(typeof document!=='undefined')document.removeEventListener('visibilitychange',this.foreground);this.projection=undefined;this.health='connecting';this.mode=false;this.setup=false;this.question='';this.budget=3;this.selected='';this.hover='';this.confirmation=null;this.announcement='';this.error='';this.onEnter=undefined;this.onNavigate=undefined;this.sequence=0;this.pending=undefined;this.read=undefined;this.loss=false;this.admitted=false;this.press=undefined;this.seed();this.emit();}
 }

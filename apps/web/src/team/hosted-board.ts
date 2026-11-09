@@ -310,7 +310,8 @@ export class HostedBoard {
     attempt.outcome = outcome;
     clearTimeout(attempt.timer);
     clearTimeout(this.renewal);
-    this.timer.disconnect();this.voting.disconnect();
+    this.timer.disconnect();
+    if(event.kind==='close'&&event.code===4403)this.voting.accessChanged();else this.voting.disconnect();
     if (outcome.retry) this.session?.interrupt();
     else {
       this.ended = true;

@@ -380,3 +380,11 @@ version-ordered commands, restart persistence, explicit recovery clearing and a
 timer-only panel with no personal attribution. Twelve prerequisite contracts
 define the state/protocol, bounded room layout 6 and exact interface values.
 Document10/fileVersion2 and dependencies remain unchanged.
+
+[0007-W2 v1 — Vote and reveal workshop results](0007-W2-vote-and-reveal-workshop-results.md)
+(draft) specifies one bounded hosted voting round for effective owners/editors,
+recipient-private ballots until confirmed anonymous reveal, removable own votes,
+ranked latest results and explicit clear. Fourteen prerequisite contracts define
+layout7's bounded room stores, access/target reconciliation and recovery, running
+presence redaction and the shared Timer and voting panel's exact appearance and
+keyboard behavior. Document10/fileVersion2/backup envelope1 and dependencies stay.

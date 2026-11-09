@@ -436,3 +436,29 @@ exclude timer state from logical backups, distinguish restart from recovery and
 keep timer control independent of document editing. Presence v1, comments v4,
 identity v4, local storage v3 and toolchain/lock/inventory v5/runtime notices v3
 remain. Saved document 10/fileVersion2/backup envelope 1 stay; no dependency is added.
+
+For [0007-W2 v1 — Vote and reveal workshop results](../briefs/0007-W2-vote-and-reveal-workshop-results.md) (draft), use:
+
+- [0007 workshop voting v1](0007-workshop-voting-v1.md).
+- [0007 workshop timer v2](0007-workshop-timer-v2.md).
+- [0004 presence v2](0004-presence-v2.md).
+- [0003 sync v11](0003-sync-v11.md).
+- [0003 access v10](0003-access-v10.md).
+- [0003 API v10](0003-api-v10.md).
+- [0003 hosted persistence v10](0003-hosted-persistence-v10.md).
+- [0003 self-host runner v6](0003-self-host-runner-v6.md).
+- [0003 hosted storage v10](0003-hosted-storage-v10.md).
+- [0006 board lifecycle v4](0006-board-lifecycle-v4.md).
+- [0006 board file v4](0006-board-file-v4.md).
+- [0001 document v15](0001-document-v15.md).
+- [0001 interaction v36](0001-interaction-v36.md).
+- [0001 web modules v34](0001-web-modules-v34.md).
+
+These fourteen new files define a bounded room-owned round, account-shared private
+ballots, per-recipient transport, anonymous frozen totals, running spatial-presence
+redaction, reset/restart/history distinctions and the shared panel's precise look,
+input and focus. Voting v1 owns concrete state/wire/row/geometry values; timer v2
+preserves timer behavior while recomposing its panel. Current layout7 adds two
+explicitly backup-excluded voting tables. Document10/fileVersion2/backup envelope1,
+identity v4, comments v4, local storage v3, toolchain/lock/inventory v5 and runtime
+notices v3 remain; no dependency is added. Prior versions remain unchanged.

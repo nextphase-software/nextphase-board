@@ -37,6 +37,7 @@ export function validStroke(value: object): boolean {
     Math.max(...o.points.map((p) => p[0])) + pad === o.width && Math.max(...o.points.map((p) => p[1])) + pad === o.height;
 }
 export const stroke = {
+  voting: false,
   type: "stroke", label: "Draw", tool: null, validFrom: 8, body: "stroke-body",
   points: true, text: false, ends: false, container: false, richText: false,
   extraKeys: ["kind", "color", "weight", "points"] as readonly string[],

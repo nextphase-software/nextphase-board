@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+import { checkVoteFrame, voteProjection, type VoteProjection, type VoteCommand } from './voting.ts';
+export type { VoteProjection, VoteSession, VoteOwn, VoteAction, VoteCause, VoteReason, VoteFrame, VoteTarget, BallotTarget, VoteCommand } from './voting.ts';
 import { checkTimerFrame, timerSnapshot, timerInteger, type TimerSnapshot, type TimerFrame, type TimerAction } from "./timer.ts";
 export { checkTimerFrame, timerSnapshot, timerInteger } from "./timer.ts";
 export type { TimerSnapshot, TimerFrame, TimerAction, TimerCause } from "./timer.ts";
@@ -90,6 +92,22 @@ export class BoardSession<T = unknown> {
     if (!this.joined) return false;
     return this.send(JSON.stringify({kind:"timer_command",requestId,epoch:this.epoch,restoreGeneration:this.restoreGeneration,timerId:timer.timerId,expectedVersion:timer.version,action,...(action==="start"?{durationMs}:{})}));
   }
+  votingSnapshot?: VoteProjection;
+  private votingListeners = new Set<(event: SessionEvent) => void>();
+  subscribeVoting(listener:(event:SessionEvent)=>void){this.votingListeners.add(listener);return()=>{this.votingListeners.delete(listener);};}
+  private reportVoting(event:SessionEvent){for(const listener of this.votingListeners)listener(event);}
+  voteRead(requestId:string){return this.joined&&this.send(JSON.stringify({kind:'vote_read',requestId,epoch:this.epoch,restoreGeneration:this.restoreGeneration}));}
+  voteCommand(command:Omit<VoteCommand,'kind'|'epoch'|'restoreGeneration'>){return this.joined&&this.send(JSON.stringify({...command,kind:'vote_command',epoch:this.epoch,restoreGeneration:this.restoreGeneration}));}
+  private votingPrivacy(projection:VoteProjection){
+    const old=this.votingSnapshot;
+    if(old&&(projection.session.sessionVersion<old.session.sessionVersion||projection.session.sessionVersion===old.session.sessionVersion&&old.own&&'ballotVersion'in old.own&&projection.own&&'ballotVersion'in projection.own&&projection.own.ballotVersion<old.own.ballotVersion))return;
+    const was=this.votingSnapshot?.session.status==='running',running=projection.session.status==='running';
+    this.votingSnapshot=projection;
+    if(was!==running){
+      this.timers();
+      for(const [id,p] of this.present)this.present.set(id,{...p,cursor:null,selection:[],view:{x:0,y:0,width:1,height:1}});
+    }
+  }
   commentsReady = false;
   readonly history = new SharedUndo();
   private adapter = new Adapter();
@@ -151,6 +169,7 @@ export class BoardSession<T = unknown> {
       this.cancelDeadline(id);
     }
     this.timerSnapshot = undefined; this.timerServerNowMs = undefined; this.reportTimer({kind:"timer_closed"});
+    this.votingSnapshot=undefined;this.reportVoting({kind:"vote_closed"});
     this.commentsReady = false;
     this.timers(); this.present.clear();
     const reject = this.rejectJoin; this.rejectJoin = undefined;
@@ -198,6 +217,12 @@ export class BoardSession<T = unknown> {
     void this.reconnect().catch((error) => this.report({ kind: "join_failed", reason: String(error) }));
   }
   private apply(message: any) {
+    if(typeof message?.kind==='string'&&message.kind.startsWith('vote_')) {
+      if(!checkVoteFrame(message,sizeOf(JSON.stringify(message)))){this.reportVoting({kind:'vote_invalid'});return;}
+      if(message.restoreGeneration!==undefined&&message.restoreGeneration!==this.restoreGeneration)return;
+      if(message.voting)this.votingPrivacy(message.voting);
+      this.reportVoting(message);return;
+    }
     if (typeof message?.kind === "string" && message.kind.startsWith("timer_")) {
       if (!checkTimerFrame(message,sizeOf(JSON.stringify(message)))) { this.reportTimer({kind:"timer_invalid"}); return; }
       if (message.restoreGeneration !== undefined && message.restoreGeneration !== this.restoreGeneration) return;
@@ -226,6 +251,7 @@ export class BoardSession<T = unknown> {
       this.restoreGeneration = message.restoreGeneration;
       this.timerSnapshot = timerSnapshot(message.timer) ? message.timer : undefined;
       this.timerServerNowMs = timerInteger(message.serverNowMs) ? message.serverNowMs : undefined;
+      this.votingSnapshot=voteProjection(message.voting)?message.voting:undefined;
       this.present.clear(); for (const presence of message.present) this.present.set(presence.connection, presence);
       this.joined = true; this.accepted = true;
       const board = this.board;
@@ -245,7 +271,7 @@ export class BoardSession<T = unknown> {
       return;
     } else if (message.kind === "present") {
       const { kind: _kind, ...presence } = message;
-      this.present.set(presence.connection, presence);
+      this.present.set(presence.connection, this.votingSnapshot?.session.status==='running'?{...presence,cursor:null,selection:[],view:{x:0,y:0,width:1,height:1}}:presence);
     } else if (message.kind === "left") this.present.delete(message.connection);
     else if (message.kind === "update" || message.kind === "saved") {
       if (message.kind === "saved" && !request) return;

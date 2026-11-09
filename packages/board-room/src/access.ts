@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { pruneVoter } from "./voting.ts";
 import type { AccessSource } from "./interfaces.ts";
 import { rank, RoomError, type Connection, type Role } from "./protocol.ts";
 import { meta, setMeta, type Storage } from "./storage.ts";
@@ -26,6 +27,7 @@ export class Access {
     const old = this.get(person);
     if (old && number <= old.changeNumber) return;
     const changed = old && old.role !== role;
+    if(rank(old?.role??null)>=rank("editor")&&rank(role)<rank("editor"))pruneVoter(this.storage,person,true);
     if (role) this.storage.exec("INSERT INTO grants VALUES (?, ?, ?, ?) ON CONFLICT(person_id) DO UPDATE SET role=excluded.role, epoch=excluded.epoch, change_number=excluded.change_number",
       person, role, (old?.epoch ?? 0) + (changed ? 1 : 0), number);
     else this.storage.exec("DELETE FROM grants WHERE person_id = ?", person);

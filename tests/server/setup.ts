@@ -133,6 +133,15 @@ export default async function setup(project: any) {
         case "/fixture": result = await fixture(); break;
         case "/lists-fixture": result = await fixture(listsPeople); break;
         case "/removal-fixture": result = await removalFixture(); break;
+        case "/voting-person": {
+          const email=`voter-${randomUUID()}@example.test`,account=await db.client.auth.admin.createUser({email,email_confirm:true});
+          if(account.error||!account.data.user)throw Error('Cannot create voting identity');
+          const person={id:account.data.user.id,email};removalPeople.push(person);
+          await db.rpc('remember_person',{person:person.id,email});
+          const invitation=await db.rpc<any>('create_invitation',{workspace:value.workspace,board:null,email,role:'editor',by:value.owner});
+          await db.rpc('accept_invitation',{invitation:invitation.id,person:person.id,email});
+          result={...person,token:await token(key,issuer,person,{now:value.now,exp:Math.floor(value.now/1000)+86400})};break;
+        }
         case "/shared-fixture": result = await removalFixture("shared"); break;
         case "/server-config": result = JSON.parse(await readFile(new URL("apps/server/wrangler.json", root), "utf8")); break;
         case "/proxy":

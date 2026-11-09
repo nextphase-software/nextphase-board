@@ -11,7 +11,7 @@ import { checkSettings } from "../../apps/server/src/settings.ts";
 const settings = checkSettings(JSON.parse(await readFile(process.env.BOARD_SETTINGS!, "utf8")));
 let fixedNow: number | null = null;
 let offset = 0, unreachable: string[] = [];
-let failTimer = "";
+let failTimer = "", failVoting = "";
 let failCreate = "", failCheckpoint = "", failHistory = "", failLifecycle = "";
 let holdRoom = ""; const heldRoom = new Set<() => void>();
 const waitRoom = () => holdRoom ? new Promise<void>(resolve => heldRoom.add(resolve)) : Promise.resolve();
@@ -35,12 +35,14 @@ app.runtime.room = (board) => {
     entry.room.message=async(...args)=>{await waitRoom();return message(...args);};
     const exec = entry.storage.exec.bind(entry.storage), raise = entry.room.env.raiseFence;
     entry.storage.exec = (sql, ...args) => {
+      if ((failVoting === "session" && sql.startsWith("INSERT INTO workshop_vote ")) || (failVoting === "ballot" && sql.startsWith("INSERT INTO workshop_vote_ballots")) || (failVoting === "delete" && sql.startsWith("DELETE FROM workshop_vote_ballots"))) throw Error("Voting storage unavailable");
       if (failTimer === "write" && sql.startsWith("INSERT INTO workshop_timer")) throw Error("Timer storage unavailable");
       if (failHistory === "capture" && sql.startsWith("INSERT INTO versions") ||
         failHistory === "intent" && sql.startsWith("INSERT INTO history_requests") ||
         failHistory === "local" && sql.startsWith("INSERT INTO versions") && args[5] === "before_restore" ||
         failHistory === "cleanup" && sql.startsWith("DELETE FROM history_intent_chunks")) throw Error("History transaction unavailable");
       exec(sql,...args);
+      if((failVoting === "after-ballot" && sql.startsWith("INSERT INTO workshop_vote_ballots")) || (failVoting === "after-delete" && sql.startsWith("DELETE FROM workshop_vote_ballots")))throw Error("Voting transaction unavailable");
     };
     entry.room.env.raiseFence = async minimum => {
       if (failHistory === "fence") throw Error("Fence unavailable");
@@ -78,6 +80,7 @@ process.on("message", async (message: any) => {
       const files=[];for(const suffix of ['', '-wal','-shm']){try{await access(resolve(settings.dataDir,'boards',value.board+'.sqlite'+suffix));files.push(suffix);}catch{}}
       result={files,loaded:app.rooms.has(value.board),timer:!!app.rooms.get(value.board)?.timer};process.send?.({id:message.id,result});return;
     }
+    if (value.failVoting !== undefined) failVoting=value.failVoting;
     if (value.failTimer !== undefined) failTimer = value.failTimer;
     if (value.failHistory !== undefined) failHistory = value.failHistory;
     if (value.failCheckpoint !== undefined) failCheckpoint = value.failCheckpoint;
@@ -92,6 +95,8 @@ process.on("message", async (message: any) => {
       original(value.board);
       const entry = app.rooms.get(value.board)!;
       if(value.reconstructTimerRoom)await entry.room.ordered(async()=>{entry.room=new Room(value.board,entry.room.env);});
+      if(value.votingAttachments)result=[...entry.connections].map(c=>c.attachment());
+      if(value.staleVotingPresence)for(const c of entry.connections){const a=c.attachment();if(a.presence)c.attach({...a,presence:{...a.presence,cursor:{x:98765,y:12345},selection:[value.target],view:{x:98765,y:12345,width:100,height:100}}});}
       if(value.timerAttachments)result=[...entry.connections].map(c=>({timerTimes:c.attachment().timerTimes??[],timerReadTimes:c.attachment().timerReadTimes??[]}));
       if (value.legacyStorage !== undefined) {
         entry.storage.transaction(() => {

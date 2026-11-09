@@ -14,6 +14,7 @@ type Input = {
 
 export function usePresence({ hosted, scene, selected, view, size, setFollowView }: Input) {
   const snapshot = useSyncExternalStore(hosted.subscribePresence, hosted.getPresence);
+  const privacy = useRef(hosted.voting.running);
   const pointer = useRef<{ x: number; y: number } | null>(null);
   const latest = useRef({ selected, view, size });
   latest.current = { selected, view, size };
@@ -64,7 +65,7 @@ export function usePresence({ hosted, scene, selected, view, size, setFollowView
       document.removeEventListener("keydown", keys, true);
     };
   }, [hosted]);
-  useEffect(() => { send(); }, [hosted, snapshot.self?.connection, selectionKey, view, size.w, size.h]);
+  useEffect(() => { if(privacy.current!==hosted.voting.running){privacy.current=hosted.voting.running;pointer.current=null;}send(); }, [hosted, snapshot.self?.connection, selectionKey, view, size.w, size.h, hosted.voting.running]);
   const followed = snapshot.others.find((other) => other.connection === snapshot.followed);
   useEffect(() => {
     const next = hosted.followView(size);

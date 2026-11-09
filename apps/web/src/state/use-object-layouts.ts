@@ -3,13 +3,13 @@ import { useMemo, type RefObject } from "react";
 import Konva from "konva";
 import type { BoardV10 as Board, ItemV10 as Item } from "nextphase-board-rules/document.ts";
 import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT, type ResolvedItem } from "../geometry";
-import { objectType, textBox, hasText, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds } from "nextphase-board-rules/objects/registry.ts";
+import { objectType, textBox, hasText, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds, voteTextAnchor } from "nextphase-board-rules/objects/registry.ts";
 import { groupNumbers, wholeGroups } from "../group";
 import { cornerPoint, type Corner } from "../resize";
 import { boundingBox } from "../selection";
 import { textUnits } from "nextphase-board-rules/styles.ts";
 import { remap } from "nextphase-board-rules/marks.ts";
-import { layoutRuns, type RunStyle, type RunLine } from "../text-runs";
+import { layoutRuns, type RunStyle, type RunLine, lineOffset } from "../text-runs";
 import type { Drag } from "../gesture";
 
 import { connectorLayout, labelEditorBox, type ConnectorLayout } from "../connectors";
@@ -104,7 +104,15 @@ export function useObjectLayouts({
   }, [board.objects, inline, selectedId, text]);
   const displayedObjects: ResolvedItem[] = board.objects.map((o) => {
     const layout = objectLayouts.get(o.id)!;
-    return { ...o, ...(layout.connector?.bounds ?? {}), connectorLayout: layout.connector, displayHeight: layout.height } as ResolvedItem;
+    let firstLine: {right:number;centerY:number}|undefined;
+    if(voteTextAnchor(o)&&hasText(o)&&hasRectangle(o)&&(inline&&o.id===selectedId?text:o.text).length) {
+      const box=textBox(o),fontSize=textUnits(o.textSize),lineHeight=fontSize*TEXT_LAYOUT.lineHeight;
+      const displayedText=inline&&o.id===selectedId?text:o.text;
+      let width=runLines(o,displayedText)?.[0]?.width;
+      if(width===undefined){const measurement=new Konva.Text({...TEXT_LAYOUT,fontSize,width:box.width,text:displayedText,align:o.align});width=measurement.textArr[0]?.width; measurement.destroy();}
+      if(width!==undefined)firstLine={right:box.x+lineOffset(o.align,box.width,width)+width,centerY:box.y+lineHeight/2};
+    }
+    return { ...o, firstLine, ...(layout.connector?.bounds ?? {}), connectorLayout: layout.connector, displayHeight: layout.height } as ResolvedItem;
   });
   const resolvedItem = displayedObjects.find((o) => o.id === selectedId);
   const editorBox = resolvedItem && hasEnds(resolvedItem) ? labelEditorBox(resolvedItem.connectorLayout!.labelPoint, text) : undefined;

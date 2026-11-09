@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { resetVoting } from "./voting.ts";
 import { resetTimer } from './timer.ts';
 import { RoomError } from './protocol.ts';
 import type { Room } from './room.ts';
@@ -49,7 +50,7 @@ export class RoomLifecycle {
   freeze(generation?:number) {
     this.host.access.locked=true;
     const s=this.host.env.storage;
-    if(meta(s,"storage_version"))s.transaction(()=>{resetTimer(s);if(generation!==undefined)setMeta(s,"restore_generation",Math.max(meta(s,"restore_generation"),generation));});
+    if(meta(s,"storage_version"))s.transaction(()=>{resetTimer(s);resetVoting(s);if(generation!==undefined)setMeta(s,"restore_generation",Math.max(meta(s,"restore_generation"),generation));});
     this.host.lifecyclePause();
   }
   async admit(request:LifecycleRequest) {

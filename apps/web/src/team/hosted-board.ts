@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
+import { BoardVoting } from "./voting";
 import { BoardTimer } from "./timer";
 import { BoardLifecycle, lifecycleNavigation } from "./lifecycle";
 import { BoardHistory, historyNavigation } from "./history";
-import { BoardSession, type Transport, type Role, type SessionEvent, type TimerSnapshot, type TimerFrame, type TimerAction } from "nextphase-board-sync/session.ts";
+import { BoardSession, type Transport, type Role, type SessionEvent, type TimerSnapshot, type TimerFrame, type TimerAction, type VoteProjection, type VoteFrame, type VoteCommand } from "nextphase-board-sync/session.ts";
 import type { BoardV10 } from "nextphase-board-rules/document.ts";
 import type { CommentOperation } from "./comments/rules";
 import { api, ApiError } from "./api";
@@ -16,7 +17,7 @@ import { attemptOutcome, isSpecialClose, renewalDelay, retryDelay, saveState, wo
   changeCounts, countChanges, dismissNotice, emptyLossRecord, isOutstanding, lossNotices, updateLossRecord,
   type AttemptEvent, type NoticeReason, type Outcome } from "./notices";
 
-export type { TimerSnapshot, TimerFrame, TimerAction, TimerCause } from "nextphase-board-sync/session.ts";
+export type { VoteProjection, VoteFrame, VoteCommand, VoteSession, VoteOwn, VoteTarget, BallotTarget, VoteAction, VoteCause, VoteReason, TimerSnapshot, TimerFrame, TimerAction, TimerCause } from "nextphase-board-sync/session.ts";
 
 type Attempt = { outcome: Outcome | null; joined: boolean; cancelled: boolean; timer: ReturnType<typeof setTimeout>;
   socket?: WebSocket; acceptance: boolean };
@@ -31,6 +32,16 @@ export class HostedBoard {
   readonly lifecycle = new BoardLifecycle();
   readonly history = new BoardHistory(this);
   readonly timer = new BoardTimer(this);
+  readonly voting = new BoardVoting(this);
+  readVote(id:string){return this.snapshot.connected&&!!this.session?.voteRead(id);}
+  sendVote(command:Omit<VoteCommand,'kind'|'epoch'|'restoreGeneration'>){return this.snapshot.connected&&!!this.session?.voteCommand(command);}
+  votingChanged(spatial=false){
+    if(spatial){
+      const blank=(p:Presence)=>({...p,cursor:null,selection:[],view:{x:0,y:0,width:1,height:1}});
+      this.publishPresence({others:this.presence.others.map(blank),followed:null});
+    }
+    this.publish();
+  }
   surface: 'timer'|'history'|'comments'|'share'|null = null;
   hideComments?: () => void;
   showSurface(surface: 'timer'|'history'|'comments'|'share') {
@@ -47,7 +58,7 @@ export class HostedBoard {
   trashReturned = false;
   panReturning = false;
   private restoredGeneration?: number;
-  historyChanged() { this.publish(); }
+  historyChanged() { this.voting.preview(); this.publish(); }
   historyDenied() { this.confirmUnavailable(); }
   get paintBoard() {
     const live = this.snapshot.board;
@@ -120,10 +131,12 @@ export class HostedBoard {
     this.setPresence(presenceToSend(cursor, selection, view, size, active));
   }
   followView(size: { w: number; h: number }) {
+    if(this.voting.running)return undefined;
     const followed = this.presence.others.find((other) => other.connection === this.presence.followed);
     return followed ? fitFollow(followed.view, size) : undefined;
   }
   follow(person: string) {
+    if(this.voting.running)return;
     const connection = chooseFollow(this.presence.others.filter((other) => other.person === person), this.received);
     if (connection) this.publishPresence({ followed: connection.connection });
   }
@@ -207,7 +220,7 @@ export class HostedBoard {
         this.finish(attempt, { kind: "failure", reason: "no_answer" });
       }, 15000) };
     this.attempt = attempt;
-    this.timer.disconnect();
+    this.timer.disconnect();this.voting.disconnect();
     this.clearPresence();
     this.lifecycle.clear();
     this.publish({ connected: false, workspaceOwner:false });
@@ -297,7 +310,7 @@ export class HostedBoard {
     attempt.outcome = outcome;
     clearTimeout(attempt.timer);
     clearTimeout(this.renewal);
-    this.timer.disconnect();
+    this.timer.disconnect();this.voting.disconnect();
     if (outcome.retry) this.session?.interrupt();
     else {
       this.ended = true;
@@ -325,6 +338,7 @@ export class HostedBoard {
       this.session = session;
       for (const [id, request] of notificationRequests(this.boardId)) session.commentRequests.set(id, request);
       session.subscribe((event) => this.changed(session, event));
+      session.subscribeVoting(event=>{if(!this.stopped&&!this.ended&&session===this.session)this.voting.receive(event as VoteFrame|{kind:"vote_invalid"|"vote_closed"});});
       session.subscribeTimer(event => { if(!this.stopped && !this.ended && session===this.session)this.timer.receive(event as TimerFrame|{kind:"timer_invalid"|"timer_closed"}); });
       this.joined(session);
     } catch {
@@ -343,6 +357,7 @@ export class HostedBoard {
     this.publishPresence({ self: session.self, others: [...session.present.values()], followed: null });
     this.publish({ board: session.board, role: session.role, connected: true, outcome: null,
       generation: this.snapshot.generation + 1 });
+    this.voting.joined(session.votingSnapshot,session.restoreGeneration);
     this.timer.joined(session.timerSnapshot,session.restoreGeneration);
     this.updateSession(this.token ?? null);
     void this.refreshMentions();
@@ -350,7 +365,7 @@ export class HostedBoard {
   }
   private changed(session: BoardSession<string>, event: SessionEvent) {
     if (this.stopped || this.ended || session !== this.session) return;
-    if (event.kind === "history_restoring") { this.timer.disconnect(); this.history.restoring(typeof event.actor === "string" ? event.actor : null); return; }
+    if (event.kind === "history_restoring") { this.timer.disconnect();this.voting.disconnect(); this.history.restoring(typeof event.actor === "string" ? event.actor : null); return; }
     if (event.kind.startsWith("comment")) { this.publishComments(event); if (event.kind === "comment_changed" || event.kind === "comments_snapshot" && event.done) void this.refreshMentions(); return; }
     if (event.kind === "present" || event.kind === "left") {
       const connection = String(event.connection);
@@ -438,7 +453,7 @@ export class HostedBoard {
     this.publish({ board: undefined, connected: false, role: undefined, workspaceOwner:false, workspace:"", workspaceId:"", toast:"", outcome:{name:"accessRemoved",retry:false} });
   }
   private clearDiscussion() {
-    this.timer.clear(); this.surface = null;
+    this.timer.clear();this.voting.clear(); this.surface = null;
     this.history.clear();
     ++this.mentionRead;
     this.commentDrafts.clear(); this.unreadMentions.clear(); clearNotificationMemory(this.boardId);
@@ -461,7 +476,7 @@ export class HostedBoard {
     this.unreadMentions.clear();
     this.clearPresence();
     this.history.clear();
-    this.timer.clear();
+    this.timer.clear();this.voting.clear();
     this.lifecycle.clear();
     this.stopped = true;
     if (this.attempt) { this.attempt.cancelled = true; clearTimeout(this.attempt.timer); }

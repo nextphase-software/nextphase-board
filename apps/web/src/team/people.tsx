@@ -46,9 +46,9 @@ export function People({ hosted }: { hosted: HostedBoard }) {
           style={{ background: first.colour, outline: followed?.person === person.person ? `2px solid ${followed.colour}` : undefined,
             outlineOffset: followed?.person === person.person ? 1 : undefined }}
           title={first.label + (own ? " (you)" : "")}
-          aria-label={own ? `${first.label} (you), ${roleWords(first.role)}. Open people menu`
+          aria-label={own || hosted.voting.running ? `${first.label}${own ? " (you)" : ""}, ${roleWords(first.role)}. Open people menu`
             : `Follow ${first.label}, ${roleWords(first.role)}`}
-          onClick={(event) => own ? show(event.currentTarget) : hosted.follow(person.person)}>
+          onClick={(event) => own || hosted.voting.running ? show(event.currentTarget) : hosted.follow(person.person)}>
           {first.label.slice(0, 1).toUpperCase()}
         </button></li>;
       })}
@@ -90,7 +90,7 @@ export function People({ hosted }: { hosted: HostedBoard }) {
         }
       }}>
       {people.map(({ person, first, own }) => <button key={person} role="menuitem" tabIndex={-1}
-        className="presence-person" onClick={() => {
+        className="presence-person" disabled={!own&&hosted.voting.running} onClick={() => {
           if (!own) { hosted.follow(person); setOpen(false); opener.current?.focus(); }
         }}>
         <span className="presence-dot" style={{ background: first.colour }}>{first.label.slice(0, 1).toUpperCase()}</span>

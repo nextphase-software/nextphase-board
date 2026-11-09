@@ -4,6 +4,7 @@ import { colorEntry, textUnits, type Style } from "../styles.ts";
 const STICKY_TEXT = "#28272c";
 
 export const sticky = {
+  voting: true,
   type: "sticky",
   label: "Sticky",
   tool: "Sticky",

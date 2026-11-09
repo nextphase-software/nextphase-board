@@ -7,6 +7,8 @@ export const colours = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "
 export const placeholder = (): PresenceInput => ({ cursor: null, selection: [],
   view: { x: 0, y: 0, width: 1, height: 1 }, active: false });
 export function currentAttachment(value: Attachment) {
+  const bounded=(v:unknown)=>v===undefined||Array.isArray(v)&&v.length<=5&&v.every(n=>Number.isSafeInteger(n)&&n>=0);
+  if(bytes(JSON.stringify(value)).length>16384||![value.timerTimes,value.timerReadTimes,value.voteTimes,value.voteReadTimes].every(bounded))return false;
   return typeof value.label === "string" && Number.isSafeInteger(value.ordinal) &&
     Object.hasOwn(value, "presence") && typeof value.presenceAt === "number" && Array.isArray(value.presenceTimes);
 }
@@ -23,7 +25,15 @@ export class Presences {
   env: RoomEnvironment;
   board: string;
   private holds = new Map<string, { until: number; ordinal: number }>();
-  constructor(env: RoomEnvironment, board: string) { this.env = env; this.board = board; }
+  private hidden:()=>boolean;
+  constructor(env: RoomEnvironment, board: string, hidden:()=>boolean=()=>false) { this.env = env; this.board = board; this.hidden=hidden; }
+  private spatial(p:Presence):Presence { return {...p,cursor:null,selection:[],view:{x:0,y:0,width:1,height:1}}; }
+  clearSpatial(relay=true) {
+    for(const peer of this.env.connections()) {
+      const a=peer.attachment();if(a.presence)peer.attach({...a,presence:this.spatial(a.presence)});
+    }
+    if(relay)for(const peer of this.env.connections())this.relay(peer);
+  }
   prune() {
     for (const [id, hold] of this.holds) if (hold.until <= this.env.now()) this.holds.delete(id);
   }
@@ -55,10 +65,12 @@ export class Presences {
     return true;
   }
   list(except: string) {
+    if(this.hidden())this.clearSpatial(false);
     return this.env.connections().filter((peer) => peer.attachment().connectionId !== except)
       .map((peer) => peer.attachment().presence).filter((value): value is Presence => !!value);
   }
   relay(connection: Connection) {
+    if(this.hidden())this.clearSpatial(false);
     const presence = connection.attachment().presence;
     if (!presence) return;
     for (const peer of this.env.connections()) if (peer.attachment().connectionId !== presence.connection) {

@@ -7,6 +7,7 @@ export function validImage(value: object): boolean {
     typeof o.description === "string" && !/[\uD800-\uDFFF]/u.test(o.description) && Array.from(o.description).length <= 1000;
 }
 export const image = {
+  voting: true,
   type: "image", label: "Image", tool: null, validFrom: 10, body: "image-body",
   points: false, text: false, ends: false, container: false, richText: false,
   extraKeys: ["asset", "pixelWidth", "pixelHeight", "description"] as readonly string[],

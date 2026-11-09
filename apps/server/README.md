@@ -217,3 +217,26 @@ The [provider storage API](https://developers.cloudflare.com/durable-objects/api
 rewinds the room's SQL and KV together, while the separate fence object stays live.
 Local tests simulate that boundary with an independent recovery fence raise and
 object reconstruction/eviction; they do not claim actual hosted provider PITR.
+
+
+## Workshop voting (current room layout 7)
+
+The room stores a bounded `workshop_vote` singleton and at most 50 private
+`workshop_vote_ballots` rows. Effective owners/editors may start, cast/remove,
+reveal and clear; viewers read public metadata/results and retain Timer rights.
+Each socket reply/publication is freshly admitted and projected for that account.
+Private activity changes only that account's ballot version, never a public
+counter, document receipt, history capture or saved-board timestamp. Running
+voting redacts cursor, selection and viewport, including reconstructed attachments.
+
+Both runners preserve voting on ordinary restart, last departure and hibernation.
+Document-history replacement preserves the live round and reconciles targets.
+Trash, logical operator restore, marked-volume recovery and Workers time recovery
+reset Timer and voting together; purge/discard erases both voting tables.
+The real stopped-volume marking script and Node startup retain the existing
+explicit marker/reservation ordering. The Workers independent RestoreFence signal
+is checked before room loading/history resume. A reserved reset proves both
+records idle with version zero and no private ballots. Failed completion retains
+the fence, accepted history intent/chunks and denial until strict replay succeeds.
+Logical backups explicitly exclude all three workshop tables and reject injected
+voting fields before any fence or replacement. No service SQL table is added.

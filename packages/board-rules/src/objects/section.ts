@@ -2,6 +2,7 @@
 import { colorEntry, textUnits, type Style } from "../styles.ts";
 
 export const section = {
+  voting: false,
   type: "section",
   label: "Section",
   tool: "Section",

@@ -33,6 +33,11 @@ export async function makeDriver(context: Context): Promise<Driver> {
         if(!response.ok)throw Error('Recovery fence unavailable');
         return response.json();
       }
+      if(value.board&&(value.votingAttachments||value.staleVotingPresence))return runInDurableObject<DurableObject,any>(roomStub(String(value.board)),async(instance:any)=>{
+        const sockets=instance.state.getWebSockets();
+        if(value.staleVotingPresence)for(const s of sockets){const a=s.deserializeAttachment();if(a.presence)s.serializeAttachment({...a,presence:{...a.presence,cursor:{x:98765,y:12345},selection:[value.target],view:{x:98765,y:12345,width:100,height:100}}});}
+        return sockets.map((s:any)=>s.deserializeAttachment());
+      });
       if(value.board&&value.timerAttachments)return runInDurableObject<DurableObject,any>(roomStub(String(value.board)),async(instance:any)=>instance.state.getWebSockets().map((s:any)=>{const a=s.deserializeAttachment();return {timerTimes:a.timerTimes??[],timerReadTimes:a.timerReadTimes??[]};}));
       if(value.board&&value.inventory){return runInDurableObject(roomStub(String(value.board)),async(instance:any)=>({tables:instance.state.storage.sql.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '_cf_%'").toArray(),alarm:await instance.state.storage.getAlarm()}));}
       if (value.board && value.fences) {

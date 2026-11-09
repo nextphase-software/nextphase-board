@@ -5,7 +5,7 @@ import { createApp } from "../../apps/server/src/app.ts";
 import { Auth } from "../../apps/server/src/auth.ts";
 import { workerRuntime, type WorkerEnv } from "../../apps/server/src/worker-runtime.ts";
 export { RestoreFence };
-export type Controls = { failTimer?: string;  failLifecycle?: string; holdRoom?: string; releaseRoom?: boolean; failHistory?: string; failCheckpoint?: string; failCreate?: "before" | "write" | "after" | "exists" | ""; fixedNow?: number | null; offset?: number; fenceUnreadable?: boolean; backupLimit?: number; noOperator?: boolean; unreachable?: string[] };
+export type Controls = { failVoting?: string; failTimer?: string;  failLifecycle?: string; holdRoom?: string; releaseRoom?: boolean; failHistory?: string; failCheckpoint?: string; failCreate?: "before" | "write" | "after" | "exists" | ""; fixedNow?: number | null; offset?: number; fenceUnreadable?: boolean; backupLimit?: number; noOperator?: boolean; unreachable?: string[] };
 export type TestEnv = WorkerEnv & { CONTROLS: DurableObjectNamespace };
 const lifecycleDatabases=new WeakSet<object>();
 export class TestControls {
@@ -35,11 +35,13 @@ export class BoardRoom extends ProductionRoom {
     const environment = super.environment(board);
     const actualFence = environment.fence, raise = environment.raiseFence, exec = environment.storage.exec.bind(environment.storage);
     environment.storage.exec = (sql,...args) => {
+      if ((this.current.failVoting === "session" && sql.startsWith("INSERT INTO workshop_vote ")) || (this.current.failVoting === "ballot" && sql.startsWith("INSERT INTO workshop_vote_ballots")) || (this.current.failVoting === "delete" && sql.startsWith("DELETE FROM workshop_vote_ballots")))throw Error("Voting storage unavailable");
       if(this.current.failTimer === "write" && sql.startsWith("INSERT INTO workshop_timer"))throw Error("Timer storage unavailable");
       const failure = this.current.failHistory;
       if (failure === "capture" && sql.startsWith("INSERT INTO versions") || failure === "intent" && sql.startsWith("INSERT INTO history_requests") ||
         failure === "local" && sql.startsWith("INSERT INTO versions") && args[5] === "before_restore" || failure === "cleanup" && sql.startsWith("DELETE FROM history_intent_chunks")) throw Error("History transaction unavailable");
       exec(sql,...args);
+      if((this.current.failVoting === "after-ballot" && sql.startsWith("INSERT INTO workshop_vote_ballots")) || (this.current.failVoting === "after-delete" && sql.startsWith("DELETE FROM workshop_vote_ballots")))throw Error("Voting transaction unavailable");
     };
     environment.raiseFence = async minimum => {
       if (this.current.failHistory === "fence") throw Error("Fence unavailable");

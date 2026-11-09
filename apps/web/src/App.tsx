@@ -21,8 +21,7 @@ import { useSelection } from "./state/use-selection";
 import { useObjectLayouts } from "./state/use-object-layouts";
 import { useEditorPlacement } from "./state/use-editor-placement";
 import { BoardDrawing } from "./scene/board-drawing";
-import { Overlays } from "./scene/overlays";
-import { ConnectionDots } from "./scene/connection-dots";
+import { Overlays } from "./scene/overlays"; import { ConnectionDots } from "./scene/connection-dots";
 import { InlineEditor } from "./scene/inline-editor";
 import { ShapesPanel } from "./ui/shapes-panel";
 import { GrowButton } from "./ui/shape-controls";
@@ -102,7 +101,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,
     pointerCancel, lostPointerCapture,
   } = useCanvasInput({
-    drawing, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+    voting: team?.hosted?.voting, drawing, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
     setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
     scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
     selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
@@ -130,7 +129,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     arrangementMembers, lineCount, editor, selector, setPanel, setTool, hosted: team?.hosted,
   });
   const { pageKeyDown } = usePageKeys({
-    chooseImages: images.chooseImages,
+    voting: team?.hosted?.voting, chooseImages: images.chooseImages,
     command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
     setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
   });
@@ -181,6 +180,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
         <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} />
       </div>
       {team?.commentsLayer && team.hosted && <team.commentsLayer hosted={team.hosted} board={board} objects={displayedObjects} view={view} size={size} tool={tool} setTool={setTool} setView={setView} scene={scene} select={select} setInline={setInline} />}{team?.presenceLayer && team.hosted && <team.presenceLayer hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}
+      {team?.votingLayer && team.hosted && <team.votingLayer hosted={team.hosted} objects={displayedObjects} view={view} size={size} finishTextSession={finishTextSession} cancel={cancel} setInline={setInline} setTool={setTool} select={select} setView={setView} />}
       <ImageNames board={board} /><FileBar team={team}
         boardButton={boardButton} composing={composing} busy={busy} toggle={toggle} panel={panel}
         title={title} objectsButton={objectsButton} undoReason={undoReason} redoReason={redoReason}

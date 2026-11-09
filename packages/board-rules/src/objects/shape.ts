@@ -126,6 +126,7 @@ export function paintAfterStep(step: { changes: { before: object | null; after: 
   return last ? paintOf((undo ? last.before : last.after)!) : undefined;
 }
 export const shape = {
+  voting: true,
   type: "shape", label: "Shapes", tool: "Shapes", validFrom: 6, body: "shape-body",
   points: false, text: true, ends: false, container: false, richText: true, textLimit: 1000, initialText: "", draws: true,
   sizeRange: { min: 40, max: 2000 }, defaultSize: { width: 180, height: 180 },

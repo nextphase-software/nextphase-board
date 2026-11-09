@@ -2,6 +2,7 @@
 import { colorEntry, textUnits, type Style } from "../styles.ts";
 
 export const text = {
+  voting: true,
   type: "text",
   label: "Text",
   tool: "Text",

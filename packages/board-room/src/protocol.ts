@@ -7,7 +7,7 @@ export type Role = "owner" | "editor" | "viewer";
 export type Person = { id: string; email: string; expiresAt: number };
 // Optional fields permit detecting attachments written by the previous server.
 export type Attachment = Omit<Person, "email"> & { email?: string; connectionId: string; epoch: number; role: Role;
-  label?: string; ordinal?: number; presence?: Presence | null; presenceAt?: number; presenceTimes?: number[]; commentTimes?: number[]; restoreGeneration?: number; timerTimes?: number[]; timerReadTimes?: number[] };
+  label?: string; ordinal?: number; presence?: Presence | null; presenceAt?: number; presenceTimes?: number[]; commentTimes?: number[]; restoreGeneration?: number; timerTimes?: number[]; timerReadTimes?: number[]; voteTimes?: number[]; voteReadTimes?: number[] };
 export interface Connection {
   attachment(): Attachment;
   attach(value: Attachment): void;

@@ -6,7 +6,9 @@ import type { Flag } from "nextphase-board-rules/marks.ts";
 
 import { nativePasteKey } from "../images.ts";
 
+import type { BoardVoting } from "../team/voting";
 type Input = {
+  voting?: BoardVoting;
   chooseImages: () => void;
   command: (name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut") => string | undefined;
   clipboardCommand: (name: ClipboardCommand) => void;
@@ -28,10 +30,11 @@ type Input = {
 };
 
 export function usePageKeys({
-  chooseImages, command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
+  voting, chooseImages, command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
   setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
 }: Input) {
   function pageKeyDown(e: React.KeyboardEvent<HTMLElement>) {
+    if(voting?.mode&&e.target===scene.current){if(e.key==='Delete'||e.key==='Backspace')e.preventDefault();return;}
     const nativeText = e.target instanceof Element &&
       !!e.target.closest("input,textarea,[contenteditable]:not([contenteditable=false])");
     if (!nativeText && (e.ctrlKey || e.metaKey) && !e.altKey) {

@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { workshopPanel } from './workshop-panel';
+import { VotingCard } from './voting-card';
+import type { BoardVoting } from './voting';
+import type { ItemV10 } from 'nextphase-board-rules/document.ts';
 import type { BoardTimer } from './timer';
 import { draftMs } from './timer-rules';
 function Glyph({name}:{name:'timer'|'play'|'pause'|'stop'|'close'}) {
@@ -8,11 +12,12 @@ function Glyph({name}:{name:'timer'|'play'|'pause'|'stop'|'close'}) {
   </svg>;
 }
 const focusKey=(node:HTMLElement)=>node.getAttribute('data-timer')??node.getAttribute('aria-label');
-export function TimerControl({timer}:{timer:BoardTimer}) {
+export function TimerControl({timer,voting,objects=[],preview=false}:{timer:BoardTimer;voting?:BoardVoting;objects?:ItemV10[];preview?:boolean}) {
   const [,redraw]=useState(0),[top,setTop]=useState(72);
   const trigger=useRef<HTMLButtonElement>(null),panel=useRef<HTMLDivElement>(null),wasOpen=useRef(false);
   const focused=useRef<{node:HTMLElement;key:string|null}|null>(null),lastMode=useRef('');
   useEffect(()=>timer.subscribe(()=>redraw(v=>v+1)),[timer]);
+  useEffect(()=>voting?.subscribe(()=>redraw(v=>v+1)),[voting]);
   useLayoutEffect(()=>{
     const bar=trigger.current?.closest('.actions');if(!bar)return;
     const measure=()=>setTop(bar.getBoundingClientRect().bottom+12);measure();
@@ -28,12 +33,12 @@ export function TimerControl({timer}:{timer:BoardTimer}) {
     const node=panel.current;
     if(!timer.open){wasOpen.current=false;focused.current=null;lastMode.current='';return;}
     if(!node)return;
-    const selector=mode==='confirmation'?'[data-timer="cancel"]':mode==='idle'?'[aria-label="Minutes"]':mode==='zero'?'[aria-label="End timer"]':mode==='uncertain'?'h2':'[data-timer="toggle"]';
+    const selector=mode==='confirmation'?'[data-timer="cancel"]':mode==='idle'?'[aria-label="Minutes"]':mode==='zero'?'[aria-label="End timer"]':mode==='uncertain'?'[data-timer="heading"]':'[data-timer="toggle"]';
     const opening=!wasOpen.current,inside=!!focused.current&&(node.contains(document.activeElement)||document.activeElement===document.body);
     if(opening||mode==='confirmation'&&lastMode.current!=='confirmation')node.querySelector<HTMLElement>(selector)?.focus();
     // React can reuse Cancel's DOM button as +1. Preserve the control's meaning,
     // not just its connected/enabled DOM node, across a remote card change.
-    else if(inside && (!focused.current!.node.isConnected || (focused.current!.node as HTMLButtonElement).disabled || focusKey(focused.current!.node)!==focused.current!.key || focused.current!.node.tabIndex<0&&focused.current!.node.tagName==='INPUT'))node.querySelector<HTMLElement>('h2')?.focus();
+    else if(inside && (!focused.current!.node.isConnected || (focused.current!.node as HTMLButtonElement).disabled || focusKey(focused.current!.node)!==focused.current!.key || focused.current!.node.tabIndex<0&&focused.current!.node.tagName==='INPUT'))node.querySelector<HTMLElement>('[data-timer="heading"]')?.focus();
     wasOpen.current=true;lastMode.current=mode??'';
   });
   const close=()=>{timer.hide();trigger.current?.focus();};
@@ -43,13 +48,14 @@ export function TimerControl({timer}:{timer:BoardTimer}) {
   const fields=idle?timer.draft:{minutes:parts[0]??'--',seconds:parts[1]??'--'};
   const action=(name:string,glyph:'play'|'pause'|'stop',run:()=>void,disabled=false,primary=false)=><button type="button" className={'w1-hit'+(primary?' primary':'')} aria-label={name} data-timer={name==='Pause timer'||name==='Resume timer'?'toggle':undefined} disabled={disabled} onClick={run}><span className="w1-disc"><Glyph name={glyph}/></span></button>;
   return <>
-    <button ref={trigger} type="button" className={'w1-trigger'+(timer.active?' active':'')+(paused?' paused':'')+(uncertain?' uncertain':'')} aria-label={timer.state==='Connecting timer'?'Timer, Connecting timer':`Timer, ${timer.state}, ${timer.display}`} aria-haspopup="dialog" aria-expanded={timer.open} aria-controls="w1-panel" onClick={()=>timer.open?close():timer.show()}>
+    <button ref={trigger} type="button" className={'w1-trigger'+(timer.active?' active':'')+(paused?' paused':'')+(uncertain?' uncertain':'')} aria-label={(timer.state==='Connecting timer'?'Timer and voting, Connecting timer':`Timer and voting, ${timer.state}, ${timer.display}`)+(voting?.running?', Voting in progress':'')} aria-haspopup="dialog" aria-expanded={timer.open} aria-controls="w1-panel" onClick={()=>timer.open?close():timer.show()}>
       {!timer.active&&<Glyph name="timer"/>}<span>{timer.display}</span>
     </button>
-    {timer.open&&<div ref={panel} id="w1-panel" role="dialog" aria-labelledby="w1-title" className={'w1-panel'+(paused?' paused':'')+(uncertain?' uncertain':'')} style={{'--w1-top':`${top}px`} as CSSProperties}
-      onFocusCapture={e=>{const node=e.target as HTMLElement;focused.current={node,key:focusKey(node)};}} onBlurCapture={e=>{if(e.relatedTarget&&!e.currentTarget.contains(e.relatedTarget as Node))focused.current=null;}}
-      onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();if(timer.confirmation)cancel();else close();}}}>
-      <div className="w1-head"><h2 id="w1-title" tabIndex={-1}>Timer</h2></div>
+    {timer.open&&workshopPanel({panel,top,className:'w1-panel'+(paused?' paused':'')+(uncertain?' uncertain':''),
+      onFocusCapture:e=>{const node=e.target as HTMLElement;focused.current=node.closest('.vote-card')?null:{node,key:focusKey(node)};},
+      onBlurCapture:e=>{if(e.relatedTarget&&!e.currentTarget.contains(e.relatedTarget as Node))focused.current=null;},
+      onKeyDown:e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();if(timer.confirmation)cancel();else close();}},
+      timer:<>
       {timer.confirmation?<><h3>Stop the timer?</h3><p className="w1-confirm-copy">This stops the timer for everyone, not just you.</p><div className="w1-confirm-row"><button data-timer="cancel" onClick={cancel}>Cancel</button><button data-timer="stop" className="primary" onClick={()=>timer.stop()}>Stop timer</button></div></>:<>
         <div className="w1-fields">{(['minutes','seconds'] as const).map((field,index)=><span key={field} className="w1-field-slot">{index===1&&<span className="w1-colon" aria-hidden="true">:</span>}<label>{field==='minutes'?'Minutes':'Seconds'}<input aria-label={field==='minutes'?'Minutes':'Seconds'} type="text" inputMode="numeric" value={fields[field]} readOnly={!idle} tabIndex={idle?0:-1} onChange={e=>timer.setDraft(field,e.target.value)} onBlur={()=>{if(idle)timer.blur();}} onKeyDown={e=>{
           if(!idle||e.nativeEvent.isComposing)return;
@@ -61,8 +67,10 @@ export function TimerControl({timer}:{timer:BoardTimer}) {
           {idle?action('Start timer','play',()=>timer.command('start'),!draftMs(timer.draft),true):<>{action('End timer','stop',()=>timer.confirm(),!timer.canMutate)}{action(paused?'Resume timer':'Pause timer',paused?'play':'pause',()=>timer.command(paused?'resume':'pause'),!timer.canMutate||timer.zero,true)}</>}
         </div>
       </>}
-      <button className="w1-close" aria-label="Close timer" onClick={close}><Glyph name="close"/></button>
-    </div>}
-    <span className="sr-only" role="status" aria-live="polite" aria-atomic="true"><span key={timer.announcementId}>{timer.announcement}</span></span>
+      </>,voting:voting?<VotingCard voting={voting} objects={objects} preview={preview}/>:undefined,
+      close:<button className="w1-close" aria-label="Close Timer and voting" onClick={close}><Glyph name="close"/></button>
+    })}
+    <span className="sr-only" data-workshop-status="timer" role="status" aria-live="polite" aria-atomic="true"><span key={timer.announcementId}>{timer.announcement}</span></span>
+    {voting&&<span className="sr-only" data-workshop-status="voting" role="status" aria-live="polite" aria-atomic="true"><span key={voting.announcementId}>{voting.announcement}</span></span>}
   </>;
 }

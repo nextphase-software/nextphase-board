@@ -53,6 +53,8 @@ export function hasRectangle<T extends { type: string }>(o: T): o is T & Rectang
 export function hasPoints<T extends { type: string }>(o: T): o is T & StrokeKeys & Rectangle & { type: PointsType } { return objectType(o.type).points; }
 export function hasText<T extends { type: string }>(o: T): o is T & { type: Exclude<ObjectType, typeof stroke | typeof image>["type"] } { return objectType(o.type).text; }
 export const sectionIdea = <T extends { type: string }>(o: T): o is T & Rectangle & { type: RectangleType } => hasRectangle(o) && !isContainer(o);
+export const eligibleVote = (o: { type: string }) => objectType(o.type).voting;
+export const voteTextAnchor = (o: { type: string }) => o.type === text.type;
 export const eligibleIdea = <T extends { type: string }>(o: T): o is T & Rectangle & { type: TextRectangleType } => sectionIdea(o) && !hasPoints(o) && !isImage(o);
 export function isImage<T extends { type: string }>(o: T): o is T & ImageKeys & Rectangle & { type: typeof image.type } { return o.type === image.type; }
 export const keepsProportions = (o: { type: string }) => hasPoints(o) || isImage(o);

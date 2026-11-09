@@ -373,3 +373,37 @@ existing functional assertions stay. Baseline T1-S38/S39 and Node S181 require
 source/test comparison, never blanket waivers. Registered or bundled checks are
 not executed checks. No browser, Supabase CLI, deployment or extra campaign ran
 in the implementation sandbox.
+
+
+## 0007-W2 voting checks
+
+`workshop-voting.test.mjs` adds W2-U01–W2-U36 for strict wire/projection rules,
+Unicode/budget bounds, separate rates, account races, private publication,
+transaction rollback, reconciliation, reconstruction/recovery, backup exclusion,
+actual escaped SQLite row bounds, marker geometry, input decisions and client
+readback/health/speech/cleanup. It uses synthetic identities and runs in `npm test`.
+Current room fixtures use layout 7. Module guards retain exactly 45 team modules,
+22 state hooks and the composition-only App limit of 264 lines; only App's former
+byte-equality assertion is removed. Existing Timer focus/functional assertions
+remain, with the shared title, Timer heading and Close control substitutions.
+The S160/S192 inventories include both voting tables while excluding them from
+logical backups. S40's current outage/rejoin phases remain intact.
+
+`tests/server/voting.test.ts` registers S257–S304 (48 named common checks) and
+`SUMMARY-VOTING` on both Node and workerd. Controls add voting storage failures,
+complete attachment inspection, stale spatial reconstruction fixtures and bounded
+synthetic voter creation. S295 separately identifies the actual stopped Node
+volume copy/marking-script subcase; workerd runs the common explicit-marker guard.
+S296 uses the independent Workers recovery signal before loading. Existing
+S37/S43/S70/S168 physical exclusions stay. Registering checks is not execution.
+
+Implementation runs V1–V8. The separate server-only handoff uses a clean candidate,
+clean install, uniquely owned local stack, schema install/reapply, Node then
+workerd, with complete command/count/log receipts and owned cleanup. It returns
+failures before the independent check. Browsers and the Supabase CLI are unrun
+in the implementation sandbox. The independent check authors
+`tools/browser-compare/0007-w2-check.mjs`, runs V1–V13, Y1-S1–S44 (S43 off), the
+new-capability negative on 752f79d once, and only the accepted regressions.
+W2-S7/S8/S9/S16/S20/S21 and T1-S38/S39 retain their baseline-failure classification;
+T1-S26/S29 remain unrun until their accepted prerequisites exist. No aggregate
+green claim may hide a failed/unrun row or a new privacy/reconnect failure.

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { WorkshopVoting, resetVoting } from "./voting.ts";
 import { WorkshopTimer, resetTimer, markExplicitRecovery } from "./timer.ts";
 import { RoomLifecycle, type Lifecycle, type LifecycleRequest } from "./lifecycle.ts";
 import * as Y from "yjs";
@@ -29,6 +30,7 @@ export class Room {
   history: History;
   lifecycle: RoomLifecycle;
   timer: WorkshopTimer;
+  voting: WorkshopVoting;
   doc = new Y.Doc();
   board!: BoardV10;
   initialized = false;
@@ -41,10 +43,11 @@ export class Room {
     initialize(env.storage);
     this.access = new Access(env.storage, env.access, env.connections);
     this.edits = new EditSession(env, this.access, this);
-    this.presence = new Presences(env, boardId);
+    this.presence = new Presences(env, boardId, () => this.voting.running());
     this.history = new History(this);
     this.lifecycle = new RoomLifecycle(this);
     this.timer = new WorkshopTimer(this);
+    this.voting = new WorkshopVoting(this);
     this.comments = new Comments(env, this.access, this);
     if (env.rows && env.background) this.copies = new Copies(env.storage, env.rows, env.now,
       () => this.ordered(() => this.schedule()));
@@ -82,8 +85,9 @@ export class Room {
       try {
         const prepared = await this.history.prepare(board);
         storage.transaction(() => {
-          setMeta(storage, "storage_version", 6);
+          setMeta(storage, "storage_version", 7);
           resetTimer(storage);
+          resetVoting(storage);
           storage.exec("INSERT INTO meta VALUES ('board_id', ?)", this.boardId);
           setMeta(storage, "last_edit_at", Date.parse(details.createdAt));
           setMeta(storage, "revision", 0);
@@ -106,6 +110,7 @@ export class Room {
     this.doc.destroy();
     this.doc = loadDocument(storage);
     this.board = readBoard(this.doc);
+    this.voting.validate();
     this.initialized = true;
     try {
       await this.timer.recover();
@@ -118,6 +123,8 @@ export class Room {
       }
     } catch { this.access.locked = true; return; }
     if (this.history.active()) { try { await this.history.resume(); } catch { return; } }
+    this.voting.reconcileTargets();
+    if(this.voting.running())this.presence.clearSpatial(false);
     if (this.access.locked) { try { await this.comments.mentions.restore(this.generation); } catch { return; } }
     try { await this.access.replay(this.boardId, this.generation); } catch { /* Ordinary wakes use their stored copy. */ }
     if (!this.access.locked) { try { await this.comments.mentions.prune(); } catch { /* Delivery retries require a successful prune. */ } }
@@ -182,6 +189,7 @@ export class Room {
     try { this.env.background.run(task); } catch { /* Background failures never affect replies. */ }
   }
   saved(alarm = false) {
+    if(this.initialized&&!this.lifecycle.discarded){try{this.voting.reconcileTargets();}catch{/* Voting revalidates before every protected projection. */}}
     if (this.lifecycle.discarded || this.access.locked || !this.copies || !this.env.storage.all("SELECT value FROM meta WHERE key = 'last_edit_at'").length) return;
     this.copies.offer({ boardId: this.boardId, title: this.board.title,
       editedAt: meta(this.env.storage, "last_edit_at"), generation: this.generation,
@@ -223,13 +231,13 @@ export class Room {
       await this.load();
       const storedTicket = this.env.storage.all("SELECT * FROM tickets WHERE digest = ?",await this.env.hash(bytes(ticket)))[0];
       if(!storedTicket || Number(storedTicket.expires_at)<=this.env.now() || Number(storedTicket.token_expires_at)<=this.env.now())throw new RoomError(401,"ticket_invalid");
-      try { await this.refresh(true); await this.timer.authority(); this.timer.snapshot(); } catch(error) { if(error instanceof RoomError)throw error;throw new RoomError(503,"service_unavailable"); }
+      try { await this.refresh(true); await this.timer.authority(); this.timer.snapshot(); await this.voting.authority(); this.voting.validate(); } catch(error) { if(error instanceof RoomError)throw error;throw new RoomError(503,"service_unavailable"); }
       const person = await consumeTicket(this.env, ticket);
       const grant = await this.access.lookup(person.id, this.boardId);
       if (person.expiresAt <= this.env.now()) throw new RoomError(401, "ticket_invalid");
       const attachment = await this.presence.reserve(person, grant.role, grant.epoch);
       await this.schedule();
-      return { ...attachment, restoreGeneration: meta(this.env.storage,"restore_generation"), timerTimes: [], timerReadTimes: [] };
+      return { ...attachment, restoreGeneration: meta(this.env.storage,"restore_generation"), timerTimes: [], timerReadTimes: [], voteTimes: [], voteReadTimes: [] };
     });
   }
   connected(connection: Connection) {
@@ -245,9 +253,13 @@ export class Room {
       const grant = this.access.get(attachment.id);
       if (!grant || attachment.epoch !== grant.epoch) { this.close(connection, closeCode(grant?.role ?? null, attachment.role)); return; }
       await this.timer.authority(connection);
+      await this.voting.authority(connection);
+      this.voting.reconcileTargets();
+      const voting = await this.voting.stamp(connection);
+      if(this.voting.running())this.presence.clearSpatial(false);
       send(connection, { kind: "joined", role: grant.role, epoch: grant.epoch,
         restoreGeneration: meta(this.env.storage, "restore_generation"),
-        timer: this.timer.snapshot(), serverNowMs: this.env.now(),
+        timer: this.timer.snapshot(), serverNowMs: this.env.now(), voting: voting.voting,
         revision: meta(this.env.storage, "revision"), update: base64(Y.encodeStateAsUpdate(this.doc)),
         self: connection.attachment().presence, present: this.presence.list(attachment.connectionId) });
       this.comments.snapshot(connection);
@@ -305,6 +317,9 @@ export class Room {
       if (bytes(text).length > MESSAGE_LIMIT) { send(connection, { kind: "refused", reason: "message_too_large" }); return; }
       let message;
       try { message = JSON.parse(text); } catch { send(connection, { kind: "refused", reason: "bad_message" }); return; }
+      if (message?.kind === "vote_command" || message?.kind === "vote_read") {
+        await this.voting.handle(connection,message,bytes(text).length); return;
+      }
       if (message?.kind === "timer_command" || message?.kind === "timer_read") {
         await this.timer.handle(connection,message,bytes(text).length);
         await this.schedule(); return;
@@ -335,6 +350,7 @@ export class Room {
         send(connection, { kind: "refused", reason: "bad_message" }); return;
       }
       await this.edits.handle(connection, message, text);
+      try{this.voting.reconcileTargets();await this.voting.flushTargets();}catch{/* Voting storage failure cannot change a committed edit receipt. */}
       await this.schedule();
     });
   }

@@ -24,6 +24,7 @@ function validEnd(value: unknown, version: number): boolean {
     typeof end.object === "string" && (version >= 9 ? END_SIDES.includes(end.anchor) : end.anchor === "auto");
 }
 export const connector = {
+  voting: false,
   type: "connector", label: "Connector", tool: null, validFrom: 7, body: "connector-body",
   points: false, text: true, ends: true, container: false, richText: false, textLimit: 100, initialText: "",
   draws: false, kinds: [] as readonly { kind: string; tool: string; key: string; round: boolean }[],

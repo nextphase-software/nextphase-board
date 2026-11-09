@@ -2,7 +2,7 @@
 import type { ItemV10 } from "nextphase-board-rules/document.ts";
 import type { Rectangle } from "nextphase-board-rules/objects/registry.ts";
 import type { ConnectorLayout } from "./connectors.ts";
-export type ResolvedItem = ItemV10 & Rectangle & { displayHeight: number; connectorLayout?: ConnectorLayout };
+export type ResolvedItem = ItemV10 & Rectangle & { displayHeight: number; firstLine?: {right:number;centerY:number}; connectorLayout?: ConnectorLayout };
 export const TEXT_INSET = 20;
 export const TEXT_LAYOUT = {
   fontFamily: "system-ui",

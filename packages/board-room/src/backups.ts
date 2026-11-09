@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { resetVoting } from "./voting.ts";
 import { mentionProblem } from "nextphase-board-sync/mentions.ts";
 import { textProblem } from "nextphase-board-sync/comments.ts";
 import type { RoomEnvironment } from "./interfaces.ts";
@@ -10,7 +11,7 @@ export type Envelope = {
   tables: Record<string, Row[]>;
 };
 const metaKeys = ["storage_version","board_id","last_edit_at","revision","watermark","restore_generation","restore_pending","mention_order","mention_cleanup","history_ordinal","history_revision","history_capture_sha256","history_capture_bytes","history_next_at","comment_sequence","copied"];
-const names = Object.keys(tables).filter((table) => !["waiting", "tickets", "workshop_timer"].includes(table));
+const names = Object.keys(tables).filter((table) => !["waiting", "tickets", "workshop_timer", "workshop_vote", "workshop_vote_ballots"].includes(table));
 export function backup(env: RoomEnvironment, board: string): Envelope {
   if (meta(env.storage, "restore_pending") || meta(env.storage, "explicit_recovery_pending")) throw new RoomError(503, "restore_pending");
   const output = { format: "nextphase-board-room-backup" as const, version: 1 as const,
@@ -30,7 +31,7 @@ export function decodeBackup(value: unknown, board: string): Envelope {
     !Array.isArray(envelope.tables.meta)) throw new RoomError(400, "bad_request");
   const version = envelope.tables.meta.find((row) => row && row.key === "storage_version")?.value;
   const accepted = names;
-  if (version !== 6 || Object.keys(envelope.tables).sort().join() !== [...accepted].sort().join()) {
+  if (version !== 7 || Object.keys(envelope.tables).sort().join() !== [...accepted].sort().join()) {
     throw new RoomError(400, "bad_request");
   }
   const decoded = { ...envelope, tables: {} as Record<string, Row[]> };
@@ -59,5 +60,6 @@ export function replace(env: RoomEnvironment, envelope: Envelope) {
     for (const name of Object.keys(tables)) env.storage.exec(`DELETE FROM "${name}"`);
     for (const name of names) for (const row of envelope.tables[name] ?? []) insert(env.storage, name, row);
     resetTimer(env.storage);
+    resetVoting(env.storage);
   });
 }

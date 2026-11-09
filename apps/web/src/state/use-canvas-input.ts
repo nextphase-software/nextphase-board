@@ -15,7 +15,10 @@ import { deleteObject } from "../history";
 import { drawingPoints, strokeGeometry, makeStroke, erasedStrokes } from "../strokes";
 import { editingCommandReason } from "../commands";
 
+import type { BoardVoting } from "../team/voting";
+
 type Input = {
+  voting?: BoardVoting;
   drawing: { style: DrawingStyle };
   connectorStyle: RefObject<ConnectorStyle>;
   shapeSession: { paint: RefObject<ShapePaint> };
@@ -60,7 +63,7 @@ type Input = {
 };
 
 export function useCanvasInput({
-  drawing, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+  voting, drawing, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
   setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
   scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
   selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
@@ -130,6 +133,7 @@ export function useCanvasInput({
   }, [readOnly]);
   function sceneKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget || composing) return;
+    if(voting?.key(e,selected))return;
     if (e.key === "Escape" && drag.current?.drawing) { e.preventDefault(); e.stopPropagation(); cancel(); return; }
     const drawTool = drawingKey(e.key, e.shiftKey);
     if (drawTool && !readOnly && !inline && !textEditing && !busy && !drag.current && !e.nativeEvent.isComposing && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -181,8 +185,9 @@ export function useCanvasInput({
       e.preventDefault();
       return;
     }
-    finishTextSession();
     const p = point(e);
+    if(voting?.pointerDown(e,hitObject(displayedObjects,p,view.z))){scene.current?.focus();e.currentTarget.setPointerCapture(e.pointerId);e.preventDefault();return;}
+    finishTextSession();
     if (isDrawingTool(tool)) {
       if (editingCommandReason({ readOnly, composing, pointerGesture: false, invalidObjectText })) return;
       drag.current = { id: "", x: p.x, y: p.y, cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false,
@@ -271,6 +276,7 @@ export function useCanvasInput({
   function pointerMove(e: React.PointerEvent<HTMLDivElement>) {
     trackPointer(e);
     const d = drag.current;
+    if(!d&&voting?.pointerMove(e,hitObject(displayedObjects,point(e),view.z)))return;
     if (!d || d.connection?.reconnect && e.pointerId !== d.pointerId) return;
     if (d.drawing) {
       d.drawing.positions.push(point(e));
@@ -323,6 +329,7 @@ export function useCanvasInput({
     }
   }
   function pointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if(!drag.current&&voting?.pointerUp(e,hitObject(displayedObjects,point(e),view.z))){releaseCapture(e.pointerId);return;}
     const d = drag.current;
     if (d?.connection?.reconnect && e.pointerId !== d.pointerId) return;
     drag.current = null;
@@ -413,6 +420,7 @@ export function useCanvasInput({
     releaseCapture(d.pointerId);
   }
   function doubleClick(e: React.MouseEvent<HTMLDivElement>) {
+    if(voting?.mode)return;
     if (spacePanRef.current || composing || busy || isDrawingTool(tool) || tool === "Comment") return;
     const p = point(e);
     const hit = hitObject(displayedObjects, p, view.z);
@@ -424,11 +432,13 @@ export function useCanvasInput({
     }
   }
   function pointerCancel() {
+    voting?.cancelPointer();
     const d = drag.current;
     if (d?.pan) setView(d.view);
     cancel();
   }
   function lostPointerCapture() {
+    voting?.cancelPointer();
     if (drag.current) {
       const d = drag.current;
       if (d.pan) setView(d.view);

@@ -23,7 +23,7 @@ export function PresenceLayer(props: Props) {
   const { self, others, followed, showCursors } = usePresence(props);
   return <>
     <div className="presence-layer" aria-hidden="true">
-      {others.filter((other) => other.connection !== self?.connection).map((other) => {
+      {!hosted.voting.running&&others.filter((other) => other.connection !== self?.connection).map((other) => {
         const selected = objects.filter((object) => other.selection.includes(object.id));
         const rectangles = selected.filter(hasRectangle);
         const box = boundingBox(rectangles.length ? rectangles : selected);
@@ -41,9 +41,9 @@ export function PresenceLayer(props: Props) {
           </div>}
         </div>;
       })}
-      {followed && <div className="presence-frame" style={{ borderColor: followed.colour }} />}
+      {!hosted.voting.running && followed && <div className="presence-frame" style={{ borderColor: followed.colour }} />}
     </div>
-    {followed && <div className="presence-follow-banner" style={{ background: followed.colour }}>
+    {!hosted.voting.running && followed && <div className="presence-follow-banner" style={{ background: followed.colour }}>
       <span>Following {followed.label}</span><button onClick={hosted.stopFollowing}>Stop following</button>
     </div>}
   </>;

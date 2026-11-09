@@ -37,7 +37,7 @@ export class BoardRoom extends WorkerRoom {
         await room.lifecycle.active();
         const pending = s.all("SELECT value FROM meta WHERE key='explicit_recovery_pending'")[0];
         const reservation = s.all("SELECT value FROM meta WHERE key='explicit_recovery_generation'")[0];
-        if (meta(s, "storage_version") !== 6 || pending && pending.value !== 1 || reservation &&
+        if (meta(s, "storage_version") !== 7 || pending && pending.value !== 1 || reservation &&
           (!pending || !Number.isSafeInteger(reservation.value) || Number(reservation.value) < 1)) throw new RoomError(503, "room_locked");
         markExplicitRecovery(s);
         room.access.locked = true;

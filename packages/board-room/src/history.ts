@@ -248,6 +248,7 @@ export class History {
         this.host.doc.destroy(); this.host.doc = adapter.doc; this.host.board = selected.board;
       } catch (error) { adapter.destroy(); throw error; }
     }
+    this.host.voting.reconcileTargets();
     if (this.env.mentions) {
       if (!this.env.mentions.carryNotices) throw Error('carry_unavailable');
       await this.env.mentions.carryNotices(this.host.boardId, intent.carryGeneration ?? intent.oldGeneration, intent.generation);

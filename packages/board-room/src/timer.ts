@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { resetVoting, votingRow } from "./voting.ts";
 import { checkTimerRequest, idleTimer, timerBudget, timerInteger, timerSnapshot, timerUuid, TIMER_MAX, TIMER_ZERO,
   type TimerSnapshot, type TimerCause, type TimerReason, type TimerCommand } from 'nextphase-board-sync/timer.ts';
 import { meta, setMeta, type Storage, type Row } from './storage.ts';
@@ -41,12 +42,12 @@ export class WorkshopTimer {
       ...(data?[data.oldGeneration,data.generation,data.version?.generation,...(data.carryGeneration===undefined?[]:[data.carryGeneration])]:[])];
     if(!floors.every(timerInteger) || Math.max(...floors)>=Number.MAX_SAFE_INTEGER)throw Error('Invalid recovery floor');
     const reservation=reserved?Number(reserved.value):0;
-    if(reservation){const row=timerRow(this.s);if(row.status!=="idle" || row.version!==0 || row.last_actor!==null)throw Error("Invalid reset reservation");}
+    if(reservation){const vote=votingRow(this.s);if(vote.status!=="idle"||vote.session_version!==0||this.s.all("SELECT person_id FROM workshop_vote_ballots").length)throw Error("Invalid voting reset reservation");const row=timerRow(this.s);if(row.status!=="idle" || row.version!==0 || row.last_actor!==null)throw Error("Invalid reset reservation");}
     if(!reservation || Math.max(...floors)>reservation) {
       const next=await this.env.raiseFence(Math.max(...floors));
       if(!timerInteger(next)||next<=Math.max(...floors))throw Error('Invalid recovery fence');
       await this.host.lifecycle.active();
-      this.s.transaction(()=>{if(!reservation)resetTimer(this.s);setMeta(this.s,'explicit_recovery_generation',next);setMeta(this.s,'restore_generation',next);setMeta(this.s,'restore_pending',1);});
+      this.s.transaction(()=>{if(!reservation){resetTimer(this.s);resetVoting(this.s);}setMeta(this.s,'explicit_recovery_generation',next);setMeta(this.s,'restore_generation',next);setMeta(this.s,'restore_pending',1);});
     }
     this.host.access.locked=true;
     return true;

@@ -1371,3 +1371,47 @@ button.w1-trigger.paused,button.w1-trigger.uncertain { color:#79737f; }
 .w1-shake { animation:w1-zero 300ms linear 1; }
 @keyframes w1-zero { 0%,100% { transform:translateX(0); } 25%,75% { transform:translateX(2px); } 50% { transform:translateX(-2px); } }
 @media (prefers-reduced-motion:reduce) { .w1-shake { animation:none; } }
+
+/* Voting shares the workshop surface; Timer keeps its own control treatments. */
+.w1-panel > * { flex-shrink:0; }
+.vote-card { display:flex; flex-direction:column; gap:8px; min-width:0; }
+.vote-separator { height:1px; background:#e9e7ed; width:100%; }
+.w1-panel .timer-label,.vote-card h3 { margin:0; font:600 13px/1.5 system-ui; }
+.w1-panel .vote-card p { margin:0; font:13px/1.5 system-ui; overflow-wrap:anywhere; }
+.w1-panel .vote-card .vote-status,.vote-label,.vote-counter { font:12px/1.45 system-ui; color:#79737f; }
+.vote-card button,.vote-strip button { min-height:40px; padding:8px 12px; border:1px solid #e8e7ed; border-radius:8px; font:13px/1.5 system-ui; background:#fff; color:#29272e; }
+.w1-panel .vote-card button.primary { background:#7051cf; color:#fff; border-color:#7051cf; }
+.w1-panel .vote-card button.primary:hover:not(:disabled) { background:#6142be; }
+.vote-card button:hover:not(:disabled),.vote-strip button:hover:not(:disabled) { background:#f1eff5; }
+.vote-card button:disabled,.vote-strip button:disabled { opacity:.45; }
+.vote-card :focus-visible,.vote-strip :focus-visible { outline:3px solid #7051cf; outline-offset:3px; }
+.vote-label { display:flex; flex-direction:column; gap:4px; }
+.vote-card textarea,.vote-card select { font:13px/1.5 system-ui; border:1px solid #e8e7ed; border-radius:8px; padding:8px 12px; width:100%; min-width:0; background:#fff; color:#29272e; }
+.vote-card textarea { height:96px; min-height:96px; resize:none; }
+.vote-card select { height:40px; }
+.vote-counter { text-align:right; }
+.vote-stepper { display:grid; grid-template-columns:40px 1fr 40px; gap:8px; align-items:center; }
+.vote-stepper button { padding:0; width:40px; height:40px; }
+.vote-stepper output { text-align:center; font-variant-numeric:tabular-nums; }
+.vote-buttons { display:flex; gap:8px; }
+.vote-buttons button { flex:1 1 auto; min-width:0; }
+.vote-confirm { display:flex; flex-direction:column; gap:8px; }
+.vote-confirm .vote-buttons { justify-content:flex-end; }
+.vote-confirm .vote-buttons button { flex:0 0 auto; }
+.vote-results { display:flex; flex-direction:column; gap:8px; max-height:280px; overflow:auto; }
+.vote-result { display:flex; align-items:center; gap:8px; min-height:40px; padding:0; border:0; background:transparent; text-align:left; }
+.vote-result button { flex:1; min-width:0; padding:8px 0; border:0; text-align:left; background:transparent; }
+.vote-result .result-label { flex:1; min-width:0; font:13px/1.5 system-ui; overflow-wrap:anywhere; }
+.vote-result .missing { color:#79737f; }
+.vote-count { display:grid; place-items:center; min-width:24px; height:24px; padding:0 6px; border-radius:12px; background:#7051cf; color:#fff; font:12px/1.45 system-ui; font-variant-numeric:tabular-nums; flex:none; }
+.vote-strip { position:fixed; z-index:3; left:12px; display:flex; align-items:center; flex-wrap:wrap; gap:8px; max-width:calc(100vw - 24px); padding:8px 12px; border:1px solid #e9e7ed; border-radius:12px; box-shadow:0 2px 8px #29202e0a; background:#fff; color:#29272e; font:13px/1.5 system-ui; }
+.vote-dot { position:fixed; width:12px; height:12px; border:2px solid white; border-radius:50%; z-index:2; pointer-events:none; }
+.vote-badge { position:fixed; z-index:2; pointer-events:none; }
+.vote-hover { position:fixed; border:2px solid #7051cf; z-index:1; pointer-events:none; }
+.vote-tooltip { position:fixed; z-index:3; padding:4px 8px; border:1px solid #e9e7ed; border-radius:8px; background:#fff; color:#29272e; font:12px/1.45 system-ui; pointer-events:none; }
+.vote-tooltip.ineligible { color:#79737f; }
+@media(max-width:599.98px) {
+  .vote-strip { width:calc(100vw - 24px); }
+  .vote-strip button { flex-basis:100%; }
+  .vote-strip.vote-panel-open button { width:100%; min-width:0; white-space:normal; padding:8px 4px; }
+}

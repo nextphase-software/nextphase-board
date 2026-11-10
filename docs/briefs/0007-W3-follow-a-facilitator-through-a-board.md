@@ -555,3 +555,146 @@ No unresolved product decision is delegated to implementation.
 ## Implementation record
 
 (Appended by the implementer.)
+
+### Implementation handoff — 2026-11-10
+
+- Branch: `codex/0007-W3-follow-a-facilitator-through-a-board`.
+- Prerequisite base: `197d7c7f6653ab34870d287136befaa8acca7a17`.
+- Validated source/test revision: `c92907ccd3d75f708d71aa9e22ec8388a5f3ece7`.
+- Independent behavior baseline: `e56e70e96f9ad35d4ec666a3c32a88bb42f4e730`,
+  extracted and installed separately; no candidate build output was reused.
+- This append-only record is a separate documentation commit. Its final tip is
+  reported separately in the handoff; it does not change the validated source.
+- Read the brief, all ten linked contracts and the complete approved design
+  inventory, including all22 images, before implementation. Presence v3 owns
+  authority/lifetime/bounds and interaction v37 owns presentation.
+
+Implemented dedicated room, neutral-wire and client/rules/presentation modules;
+expected-version control and per-connection membership; distinct-person counts;
+fresh-presence admission; fresh follower offers; same-page5000ms rebind/key
+rotation; terminal overrides; live-attachment reconstruction; no durable
+spotlight state; and notice-aware banner/menu/focus/speech integration. Existing
+manual Follow/fitting/own-view seams and document recovery remain in use.
+Retrying attempts close4410/`retry_recovery`; clean/terminal paths retain1000.
+Both adapters forward original code/reason before normalization. Voting Start
+ends spotlight synchronously after commit, before its first post-commit await.
+Native/hidden/gesture safety freezes motion; voting retains the client controller
+so a later fresh Start remains available. Equal fitted views retain their current
+object instead of causing presence echoes between followers.
+
+No dependencies, manifest/lock/inventory/notices, schema/storage-layout, build
+scripts, application milestone outside0007-W3, or public requirements changed.
+Added dependency versions/licenses: **none**. Existing exact versions/licenses
+remain those in the committed dependency inventory. No merge/push/publication.
+
+#### V1–V8 commands and receipts
+
+Toolchain: Node26.13.0 and npm11.20.0. Scratch locations are deliberately
+normalized below as `$W3_SCRATCH`; they are not repository deliverables. Both
+web outputs were copied aside before the next build. Every listed process
+completed with exit0. Final full-unit receipt is1062/1062, fail0/skip0.
+
+| Row | Commands / inspection | Result and counts |
+| --- | --- | --- |
+| V1 | Byte-compare `git show 197d7c7:<path>` with each tracked package manifest, root lock and `docs/architecture/0001-dependency-*` / `0001-runtime-notices-*` file. | PASS;20/20 files byte-identical; added dependencies0. |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund`, separately in clean candidate and independent baseline. | PASS;2/2 installs,118 packages each; candidate3s, baseline2s. |
+| V3 | `npm run typecheck` | PASS;5/5 workspace members. |
+| V4 | `npm test` | PASS;1062 passed,0 failed,0 skipped, including54/54 named P1-U01–P1-U54 checks. Existing recovery assertions and48-team/22-state/App composition/line/import guards pass. |
+| V5 | Team-off build command below; `npm run audit:licenses`; compare off `index.html` and `THIRD_PARTY_NOTICES.txt` to independent baseline off; inspect `meta.json`. | PASS; build/audit2/2, byte comparisons2/2, team/Supabase/spotlight inputs0; off output preserved. |
+| V6 | `npm run build:fixtures`; team-on build command below; `npm run audit:licenses`; compare on HTML/notices with baseline on and notices with runtime notices v3. | PASS; commands3/3, byte comparisons3/3; on/off outputs preserved separately. |
+| V7 | `npm run build:server`; `npm run audit:licenses`; Worker dry-run command below. | PASS; commands3/3,2 server bundles with verified notices; dry-run exited without deploying. |
+| V8 | Inspect every changed/new hunk; `git diff --name-status 197d7c7f6653ab34870d287136befaa8acca7a17..c92907ccd3d75f708d71aa9e22ec8388a5f3ece7`; same range with `git diff --check`; explicit brief allowlist and private-path checks. | PASS;33/33 allowed source/test files,7 new and26 modified; whitespace errors0/private-path matches0. This record adds only the brief append in its separate commit. |
+
+Exact web build environments and dry-run invocation (scratch paths normalized):
+
+```sh
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+WRANGLER_SEND_METRICS=false npx --no-install wrangler deploy --dry-run --outdir "$W3_SCRATCH/worker-dry-run" -c apps/server/wrangler.json
+```
+
+```text
+PASS: V1 source=c92907ccd3d75f708d71aa9e22ec8388a5f3ece7 files=20 unchanged=20
+PASS: V2 source=c92907ccd3d75f708d71aa9e22ec8388a5f3ece7 installs=2 packages=118 each
+PASS: V3 source=c92907ccd3d75f708d71aa9e22ec8388a5f3ece7 workspaces=5
+PASS: V4 source=c92907ccd3d75f708d71aa9e22ec8388a5f3ece7 pass=1062 fail=0 skip=0 spotlight=54
+PASS: V5 source=c92907ccd3d75f708d71aa9e22ec8388a5f3ece7 comparisons=2 forbidden-inputs=0
+PASS: V6 source=c92907ccd3d75f708d71aa9e22ec8388a5f3ece7 commands=3 comparisons=3
+PASS: V7 source=c92907ccd3d75f708d71aa9e22ec8388a5f3ece7 commands=3 server-bundles=2 deployments=0
+PASS: V8 source=c92907ccd3d75f708d71aa9e22ec8388a5f3ece7 allowed-files=33 whitespace-errors=0
+```
+
+Focused measurements: maximal escaped-label spotlight metadata959 bytes;
+full attachment with250 selections and maximal workshop/rate arrays12889 bytes;
+one maximal five-entry rate budget86 bytes. These remain below1024/16384/1024.
+Units exercise control/member reserved headroom, forced terminal increments,
+voting post-commit failure, zero stored spotlight bytes, source-outage retention,
+fresh Start presence, foreground health, late Escape/authority replies and safe
+motion. Pure geometry/source checks cover600px/240px/notice rules; they do not
+prove actual browser rectangles, wrapped heights, focus or assistive speech.
+
+#### Unrun checks and limits
+
+V9–V13 are **unrun**, not passed. Browsers and Supabase CLI cannot start in this
+sandbox. No schema install/reapply, live Node/workerd server suite, browser
+comparison, P1 on/off journey,22 state capture, baseline new-capability negative,
+Safari check or A–J/W2/W3/Y1/Z1 runtime campaign ran. S305–S355 are registered as
+51 common checks in both runner configurations, with deterministic attachment,
+counter, actual adapter-event/close-capture and voting-boundary controls; their
+runtime result remains0/102 executed. New server/harness TypeScript files passed
+syntax checks only. The server-only run and subsequent independent check must
+establish those results on this exact source; registration is not acceptance.
+The later check run still owns `tools/browser-compare/0007-w3-check.mjs`.
+
+NB-108 W2-S7/S8/S9/S16/S20/S21 retain their separately classified baseline
+failures; they were neither run nor repaired here and are not reconnect proof.
+Existing Node-only physical exclusions S37/S43/S70/S168 remain separate. The
+new S344 physical marked-volume subcase is Node-only and unrun.
+
+No scope or requirements escalation. Tooling limitation: code-graph discovery/
+indexing was unavailable under the sandbox approval policy, so file reads were
+used. Normal public-boundary Git hooks passed. The source commit emitted a
+nonfatal sandbox denial for Git's packed-ref maintenance lock; the commit,
+branch reference and clean worktree were independently verified afterwards.
+
+#### Changed-file inventory
+
+Source/test commit (33 files):
+
+```text
+apps/server/src/start-node.ts
+apps/server/src/worker-room.ts
+apps/server/src/worker.ts
+apps/web/src/state/use-presence.ts
+apps/web/src/team/hosted-board.ts
+apps/web/src/team/people.tsx
+apps/web/src/team/presence-layer.tsx
+apps/web/src/team/spotlight-layer.tsx
+apps/web/src/team/spotlight-rules.ts
+apps/web/src/team/spotlight.ts
+apps/web/src/team/team-app.tsx
+apps/web/style.css
+packages/board-room/src/access.ts
+packages/board-room/src/presence.ts
+packages/board-room/src/protocol.ts
+packages/board-room/src/room.ts
+packages/board-room/src/spotlight.ts
+packages/board-room/src/timer.ts
+packages/board-room/src/voting.ts
+packages/board-sync/src/session.ts
+packages/board-sync/src/spotlight.ts
+tests/README.md
+tests/comments.test.mjs
+tests/modules.test.mjs
+tests/recovery.test.mjs
+tests/removal.test.mjs
+tests/server/driver-workerd.ts
+tests/server/node-test.ts
+tests/server/peer.ts
+tests/server/spotlight.test.ts
+tests/workshop-spotlight.test.mjs
+vitest.node.config.ts
+vitest.workerd.config.ts
+```
+
+Record-only commit: `docs/briefs/0007-W3-follow-a-facilitator-through-a-board.md`.

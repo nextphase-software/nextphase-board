@@ -14,7 +14,12 @@ let driver:Driver,f:any,at=Date.now(),pass=0,fail=0;
 const peers:Peer[]=[],docs:Y.Doc[]=[],measure:Record<string,unknown>={},scenarios=new Map<number,()=>Promise<void>>();
 const sources=['board_role','access_changes_after','lifecycle_value','carry_board_mentions','copy_saved_board'];
 beforeAll(async()=>{driver=await makeDriver(context);});
-async function resetControls(){for(const rpc of sources)await helper('proxy',{rpc,release:rpc,fail:false,failAfter:false,hold:false,holdBefore:false});await driver.control({releaseRoom:true,holdRoom:'',failVoting:'',failTimer:'',failHistory:'',failCheckpoint:'',fixedNow:null,fenceUnreadable:false});}
+async function resetControls(){
+  for(const rpc of sources)await helper('proxy',{rpc,release:rpc,fail:false,failAfter:false,hold:false,holdBefore:false});
+  // Node's fence-permission control returns without forwarding other fields to IPC.
+  await driver.control({fenceUnreadable:false});
+  await driver.control({releaseRoom:true,holdRoom:'',failVoting:'',failTimer:'',failHistory:'',failCheckpoint:'',fixedNow:null});
+}
 afterEach(async()=>{await resetControls();for(const p of peers.splice(0))await p.close();for(const d of docs.splice(0))d.destroy();});
 afterAll(async()=>{await driver.close();console.log('SUMMARY-SPOTLIGHT '+JSON.stringify({runner,checks:pass+fail,pass,fail,measure}));});
 async function helper(action:string,value:unknown={}):Promise<any>{const r=await fetch(context.helperUrl+'/'+action,{method:'POST',body:JSON.stringify(value)}),v=await r.json();assert(r.ok,JSON.stringify(v));return v;}
@@ -36,7 +41,14 @@ async function accepted(c:Client,action:string,extra:any={},pace=true){const v=a
 async function read(c:Client,pace=true){if(pace)await advance();return answer(c,{kind:'spotlight_read',requestId:crypto.randomUUID(),epoch:c.j.epoch,restoreGeneration:c.j.restoreGeneration});}
 async function presence(c:Client){c.p.send({kind:'presence',cursor:{x:42,y:22},selection:[],view:{x:10,y:20,width:800,height:600},active:false});await driver.control({board:f.a,settled:true});}
 async function started(){const a=await join(),b=await join('editor'),r=await accepted(a,'start');await presence(a);await until(async()=>{await read(b);return b.p.messages.some(m=>m.kind==='present'&&m.connection===a.j.self.connection&&m.view.width===800);});return {a,b,r};}
-async function closeWith(c:Client,code=4410,reason='retry_recovery'){(c.p as any).closeWith(code,reason);await until(()=>c.p.closed!==null);await driver.control({board:f.a,settled:true});}
+async function closedAs(c:Client,code:number){await until(()=>c.p.closed!==null);assert.equal(c.p.closed,code);}
+async function gone(c:Client,code:number){await closedAs(c,code);return until(()=>info({inspect:true}),data=>!data.attachments.some((v:any)=>v.connectionId===c.j.self.connection));}
+async function closeWith(c:Client,code=4410,reason='retry_recovery'){
+  await info({watchCloses:true});(c.p as any).closeWith(code,reason);await closedAs(c,code);
+  // Client close and the server's close callback travel on different event loops.
+  // This ordered probe waits for the actual callback and its queued cleanup.
+  await until(async()=>{const data=await info({inspect:true});return data.closes?.some((v:any)=>v.connection===c.j.self.connection&&v.code===code&&v.reason===reason)&&!data.attachments.some((v:any)=>v.connectionId===c.j.self.connection);});
+}
 async function write(c:Client,board:any){const adapter=new Adapter();adapter.doc=c.doc;const vector=Y.encodeStateVector(c.doc);adapter.set(board);const m={kind:'edit',requestId:crypto.randomUUID(),epoch:c.j.epoch,restoreGeneration:c.j.restoreGeneration,update:encode(Y.encodeStateAsUpdate(c.doc,vector))};c.p.send(m);const result=await until(()=>c.p.messages.find(v=>v.requestId===m.requestId&&['saved','refused'].includes(v.kind)));assert.equal(result.kind,'saved',JSON.stringify(result));return result;}
 async function seed(c:Client,count=4){let b=readBoard(c.doc);for(let i=0;i<count;i++)b=add(b,'sticky',i*260,0);await write(c,b);return b;}
 async function seeded(count=4){const c=await join();await seed(c,count);return c;}
@@ -57,7 +69,7 @@ async function forceEnd(cause:string,a:Client,b:Client){
   if(cause==='grace_expiry'){await advance(5000);await driver.control({board:f.a,alarm:true});}
   if(cause==='lifecycle')await ok(`/boards/${f.a}/trash`,'owner','POST',{requestId:crypto.randomUUID(),expectedCycle:0});
   if(cause==='recovery')await driver.control({board:f.a,raiseFence:true});
-  if(cause==='last_leave'){await a.p.close();await b.p.close();await driver.control({board:f.a,settled:true});}
+  if(cause==='last_leave'){await closeWith(a,1000,'');await closeWith(b,1000,'');}
 }
 const check=(id:number,name:string,fn:()=>Promise<void>)=>{scenarios.set(id,fn);return test(`S${id} ${name}`,async()=>{try{await import('../../packages/board-sync/src/spotlight.ts');f=await helper('removal-fixture');await clock(Date.now());await tokens();await fn();pass++;console.log(`PASS: S${id} ${name}`);}catch(error){fail++;console.log(`FAIL: S${id} ${name}`);throw error;}},id===352?300000:undefined);};
 check(305,'all effective roles and granted guests present/follow; ungranted/disabled denied',async()=>{for(const who of ['owner','editor','viewer','granted']){const a=await join(who),b=await join(who==='owner'?'editor':'owner'),r=await accepted(a,'start');assert.equal(r.spotlight.session.presenter.connection,a.j.self.connection);assert.deepEqual(r.spotlight.session.presenter,{connection:a.j.self.connection,person:a.j.self.person,label:a.j.self.label,colour:a.j.self.colour});await presence(a);await accepted(b,'follow');await accepted(b,'leave');await accepted(b,'take_over');await accepted(b,'stop');}await ok(`/boards/${f.a}/grants/${f.people.granted.id}`,'owner','PUT',{role:'viewer'});const viewer=await join('granted');assert.equal(viewer.j.role,'viewer');await accepted(viewer,'start');await accepted(viewer,'stop');for(const who of ['plain','outsider'])assert.equal((await req(`/boards/${f.a}/join-tickets`,who,'POST')).status,404);await rpc('disable_person',{person:f.people.editor.id});assert.equal((await req(`/boards/${f.a}/join-tickets`,'editor','POST')).status,404);});
@@ -77,7 +89,10 @@ check(309,'control phase boundaries reserve suspension/terminal and never wrap',
   }
   for(const cause of ['stop','voting','revocation','grace_expiry','lifecycle','recovery','last_leave']){
     await fresh();const a=await join('editor'),b=await join('viewer');await seed(a);await accepted(a,'start');await presence(a);await accepted(b,'follow');await info({controlVersion:M-2});await info({connection:a.j.self.connection,suspend:true});assert.equal((await info()).session.controlVersion,M-1);await forceEnd(cause,a,b);const end=await info({inspect:true});assert.equal(end.session.phase,'idle',cause);assert.equal(end.session.controlVersion,M,cause);assert.equal(end.session.graceDeadline,null,cause);assert(end.attachments.every((a:any)=>!a.spotlightPresenter&&!a.spotlightMember?.following),cause);
-    if(b.p.closed===null&&cause!=='last_leave'){
+    if(cause==='lifecycle'||cause==='recovery'||cause==='last_leave'){
+      const closed=await gone(b,cause==='lifecycle'?4403:cause==='recovery'?4423:1000);assert.equal(closed.session.controlVersion,M,cause);assert.equal(closed.session.graceDeadline,null,cause);
+    }else{
+      assert(end.attachments.some((v:any)=>v.connectionId===b.j.self.connection),`Expected live follower after ${cause}`);
       if(cause==='voting'){
         assert.equal((await command(b,'start')).reason,'spotlight_voting');
         assert.equal((await vote(a,'reveal')).kind,'vote_result');
@@ -103,7 +118,20 @@ for(const [id,code] of [[321,1000],[322,1001]] as const)check(id,`original clean
 check(323,'reloaded account without page key cannot resume',async()=>{const {a,b}=await started();await closeWith(a);const next=await join();await presence(next);assert.equal((await command(next,'resume',{resumeKey:'0'.repeat(64)},false)).reason,'spotlight_state');await advance(5000);assert.equal((await read(b)).spotlight.session.phase,'idle');});
 check(324,'actual recoverable wire close reserves exactly 5000ms',async()=>{const {a,b}=await started();await closeWith(a);const p=(await read(b,false)).spotlight.session;assert.equal(p.phase,'reconnecting');assert.equal(p.graceDeadline,at+5000);await advance(4999);assert.equal((await read(b,false)).spotlight.session.graceDeadline,p.graceDeadline);});
 check(325,'4999ms fresh same-page rebind rotates capability',async()=>{const {a,b,r}=await started();await accepted(b,'follow');await closeWith(a);const next=await join();await presence(next);await advance(4999);const x=await accepted(next,'resume',{resumeKey:r.resumeKey},false);assert.equal(x.spotlight.session.sessionId,r.spotlight.session.sessionId);assert.notEqual(x.resumeKey,r.resumeKey);assert.equal((await read(b,false)).spotlight.own.following,true);});
-check(326,'5000ms expiry cannot be renewed by reads or guessing',async()=>{const {a,b,r}=await started();await closeWith(a);const next=await join();await presence(next);await advance(5000);const response=await command(next,'resume',{resumeKey:r.resumeKey},false);assert.equal(response.reason,'spotlight_stale_session');assert.equal((await read(b,false)).spotlight.session.phase,'idle');});
+check(326,'5000ms expiry cannot be renewed by reads or guessing',async()=>{
+  for(const explicitAlarm of [false,true]){
+    await fresh();const {a,b,r}=await started();await closeWith(a);const next=await join();await presence(next);
+    const grace=(await info()).session;assert.equal(grace.phase,'reconnecting');assert.equal(grace.graceDeadline,at+5000);
+    assert.equal((await command(next,'resume',{resumeKey:'0'.repeat(64)},false)).reason,'spotlight_state');
+    for(const peer of [b,next])assert.equal((await read(peer,false)).spotlight.session.graceDeadline,grace.graceDeadline);
+    // Keep the admitted suspended identity: rebuilding after an alarm would target
+    // current idle state and correctly receive spotlight_state instead of stale.
+    const resume=await message(next,'resume',{resumeKey:r.resumeKey},false);
+    await clock(grace.graceDeadline+(explicitAlarm?1:0));
+    if(explicitAlarm)await driver.control({board:f.a,alarm:true});
+    const response=await answer(next,resume);assert.equal(response.reason,'spotlight_stale_session');const idle=(await read(b,false)).spotlight.session;assert.equal(idle.phase,'idle');assert.equal(idle.graceDeadline,null);assert.equal(idle.controlVersion,grace.controlVersion+1);
+  }
+});
 check(327,'rebind resumes connected followers and preserves explicit leaves',async()=>{const {a,b,r}=await started(),c=await join('viewer');await accepted(b,'follow');await accepted(c,'follow');await accepted(c,'leave');await closeWith(a);const next=await join();await presence(next);await accepted(next,'resume',{resumeKey:r.resumeKey},false);assert.equal((await read(b,false)).spotlight.own.following,true);assert.equal((await read(c,false)).spotlight.own.following,false);});
 check(328,'fresh follower connection forgets old membership version and intent',async()=>{const {a,b}=await started();await accepted(b,'follow');await closeWith(b);const next=await join('editor');assert.deepEqual(next.j.spotlight.own,{membershipVersion:0,following:false});assert.equal((await read(a)).spotlight.presenting.followers,0);await accepted(next,'follow');assert.equal((await read(next)).spotlight.own.membershipVersion,1);});
 check(329,'late arrival and own-account tab receive only current eligible state',async()=>{const {a}=await started(),late=await join('viewer'),own=await join();assert.equal(late.j.spotlight.session.phase,'active');assert.equal(late.j.spotlight.own.following,false);assert.equal(own.j.spotlight.presenting,null);assert.equal((await command(own,'follow')).reason,'spotlight_state');assert.equal(a.j.spotlight.session.phase,'idle');});
@@ -216,6 +244,12 @@ check(355,'member bounds reserve Leave/final cleanup and exhausted auto-resume l
   for(const cause of ['stop','voting','revocation','grace_expiry','lifecycle','recovery','last_leave','takeover']){
     await fresh();const a=await join('editor'),b=await join('viewer');await seed(a);await accepted(a,'start');await presence(a);await info({connection:b.j.self.connection,member:{membershipVersion:M-3,following:false,finalized:false}});await read(b);await accepted(b,'follow');assert.equal((await accepted(b,'leave')).spotlight.own.membershipVersion,M-1);
     if(cause==='takeover'){await accepted(b,'take_over');assert.deepEqual((await read(b)).spotlight.own,{membershipVersion:0,following:false});continue;}
-    if(cause==='grace_expiry')await info({connection:a.j.self.connection,suspend:true});await forceEnd(cause,a,b);const data=await info({inspect:true}),member=data.attachments.find((v:any)=>v.connectionId===b.j.self.connection)?.spotlightMember;if(b.p.closed===null){assert.equal(member.membershipVersion,M,cause);assert.equal(member.finalized,true,cause);}assert(data.attachments.every((v:any)=>!v.spotlightMember?.following),cause);
+    if(cause==='grace_expiry')await info({connection:a.j.self.connection,suspend:true});await forceEnd(cause,a,b);const data=await info({inspect:true}),attachment=data.attachments.find((v:any)=>v.connectionId===b.j.self.connection);
+    if(cause==='lifecycle'||cause==='recovery'||cause==='last_leave'){
+      const closed=await gone(b,cause==='lifecycle'?4403:cause==='recovery'?4423:1000);assert(closed.attachments.every((v:any)=>!v.spotlightMember?.following),cause);
+    }else{
+      assert(attachment,`Expected live follower after ${cause}`);const member=attachment.spotlightMember;assert(member,`Missing retained member fence after ${cause}`);assert.equal(member.membershipVersion,M,cause);assert.equal(member.finalized,true,cause);
+    }
+    assert(data.attachments.every((v:any)=>!v.spotlightMember?.following),cause);
   }
 });

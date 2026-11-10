@@ -426,7 +426,12 @@ These are unit results, not browser or both-runner acceptance.
 
 `server/spotlight.test.ts` registers S305–S355 (51 common checks) and
 `SUMMARY-SPOTLIGHT` in both existing runner configurations. S352 independently
-executes its23 lifetime scenarios, including when selected alone. Test-only controls
+executes its23 lifetime scenarios, including when selected alone. Spotlight close
+checks await server callback/ordered cleanup separately from client close events;
+S326 retains its suspended request identity across expiry/alarm ordering. S309/S355
+assert terminal closes separately from still-live version fences. Node permission
+and IPC control resets are separate so the fixed clock and faults are actually reset.
+Test-only controls
 inspect current attachments, seed bounded counters and reconstruct over live
 connections. Node process wake remains distinct from live Room reconstruction;
 workerd uses live server attachments and its existing eviction path. Private keys

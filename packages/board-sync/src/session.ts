@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+import { checkSpotlightFrame, spotlightProjection, retryClose, terminalSpotlightClose, type SpotlightProjection, type SpotlightCommand } from "./spotlight.ts";
+export type { SpotlightProjection, SpotlightSession, SpotlightOwn, SpotlightAction, SpotlightCause, SpotlightFrame, SpotlightReason, SpotlightCommand } from "./spotlight.ts";
 import { checkVoteFrame, voteProjection, type VoteProjection, type VoteCommand } from './voting.ts';
 export type { VoteProjection, VoteSession, VoteOwn, VoteAction, VoteCause, VoteReason, VoteFrame, VoteTarget, BallotTarget, VoteCommand } from './voting.ts';
 import { checkTimerFrame, timerSnapshot, timerInteger, type TimerSnapshot, type TimerFrame, type TimerAction } from "./timer.ts";
@@ -16,7 +18,7 @@ export type PresenceInput = { cursor: { x: number; y: number } | null; selection
   view: { x: number; y: number; width: number; height: number }; active: boolean };
 export type Presence = PresenceInput & { connection: string; person: string; label: string; role: Role; colour: string };
 export type Clock = { now(): number; after(ms: number, run: () => void): () => void };
-export type Transport = { send(text: string): void; close(code: number): void;
+export type Transport = { send(text: string): void; close(code: number, reason?:string): void;
   listen(handlers: { message(text: string): void; close(code: number): void }): void };
 export type SessionOptions<T> = { ticket(): Promise<T>; open(ticket: T): Promise<Transport>; clock: Clock; clientId?: number };
 export type Request = {
@@ -79,6 +81,13 @@ export class BoardSession<T = unknown> {
   readonly present = new Map<string, Presence>();
   readonly threads = new Map<string, CommentThread>();
   readonly commentRequests = new Map<string, CommentRequest>();
+  spotlightSnapshot?:SpotlightProjection;
+  private retiredSpotlightAuthorities=new Set<string>();
+  private spotlightListeners=new Set<(event:SessionEvent)=>void>();
+  subscribeSpotlight(listener:(event:SessionEvent)=>void){this.spotlightListeners.add(listener);return()=>{this.spotlightListeners.delete(listener);};}
+  private reportSpotlight(event:SessionEvent){for(const listener of this.spotlightListeners)listener(event);}
+  spotlightRead(requestId:string){return this.joined&&this.send(JSON.stringify({kind:'spotlight_read',requestId,epoch:this.epoch,restoreGeneration:this.restoreGeneration}));}
+  spotlightCommand(command:Omit<SpotlightCommand,'kind'|'epoch'|'restoreGeneration'>){return this.joined&&this.send(JSON.stringify({...command,kind:'spotlight_command',epoch:this.epoch,restoreGeneration:this.restoreGeneration}));}
   timerSnapshot?: TimerSnapshot;
   timerServerNowMs?: number;
   private timerListeners = new Set<(event: SessionEvent) => void>();
@@ -155,7 +164,7 @@ export class BoardSession<T = unknown> {
       request.state = "dropped"; request.reason = reason; this.cancelDeadline(id);
     }
   }
-  private endAttempt(event?: SessionEvent) {
+  private endAttempt(event?: SessionEvent, recover=true) {
     const transport = this.transport;
     ++this.generation;
     this.transport = undefined;
@@ -169,13 +178,14 @@ export class BoardSession<T = unknown> {
       this.cancelDeadline(id);
     }
     this.timerSnapshot = undefined; this.timerServerNowMs = undefined; this.reportTimer({kind:"timer_closed"});
+    this.spotlightSnapshot=undefined;this.retiredSpotlightAuthorities.clear();this.reportSpotlight({kind:"spotlight_closed",recover});
     this.votingSnapshot=undefined;this.reportVoting({kind:"vote_closed"});
     this.commentsReady = false;
     this.timers(); this.present.clear();
     const reject = this.rejectJoin; this.rejectJoin = undefined;
     reject?.(Error("Connection attempt ended"));
     // Invalidate the transport before closing it: close may call back immediately.
-    transport?.close(1000);
+    transport?.close(recover?retryClose.code:1000,recover?retryClose.reason:undefined);
     if (event) this.report(event);
   }
   interrupt() { if (!this.ended) this.endAttempt(); }
@@ -186,7 +196,7 @@ export class BoardSession<T = unknown> {
   }
   discard(reason: string) {
     if (this.ended) return;
-    this.drop(reason); this.history.clear(); this.threads.clear(); this.commentRequests.clear(); this.endAttempt();
+    this.drop(reason); this.history.clear(); this.threads.clear(); this.commentRequests.clear(); this.endAttempt(undefined,false);
     this.report({ kind: "discarded", reason });
   }
   private async connect() {
@@ -207,16 +217,29 @@ export class BoardSession<T = unknown> {
         },
         close: (code) => {
           if (generation !== this.generation || this.ended) return;
-          this.endAttempt({ kind: "close", code });
+          this.endAttempt({ kind: "close", code },!terminalSpotlightClose(code));
         },
       });
     });
   }
   private rejoin() {
     this.history.clear();
-    void this.reconnect().catch((error) => this.report({ kind: "join_failed", reason: String(error) }));
+    this.endAttempt(undefined,false);
+    void this.connect().catch((error) => this.report({ kind: "join_failed", reason: String(error) }));
   }
   private apply(message: any) {
+    if(typeof message?.kind==='string'&&message.kind.startsWith('spotlight_')){
+      if(!checkSpotlightFrame(message,sizeOf(JSON.stringify(message)))){this.reportSpotlight({kind:'spotlight_invalid'});return;}
+      if(message.restoreGeneration!==undefined&&message.restoreGeneration!==this.restoreGeneration)return;
+      if(message.spotlight){
+        const old=this.spotlightSnapshot,next=message.spotlight;
+        if(this.retiredSpotlightAuthorities.has(next.session.authorityId))return;
+        if(old&&old.session.authorityId===next.session.authorityId&&(next.session.controlVersion<old.session.controlVersion||next.session.controlVersion===old.session.controlVersion&&next.own.membershipVersion<old.own.membershipVersion))return;
+        if(old&&old.session.authorityId!==next.session.authorityId)this.retiredSpotlightAuthorities.add(old.session.authorityId);
+        this.spotlightSnapshot=next;
+      }
+      this.reportSpotlight(message);return;
+    }
     if(typeof message?.kind==='string'&&message.kind.startsWith('vote_')) {
       if(!checkVoteFrame(message,sizeOf(JSON.stringify(message)))){this.reportVoting({kind:'vote_invalid'});return;}
       if(message.restoreGeneration!==undefined&&message.restoreGeneration!==this.restoreGeneration)return;
@@ -251,6 +274,7 @@ export class BoardSession<T = unknown> {
       this.restoreGeneration = message.restoreGeneration;
       this.timerSnapshot = timerSnapshot(message.timer) ? message.timer : undefined;
       this.timerServerNowMs = timerInteger(message.serverNowMs) ? message.serverNowMs : undefined;
+      this.retiredSpotlightAuthorities.clear();this.spotlightSnapshot=spotlightProjection(message.spotlight)?message.spotlight:undefined;
       this.votingSnapshot=voteProjection(message.voting)?message.voting:undefined;
       this.present.clear(); for (const presence of message.present) this.present.set(presence.connection, presence);
       this.joined = true; this.accepted = true;
@@ -442,7 +466,7 @@ export class BoardSession<T = unknown> {
   }
   unavailable() {
     if (this.ended) return;
-    this.endAttempt(); this.ended = true;
+    this.endAttempt(undefined,false); this.ended = true;
     this.requests.clear(); this.commentRequests.clear(); this.threads.clear();
     this.history.clear(); this.present.clear(); this.role = undefined; this.self = undefined;
     this.adapter.destroy(); this.adapter = new Adapter();
@@ -450,7 +474,7 @@ export class BoardSession<T = unknown> {
   }
   close() {
     if (this.ended) return;
-    this.drop("session_ended"); this.history.clear(); this.endAttempt();
+    this.drop("session_ended"); this.history.clear(); this.endAttempt(undefined,false);
     this.ended = true; this.adapter.destroy();
   }
 }

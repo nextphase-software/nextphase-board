@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { checkLedger, ledgerRecord, type RecoveryRecord } from "./lifecycle.ts";
 import { serve } from "@hono/node-server";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, type WebSocket } from "ws";
 import { mkdir, access, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
@@ -164,6 +164,7 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
   deliveryTimer?.unref();
   const server = serve({ fetch: app.fetch, port: settings.port ?? 8788, hostname: "0.0.0.0" });
   const sockets = new WebSocketServer({ noServer: true, maxPayload: 1048576 + 65536 });
+  const socketConnections = new WeakMap<Connection, WebSocket>();
   server.on("upgrade", async (incoming, socket, head) => {
     const headers = new Headers();
     for (const [key, value] of Object.entries(incoming.headers)) if (value) headers.set(key, Array.isArray(value) ? value.join(",") : String(value));
@@ -187,21 +188,22 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
             websocket.close(code);
           },
         };
+        socketConnections.set(connection,websocket);
         entry.connections.add(connection);
         websocket.on("message", (data, binary) => {
           void entry.room.message(connection, binary ? "" : data.toString()).catch(() => websocket.close(1011));
         });
-        websocket.on("close", () => {
+        websocket.on("close", (code, reason) => {
           entry.connections.delete(connection);
-          if (rooms.get(accepted.board) === entry) void entry.room.closed(connection).catch(() => {});
+          if (rooms.get(accepted.board) === entry) void entry.room.closed(connection,code ?? 1006,reason?.toString("utf8") ?? "").catch(() => {});
         });
-        websocket.on("error", () => {});
+        websocket.on("error", () => { if(rooms.get(accepted.board)===entry)void entry.room.closed(connection,1011,"error").catch(()=>{}); });
         void entry.room.connected(connection).catch(() => websocket.close(1011));
       });
     } catch { socket.destroy(); }
   });
   await new Promise<void>((resolve) => server.listening ? resolve() : server.once("listening", () => resolve()));
-  return { server, rooms, runtime, fences,
+  return { server, rooms, runtime, fences, socketFor:(connection:Connection)=>socketConnections.get(connection),
     port: (server.address() as { port: number }).port,
     async close() {
       clearInterval(deliveryTimer);

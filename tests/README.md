@@ -407,3 +407,41 @@ new-capability negative on 752f79d once, and only the accepted regressions.
 W2-S7/S8/S9/S16/S20/S21 and T1-S38/S39 retain their baseline-failure classification;
 T1-S26/S29 remain unrun until their accepted prerequisites exist. No aggregate
 green claim may hide a failed/unrun row or a new privacy/reconnect failure.
+
+## Follow a facilitator (0007-W3 v1)
+
+`workshop-spotlight.test.mjs` registers P1-U01–P1-U54 in `npm test` without
+browsers or Supabase. Named dynamic imports exercise strict spotlight wire
+shapes, per-connection membership and distinct-person counts, bounded metadata,
+ordered authority, source outages, fresh real presence, grace/rebind/key rotation,
+live attachment reconstruction, terminal overrides, voting's commit boundary,
+zero stored spotlight bytes, control/member headroom, countdown safety, fresh
+follower offers, stale replies, health/readback, speech and measured notice geometry.
+P1-U46 retains local deadline4000/answer_deadline and send-failure1006 while
+checking every retrying session close as4410/retry_recovery; explicit terminal
+paths remain1000. P1-U49 checks original Worker close/error forwarding before
+its separate1006 socket-close normalization. These are unit results, not browser
+or both-runner acceptance.
+
+`server/spotlight.test.ts` registers S305–S355 (51 common checks) and
+`SUMMARY-SPOTLIGHT` in both existing runner configurations. Test-only controls
+inspect current attachments, seed bounded counters and reconstruct over live
+connections. Node process wake remains distinct from live Room reconstruction;
+workerd uses live server attachments and its existing eviction path. Private keys
+may be asserted inside these disposable tests but must never be logged. Existing
+physical exclusions S37/S43/S70/S168 stay separate; registering tests is not a pass.
+
+Module guards now require48 team modules and22 state hooks; App stays composition
+only and at most264 lines. Recovery/comment deadline expectations change only the
+retrying wire close to4410; document timing, waiting bytes, ordered replay and
+terminal close assertions remain. Manual Follow shares the white spotlight banner,
+using measured bars/context/notices bottom+12px, without changing notice positions
+or their internal8px gap. Browser expectation amendments belong to the fresh check
+run, which authors `tools/browser-compare/0007-w3-check.mjs`.
+
+Implementation validation is V1–V8 only. Browsers, Supabase CLI, schema application,
+server suites, P1 browser checks, baseline capability negatives and A–J comparisons
+remain unrun here. The server-only run and fresh independent check own V9–V13.
+Known NB-108 W2-S7/S8/S9/S16/S20/S21 remain separately classified baseline failures;
+none is a substitute for new reconnect proof. No publication or deployment is
+part of this implementation handoff.

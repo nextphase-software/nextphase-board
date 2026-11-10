@@ -34,6 +34,7 @@ export class BoardRoom extends WorkerRoom {
         const floor = meta(s, "restore_generation");
         if (!Number.isSafeInteger(floor) || floor < 0) throw new RoomError(503, "room_locked");
         if (signal.recoveryGeneration <= floor) return;
+        room.spotlight.end("recovery");
         await room.lifecycle.active();
         const pending = s.all("SELECT value FROM meta WHERE key='explicit_recovery_pending'")[0];
         const reservation = s.all("SELECT value FROM meta WHERE key='explicit_recovery_generation'")[0];

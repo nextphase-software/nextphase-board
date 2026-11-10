@@ -3,12 +3,13 @@ import { checkPresence, type Presence, type PresenceInput } from "nextphase-boar
 import type { RoomEnvironment } from "./interfaces.ts";
 import { bytes, RoomError, send, type Attachment, type Connection } from "./protocol.ts";
 
+import { validSpotlightAttachment } from "./spotlight.ts";
 export const colours = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2", "#db2777", "#4f46e5"];
 export const placeholder = (): PresenceInput => ({ cursor: null, selection: [],
   view: { x: 0, y: 0, width: 1, height: 1 }, active: false });
 export function currentAttachment(value: Attachment) {
   const bounded=(v:unknown)=>v===undefined||Array.isArray(v)&&v.length<=5&&v.every(n=>Number.isSafeInteger(n)&&n>=0);
-  if(bytes(JSON.stringify(value)).length>16384||![value.timerTimes,value.timerReadTimes,value.voteTimes,value.voteReadTimes].every(bounded))return false;
+  if(!validSpotlightAttachment(value)||bytes(JSON.stringify(value)).length>16384||![value.timerTimes,value.timerReadTimes,value.voteTimes,value.voteReadTimes].every(bounded))return false;
   return typeof value.label === "string" && Number.isSafeInteger(value.ordinal) &&
     Object.hasOwn(value, "presence") && typeof value.presenceAt === "number" && Array.isArray(value.presenceTimes);
 }
@@ -24,6 +25,10 @@ export function endPresence(connection: Connection, peers: Connection[]) {
 export class Presences {
   env: RoomEnvironment;
   board: string;
+  gate?: (c:Connection, accepted:boolean)=>Promise<boolean>;
+  recipient?: (from:Connection,to:Connection)=>Promise<boolean>;
+  expired?: (c:Connection)=>void;
+  visible?: (id:string)=>boolean;
   private holds = new Map<string, { until: number; ordinal: number }>();
   private hidden:()=>boolean;
   constructor(env: RoomEnvironment, board: string, hidden:()=>boolean=()=>false) { this.env = env; this.board = board; this.hidden=hidden; }
@@ -50,7 +55,7 @@ export class Presences {
     const presence: Presence = { ...placeholder(), connection: connectionId, person: key,
       label: person.label!, role, colour: colours[ordinal % colours.length] };
     return { id: person.id, expiresAt: person.expiresAt, label: person.label, role, epoch, connectionId,
-      ordinal, presence, presenceAt: this.env.now(), presenceTimes: [] };
+      ordinal, presence, presenceAt: this.env.now(), presenceTimes: [], presenceReal: false };
   }
   open(connection: Connection): boolean {
     this.prune();
@@ -67,14 +72,16 @@ export class Presences {
   list(except: string) {
     if(this.hidden())this.clearSpatial(false);
     return this.env.connections().filter((peer) => peer.attachment().connectionId !== except)
+      .filter(peer=>this.visible?.(peer.attachment().connectionId)!==false)
       .map((peer) => peer.attachment().presence).filter((value): value is Presence => !!value);
   }
-  relay(connection: Connection) {
+  async relay(connection: Connection, accepted=false) {
+    if(this.gate&&!await this.gate(connection,accepted))return;
     if(this.hidden())this.clearSpatial(false);
     const presence = connection.attachment().presence;
     if (!presence) return;
     for (const peer of this.env.connections()) if (peer.attachment().connectionId !== presence.connection) {
-      send(peer, { kind: "present", ...presence });
+      if(!this.recipient||await this.recipient(connection,peer))send(peer, { kind: "present", ...presence });
     }
   }
   receive(connection: Connection, message: unknown, size: number) {
@@ -92,13 +99,13 @@ export class Presences {
   private async accept(connection: Connection, input: PresenceInput, now: number) {
     const value = connection.attachment();
     const person = value.presence?.person ?? (await this.env.hash(bytes(`presence:${this.board}:${value.id}`))).slice(0, 32);
-    connection.attach({ ...value, presenceAt: now, presence: { ...input, person,
+    connection.attach({ ...value, presenceReal:true, presenceAt: now, presence: { ...input, person,
       connection: value.connectionId, label: value.label!, role: value.role, colour: colours[value.ordinal! % 8] } });
-    this.relay(connection);
+    await this.relay(connection,true);
   }
   expire() {
     this.prune();
     for (const peer of this.env.connections()) if (peer.attachment().presence &&
-      peer.attachment().presenceAt! + 30000 <= this.env.now()) endPresence(peer, this.env.connections());
+      peer.attachment().presenceAt! + 30000 <= this.env.now()) { this.expired?.(peer); endPresence(peer, this.env.connections()); }
   }
 }

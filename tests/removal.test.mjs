@@ -171,7 +171,7 @@ test("delivery refuses an outage and does not initialize an unopened room", asyn
   } finally { f.storage.close(); }
   const storage = new NodeStorage(":memory:");
   try {
-    const room = new Room("unopened", { storage, lifecycle: { lifecycle: async () => ({ state: "active", generation: 0 }) }, access: { async changes() { return { latest: 42 }; } }, connections: () => [] });
+    const room = new Room("unopened", { storage, randomId:randomUUID, lifecycle: { lifecycle: async () => ({ state: "active", generation: 0 }) }, access: { async changes() { return { latest: 42 }; } }, connections: () => [] });
     assert.equal(await room.changed(), 42);
     assert.deepEqual(storage.all("SELECT * FROM meta"), []);
   } finally { storage.close(); }

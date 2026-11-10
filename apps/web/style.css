@@ -1416,3 +1416,31 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
   .vote-strip button { flex-basis:100%; }
   .vote-strip.vote-panel-open button { width:100%; min-width:0; white-space:normal; padding:8px 4px; }
 }
+
+/* Spotlight (0007-W3): one shared banner for ordinary and workshop Follow. */
+.presence-follow-banner.spotlight-banner {
+  position: fixed; left: 12px; transform: none; z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  border: 1px solid #e9e7ed; border-radius: 12px; padding: 8px 12px;
+  background: #fff; color: #29272e; font: 400 13px/1.5 system-ui;
+  box-shadow: inset 0 3px 0 var(--spotlight-colour), 0 2px 8px #29202e0a;
+  overflow: auto;
+}
+.spotlight-banner > .spotlight-status { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; white-space: normal; overflow: visible; text-overflow: clip; }
+.spotlight-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; max-width: 100%; }
+.spotlight-banner .spotlight-actions button { white-space: normal; min-height: 40px; padding: 8px 12px; border-radius: 8px; border: 1px solid #e8e7ed; background: #fff; color: #29272e; font: inherit; }
+.spotlight-banner .spotlight-actions button:hover:not(:disabled) { background: #f1eff5; }
+.spotlight-banner .spotlight-actions .spotlight-primary, .presence-menu button.spotlight-primary { background: #7051cf; border: 1px solid #7051cf; color: #fff; }
+.spotlight-banner .spotlight-actions .spotlight-primary:hover:not(:disabled), .presence-menu button.spotlight-primary:hover:not(:disabled) { background: #6142be; }
+.spotlight-banner .spotlight-actions button:disabled, .presence-menu button:disabled { opacity: .45; }
+.spotlight-banner .spotlight-actions button:focus-visible, .presence-menu button.spotlight-primary:focus-visible { outline: 3px solid #7051cf; outline-offset: 3px; }
+.spotlight-banner .spotlight-actions .spotlight-dismiss { width: 40px; height: 40px; min-width: 40px; padding: 0; }
+.spotlight-frame { pointer-events: none; }
+.presence-menu button.spotlight-primary { border: 0; font: 400 13px/1.5 system-ui; min-height: 40px; padding: 8px 12px; border-radius: 8px; text-align: center; }
+.presence-menu .spotlight-disabled-reason { margin: 4px 8px; font: 12px/1.45 system-ui; color: #b9b6c3; overflow-wrap: anywhere; }
+@media (max-width: 599.98px) {
+  .spotlight-banner > .spotlight-status, .spotlight-banner .spotlight-actions { width: 100%; }
+}
+
+.presence-menu .presence-person:disabled .presence-follow-word { visibility: visible; }
+.presence-menu button.spotlight-primary:disabled:hover { background: #7051cf; }

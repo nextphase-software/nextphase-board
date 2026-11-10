@@ -12,6 +12,7 @@ export class Access {
   storage: Storage;
   source: AccessSource;
   connections: () => Connection[];
+  closing?: (connection:Connection,code:number)=>void;
   locked = false;
   reason = "room_locked";
   constructor(storage: Storage, source: AccessSource, connections: () => Connection[]) {
@@ -72,7 +73,8 @@ export class Access {
       const attachment = connection.attachment(), grant = this.get(attachment.id);
       if (!grant || grant.epoch !== attachment.epoch) {
         endPresence(connection, this.connections());
-        connection.close(closeCode(grant?.role ?? null, attachment.role ?? null));
+        const code=closeCode(grant?.role ?? null, attachment.role ?? null);
+        this.closing?.(connection,code);connection.close(code);
       }
     }
     this.locked = keepLock || !!meta(this.storage,"explicit_recovery_pending");

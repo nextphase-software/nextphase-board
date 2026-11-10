@@ -140,10 +140,10 @@ export class WorkerRoom {
     try { await (await this.getRoom()).message(connection(socket), typeof message === "string" ? message : ""); }
     catch (error) { socket.close(error instanceof RoomError && error.status === 404 ? 4403 : 1011); }
   }
-  async webSocketClose(socket: WebSocket, code: number) {
+  async webSocketClose(socket: WebSocket, code: number, reason: string = "") {
+    if (!this.discarded) await (await this.getRoom()).closed(connection(socket),code,reason);
     socket.close(code === 1006 ? 1001 : code);
-    if (!this.discarded) await (await this.getRoom()).closed(connection(socket));
   }
-  async webSocketError(socket: WebSocket) { socket.close(1011); if (!this.discarded) await (await this.getRoom()).closed(connection(socket)); }
+  async webSocketError(socket: WebSocket) { if (!this.discarded) await (await this.getRoom()).closed(connection(socket),1011,"error"); socket.close(1011); }
   async alarm() { if (!this.discarded) await (await this.getRoom()).alarm(); }
 }

@@ -172,7 +172,7 @@ function HostedRoute({ link, session, active, account, close, signInAgain, resta
     </div> : undefined }} />
     <HistoryPanel hosted={board} />
     <LifecycleDialog controller={board.lifecycle} moved={() => board.confirmUnavailable()} />
-    {toast && <div className="team-toast" role="status">{toast}</div>}
+    {toast && <div className="team-toast" role={toast === "The presenter left the spotlight" ? undefined : "status"}>{toast}</div>}
     {share && !ending && !leave && <ShareDialog hosted={board} email={session?.user.email ?? ""} personId={session?.user.id ?? ""} close={() => setShare(false)} />}
     {leave && waiting > 0 && <LeaveBoardQuestion count={waiting} boardName={snapshot.board.title} pending={leave} stay={stay} />}
     {ending && !leave && <EndBoardDialog outcome={outcome} workspace={snapshot.workspace} close={close} signIn={signInAgain} count={board.endingCount} />}

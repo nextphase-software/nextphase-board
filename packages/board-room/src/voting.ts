@@ -55,7 +55,7 @@ export class WorkshopVoting {
     return t;
   }
   running(){return !!meta(this.s,'storage_version')&&this.snapshot().status==='running';}
-  private denied(c:Connection,code:number):never {c.close(code);throw new RoomError(403,'vote_access_changed');}
+  private denied(c:Connection,code:number):never {this.host.spotlight.closed(c,code);c.close(code);throw new RoomError(403,'vote_access_changed');}
   async authority(c?:Connection) {
     // The same strict gate as Timer, without ever emitting a timer refusal.
     const generation=await this.host.timer.authority();
@@ -184,14 +184,16 @@ export class WorkshopVoting {
       if(typeof next==='string'){await refuse(next,true);return;}
       if(checked.action==='start'||checked.action==='reveal'||checked.action==='clear') {
         this.s.transaction(()=>{writeVoting(this.s,next);this.s.exec('DELETE FROM workshop_vote_ballots');});
+        if(checked.action==='start')this.host.spotlight.end('voting');
         this.targetsChanged=false;
         // Discard retained spatial presence at both edges; only fresh input returns.
         this.host.presence.clearSpatial(false);
       }
+      await this.host.spotlight.flush();
       this.send(c,{kind:'vote_result',requestId,...await this.stamp(c),cause:checked.action});
       await this.flushTargets();
       await this.publish(checked.action,checked.action==='vote'||checked.action==='unvote'?a.id:undefined);
-      if(['start','reveal','clear'].includes(checked.action))for(const peer of this.host.env.connections())this.host.presence.relay(peer);
+      if(['start','reveal','clear'].includes(checked.action))for(const peer of this.host.env.connections())await this.host.presence.relay(peer);
     }catch(error){if(!this.host.env.connections().some(p=>p.attachment().connectionId===c.attachment().connectionId))return;await refuse(error instanceof RoomError&&error.message==='vote_access_changed'?'vote_access_changed':'vote_unavailable');}
   }
 }

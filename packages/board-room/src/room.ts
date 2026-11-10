@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { Spotlight } from "./spotlight.ts";
 import { WorkshopVoting, resetVoting } from "./voting.ts";
 import { WorkshopTimer, resetTimer, markExplicitRecovery } from "./timer.ts";
 import { RoomLifecycle, type Lifecycle, type LifecycleRequest } from "./lifecycle.ts";
@@ -31,6 +32,7 @@ export class Room {
   lifecycle: RoomLifecycle;
   timer: WorkshopTimer;
   voting: WorkshopVoting;
+  spotlight: Spotlight;
   doc = new Y.Doc();
   board!: BoardV10;
   initialized = false;
@@ -48,6 +50,12 @@ export class Room {
     this.lifecycle = new RoomLifecycle(this);
     this.timer = new WorkshopTimer(this);
     this.voting = new WorkshopVoting(this);
+    this.spotlight = new Spotlight(this);
+    this.access.closing=(c,code)=>this.spotlight.closed(c,code);
+    this.presence.gate=(c,accepted)=>this.spotlight.spatial(c,accepted);
+    this.presence.recipient=(from,to)=>this.spotlight.relayTo(from,to);
+    this.presence.expired=c=>this.spotlight.expired(c);
+    this.presence.visible=id=>this.spotlight.visible(id);
     this.comments = new Comments(env, this.access, this);
     if (env.rows && env.background) this.copies = new Copies(env.storage, env.rows, env.now,
       () => this.ordered(() => this.schedule()));
@@ -136,11 +144,13 @@ export class Room {
     for (const peer of this.env.connections()) if (!currentAttachment(peer.attachment())) this.close(peer, 1012);
   }
   private close(connection: Connection, code: number) {
+    this.spotlight.closed(connection,code);
     if (code !== 1012) endPresence(connection, this.env.connections());
     this.env.storage.exec("DELETE FROM waiting WHERE connection_id = ?", connection.attachment().connectionId);
     connection.close(code);
   }
   private closeAll(code: number) {
+    this.spotlight.end(code===4423?"recovery":"lifecycle");
     const peers = this.env.connections();
     // All departures must reach every socket before any close starts.
     for (const peer of peers) endPresence(peer, peers);
@@ -254,16 +264,18 @@ export class Room {
       if (!grant || attachment.epoch !== grant.epoch) { this.close(connection, closeCode(grant?.role ?? null, attachment.role)); return; }
       await this.timer.authority(connection);
       await this.voting.authority(connection);
+      await this.spotlight.recover();await this.spotlight.expire();
       this.voting.reconcileTargets();
       const voting = await this.voting.stamp(connection);
+      const spotlight=await this.spotlight.stamp(connection);
       if(this.voting.running())this.presence.clearSpatial(false);
       send(connection, { kind: "joined", role: grant.role, epoch: grant.epoch,
         restoreGeneration: meta(this.env.storage, "restore_generation"),
-        timer: this.timer.snapshot(), serverNowMs: this.env.now(), voting: voting.voting,
+        spotlight:spotlight.spotlight, timer: this.timer.snapshot(), serverNowMs: this.env.now(), voting: voting.voting,
         revision: meta(this.env.storage, "revision"), update: base64(Y.encodeStateAsUpdate(this.doc)),
         self: connection.attachment().presence, present: this.presence.list(attachment.connectionId) });
       this.comments.snapshot(connection);
-      this.presence.relay(connection);
+      await this.presence.relay(connection);
       await this.schedule();
     });
   }
@@ -282,6 +294,7 @@ export class Room {
       }
       await this.refresh(true);
       if (this.access.locked) throw new RoomError(503, this.access.reason);
+      await this.spotlight.flush();
       return meta(this.env.storage, "watermark");
     });
   }
@@ -311,6 +324,7 @@ export class Room {
     return this.ordered(async () => {
       try { await this.load(); }
       catch (error) {
+        if (this.spotlight.refuseLoadFailure(connection,text,error))return;
         if (this.voting.refuseLoadFailure(connection,text,error)) return;
         throw error;
       }
@@ -321,6 +335,9 @@ export class Room {
       if (bytes(text).length > MESSAGE_LIMIT) { send(connection, { kind: "refused", reason: "message_too_large" }); return; }
       let message;
       try { message = JSON.parse(text); } catch { send(connection, { kind: "refused", reason: "bad_message" }); return; }
+      if (message?.kind === "spotlight_command" || message?.kind === "spotlight_read") {
+        await this.spotlight.handle(connection,message,bytes(text).length);await this.schedule();return;
+      }
       if (message?.kind === "vote_command" || message?.kind === "vote_read") {
         await this.voting.handle(connection,message,bytes(text).length); return;
       }
@@ -367,11 +384,14 @@ export class Room {
         connection.attachment().connectionId, this.env.now()).length) this.edits.resync(connection, "waiting_timeout");
     }
     this.presence.expire();
+    await this.spotlight.expire();
     this.env.storage.exec("DELETE FROM tickets WHERE expires_at <= ?", this.env.now());
   }
+  scheduleSpotlight(){return this.schedule();}
   private async schedule(historyRetry = false) {
     const historyAt = meta(this.env.storage, "history_next_at");
     const deadlines = [historyRetry ? Math.max(historyAt, this.env.now() + 1000) : historyAt, ...this.env.connections().map((connection) => connection.attachment().expiresAt)];
+    const spotlightAt=this.spotlight.deadline();if(spotlightAt!==null)deadlines.push(spotlightAt);
     const timerAt = this.timer.deadline(); if(timerAt !== null)deadlines.push(timerAt);
     deadlines.push(...this.presence.deadlines());
     for (const peer of this.env.connections()) if (peer.attachment().presence) deadlines.push(peer.attachment().presenceAt! + 30000);
@@ -386,10 +406,12 @@ export class Room {
     if (copyAt !== null && copyAt !== undefined) deadlines.push(copyAt);
     await this.env.schedule(deadlines.length ? Math.min(...deadlines) : null);
   }
-  closed(connection: Connection) {
+  closed(connection: Connection, code: number = 1006, reason: string = "") {
     return this.ordered(async () => {
+      this.spotlight.closed(connection,code,reason);
       if (this.lifecycle.discarded || this.access.locked) return;
       await this.load();
+      await this.spotlight.flush();
       endPresence(connection, this.env.connections());
       this.env.storage.exec("DELETE FROM waiting WHERE connection_id = ?", connection.attachment().connectionId);
       if (!this.env.connections().length && !this.access.locked) await this.history.automatic("last_close");
@@ -413,6 +435,7 @@ export class Room {
     });
   }
   lifecyclePause() {
+    this.spotlight.end("lifecycle");
     this.copies?.suspend();
     this.closeAll(4403);
     this.env.storage.exec("DELETE FROM tickets"); this.env.storage.exec("DELETE FROM waiting");
@@ -424,6 +447,7 @@ export class Room {
   fenceLifecycle(row: Lifecycle, ready = false) { return this.ordered(() => ready ? this.lifecycle.accessReady(row) : this.lifecycle.fence(row)); }
   discardLifecycle() { return this.ordered(async () => { this.lifecycle.freeze(); this.lifecycle.discarded = true; await this.env.schedule(null); }); }
   historyPause(actor: string) {
+    this.spotlight.end("recovery");
     this.copies?.suspend();
     for (const peer of this.env.connections()) send(peer, { kind: "history_restoring", actor });
     this.closeAll(4423);
@@ -441,6 +465,7 @@ export class Room {
       const envelope = decodeBackup(value, this.boardId);
       try { await validateHistoryBackup(this.env, envelope.tables, this.boardId); } catch { throw new RoomError(400, "bad_request"); }
       if (this.history.active()) throw new RoomError(503, "restore_pending");
+      this.spotlight.end("recovery");
       const generation = await this.env.raiseFence();
       this.copies?.suspend();
       this.closeAll(4423);
@@ -458,6 +483,7 @@ export class Room {
   lock(reserve?: () => Promise<number>) {
     return this.ordered(async () => {
       await this.lifecycle.active();
+      this.spotlight.end("recovery");
       const generation = await (reserve ? reserve() : this.env.raiseFence());
       this.copies?.suspend();
       this.closeAll(4423);

@@ -94,6 +94,35 @@ process.on("message", async (message: any) => {
       // Resolve the room through the same lazy factory as production.
       original(value.board);
       const entry = app.rooms.get(value.board)!;
+      if(value.spotlight){
+        const v=value.spotlight;
+        if(v.reconstruct)await entry.room.ordered(async()=>{entry.room=new Room(value.board,entry.room.env);});
+        if(v.adapterEvents){
+          const c=[...entry.connections].find(c=>c.attachment().connectionId===v.connection),socket=c&&app.socketFor(c);
+          if(!socket)throw Error('Adapter socket missing');
+          for(const event of v.adapterEvents){if(event==='error')socket.emit('error',Error('Synthetic adapter error'));else socket.emit('close',event.code==='missing'?undefined:event.code,Buffer.from(event.reason??''));await entry.room.ordered(async()=>{});}
+          socket.terminate();
+        }
+        await entry.room.ordered(async()=>{
+          if(!v.inspect){await entry.room.load();await entry.room.spotlight.recover();}
+          const c=[...entry.connections].find(c=>c.attachment().connectionId===v.connection);
+          if(v.watchCloses&&!(entry.room as any).spotlightCloses){const target=entry.room as any,closed=target.closed.bind(target);target.spotlightCloses=[];target.closed=(c:any,code=1006,reason='')=>{target.spotlightCloses.push({connection:c.attachment().connectionId,code,reason});return closed(c,code,reason);};}
+          if(v.controlVersion!==undefined){entry.room.spotlight.session.controlVersion=v.controlVersion;for(const p of entry.connections){const a=p.attachment();if(a.spotlightPresenter)p.attach({...a,spotlightPresenter:{...a.spotlightPresenter,session:entry.room.spotlight.session}});}}
+          if(c&&v.suspend)entry.room.spotlight.closed(c,1011,"error");
+          if(c&&v.member)c.attach({...c.attachment(),spotlightMember:{sessionId:entry.room.spotlight.session.sessionId,...v.member}});
+          if(v.voteFailure){
+            const target=entry.room as any,voting=target.voting,flush=target.spotlight.flush.bind(target.spotlight);
+            target.spotlight.flush=async()=>{target.spotlightBoundary={session:structuredClone(target.spotlight.session),attachments:target.env.connections().map((p:any)=>p.attachment())};target.spotlight.flush=flush;return flush();};
+            if(v.voteFailure==='reply'){
+              const send=voting.send;voting.send=function(c:any,frame:any){if(frame.kind!=='vote_result')return send.call(this,c,frame);this.send=send;throw Error('Injected vote reply failure');};
+            }else{
+              const stamp=voting.stamp;voting.stamp=async function(c:any){this.stamp=stamp;if(v.voteFailure==='stamp')throw Error('Injected vote stamp failure');const authority=this.authority;this.authority=async function(){this.authority=authority;throw Error('Injected post-commit authority failure');};return stamp.call(this,c);};
+            }
+          }
+
+          result={closes:(entry.room as any).spotlightCloses,boundary:(entry.room as any).spotlightBoundary,session:entry.room.spotlight.session,attachments:[...entry.connections].map(c=>c.attachment())};
+        });
+      }
       if(value.reconstructTimerRoom)await entry.room.ordered(async()=>{entry.room=new Room(value.board,entry.room.env);});
       if(value.votingAttachments)result=[...entry.connections].map(c=>c.attachment());
       if(value.staleVotingPresence)for(const c of entry.connections){const a=c.attachment();if(a.presence)c.attach({...a,presence:{...a.presence,cursor:{x:98765,y:12345},selection:[value.target],view:{x:98765,y:12345,width:100,height:100}}});}

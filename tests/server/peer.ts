@@ -14,11 +14,11 @@ export function peer(socket: any): Peer {
     messages.push(message); handlers?.message(String(event.data)); notify(); });
   socket.addEventListener("close", (event: any) => { closed = event.code; handlers?.close(event.code); notify(); });
   socket.addEventListener("error", () => {});
-  return {
-    listen(value) { handlers = value; for (const message of messages) value.message(JSON.stringify(message)); if (closed !== null) value.close(closed); },
+  return Object.assign({
+    listen(value: {message(text:string):void;close(code:number):void}) { handlers = value; for (const message of messages) value.message(JSON.stringify(message)); if (closed !== null) value.close(closed); },
     messages, get closed() { return closed; },
-    send(value) { socket.send(typeof value === "string" ? value : JSON.stringify(value)); },
-    async next(kind) {
+    send(value:unknown) { socket.send(typeof value === "string" ? value : JSON.stringify(value)); },
+    async next(kind:string):Promise<Message> {
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => { waiters.delete(check); reject(Error("Timed out waiting for " + kind + "; got " + messages.map((m) => m.kind + ":" + (m.reason ?? "")).join(","))); }, 10000);
         function check() {
@@ -37,5 +37,5 @@ export function peer(socket: any): Peer {
         socket.close(1000);
       });
     },
-  };
+  }, { closeWith(code:number,reason=''){socket.close(code,reason);}, abort(){if(socket.terminate)socket.terminate();else socket.close(4410,'retry_recovery');} });
 }

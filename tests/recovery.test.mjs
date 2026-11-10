@@ -34,9 +34,9 @@ async function fixture(sync) {
   const session = await sync.BoardSession.join({ clock, clientId: 42, ticket: async () => "ticket",
     open: async () => {
       const wire = {
-        sent: [], closes: [], throws: false,
+        sent: [], closes: [], closeReasons: [], throws: false,
         send(text) { if (this.throws) throw Error("Send failed"); this.sent.push(JSON.parse(text)); },
-        close(code) { this.closes.push(code); },
+        close(code,reason) { this.closes.push(code);this.closeReasons.push(reason); },
         listen(handlers) { this.handlers = handlers; this.message(joined); },
         message(value) { this.handlers.message(JSON.stringify(value)); },
       };
@@ -124,7 +124,7 @@ test("an unanswered request ends its attempt at exactly ten seconds", async () =
   try {
     const id = change(f, "Waiting"), wire = f.wires[0];
     f.clock.advance(9999); assert.equal(f.session.requests.get(id).state, "sent"); assert.deepEqual(wire.closes, []);
-    f.clock.advance(1); assert.equal(f.session.requests.get(id).state, "waiting"); assert.deepEqual(wire.closes, [1000]);
+    f.clock.advance(1); assert.equal(f.session.requests.get(id).state, "waiting"); assert.deepEqual(wire.closes, [4410]);assert.deepEqual(wire.closeReasons,["retry_recovery"]);
     assert.deepEqual(f.events, [{ kind: "close", code: 4000, reason: "answer_deadline" }]);
     const before = JSON.stringify([...f.session.requests]);
     saved(wire, id, 99); wire.handlers.close(4401);
@@ -151,7 +151,7 @@ test("saved cancels the deadline and a resend starts its own deadline", async ()
     const second = change(f, "Waiting"); f.clock.advance(9999); f.session.interrupt();
     const wire = await f.rejoin();
     f.clock.advance(9999); assert.equal(f.session.requests.get(second).state, "sent"); assert.deepEqual(wire.closes, []);
-    f.clock.advance(1); assert.equal(f.session.requests.get(second).state, "waiting"); assert.deepEqual(wire.closes, [1000]);
+    f.clock.advance(1); assert.equal(f.session.requests.get(second).state, "waiting"); assert.deepEqual(wire.closes, [4410]);assert.deepEqual(wire.closeReasons,["retry_recovery"]);
     assert.equal(f.session.requests.get(first).state, "saved");
   } finally { f.finish(); }
 });
@@ -236,7 +236,7 @@ test("send failure reports one 1006 close and ignores every later old-transport 
     const wire = f.wires[0]; wire.throws = true;
     const id = change(f, "Waiting");
     assert.deepEqual(f.events, [{ kind: "close", code: 1006 }]);
-    assert.equal(f.session.requests.get(id).state, "waiting"); assert.deepEqual(wire.closes, [1000]);
+    assert.equal(f.session.requests.get(id).state, "waiting"); assert.deepEqual(wire.closes, [4410]);assert.deepEqual(wire.closeReasons,["retry_recovery"]);
     wire.message({ kind: "joined", ...f.joined, epoch: 100 });
     wire.message({ kind: "present", connection: "old" }); saved(wire, id);
     wire.handlers.close(4401); f.clock.advance(30000);
@@ -248,7 +248,7 @@ test("every transport close ends only its own attempt and interrupt reports no c
   const sync = await import("../packages/board-sync/src/session.ts");
   const f = await fixture(sync);
   try {
-    for (const code of [1000, 1006, 1012, 1013, 4401, 4403, 4409, 4423]) {
+    for (const code of [1000, 1006, 1012, 1013, 4410, 4401, 4403, 4409, 4423]) {
       const wire = f.wires.at(-1), before = f.events.length;
       wire.handlers.close(code); wire.handlers.close(code);
       assert.deepEqual(f.events.slice(before), [{ kind: "close", code }]);

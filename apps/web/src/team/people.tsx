@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { HostedBoard } from "./hosted-board";
 import { avatarPeople, groupPeople } from "./presence";
@@ -7,12 +7,14 @@ import { roleWords } from "./roles";
 
 export function People({ hosted }: { hosted: HostedBoard }) {
   const snapshot = useSyncExternalStore(hosted.subscribePresence, hosted.getPresence);
+  useSyncExternalStore(hosted.spotlight.subscribe,hosted.spotlight.getSnapshot);
+  const spotlight=hosted.spotlight,reason=spotlight.disabledReason,followReason=spotlight.followReason;
   const [open, setOpen] = useState(false), [width, setWidth] = useState(innerWidth);
   const group = useRef<HTMLDivElement>(null), menu = useRef<HTMLDivElement>(null);
   const opener = useRef<HTMLButtonElement | null>(null);
   const people = groupPeople(snapshot.self, snapshot.others);
   const { shown, overflow } = avatarPeople(people, width);
-  const followed = snapshot.others.find((other) => other.connection === snapshot.followed);
+  const followed = spotlight.following?spotlight.target:snapshot.others.find((other) => other.connection === snapshot.followed);
   useEffect(() => {
     const resize = () => setWidth(innerWidth);
     const outside = (event: PointerEvent) => {
@@ -26,8 +28,10 @@ export function People({ hosted }: { hosted: HostedBoard }) {
     };
   }, []);
   useEffect(() => {
+    if (open) { hosted.showSurface("people"); }
     if (open) menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }, [open]);
+  useEffect(()=>{if(hosted.surface!=="people"&&open)setOpen(false);},[hosted.surface,open]);
   function show(button: HTMLButtonElement) {
     opener.current = button;
     setOpen((value) => !value);
@@ -43,12 +47,13 @@ export function People({ hosted }: { hosted: HostedBoard }) {
       {shown.map((person) => {
         const { first, own } = person;
         return <li key={person.person}><button className="presence-avatar"
-          style={{ background: first.colour, outline: followed?.person === person.person ? `2px solid ${followed.colour}` : undefined,
-            outlineOffset: followed?.person === person.person ? 1 : undefined }}
+          style={{ background: first.colour, outline: followed?.person === person.person ? `2px solid ${followed.colour}` : spotlight.target?.person===person.person ? `2px dashed ${spotlight.target.colour}` : undefined,
+            outlineOffset: followed?.person === person.person || spotlight.target?.person===person.person ? 1 : undefined }}
           title={first.label + (own ? " (you)" : "")}
-          aria-label={own || hosted.voting.running ? `${first.label}${own ? " (you)" : ""}, ${roleWords(first.role)}. Open people menu`
-            : `Follow ${first.label}, ${roleWords(first.role)}`}
-          onClick={(event) => own || hosted.voting.running ? show(event.currentTarget) : hosted.follow(person.person)}>
+          aria-label={own || !!followReason ? `${first.label}${own ? " (you)" : ""}, ${roleWords(first.role)}. Open people menu`
+            : `${followed?.person===person.person?"Unfollow":"Follow"} ${first.label}, ${roleWords(first.role)}`}
+          aria-describedby={!own&&followReason?"spotlight-disabled-reason":undefined}
+          onClick={(event) => own || !!followReason ? show(event.currentTarget) : followed?.person===person.person?hosted.stopFollowing():hosted.follow(person.person)}>
           {first.label.slice(0, 1).toUpperCase()}
         </button></li>;
       })}
@@ -68,7 +73,7 @@ export function People({ hosted }: { hosted: HostedBoard }) {
         // The cursor shortcut is handled in document capture, before this menu
         // keeps every other key away from the board's own key handling.
         event.stopPropagation();
-        const items = [...menu.current!.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]')];
+        const items = [...menu.current!.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled), [role="menuitemcheckbox"]:not(:disabled)')];
         const index = items.indexOf(document.activeElement as HTMLElement);
         const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
           : event.key === "ArrowDown" ? (index + 1) % items.length
@@ -89,14 +94,14 @@ export function People({ hosted }: { hosted: HostedBoard }) {
           next?.focus();
         }
       }}>
-      {people.map(({ person, first, own }) => <button key={person} role="menuitem" tabIndex={-1}
-        className="presence-person" disabled={!own&&hosted.voting.running} onClick={() => {
-          if (!own) { hosted.follow(person); setOpen(false); opener.current?.focus(); }
+      {people.map(({ person, first, own }) => <Fragment key={person}><button role="menuitem" tabIndex={-1}
+        className="presence-person" disabled={!own&&!!followReason} aria-describedby={!own&&followReason?"spotlight-disabled-reason":undefined} onClick={() => {
+          if (!own) { followed?.person===person?hosted.stopFollowing():hosted.follow(person); setOpen(false); opener.current?.focus(); }
         }}>
         <span className="presence-dot" style={{ background: first.colour }}>{first.label.slice(0, 1).toUpperCase()}</span>
         <span className="presence-person-label">{first.label}{own ? " (you)" : ""}<small>{roleWords(first.role)}</small></span>
-        {!own && <span className="presence-follow-word">Follow</span>}
-      </button>)}
+        {!own && <span className="presence-follow-word">{followed?.person===person?"Unfollow":"Follow"}</span>}
+      </button>{own&&<><button role="menuitem" tabIndex={-1} className="spotlight-primary" disabled={!!reason} aria-describedby={reason?'spotlight-disabled-reason':undefined} onClick={()=>{spotlight.command(spotlight.presenting?'stop':spotlight.projection?.session.phase==='idle'?'start':'take_over');setOpen(false);opener.current?.focus();}}>{spotlight.presenting?'Stop spotlight':'Spotlight me'}</button>{(reason||followReason)&&<p id="spotlight-disabled-reason" className="spotlight-disabled-reason">{reason||followReason}</p>}</>}</Fragment>)}
       <div role="separator" />
       <button role="menuitemcheckbox" aria-checked={snapshot.showCursors} tabIndex={-1}
         className="presence-cursor-switch" onClick={hosted.toggleCursors}>

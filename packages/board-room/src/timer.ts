@@ -33,6 +33,7 @@ export class WorkshopTimer {
     const pending=this.s.all("SELECT value FROM meta WHERE key='explicit_recovery_pending'")[0];
     const reserved=this.s.all("SELECT value FROM meta WHERE key='explicit_recovery_generation'")[0];
     if(!pending) { if(reserved)throw Error('Invalid recovery marker');return false; }
+    this.host.spotlight.end('recovery');
     if(pending.value!==1 || reserved && (!timerInteger(reserved.value)||reserved.value<1))throw Error('Invalid recovery marker');
     const life=await this.host.lifecycle.active();
     if(this.env.mentions && (!this.env.mentions.documentGeneration || !this.env.mentions.mentionGeneration))throw Error("Missing recovery checkpoint");
@@ -63,7 +64,7 @@ export class WorkshopTimer {
   }
   private denied(connection:Connection,code:number,requestId?:string|null):never {
     if(requestId!==undefined)send(connection,{kind:'timer_refused',requestId,reason:'timer_access_changed'});
-    connection.close(code);throw new RoomError(403,'timer_access_changed');
+    this.host.spotlight.closed(connection,code);connection.close(code);throw new RoomError(403,'timer_access_changed');
   }
   async authority(connection?:Connection,requestId?:string|null) {
     await this.host.lifecycle.active();
@@ -140,7 +141,7 @@ export class WorkshopTimer {
       await this.authority(connection,requestId);admitted=true;
       const checked=checkTimerRequest(value,size);
       if(typeof checked==='string'){refuse(checked);return;}
-      if(checked.epoch!==a.epoch || checked.restoreGeneration!==a.restoreGeneration){admitted=false;send(connection,{kind:'timer_refused',requestId,reason:'timer_access_changed'});connection.close(checked.restoreGeneration!==a.restoreGeneration?4423:4403);return;}
+      if(checked.epoch!==a.epoch || checked.restoreGeneration!==a.restoreGeneration){admitted=false;send(connection,{kind:'timer_refused',requestId,reason:'timer_access_changed'});this.host.spotlight.closed(connection,checked.restoreGeneration!==a.restoreGeneration?4423:4403);connection.close(checked.restoreGeneration!==a.restoreGeneration?4423:4403);return;}
       if(checked.kind==='timer_read'){send(connection,{kind:'timer_sample',requestId,...this.stamp()});return;}
       const next=this.transition(this.snapshot(),checked);
       if(typeof next==='string'){refuse(next);return;}

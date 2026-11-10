@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
+import { BoardSpotlight } from "./spotlight";
 import { BoardVoting } from "./voting";
 import { BoardTimer } from "./timer";
 import { BoardLifecycle, lifecycleNavigation } from "./lifecycle";
 import { BoardHistory, historyNavigation } from "./history";
-import { BoardSession, type Transport, type Role, type SessionEvent, type TimerSnapshot, type TimerFrame, type TimerAction, type VoteProjection, type VoteFrame, type VoteCommand } from "nextphase-board-sync/session.ts";
+import { BoardSession, type Transport, type Role, type SessionEvent, type TimerSnapshot, type TimerFrame, type TimerAction, type VoteProjection, type VoteFrame, type VoteCommand, type SpotlightCommand, type SpotlightFrame } from "nextphase-board-sync/session.ts";
 import type { BoardV10 } from "nextphase-board-rules/document.ts";
 import type { CommentOperation } from "./comments/rules";
 import { api, ApiError } from "./api";
@@ -17,7 +18,7 @@ import { attemptOutcome, isSpecialClose, renewalDelay, retryDelay, saveState, wo
   changeCounts, countChanges, dismissNotice, emptyLossRecord, isOutstanding, lossNotices, updateLossRecord,
   type AttemptEvent, type NoticeReason, type Outcome } from "./notices";
 
-export type { VoteProjection, VoteFrame, VoteCommand, VoteSession, VoteOwn, VoteTarget, BallotTarget, VoteAction, VoteCause, VoteReason, TimerSnapshot, TimerFrame, TimerAction, TimerCause } from "nextphase-board-sync/session.ts";
+export type { SpotlightProjection, SpotlightSession, SpotlightOwn, SpotlightAction, SpotlightCause, SpotlightFrame, SpotlightReason, SpotlightCommand, VoteProjection, VoteFrame, VoteCommand, VoteSession, VoteOwn, VoteTarget, BallotTarget, VoteAction, VoteCause, VoteReason, TimerSnapshot, TimerFrame, TimerAction, TimerCause } from "nextphase-board-sync/session.ts";
 
 type Attempt = { outcome: Outcome | null; joined: boolean; cancelled: boolean; timer: ReturnType<typeof setTimeout>;
   socket?: WebSocket; acceptance: boolean };
@@ -26,25 +27,31 @@ export type HostedSnapshot = {
   workspaceOwner?: boolean; outcome: Outcome | null; toast: string; toastId: number; generation: number;
 };
 export type PresenceSnapshot = {
-  self?: Presence; others: Presence[]; followed: string | null; showCursors: boolean;
+  self?: Presence; others: Presence[]; followed: string | null; showCursors: boolean; requested?:number;
 };
 export class HostedBoard {
   readonly lifecycle = new BoardLifecycle();
   readonly history = new BoardHistory(this);
   readonly timer = new BoardTimer(this);
+  readonly spotlight=new BoardSpotlight(this);
+  readSpotlight(id:string){return this.snapshot.connected&&!!this.session?.spotlightRead(id);}
+  sendSpotlight(command:Omit<SpotlightCommand,'kind'|'epoch'|'restoreGeneration'>){return this.snapshot.connected&&!!this.session?.spotlightCommand(command);}
+  spotlightChanged(){this.publishPresence({});}
+  requestFreshPresence(){this.publishPresence({requested:(this.presence.requested??0)+1});}
+  clearManualFollow(){if(this.presence.followed)this.publishPresence({followed:null});}
   readonly voting = new BoardVoting(this);
   readVote(id:string){return this.snapshot.connected&&!!this.session?.voteRead(id);}
   sendVote(command:Omit<VoteCommand,'kind'|'epoch'|'restoreGeneration'>){return this.snapshot.connected&&!!this.session?.voteCommand(command);}
   votingChanged(spatial=false){
     if(spatial){
       const blank=(p:Presence)=>({...p,cursor:null,selection:[],view:{x:0,y:0,width:1,height:1}});
-      this.publishPresence({others:this.presence.others.map(blank),followed:null});
+      this.spotlight.workshopChanged();this.publishPresence({others:this.presence.others.map(blank),followed:null});
     }
     this.publish();
   }
-  surface: 'timer'|'history'|'comments'|'share'|null = null;
+  surface: 'timer'|'history'|'comments'|'share'|'people'|null = null;
   hideComments?: () => void;
-  showSurface(surface: 'timer'|'history'|'comments'|'share') {
+  showSurface(surface: 'timer'|'history'|'comments'|'share'|'people') {
     this.surface = surface;
     if(surface !== 'timer')this.timer.hide();
     if(surface !== 'history')this.history.open = false;
@@ -58,7 +65,7 @@ export class HostedBoard {
   trashReturned = false;
   panReturning = false;
   private restoredGeneration?: number;
-  historyChanged() { this.voting.preview(); this.publish(); }
+  historyChanged() { this.spotlight.preview();this.voting.preview(); this.publish(); }
   historyDenied() { this.confirmUnavailable(); }
   get paintBoard() {
     const live = this.snapshot.board;
@@ -124,7 +131,7 @@ export class HostedBoard {
     this.publishPresence({ self: undefined, others: [], followed: null });
   }
   setPresence(input: PresenceInput) {
-    if (this.snapshot.connected && !this.stopped && !this.ended) this.session?.setPresence(input);
+    if (this.snapshot.connected && !this.stopped && !this.ended) { this.session?.setPresence(input);this.spotlight.localPresenceSent(); }
   }
   sendPresence(cursor: PresenceInput["cursor"], selection: Iterable<string>, view: View,
     size: { w: number; h: number }, active: boolean) {
@@ -132,15 +139,19 @@ export class HostedBoard {
   }
   followView(size: { w: number; h: number }) {
     if(this.voting.running)return undefined;
-    const followed = this.presence.others.find((other) => other.connection === this.presence.followed);
+    const target=this.spotlight.motion?this.spotlight.target?.connection:this.presence.followed;
+    const followed = this.presence.others.find((other) => other.connection === target);
     return followed ? fitFollow(followed.view, size) : undefined;
   }
   follow(person: string) {
-    if(this.voting.running)return;
+    if(this.spotlight.followReason)return;
+    if(this.spotlight.target?.person===person){this.spotlight.following?this.spotlight.leave():this.spotlight.command("follow");return;}
+    this.spotlight.localAction();this.spotlight.dismiss();
     const connection = chooseFollow(this.presence.others.filter((other) => other.person === person), this.received);
     if (connection) this.publishPresence({ followed: connection.connection });
   }
   stopFollowing = () => {
+    this.spotlight.localAction();
     if (this.presence.followed) this.publishPresence({ followed: null });
   };
   toggleCursors = () => {
@@ -220,7 +231,7 @@ export class HostedBoard {
         this.finish(attempt, { kind: "failure", reason: "no_answer" });
       }, 15000) };
     this.attempt = attempt;
-    this.timer.disconnect();this.voting.disconnect();
+    this.spotlight.disconnect();this.timer.disconnect();this.voting.disconnect();
     this.clearPresence();
     this.lifecycle.clear();
     this.publish({ connected: false, workspaceOwner:false });
@@ -268,7 +279,7 @@ export class HostedBoard {
     return new Promise((resolve, reject) => {
       socket.onopen = () => {
         if (!this.current(attempt) || attempt.outcome) { socket.close(1000); reject(Error("Abandoned attempt")); return; }
-        resolve({ send: (text) => socket.send(text), close: (code) => socket.close(code), listen: (value) => { handlers = value; } });
+        resolve({ send: (text) => socket.send(text), close: (code,reason) => socket.close(code,reason), listen: (value) => { handlers = value; } });
       };
       socket.onmessage = (event) => {
         if (!this.current(attempt) || attempt.outcome) return;
@@ -320,7 +331,7 @@ export class HostedBoard {
       this.clearDiscussion();
       if (hadHistory) this.history.denied = true;
     }
-    attempt.socket?.close(1000);
+    attempt.socket?.close(outcome.retry?4410:1000,outcome.retry?"retry_recovery":undefined);
     this.clearPresence();
     this.publish({ connected: false, outcome, ...(!outcome.retry && hadHistory ? { board: undefined } : {}) });
     if (!outcome.retry) return;
@@ -339,6 +350,7 @@ export class HostedBoard {
       this.session = session;
       for (const [id, request] of notificationRequests(this.boardId)) session.commentRequests.set(id, request);
       session.subscribe((event) => this.changed(session, event));
+      session.subscribeSpotlight(event=>{if(!this.stopped&&!this.ended&&session===this.session)this.spotlight.receive(event as SpotlightFrame|{kind:"spotlight_closed"|"spotlight_invalid";recover?:boolean});});
       session.subscribeVoting(event=>{if(!this.stopped&&!this.ended&&session===this.session)this.voting.receive(event as VoteFrame|{kind:"vote_invalid"|"vote_closed"});});
       session.subscribeTimer(event => { if(!this.stopped && !this.ended && session===this.session)this.timer.receive(event as TimerFrame|{kind:"timer_invalid"|"timer_closed"}); });
       this.joined(session);
@@ -358,6 +370,7 @@ export class HostedBoard {
     this.publishPresence({ self: session.self, others: [...session.present.values()], followed: null });
     this.publish({ board: session.board, role: session.role, connected: true, outcome: null,
       generation: this.snapshot.generation + 1 });
+    this.spotlight.joined(session.spotlightSnapshot);
     this.voting.joined(session.votingSnapshot,session.restoreGeneration);
     this.timer.joined(session.timerSnapshot,session.restoreGeneration);
     this.updateSession(this.token ?? null);
@@ -366,12 +379,13 @@ export class HostedBoard {
   }
   private changed(session: BoardSession<string>, event: SessionEvent) {
     if (this.stopped || this.ended || session !== this.session) return;
-    if (event.kind === "history_restoring") { this.timer.disconnect();this.voting.disconnect(); this.history.restoring(typeof event.actor === "string" ? event.actor : null); return; }
+    if (event.kind === "history_restoring") { this.spotlight.clear();this.timer.disconnect();this.voting.disconnect(); this.history.restoring(typeof event.actor === "string" ? event.actor : null); return; }
     if (event.kind.startsWith("comment")) { this.publishComments(event); if (event.kind === "comment_changed" || event.kind === "comments_snapshot" && event.done) void this.refreshMentions(); return; }
     if (event.kind === "present" || event.kind === "left") {
       const connection = String(event.connection);
       if (event.kind === "present") this.received.set(connection, ++this.receiveOrder);
       else this.received.delete(connection);
+      this.spotlight.presence(event.kind==="present"?connection:"");
       this.publishPresence({ others: [...session.present.values()],
         followed: event.kind === "left" && this.presence.followed === connection ? null : this.presence.followed });
       return;
@@ -379,7 +393,7 @@ export class HostedBoard {
     if (event.kind === "refused" && isPresenceRefusal({ reason: event.reason, requestId: event.requestId })) return;
     if (event.kind === "joined") this.joined(session);
     else if (event.kind === "refused") {
-      this.clearPresence();
+      this.spotlight.clear();this.clearPresence();
       this.publish({ connected: false, toast: words.refusedEdit(String(event.reason)) });
     } else if (event.kind === "join_failed") {
       if (this.attempt && !this.attempt.outcome && !this.attempt.socket) {
@@ -454,7 +468,7 @@ export class HostedBoard {
     this.publish({ board: undefined, connected: false, role: undefined, workspaceOwner:false, workspace:"", workspaceId:"", toast:"", outcome:{name:"accessRemoved",retry:false} });
   }
   private clearDiscussion() {
-    this.timer.clear();this.voting.clear(); this.surface = null;
+    this.spotlight.clear();this.timer.clear();this.voting.clear(); this.surface = null;
     this.history.clear();
     ++this.mentionRead;
     this.commentDrafts.clear(); this.unreadMentions.clear(); clearNotificationMemory(this.boardId);
@@ -477,7 +491,7 @@ export class HostedBoard {
     this.unreadMentions.clear();
     this.clearPresence();
     this.history.clear();
-    this.timer.clear();this.voting.clear();
+    this.spotlight.clear();this.timer.clear();this.voting.clear();
     this.lifecycle.clear();
     this.stopped = true;
     if (this.attempt) { this.attempt.cancelled = true; clearTimeout(this.attempt.timer); }

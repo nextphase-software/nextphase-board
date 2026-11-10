@@ -25,6 +25,34 @@ export async function makeDriver(context: Context): Promise<Driver> {
       return result;
     },
     async control(value) {
+      if(value.board&&value.spotlight)return runInDurableObject(roomStub(String(value.board)),async(instance:any)=>{
+        const v=value.spotlight as any;if(v.reconstruct)instance.room=undefined;
+        const room=await instance.getRoom(String(value.board));
+        if(v.adapterEvents){
+          const socket=instance.state.getWebSockets().find((s:any)=>s.deserializeAttachment().connectionId===v.connection);
+          if(!socket)throw Error('Adapter socket missing');
+          for(const event of v.adapterEvents){if(event==='error')await instance.webSocketError(socket);else await instance.webSocketClose(socket,event.code,event.reason??'');}
+        }
+        return room.ordered(async()=>{
+          await instance.refreshControls();if(!v.inspect){await room.load();await room.spotlight.recover();}
+          const peers=room.env.connections(),c=peers.find((p:any)=>p.attachment().connectionId===v.connection);
+          if(v.watchCloses&&!(room as any).spotlightCloses){const target=room as any,closed=target.closed.bind(target);target.spotlightCloses=[];target.closed=(c:any,code=1006,reason='')=>{target.spotlightCloses.push({connection:c.attachment().connectionId,code,reason});return closed(c,code,reason);};}
+          if(v.controlVersion!==undefined){room.spotlight.session.controlVersion=v.controlVersion;for(const p of peers){const a=p.attachment();if(a.spotlightPresenter)p.attach({...a,spotlightPresenter:{...a.spotlightPresenter,session:room.spotlight.session}});}}
+          if(c&&v.suspend)room.spotlight.closed(c,1011,"error");
+          if(c&&v.member)c.attach({...c.attachment(),spotlightMember:{sessionId:room.spotlight.session.sessionId,...v.member}});
+          if(v.voteFailure){
+            const target=room as any,voting=target.voting,flush=target.spotlight.flush.bind(target.spotlight);
+            target.spotlight.flush=async()=>{target.spotlightBoundary={session:structuredClone(target.spotlight.session),attachments:target.env.connections().map((p:any)=>p.attachment())};target.spotlight.flush=flush;return flush();};
+            if(v.voteFailure==='reply'){
+              const send=voting.send;voting.send=function(c:any,frame:any){if(frame.kind!=='vote_result')return send.call(this,c,frame);this.send=send;throw Error('Injected vote reply failure');};
+            }else{
+              const stamp=voting.stamp;voting.stamp=async function(c:any){this.stamp=stamp;if(v.voteFailure==='stamp')throw Error('Injected vote stamp failure');const authority=this.authority;this.authority=async function(){this.authority=authority;throw Error('Injected post-commit authority failure');};return stamp.call(this,c);};
+            }
+          }
+
+          return {closes:(room as any).spotlightCloses,boundary:(room as any).spotlightBoundary,session:room.spotlight.session,attachments:room.env.connections().map((c:any)=>c.attachment())};
+        });
+      });
       if(value.board && value.providerRecovery) {
         // Stand in for the independent reservation surviving a provider rewind;
         // deliberately do not write a marker into the room being recovered.

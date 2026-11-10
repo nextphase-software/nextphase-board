@@ -6,6 +6,7 @@ import { boundingBox } from "../selection";
 import { usePresence } from "../state/use-presence";
 import { screenPoint, type View } from "../view";
 import type { HostedBoard } from "./hosted-board";
+import { SpotlightLayer } from "./spotlight-layer";
 import { pillWords } from "./presence";
 
 type Props = {
@@ -41,10 +42,7 @@ export function PresenceLayer(props: Props) {
           </div>}
         </div>;
       })}
-      {!hosted.voting.running && followed && <div className="presence-frame" style={{ borderColor: followed.colour }} />}
     </div>
-    {!hosted.voting.running && followed && <div className="presence-follow-banner" style={{ background: followed.colour }}>
-      <span>Following {followed.label}</span><button onClick={hosted.stopFollowing}>Stop following</button>
-    </div>}
+    <SpotlightLayer hosted={hosted}/>
   </>;
 }

@@ -267,7 +267,7 @@ test("the comment deadline ends the attempt at ten seconds and ignores late answ
     f.done(); const id = f.session.comment(start()), wire = f.wires[0];
     f.advance(9999); assert.equal(f.session.commentRequests.get(id).state, "sent");
     f.advance(1); assert.equal(f.session.commentRequests.get(id).state, "unconfirmed");
-    assert.deepEqual(wire.closes, [1000]); assert.deepEqual(f.events.at(-1), { kind: "close", code: 4000, reason: "answer_deadline" });
+    assert.deepEqual(wire.closes, [4410]); assert.deepEqual(f.events.at(-1), { kind: "close", code: 4000, reason: "answer_deadline" });
     wire.message({ kind: "comment_saved", requestId: id, sequence: 1 }); assert.equal(f.session.commentRequests.get(id).state, "unconfirmed");
   } finally { f.finish(); }
 });

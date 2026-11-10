@@ -48,7 +48,7 @@ export function usePresence({ hosted, scene, selected, view, size, setFollowView
       if (shortcut) {
         event.preventDefault(); event.stopPropagation(); hosted.toggleCursors();
       } else if (event.key === "Escape" && hosted.presence.followed &&
-        !(event.target instanceof Element && event.target.closest('[role="menu"]'))) {
+        !(event.target instanceof Element && event.target.closest('[role="menu"],[role="dialog"],input,textarea,select,[contenteditable=true],.inline,.context'))) {
         event.preventDefault(); event.stopPropagation(); hosted.stopFollowing();
       }
     };
@@ -65,11 +65,12 @@ export function usePresence({ hosted, scene, selected, view, size, setFollowView
       document.removeEventListener("keydown", keys, true);
     };
   }, [hosted]);
-  useEffect(() => { if(privacy.current!==hosted.voting.running){privacy.current=hosted.voting.running;pointer.current=null;}send(); }, [hosted, snapshot.self?.connection, selectionKey, view, size.w, size.h, hosted.voting.running]);
-  const followed = snapshot.others.find((other) => other.connection === snapshot.followed);
+  useEffect(() => { if(privacy.current!==hosted.voting.running){privacy.current=hosted.voting.running;pointer.current=null;}send(); }, [hosted, snapshot.self?.connection, snapshot.requested, selectionKey, view, size.w, size.h, hosted.voting.running]);
+  const target=hosted.spotlight.following?hosted.spotlight.target?.connection:snapshot.followed;
+  const followed = snapshot.others.find((other) => other.connection === target);
   useEffect(() => {
     const next = hosted.followView(size);
-    if (next) setFollowView(next);
-  }, [hosted, followed, size.w, size.h, setFollowView]);
+    if (next) setFollowView(current=>current.x===next.x&&current.y===next.y&&current.z===next.z?current:next);
+  }, [hosted, snapshot, followed, size.w, size.h, setFollowView]);
   return { ...snapshot, followed };
 }

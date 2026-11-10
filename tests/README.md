@@ -410,7 +410,7 @@ green claim may hide a failed/unrun row or a new privacy/reconnect failure.
 
 ## Follow a facilitator (0007-W3 v1)
 
-`workshop-spotlight.test.mjs` registers P1-U01–P1-U54 in `npm test` without
+`workshop-spotlight.test.mjs` registers P1-U01–P1-U55 in `npm test` without
 browsers or Supabase. Named dynamic imports exercise strict spotlight wire
 shapes, per-connection membership and distinct-person counts, bounded metadata,
 ordered authority, source outages, fresh real presence, grace/rebind/key rotation,
@@ -420,11 +420,13 @@ follower offers, stale replies, health/readback, speech and measured notice geom
 P1-U46 retains local deadline4000/answer_deadline and send-failure1006 while
 checking every retrying session close as4410/retry_recovery; explicit terminal
 paths remain1000. P1-U49 checks original Worker close/error forwarding before
-its separate1006 socket-close normalization. These are unit results, not browser
-or both-runner acceptance.
+its separate1006 socket-close normalization. P1-U55 exercises the resulting
+1001 cleanup callback against a real Room, preserving grace and terminal overrides.
+These are unit results, not browser or both-runner acceptance.
 
 `server/spotlight.test.ts` registers S305–S355 (51 common checks) and
-`SUMMARY-SPOTLIGHT` in both existing runner configurations. Test-only controls
+`SUMMARY-SPOTLIGHT` in both existing runner configurations. S352 independently
+executes its23 lifetime scenarios, including when selected alone. Test-only controls
 inspect current attachments, seed bounded counters and reconstruct over live
 connections. Node process wake remains distinct from live Room reconstruction;
 workerd uses live server attachments and its existing eviction path. Private keys

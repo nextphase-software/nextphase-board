@@ -127,7 +127,7 @@ unit(48,'all forced endings use reserved terminal control/member increments',asy
   }
 });
 unit(49,'Worker adapter forwards original close code/reason before separate normalization',async()=>{
-  const {WorkerRoom}=await import('../apps/server/src/worker-room.ts');const calls=[],instance=Object.create(WorkerRoom.prototype);
+  const {WorkerRoom}=await import('../apps/server/src/worker-room.ts');const calls=[],instance=new WorkerRoom({},{});
   instance.getRoom=async()=>({closed:async(c,code,reason)=>{calls.push({kind:'room',code,reason});assert.equal(c.attachment().connectionId,'fixture');}});
   const socket={deserializeAttachment:()=>({connectionId:'fixture'}),close:code=>calls.push({kind:'socket',code})};
   await instance.webSocketClose(socket,1006,'no frame');assert.deepEqual(calls,[{kind:'room',code:1006,reason:'no frame'},{kind:'socket',code:1001}]);calls.length=0;
@@ -154,3 +154,23 @@ unit(54,'voting freezes lost spotlight state but retains a working controller af
   f.s.joined({...f.p,own:{membershipVersion:1,following:true}});f.host.voting.running=true;f.s.workshopChanged();assert.equal(f.s.motion,false);assert.equal(f.s.mode,'uncertain');
   const idle={...f.p,session:{...f.p.session,controlVersion:2,phase:'idle',sessionId:null,presenter:null},own:{membershipVersion:2,following:false}};f.s.receive({kind:'spotlight_snapshot',requestId:f.reads.at(-1),spotlight:idle,restoreGeneration:0});f.host.voting.running=false;f.s.workshopChanged();assert.equal(f.s.mode,'ready');assert.equal(f.s.command('start'),true);assert.equal(f.commands.at(-1).action,'start');
 }finally{f.close();}});
+unit(55,'Worker normalization cleanup preserves original grace while real terminal closes win',async()=>{
+  const {WorkerRoom}=await import('../apps/server/src/worker-room.ts');
+  for(const first of [1006,1011])for(const terminal of [1000,1001,4401,4403,4409,4423]){
+    const f=await fixture();try{
+      const {a,b}=await started(f);await f.send(b,'follow');const original=f.room.spotlight.session.controlVersion,callbacks=[];
+      const instance=new WorkerRoom({},{});instance.getRoom=async()=>f.room;
+      const socket={deserializeAttachment:()=>a.c.attachment(),serializeAttachment:v=>a.c.attach(v),send:text=>a.frames.push(JSON.parse(text)),close(code){
+        const peers=f.env.connections(),i=peers.indexOf(a.c);if(i>=0)peers.splice(i,1);
+        callbacks.push(()=>instance.webSocketClose(socket,code,''));
+      }};
+      if(first===1006)await instance.webSocketClose(socket,first,'no frame');else await instance.webSocketError(socket);
+      const grace=f.room.spotlight.session.graceDeadline;assert.equal(f.room.spotlight.session.phase,'reconnecting');assert.equal(grace,f.env.now()+5000);
+      // Deliver the adapter's own physical cleanup callback, once, like workerd.
+      await callbacks.shift()();assert.equal(f.room.spotlight.session.phase,'reconnecting');assert.equal(f.room.spotlight.session.graceDeadline,grace);assert.equal(f.room.spotlight.session.controlVersion,original+1);
+      if(first===1006&&terminal===1001)continue; // This socket's 1001 is known normalization; real 1001 follows the error path above.
+      await instance.webSocketClose(socket,terminal,'terminal');assert.equal(f.room.spotlight.session.phase,'idle');assert.equal(f.room.spotlight.session.graceDeadline,null);assert.equal(f.room.spotlight.session.controlVersion,original+2);assert.equal(b.c.attachment().spotlightMember.following,false);
+      await instance.webSocketError(socket);assert.equal(f.room.spotlight.session.controlVersion,original+2);
+    }finally{f.close();}
+  }
+});

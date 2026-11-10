@@ -42,7 +42,7 @@ export async function makeDriver(context: Context): Promise<Driver> {
           if(c&&v.member)c.attach({...c.attachment(),spotlightMember:{sessionId:room.spotlight.session.sessionId,...v.member}});
           if(v.voteFailure){
             const target=room as any,voting=target.voting,flush=target.spotlight.flush.bind(target.spotlight);
-            target.spotlight.flush=async()=>{target.spotlightBoundary={session:structuredClone(target.spotlight.session),attachments:target.env.connections().map((p:any)=>p.attachment())};target.spotlight.flush=flush;return flush();};
+            target.spotlight.flush=async()=>{if(voting.running()){target.spotlightBoundary={session:structuredClone(target.spotlight.session),attachments:target.env.connections().map((p:any)=>p.attachment())};target.spotlight.flush=flush;}return flush();};
             if(v.voteFailure==='reply'){
               const send=voting.send;voting.send=function(c:any,frame:any){if(frame.kind!=='vote_result')return send.call(this,c,frame);this.send=send;throw Error('Injected vote reply failure');};
             }else{

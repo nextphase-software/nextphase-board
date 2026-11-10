@@ -36,6 +36,7 @@ export class WorkerRoom {
   env: WorkerEnv;
   room?: Room;
   private discarded = false;
+  private normalizedCloses = new WeakSet<WebSocket>();
   private tasks = new Set<Promise<void>>();
   constructor(state: DurableObjectState, env: WorkerEnv) { this.state = state; this.env = env; }
   environment(board: string) {
@@ -141,6 +142,10 @@ export class WorkerRoom {
     catch (error) { socket.close(error instanceof RoomError && error.status === 404 ? 4403 : 1011); }
   }
   async webSocketClose(socket: WebSocket, code: number, reason: string = "") {
+    // A no-frame close needs a legal socket-close code. Its resulting callback
+    // is our cleanup, not a new clean departure; stronger terminal codes still win.
+    if (code === 1001 && this.normalizedCloses.has(socket)) return;
+    if (code === 1006) this.normalizedCloses.add(socket);
     if (!this.discarded) await (await this.getRoom()).closed(connection(socket),code,reason);
     socket.close(code === 1006 ? 1001 : code);
   }

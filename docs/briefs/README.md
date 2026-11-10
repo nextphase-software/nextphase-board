@@ -388,3 +388,10 @@ ranked latest results and explicit clear. Fourteen prerequisite contracts define
 layout7's bounded room stores, access/target reconciliation and recovery, running
 presence redaction and the shared Timer and voting panel's exact appearance and
 keyboard behavior. Document10/fileVersion2/backup envelope1 and dependencies stay.
+
+[0007-W3 v1 — Follow a facilitator through a board](0007-W3-follow-a-facilitator-through-a-board.md)
+(draft) specifies one ephemeral room-owned spotlight for every admitted effective
+role, safe offers/leave/rejoin, expected-version takeover and connection-bound
+lifetime on both runners. Ten successor contracts define original-close/rebind/
+attachment behavior and exact people-menu/banner/focus/speech values. No stored
+format, dependency or timer behavior change; implementation has not started.

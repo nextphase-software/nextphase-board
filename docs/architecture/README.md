@@ -462,3 +462,27 @@ preserves timer behavior while recomposing its panel. Current layout7 adds two
 explicitly backup-excluded voting tables. Document10/fileVersion2/backup envelope1,
 identity v4, comments v4, local storage v3, toolchain/lock/inventory v5 and runtime
 notices v3 remain; no dependency is added. Prior versions remain unchanged.
+
+For 0007-W3 v1, use these ten successor contracts in place of their earlier
+versions, including inherited cross-references:
+
+- [0004 presence v3](0004-presence-v3.md): complete spotlight state, wire,
+  current admission, per-connection membership, bounds and lifetime event table.
+- [0003 sync v12](0003-sync-v12.md), [access v11](0003-access-v11.md),
+  [API v11](0003-api-v11.md), [hosted storage v11](0003-hosted-storage-v11.md)
+  and [self-host runner v7](0003-self-host-runner-v7.md): separate ephemeral
+  socket/controller state, original-close forwarding and live reconstruction.
+- [0007 workshop voting v2](0007-workshop-voting-v2.md): narrow atomic spotlight
+  ending on voting Start; all ballot/privacy/storage/presentation rules retained.
+- [0006 board lifecycle v5](0006-board-lifecycle-v5.md): terminate ephemeral
+  spotlight before lifecycle/recovery/history-replacement closure.
+- [0001 interaction v37](0001-interaction-v37.md): single source of concrete
+  people-menu/banner/frame/rings/placement/words/focus/announcements.
+- [0001 web modules v35](0001-web-modules-v35.md): dedicated room and web
+  controller/rules/presentation;48 team modules/22 state hooks/App≤264.
+
+[The W3 brief](../briefs/0007-W3-follow-a-facilitator-through-a-board.md) defines
+allowed files and checks. Timer v2, hosted persistence v10, document v15 and board
+file v4 remain unchanged: no stored spotlight value or format/version bump.
+Document10/fileVersion2/room layout7/backup envelope1, identity v4/comments v4/
+local storage v3/toolchain-lock-inventory v5/runtime notices v3 remain in force.

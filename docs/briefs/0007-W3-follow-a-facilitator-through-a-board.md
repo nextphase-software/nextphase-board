@@ -698,3 +698,92 @@ vitest.workerd.config.ts
 ```
 
 Record-only commit: `docs/briefs/0007-W3-follow-a-facilitator-through-a-board.md`.
+
+### Server fix round 1 — 2026-11-10
+
+- Branch: `codex/0007-W3-follow-a-facilitator-through-a-board`.
+- Prerequisite base remains `197d7c7f6653ab34870d287136befaa8acca7a17`.
+- Previous record tip: `f628c01695c4121e817efb9dcbad39990f88aac9`.
+- Validated fix source/test revision: `50e4439208d934445ed1cf54190e4bedf2bfad4a`.
+- This appended record is committed separately; report its tip independently.
+
+Separate server validation of the previous record tip reported a valid, awake
+Node run with345 passes/6 failures (spotlight45/6), with each failure reproduced
+in isolation. The Workerd run overlapped host sleep and remains **INVALID**;
+none of its results is promoted to a product pass/fail classification here.
+Its S309/S354/S182 diagnostics were nevertheless inspected against source.
+
+#### Causes and corrections
+
+| Case | Product or test | Cause and correction; required proof retained |
+| --- | --- | --- |
+| S309 | Test | It expected exhaustion while voting was still running. Presence v3 explicitly checks running voting before version headroom. Assert `spotlight_voting` first, reveal/clear through real vote commands, then require `spotlight_version_exhausted` and unchanged controlVersion M. Both the voting prohibition and exhausted-idle proof remain. Shared revocation setup now uses the real operator delivery path. |
+| S330 | Test | Direct `disable_person` RPC plus a board-details GET did not process pending room revocation delivery; the test waited for work it never triggered. Use the existing operator disable/enable endpoint, which invokes delivery, assert removal done/4403/no grace/no protected late projection, then prove re-enabled admission stays idle and the old key cannot resume. |
+| S339 | Test/harness | Room message expiry calls `spotlight.flush` before the voting handler. The one-shot probe captured this pre-commit active session and disarmed too early. Both harnesses now keep it armed until the stored vote is running, then capture at the first committed flush before delegating its await. The probe does not condition on spotlight being idle, so a surviving spotlight still fails. Before-commit preservation and post-commit stamp/authority/reply failure assertions remain. |
+| S343 | Test | The test incorrectly incremented cycle on Restore. Lifecycle v5 inherits v2: only accepted Move increments cycle; Restore retains it. Assert Move cycle1, restored active cycle1, next Move cycle2 and Delete expectedCycle2; retain all spotlight termination and other-board assertions. |
+| S347 | Test | It expected an idle timer during the inherited2500ms zero presentation window. Timer v2 retains v1's running record until end+2500. Use the actual stored deadline and assert running/unchanged version at end and end+2499, idle/version+1 at end+2500, with spotlight and voting independence throughout. |
+| S352 | Test | A global set of earlier successful tests made isolated selection fail. Register scenario functions independently of execution and execute all23 lifetime scenarios with fresh fixtures/controls inside S352 itself. Record actual executed IDs; its timeout alone becomes300000ms for the self-contained sequence. No prior test result is borrowed. |
+| S354 diagnostic | Product | The Workerd adapter forwarded original1006, then its legal `socket.close(1001)` produced a cleanup callback that was interpreted as a new clean departure, ending grace. Track sockets whose1001 is adapter-generated normalization and ignore that callback. Continue forwarding original codes/reasons and genuine clean/strong terminal causes. Tracking is weak socket memory, not storage/attachment state. |
+| S182 diagnostic | Unclassified | Inspected history intent/cleanup, recovery and Worker control paths. No specific cause is established from the invalid run's final503 receipt. Preserve its assertions and source; require an awake rerun rather than classify or change it speculatively. |
+
+P1-U55 drives the actual Worker adapter methods against a real in-memory Room,
+including the generated cleanup callback, unchanged grace deadline/control
+version, genuine clean1000/1001 and4401/4403/4409/4423 overrides. It fails on the
+previous adapter (`idle` instead of `reconnecting`) and passes after the fix.
+P1-U49 now constructs the adapter normally so its private state is initialized.
+These are Node unit results, not an executed Workerd server check.
+
+Fix-source files (6): `apps/server/src/worker-room.ts`,
+`tests/server/spotlight.test.ts`, `tests/server/node-test.ts`,
+`tests/server/driver-workerd.ts`, `tests/workshop-spotlight.test.mjs`,
+`tests/README.md`. No web source/design, requirements/contracts, dependencies,
+manifests/locks, schema/storage format or services changed. Added dependencies:
+none. No merge, push, deployment or launcher/agent invocation.
+
+#### Validation of the fix source
+
+Pinned Node26.13.0/npm11.20.0. All PASS command processes below exited0.
+Scratch destinations are normalized as `$W3_SCRATCH`.
+
+| Row | Commands / inspection | Current-source result |
+| --- | --- | --- |
+| V1 | Byte-compare the same manifests/lock/inventory/notices against original prerequisite base. | PASS;20/20 unchanged, new dependencies0. |
+| V3 | `npm run typecheck` | PASS;5/5 workspace members. |
+| V4 | `npm test` | PASS;1063 passed,0 failed,0 skipped; spotlight55/55. |
+| V7 | `npm run build:server`; `npm run audit:licenses`; dry-run below. | PASS;3/3 commands,2 server bundles/notices verified, deployments0. |
+| V8 | Inspect every fix hunk; `git diff --name-status 197d7c7f6653ab34870d287136befaa8acca7a17..50e4439208d934445ed1cf54190e4bedf2bfad4a`; same range with `git diff --check`; compare fix paths with brief allowlist. | PASS;6/6 fix files allowed;34 cumulative files including the earlier append-only record; whitespace errors0/private-path matches0. This subsequent record is also append-only. |
+
+```sh
+node --test --test-name-pattern=P1-U55 tests/workshop-spotlight.test.mjs
+node --check tests/server/spotlight.test.ts
+node --check tests/server/node-test.ts
+node --check tests/server/driver-workerd.ts
+WRANGLER_SEND_METRICS=false npx --no-install wrangler deploy --dry-run --outdir "$W3_SCRATCH/fix1-worker-dry-run" -c apps/server/wrangler.json
+```
+
+Focused post-fix regression:1/1 passed; pre-fix negative:1/1 failed as expected.
+Server/harness syntax checks:3/3 passed. V2/V5/V6 were not rerun because install
+inputs and web source are unchanged; their earlier receipts remain separately
+identified above. No browser/design campaign was added.
+
+```text
+PASS: V1 source=50e4439208d934445ed1cf54190e4bedf2bfad4a unchanged-files=20
+PASS: V3 source=50e4439208d934445ed1cf54190e4bedf2bfad4a workspaces=5
+PASS: V4 source=50e4439208d934445ed1cf54190e4bedf2bfad4a pass=1063 fail=0 skip=0 spotlight=55
+PASS: V7 source=50e4439208d934445ed1cf54190e4bedf2bfad4a commands=3 server-bundles=2 deployments=0
+PASS: V8 source=50e4439208d934445ed1cf54190e4bedf2bfad4a fix-files=6 cumulative-files=34 whitespace-errors=0
+```
+
+Unrun on the fix source: named live server checks and both complete server
+suites, schema setup/reapply and V9–V13/browser checks. Docker's read-only
+availability probe succeeded, but `node_modules/.bin/supabase --version` failed
+with a sandbox-protected telemetry-file write (exit1). No local stack was started
+and no server assertion is reported passed. The next independent server run
+must repeat both runners awake, including isolated S352 and the unclassified
+S182 diagnostic. Known NB-108 W2-S7/S8/S9/S16/S20/S21 remain untouched and separate.
+
+No requirements/scope escalation. Public-boundary Git hooks passed; Git's
+nonfatal packed-ref maintenance warning remains sandbox-related. The fix commit,
+branch reference and clean source worktree were verified after commit. This
+record receives only diff/append/link inspection, without rerunning application
+tests or builds for the documentation-only append.

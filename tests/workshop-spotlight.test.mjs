@@ -183,3 +183,4 @@ unit(55,'Worker normalization cleanup preserves original grace while real termin
     }finally{f.close();}
   }
 });
+unit(56,'banner top measures only top bars, context and notices, never the bottom tool palette',async()=>{const {readFile}=await import('node:fs/promises');const s=await readFile(new URL('../apps/web/src/team/spotlight-layer.tsx',import.meta.url),'utf8');const m=s.match(/visible\('([^']*)'\)\.map\(n=>n\.getBoundingClientRect\(\)\.bottom\)/);assert(m,'bottom selector found');const parts=m[1].split(',').map(x=>x.trim());for(const want of ['.file','.actions','.context','.context-bar','.team-banner','.team-notice-column'])assert(parts.includes(want),want);assert(!parts.includes('.palette'),'bottom palette must not set the banner top');const {spotlightGeometry:g}=await import('../apps/web/src/team/spotlight-rules.ts');const r=g(1280,800,[56,60],[]);assert.equal(r.top,72);assert(r.maxHeight>600);});

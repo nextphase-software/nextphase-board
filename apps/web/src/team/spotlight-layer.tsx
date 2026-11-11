@@ -13,13 +13,13 @@ export function SpotlightLayer({hosted}:{hosted:HostedBoard}){
   useLayoutEffect(()=>{
     const measure=()=>{
       const visible=(selector:string)=>[...document.querySelectorAll<HTMLElement>(selector)].filter(n=>n.getClientRects().length&&getComputedStyle(n).visibility!=='hidden');
-      const bottoms=visible('.file, .actions, .palette, .context, .context-bar, .team-banner, .team-notice-column').map(n=>n.getBoundingClientRect().bottom);
+      const bottoms=visible('.file, .actions, .context, .context-bar, .team-banner, .team-notice-column').map(n=>n.getBoundingClientRect().bottom);
       const rects=visible('.presence-menu, .w1-panel, .history-shell, .comment-panel, .team-share, .team-dialog').map(n=>n.getBoundingClientRect());
       const next=spotlightGeometry(innerWidth,innerHeight,bottoms,rects);
       setGeometry(old=>JSON.stringify(old)===JSON.stringify(next)?old:next);
     };
     measure();const resize=new ResizeObserver(measure);
-    for(const n of document.querySelectorAll('.file, .palette, .context, .context-bar, .team-banner, .team-notice-column, .presence-menu, .w1-panel, .history-shell, .comment-panel, .team-dialog'))resize.observe(n);
+    for(const n of document.querySelectorAll('.file, .actions, .context, .context-bar, .team-banner, .team-notice-column, .presence-menu, .w1-panel, .history-shell, .comment-panel, .team-dialog'))resize.observe(n);
     const observer=new MutationObserver(records=>{if(records.some(r=>!(r.target instanceof Element&&r.target.closest('.spotlight-banner'))))measure();});observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class','hidden','style']});
     window.addEventListener('resize',measure);
     return()=>{resize.disconnect();observer.disconnect();window.removeEventListener('resize',measure);};

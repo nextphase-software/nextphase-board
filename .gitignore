@@ -24,3 +24,4 @@ supabase/.temp/
 supabase/.branches/
 supabase/signing_keys.json
 tests/server/.stack.json
+.local/

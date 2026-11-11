@@ -14,7 +14,10 @@
     "build": "npm run build -w nextphase-board-web",
     "build:fixtures": "npm run build:fixtures -w nextphase-board-web",
     "build:server": "node scripts/build-server.mjs",
-    "audit:licenses": "node scripts/check-notices.mjs"
+    "audit:licenses": "node scripts/check-notices.mjs",
+    "team:start": "node scripts/team-local.mjs start",
+    "team:code": "node scripts/team-local.mjs code",
+    "team:stop": "node scripts/team-local.mjs stop"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.4.11",

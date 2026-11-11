@@ -4,40 +4,56 @@ This guide is for anyone who has downloaded NextPhase Board and wants to run it,
 that it works on their machine, and try its features. It covers the development build
 on `main`. There are no releases yet.
 
-## Before you start: where your board is saved
+It has two parts:
 
-NextPhase Board is an early, single-user preview. The local server only delivers the
-app. Your board is saved inside your browser, not on the server and not in this folder.
-There are no accounts, sharing or sync.
+- [Part 1: local single-user mode](#part-1-local-single-user-mode). Only the web app
+  runs, boards are saved in your browser, and there is no sign-in. Start here.
+- [Part 2: team mode on your Mac](#part-2-team-mode-on-your-mac). One command starts a
+  local sign-in service, database and Board server with three test people, so you can try
+  sharing, roles, live editing, comments, history, Trash, the timer, voting and spotlight.
 
-- **One board per browser profile and address.** A different browser, profile or
-  device starts with an empty board, and nothing moves across.
-- **Browser storage is not a backup.** Clearing site data, private browsing or the
-  browser freeing up space can delete your board. Safari may remove data for sites you
-  haven't opened for a while.
-- **There is no export or import yet**, so you cannot back up or move a board. Use
-  throwaway content, never anything you need to keep.
-- **Use one tab at a time.** A second tab opens read-only.
-- **Don't go back to an older version after saving with a newer one.** Newer versions
-  open boards saved by older ones, but an older version may not open a newer board.
+Use made-up content throughout. This is a development build.
 
 ## What you need
 
 - Git.
 - **Node 26.13.0 and npm 11.20.0**, the exact versions in the
-  [toolchain contract](../architecture/0001-toolchain-v3.md). A Node version manager
-  makes it easy to switch to them.
+  [toolchain contract](../architecture/0001-toolchain-v5.md). Node 26.13.0 includes npm
+  11.20.0. A Node version manager makes it easy to switch to them.
 - **Chrome or Safari** on the same computer.
+- For Part 2 only: **Docker Desktop** for Mac.
 
-## Run it
-
-From a terminal:
+Get the code:
 
 ```sh
 git clone https://github.com/nextphase-software/nextphase-board.git
 cd nextphase-board
-npm --prefix apps/web ci --ignore-scripts --no-audit --no-fund
-npm --prefix apps/web run build
+```
+
+Run every command in this guide from that folder.
+
+## Part 1: local single-user mode
+
+### Where your boards are saved
+
+The local server only delivers the app. Your boards are saved inside your browser, not on
+the server and not in this folder. There are no accounts, sharing or sync in this mode.
+
+- **Boards belong to one browser profile and address.** You can keep several boards; the
+  Board panel (click the board name at the upper left) lists them under "Boards in this
+  browser". A new board comes from Open board file…. A different browser, profile or device
+  starts empty, and nothing moves across.
+- **Browser storage is not a backup.** Clearing site data, private browsing or the browser
+  freeing up space can delete your boards. Safari may remove data for sites you haven't
+  opened for a while. Use **Save a copy to file** in the Board panel to keep a copy, and
+  **Open board file…** to open it again.
+- **Use one tab per board.** A second tab on the same board opens read-only.
+
+### Run it
+
+```sh
+npm ci --ignore-scripts --no-audit --no-fund
+npm run build
 npm --prefix apps/web run serve
 ```
 
@@ -49,34 +65,34 @@ The build checks every bundled dependency against the accepted list and copies t
 third-party notices next to the app. If it reports an unreviewed or uncovered package,
 stop and report it (see [Report a problem](#report-a-problem)).
 
-**To update:** stop the server, run `git pull`, then repeat the `ci`, `build` and
-`serve` commands. Your board stays, because the address is the same.
+**To update:** stop the server, run `git pull`, then repeat the three commands. Your
+boards stay, because the address is the same.
 
-**Other computers, phones or servers aren't supported yet.** The local server works
-only on the machine it runs on, by design. Don't put the build on a network over plain
-HTTP: browsers then block features the app needs, so editing is disabled and the app may
-not start. A container setup and server instructions are planned for a later release.
+**Other computers and phones aren't supported in this mode.** The local server works only
+on the machine it runs on, by design. Don't put the build on a network over plain HTTP:
+browsers then block features the app needs, so editing is disabled and the app may not
+start. To host the server, see the [server setup](../../apps/server/README.md).
 
-## Check that your setup works
+### Check that your setup works
 
 Do these once after installing, and again after updating.
 
-**1. Automated checks (no browser needed).** From the repository folder:
+**1. Automated checks (no browser needed).**
 
 ```sh
-npm --prefix apps/web run typecheck
-npm --prefix apps/web test
-npm --prefix apps/web run audit:licenses
+npm run typecheck
+npm test
+npm run audit:licenses
 ```
 
 All three should finish without errors.
 
 **2. In-browser checks.** These run real storage, tab-locking and recovery tests in your
-own browser. They use a separate, throwaway database and never touch your board. Build
+own browser. They use a separate, throwaway database and never touch your boards. Build
 and serve them in a second terminal:
 
 ```sh
-npm --prefix apps/web run build:fixtures
+npm run build:fixtures
 npm --prefix apps/web run serve:fixtures
 ```
 
@@ -86,18 +102,18 @@ lifecycle events are suppressed, try again in a clean browser profile with no
 extensions. [tests/README.md](../../tests/README.md) explains what each check covers.
 
 **3. A quick look at the app.** Open <http://127.0.0.1:4173>. A new board should
-appear with a save status, and the palette and Objects panel should respond.
+appear with a save status, and the toolbar at the bottom should respond.
 
-## Try the features
+### Try the editing features
 
-Use throwaway content. Each row says what to do and what you should see. The linked
-brief has the full behaviour if something looks different.
+Each row says what to do and what you should see. The linked brief has the full behaviour
+if something looks different. The same features work in team mode.
 
 | Feature | Try this | You should see |
 | --- | --- | --- |
-| [Capture and reopen](../briefs/0001-W1-capture-and-reopen-a-board.md) | Name the board in the upper-left menu, add a Sticky and a Text object, type in them, move them, click Save, then reload the page | The board reopens with the same name, objects and text. The status reads "Locally saved" |
-| [Second tab](../briefs/0001-W1-capture-and-reopen-a-board.md) | Open the same address in a second tab | The second tab is read-only and says another tab is editing. Close the first tab, then choose Retry editing in the second |
-| [Unnamed board](../briefs/0001-W14-edit-an-unnamed-board.md) | On a new board with no name, add and change objects, then try Save | Editing works. Only Save is blocked until the board has a valid name |
+| [Capture and reopen](../briefs/0001-W1-capture-and-reopen-a-board.md) | Name the board in the Board panel (click the board name at the upper left), add a Sticky and a Text object, type in them, move them, click Save, then reload the page | The board reopens with the same name, objects and text. The status reads "Locally saved" |
+| [Second tab](../briefs/0001-W1-capture-and-reopen-a-board.md) | Open the same address in a second tab | On the same board, the second tab is read-only and says "Another tab is editing. This board is read-only." Close the first tab, then choose Retry editing in the second. A second tab can open a different board from Boards in this browser and edit it |
+| [Unnamed board](../briefs/0001-W14-edit-an-unnamed-board.md) | On a new board with no name, add and change objects, then try Save | Editing works. Save and Save a copy to file stay blocked until the board has a valid name |
 | [Undo, duplicate, delete](../briefs/0001-W2-edit-with-explicit-focus-and-undo.md) | Edit an object, then Undo and Redo. Duplicate and Delete an object | Each step reverses and replays. Text fields keep their own typing undo |
 | [Pan and zoom](../briefs/0001-W13-navigate-the-canvas-with-trackpad-and-mouse-wheel.md) | Scroll with two fingers or the wheel. Pinch, or Ctrl/Cmd+wheel. Hold Space and drag | The canvas pans and zooms (50–200%) around the pointer. The browser page itself doesn't zoom, and nothing on the board changes |
 | [Note size and text growth](../briefs/0001-W4-define-note-geometry-and-text-growth.md) | Add a sticky and type several lines | New stickies are square and grow taller to show all their text. Width and font size stay the same |
@@ -108,17 +124,158 @@ brief has the full behaviour if something looks different.
 | [Resize](../briefs/0001-W8-resize-selected-objects.md) | Drag a corner handle of a selected object. Hold Shift to keep proportions. Press Escape mid-drag | The object resizes but never hides text that fits. Escape cancels |
 | [Align, distribute, order](../briefs/0001-W9-align-and-order-selected-objects.md) | Select several objects and use the Arrange menu | They line up, spread out evenly, or move in front of or behind each other |
 | [Group and ungroup](../briefs/0001-W10-group-and-ungroup-objects.md) | Select several objects and choose Group in Arrange, then click one member | The whole group is selected, with a dashed outline, and moves as one. Double-click still edits one member. Ungroup separates them |
-| [Copy, cut, paste](../briefs/0001-W11-copy-and-paste-board-objects.md) | Select objects, press Cmd/Ctrl+C then Cmd/Ctrl+V on the canvas. Try Cmd/Ctrl+X | A copy appears next to the original. Cut removes the objects. Their text can also be pasted into other apps as plain text |
-| Keyboard route | Without a mouse, use the Objects panel to select, edit, move and resize objects | Objects has buttons for selecting, editing, moving, resizing, styling, arranging, grouping and copy and paste |
+| [Copy, cut, paste](../briefs/0001-W11-copy-and-paste-board-objects.md) | Select objects, press Cmd/Ctrl+C then Cmd/Ctrl+V on the canvas. Try Cmd/Ctrl+X | A copy appears next to the original. Cut removes the objects. Their text can also be pasted into other apps as plain text. Pasting a copied picture adds an image |
+| [Sections](../briefs/0002-W1-organize-sections.md) | Choose the Section tool and drag on empty canvas, then type a name. Drag a sticky into the section, then drag the section. Or select a few stickies, open Arrange and choose Section from selection | A lightly tinted area appears, with its name above its top-left corner. While you drag the sticky over it, a "Joins …" label shows. Moving the section moves the sticky too. Objects outside it stay where they are |
+| [Connect ideas](../briefs/0002-W2-connect-ideas.md) | Select a sticky and drag one of the dots on its sides onto another sticky. Or select two ideas and choose Connect in Arrange. Move one sticky. Select the connector and choose Add text | A grey line with an arrow joins them. It meets each idea at the nearest side, with right-angle turns, and follows the sticky when it moves. The label sits on the line. Deleting a sticky deletes its connectors too |
+| [Style and reconnect connectors](../briefs/0002-W3-style-and-reconnect-relationships.md) | Select a connector and use Colour, Line style, Start point, End point and Line shape. Drag one of its end circles onto another idea. Then make a new connector | Each change shows at once. The dragged end moves to the new idea, on the side nearest where you dropped it. Dropped on empty canvas, it goes back. A new connector uses the last style you chose |
+| [Shapes](../briefs/0002-W4-draw-basic-shapes.md) | Choose the Shapes tool, or press R for a square or O for a circle. Drag to draw one, or click to place one. Type in it, then use Shape, Fill and Border on its bar. Type a lot of text | A white shape with a dark grey border and centred text. Shape switches between Square and Circle. Fill and Border change separately. Long text ends with "…" and the shape keeps its size; Grow to fit text makes it big enough |
+| [Templates](../briefs/0008-W1-insert-a-local-editable-activity.md) | Click Templates in the bottom toolbar, then Add template on Retrospective, Brainstorm or Kanban. Press Undo once | The activity's objects appear to the right of what is already on the board, all selected, and the view moves to them. They edit like any other object. One Undo removes the whole activity |
+| [Draw](../briefs/0009-W1-draw-with-pen-highlighter-and-eraser.md) | Click Draw in the bottom toolbar, or press M (Shift+M for the highlighter). In the bar above it, pick Marker or Highlighter, Thin or Thick, and a colour. Drag on the canvas. Then choose Eraser and drag across a line | A smooth line follows the pointer. Highlighter ink is wide and see-through, so text under it stays readable. The eraser removes every line it touches, whole, in one Undo step, and never erases other objects. Escape returns to Select |
+| [Images](../briefs/0012-W1-paste-and-import-local-images.md) | Copy an image in another app and press Cmd/Ctrl+V on the canvas. Or drop PNG, JPEG, GIF or WebP files on the canvas, or click Image (Cmd/Ctrl+Shift+K) and pick files. Select an image and click Description | The picture lands in the middle of the view, or where you dropped it, already selected. Tall pictures are scaled down. It resizes from its corners keeping its shape. The description becomes its name in Objects. A file that isn't a supported image, or is too large, shows a notice naming it |
+| [Save and open a board file](../briefs/0006-W2-export-and-restore-board-file.md) | Click the board name to open the Board panel. Click Save a copy to file. Then click Open board file… and pick that file | A `<board name>.nextboard` file downloads. Opening it adds a new board and says it opened as a new board in this browser, with your other boards unchanged. It shows under Boards in this browser marked "From file" |
+| [Switch boards](../briefs/0006-W2-export-and-restore-board-file.md) | In the Board panel, edit something, then choose another board under Boards in this browser | You're asked "Save your changes first?" with Save and open, Discard changes and Cancel. The list shows the most recently saved board first, each with its saved time, and the open one says "Open here" |
+| Keyboard route | Without a mouse, use the Objects panel to select, edit, move and resize objects | Objects has buttons for selecting, adding, editing, moving, resizing, styling, arranging, grouping and copy and paste, plus fields for sections, connector ends, shape fill and border, drawing colour and weight, and image descriptions |
 
 This table grows as features are added. Each new feature adds its own row.
 
+## Part 2: team mode on your Mac
+
+Team mode runs everything on your own computer: a local Supabase stack in Docker for
+sign-in and the database, the Board server, and the app built with team features on.
+Nothing is sent outside your computer, and no real email is sent.
+
+### 1. Install Docker Desktop once
+
+Install Docker Desktop for Mac from the Docker website, open it, and wait until it says
+Docker is running. You don't need a Docker account.
+
+### 2. Start team mode
+
+```sh
+npm run team:start
+```
+
+The first run installs the dependencies, downloads the Supabase images (a few minutes)
+and builds the app. Later runs take under a minute. It then:
+
+- starts local Supabase and sets up the Board database;
+- creates the workspace **Example team** with three test people:
+
+  | Person | Email | Role |
+  | --- | --- | --- |
+  | Ana | `ana@example.com` | Owner |
+  | Ben | `ben@example.com` | Editor |
+  | Mia | `mia@example.com` | Viewer |
+
+- creates a shared board, **Team test board**;
+- starts the Board server on port 8788 and the app on <http://127.0.0.1:4173>.
+
+When it finishes it prints the app address, the three emails and the next steps. Running
+it again is safe: it reuses what is already there and restarts the server and the app.
+Everything it creates on disk is in the `.local/team/` folder, which Git ignores; the logs
+are in `.local/team/logs/`.
+
+If it stops with a message, do what the message says. The common ones: the wrong Node
+version, Docker not running, or a port already in use by another local Supabase stack.
+
+### 3. Sign in as Ana, Ben and Mia
+
+Each person needs a separate browser session, because a browser profile holds one
+sign-in. Use:
+
+- **Ana** in a normal Chrome window;
+- **Ben** in a Chrome private window (File > New Incognito Window);
+- **Mia** in Safari.
+
+For each person:
+
+1. Open <http://127.0.0.1:4173> and choose **Sign in** at the top right.
+2. Enter the person's email and choose **Continue with email**.
+3. In a terminal, run `npm run team:code ana` (or `ben`, `mia`). It prints a 6-digit
+   code. Type it into the six boxes and choose **Sign in**.
+4. Click the board name at the upper left to open the Board panel and choose **Back to
+   files**. If it asks about the empty local board, choose **Discard changes**.
+5. Under Workspaces, choose **Example team** and open **Team test board**.
+
+Ask for the code after choosing Continue with email: each new code replaces the one
+before. No email is needed. The app's own email, with the older code, still arrives in the
+local inbox at <http://127.0.0.1:55324> if you want to see it. A code works for one hour;
+`team:code` gives a fresh one at any time.
+
+To sign in someone Ana has invited from **Share**, run `npm run team:code` with their
+email address; see [Invite a fourth person](#invite-a-fourth-person).
+
+### 4. Try the team features
+
+With all three people on Team test board, the avatars at the top right show three people.
+
+| Feature | Try this | You should see |
+| --- | --- | --- |
+| [Owner, editor and viewer access](../briefs/0003-W1-owner-editor-viewer-access.md) | Ana adds a sticky. Ben moves it. Mia selects it, presses Delete and tries to drag it | Ana and Ben see "Saving…" then "Saved". Mia's status stays "View only", her toolbar shows only Select, Pan and Comment, and the sticky doesn't change |
+| [Take access away](../briefs/0003-W2-revoke-access-across-active-sessions.md) | With the board open in Ben's window, Ana opens Share, then "People from Example team", and changes Ben from "can edit" to "can view", then back | Ana sees "Access updated." or "Takes effect within a minute". Ben's window turns "View only" without a reload, then becomes editable again |
+| [Find boards again](../briefs/0003-W3-discover-and-reopen-workspace-boards.md) | Ana renames the board in the Board panel's "Board name" field, then chooses Back to files | The board's card shows the new name and "Edited just now" |
+| [Sign in, share and see access](../briefs/0003-W4-sign-in-share-and-see-access.md) | Ana clicks Share. Ben and Mia each click Share too | Ana sees "Share this board" and "Who has access", with an invite field. Ben and Mia see only their own row, "Copy link" and "Only the owner of Example team can invite people and change who has access." Mia's banner reads "You can view this board. Ask the owner of Example team if you need to edit it." |
+| [Find, create and reopen boards](../briefs/0003-W5-find-create-and-reopen-boards.md) | Everyone chooses Back to files. Ana clicks New board, goes back, then right-clicks a card. Mia looks for New board | New board opens "Untitled" in the same tab. Cards show "Example team · Edited …" and a role (Owner, Can edit, Can view). The card menu has Open, Open in new tab, Copy link and Rename. Mia has no New board and no Rename |
+| [Edit together](../briefs/0004-W1-edit-together-with-participant-presence.md) | Ana and Ben type into the same sticky at the same time, then Ana presses Undo | Both typings merge on both screens. Undo takes back only Ana's own steps. Where Ben changed the same thing since, Ana sees "Someone else changed that, so it was not undone." |
+| [Recover after a dropped connection](../briefs/0004-W2-recover-shared-edits-after-interruption.md) | In Ben's window, open DevTools, set Network to Offline, then back to No throttling | The status reads "Offline — view only" with "Reconnecting… You can look around; editing comes back when the board does." Back online, the board rejoins by itself and reads "Saved" |
+| [See who is here and follow](../briefs/0004-W3-see-who-is-on-a-board-and-where-they-are.md) | All three move their pointers. Ben selects a sticky. Ana clicks Ben's avatar, then Stop following. Ana presses ⌥⌘\ | Avatars sit at the top right, your own first. Cursors carry name labels; Mia's reads "mia · viewer". Ben's selection is outlined in his colour. Ana sees "Following ben" with Stop following. ⌥⌘\ hides the other cursors for Ana only, like "Show other people's cursors" in the people menu |
+| [Comments](../briefs/0005-W1-discuss-and-resolve-anchored-ideas.md) | Ana picks the Comment tool (speech bubble, or C), clicks a sticky, types and presses Enter. Ben opens the pin and replies. Mia adds a comment. Ana resolves her thread. Ben deletes the sticky | A pin with the author's initial appears on every screen and replies show live. Ana gets "Thread resolved" with Undo, and "Show resolved comments" brings the thread back. After the sticky is deleted, its pin stays where it was, marked as detached |
+| [Mentions](../briefs/0005-W2-mention-participants-in-board-discussions.md) | In a comment, Ana types @, picks ben and posts. Ben chooses Back to files and clicks the bell | Ana sees the "Mention a participant" list, and "@ben" turns blue. Ben's bell has a dot, and Notifications shows "ana mentioned you" with "Team test board · Example team". Clicking it opens the board at that comment |
+| [Import a board file](../briefs/0006-W1-export-and-restore-a-portable-board.md) | In the Board panel, Ana chooses Save a copy to file. On the files page she chooses Import board file… and picks that file | A new team board with the same content opens and appears for everyone in Example team. Mia has no Import board file… |
+| [Board file in this browser](../briefs/0006-W2-export-and-restore-board-file.md) | On a local board (Boards in this browser on the files page), choose Open board file… in the Board panel and pick the same file | The file opens as a separate local board, listed under Boards in this browser. Team boards don't change |
+| [Version history](../briefs/0006-W3-manage-board-history.md) | In the Board panel, Ana chooses Show version history, then Save version…, names it and clicks Save version. Ben edits a sticky. Ana opens the saved version, chooses Restore this version and confirms. Mia opens the history too | Ana's open version reads "… · Read-only preview" with "Back to current version". After the restore Ana sees "Version restored", and Ben sees "ana restored this board · Rejoining…", then "Rejoined". Mia can browse but sees "You can browse history. Saving, naming and restoring require edit access." |
+| [Trash](../briefs/0006-W4-delete-and-restore-boards-from-trash.md) | Ana makes a New board. On the files page she right-clicks its card, chooses Move to trash…, then Move to trash. She opens Trash under Example team, chooses Restore, then Open board | The card leaves Recents. Trash lists it with "Restore before …". Restore shows "Board restored" and "Restored to Example team · Same board and link". Anyone who had the board open sees "This board is not available." Ben and Mia have no Move to trash… and no Trash |
+| [Shared timer](../briefs/0007-W1-run-a-shared-workshop-timer.md) | Mia clicks the timer button ("03:00", left of Share) and starts it. Ben pauses, then resumes. Ana clicks "+ 1 min", then stops it and confirms Stop timer | All three countdowns match, in the "Timer and voting" panel and in the browser tab title. Paused shows "Paused". At 00:00 the panel shows "Timer finished". "Stop the timer?" warns that it stops the timer for everyone |
+| [Voting](../briefs/0007-W2-vote-and-reveal-workshop-results.md) | In the timer panel, Ana clicks New vote, types a question and clicks Start voting. Ana and Ben click Enter voting, click stickies, then Done voting. Ana clicks End and reveal and confirms; later she uses Clear results | Each voter's strip reads "Voting · 2 of 3 votes remaining · Done voting", and each person sees only their own dots until the reveal. Mia sees "Voting in progress. Only owners and editors can vote." After the reveal everyone sees "Results" and count badges on the stickies |
+| [Spotlight](../briefs/0007-W3-follow-a-facilitator-through-a-board.md) | In the people menu (the arrow next to the avatars), Ana chooses Spotlight me. Ben clicks Follow; Mia waits. Ana then clicks Stop | Ben and Mia see "Spotlight on ana. Following in 3…" with Follow and Not now, then follow Ana's view with Stop following. Ana sees "Waiting for followers…" with Cancel, then "2 followers" with Stop |
+
+Mia, the viewer, can still comment and reply, mention people, run the shared timer, use
+Spotlight me and Follow, browse version history and save a copy to a file.
+
+### Invite a fourth person
+
+Board sends no email; the owner shares the invitation link. To try it with a fourth
+person, Lee:
+
+1. As Ana, open Share on Team test board, type `lee@example.com`, leave "can edit" and
+   click Invite. You should see "Invitation link copied. Send it to lee@example.com
+   yourself." Lee is listed under "Invited".
+2. Open a browser session that is not signed in yet (for example a Safari private window)
+   and paste the copied link. It shows "Sign in to open this board".
+3. Enter `lee@example.com`, choose Continue with email, run
+   `npm run team:code lee@example.com` and type the code. The invitation is accepted
+   and the board opens with Lee's role. Lee sees only this board on the files page.
+4. As Ana, open Share and choose Remove on Lee's row. Lee sees "You no longer have access
+   to this board" with "Close this board".
+
+Inviting from the main Share view gives access to that board only. Inviting from
+"People from Example team" makes the person a workspace editor or viewer.
+
+### 5. Stop and clean up
+
+```sh
+npm run team:stop
+```
+
+This stops the app, the Board server and Supabase. Your people and boards are kept, and
+the next `npm run team:start` brings them back.
+
+To delete everything and start from scratch:
+
+```sh
+npm run team:stop -- --wipe
+```
+
+This deletes the local Supabase data and the `.local/team/` folder. It touches only the
+Docker containers and volumes of this local team stack (project `nextphase-board-local`),
+never other Docker projects. Quit Docker Desktop afterwards if you like.
+
 ## Known limits
 
-- Single user, one board per browser and address, saved only in the browser.
-- No export, import, accounts, sharing or collaboration yet.
-- Runs only on `127.0.0.1` on your own computer. No container, server or sub-path
-  hosting yet.
+- Local single-user mode keeps boards only in the browser, on `127.0.0.1` on your own
+  computer.
+- Team mode here runs on one Mac only, with test people and no real email. Hosting it for
+  other people needs the [server setup](../../apps/server/README.md) with HTTPS.
 - Tested in Chrome and Safari. Other browsers may work, but aren't checked.
 
 ## Report a problem
@@ -127,9 +284,11 @@ Open an issue in the project's GitHub repository with:
 
 - the version: the output of `git rev-parse --short HEAD`;
 - your browser and its version, and your operating system;
+- whether you used local mode or team mode;
 - what you did, step by step;
 - what you expected and what happened;
 - the results of the checks above, if any failed.
 
-Use made-up content in screenshots and descriptions. For a security problem, follow
+Use made-up content in screenshots and descriptions, and never paste anything from
+`.local/team/` (it holds local keys). For a security problem, follow
 [SECURITY.md](../../SECURITY.md) instead of opening a public issue.

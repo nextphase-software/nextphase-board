@@ -1,8 +1,11 @@
 # Board server
 
 The same HTTP app and board room run in a Cloudflare Durable Object and one Node
-process. The web preview remains local-only; sign-in and hosted save screens are
-not part of this server milestone.
+process. The web app built with team features on (`BOARD_TEAM_FEATURES=on`) signs
+people in with Supabase and saves shared boards through this server. To run all of it
+on one computer with test people, use `npm run team:start` from the repository root; see
+[Try and test NextPhase Board](../../docs/guides/try-board.md#part-2-team-mode-on-your-mac).
+The public preview site still serves the local single-user build.
 
 Use Node 26.13.0 and npm 11.20.0. From the repository root:
 
@@ -12,7 +15,7 @@ npm run build:server
 docker build -f apps/server/Dockerfile -t nextphase-board-server .
 ```
 
-Follow the [self-host runner contract](../../docs/architecture/0003-self-host-runner-v3.md):
+Follow the [self-host runner contract](../../docs/architecture/0003-self-host-runner-v7.md):
 configure Supabase with ES256 signing keys and global sign-ups disabled, apply
 `supabase/nextphase_board.sql` as database owner, then expose `nextphase_board`
 through the Data API. Bootstrap the workspace:

@@ -74,6 +74,7 @@ process.on("message", async (message: any) => {
     if(value.failLifecycle!==undefined)failLifecycle=value.failLifecycle;
     if(value.holdRoom!==undefined)holdRoom=value.holdRoom;
     if(value.releaseRoom){holdRoom='';for(const release of heldRoom)release();heldRoom.clear();}
+    if(value.heldRoomCount){process.send?.({id:message.id,result:heldRoom.size});return;}
     if(value.scheduled)await deliver(app.runtime);
     if(value.lifecycleStatus){result=await db.lifecycle(value.board);process.send?.({id:message.id,result});return;}
     if(value.inventory){
@@ -99,6 +100,14 @@ process.on("message", async (message: any) => {
         if (v.reconstruct) await entry.room.ordered(async () => { entry.room = new Room(value.board, entry.room.env); });
         await entry.room.ordered(async () => {
           await entry.room.load();
+          if (Object.hasOwn(v, 'failAdmission')) {
+            const reactions = entry.room.reactions, target = reactions as any;
+            target.readAdmission ??= reactions.admitted.bind(reactions);
+            reactions.admitted = (c:any, admission:Parameters<typeof reactions.admitted>[1]) => {
+              if (c.attachment().id === v.failAdmission) throw Error('Required current admission read unavailable');
+              return target.readAdmission(c, admission);
+            };
+          }
           for (const c of entry.connections) {
             if (v.connection && c.attachment().connectionId !== v.connection) continue;
             const a = c.attachment();
@@ -106,7 +115,7 @@ process.on("message", async (message: any) => {
             if (v.maximal) c.attach({ ...a, label: '"'.repeat(256), presence: { ...a.presence!, label: '"'.repeat(256), selection: Array.from({length:250}, () => crypto.randomUUID()) },
               ...Object.fromEntries(['presenceTimes','timerTimes','timerReadTimes','voteTimes','voteReadTimes','spotlightTimes','spotlightReadTimes','reactionTimes'].map(k => [k, Array(k === 'presenceTimes' ? 10 : 5).fill(Number.MAX_SAFE_INTEGER)])) });
           }
-          result = { attachments: [...entry.connections].map(c => c.attachment()), tables: entry.storage.all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"), meta: entry.storage.all('SELECT * FROM meta ORDER BY key') };
+          result = { attachments: [...entry.connections].map(c => c.attachment()), tables: entry.storage.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT GLOB '_cf_*' AND name NOT GLOB 'sqlite_*' ORDER BY name"), meta: entry.storage.all('SELECT * FROM meta ORDER BY key') };
         });
       }
       if(value.spotlight){

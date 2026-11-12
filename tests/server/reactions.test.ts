@@ -105,16 +105,38 @@ check(365,'reaction before Start delivers first; reaction after Start refuses',a
   const a=await join(),b=await join('viewer');await seed(a);await emit(a);await delivered(b,1);await vote(a);await until(()=>b.p.messages.some(m=>m.kind==='vote_state'&&m.voting?.session.status==='running'));const started=b.p.messages.find(m=>m.kind==='vote_state'&&m.voting?.session.status==='running')!;assert(bursts(b)[0].observed<started.observed);await emit(a);assert.equal((await a.p.next('refused')).reason,'reactions_voting');assert.equal(bursts(b).length,1);
 });
 check(366,'sender removed or disabled behind held ordered operation relays nothing',async()=>{
-  for(const disabled of [false,true]){await fresh();const a=await join('editor'),b=await join('viewer');await helper('proxy',{rpc:'board_role',holdBefore:true,clearLog:true,parameters:{board:f.a,person:f.people.editor.id}});a.p.send(reaction());await until(async()=>(await helper('proxy')).some((r:any)=>r.name==='board_role'&&r.heldAt));if(disabled)await rpc('disable_person',{person:f.people.editor.id});else await rpc('remove_member',{workspace:f.workspace,person:f.people.editor.id});await helper('proxy',{release:'board_role'});await closedAs(a,4403);await barrier(b);assert.equal(bursts(b).length,0);}
+  for(const disabled of [false,true]){await fresh();const a=await join('editor'),b=await join('viewer');await helper('proxy',{rpc:'access_changes_after',holdBefore:true,clearLog:true,parameters:{board:f.a}});a.p.send(reaction());await until(async()=>(await helper('proxy')).some((r:any)=>r.name==='access_changes_after'&&r.heldAt));if(disabled)await rpc('disable_person',{person:f.people.editor.id});else await rpc('remove_member',{workspace:f.workspace,person:f.people.editor.id});await helper('proxy',{release:'access_changes_after'});await closedAs(a,4403);await barrier(b);assert.equal(bursts(b).length,0);}
 });
 check(367,'removed expired role-changed epoch-changed recipients skipped while others receive',async()=>{
   for(const change of ['removed','expired','role','epoch']){await fresh();const a=await join(),b=await join('editor'),c=await join('viewer');if(change==='removed')await rpc('remove_member',{workspace:f.workspace,person:f.people.editor.id});if(change==='expired')await reactionInfo({connection:b.j.self.connection,patch:{expiresAt:at}});if(change==='role')await rpc('write_member_role',{workspace:f.workspace,person:f.people.editor.id,role:'viewer'});if(change==='epoch')await reactionInfo({connection:b.j.self.connection,patch:{epoch:b.j.epoch+1}});await emit(a);await delivered(c,1);assert.equal(bursts(b).length,0,change);await until(()=>b.p.closed!==null);}
 });
 check(368,'sender required-source outage drops all; recipient outage skips only it without retry',async()=>{
-  const a=await join(),b=await join('editor'),c=await join('viewer');await helper('proxy',{rpc:'board_role',fail:true,parameters:{board:f.a,person:f.people.owner.id}});await emit(a);assert.equal(bursts(b).length+bursts(c).length,0);await helper('proxy',{rpc:'board_role',fail:true,parameters:{board:f.a,person:f.people.viewer.id}});await emit(a);await delivered(b,1);assert.equal(bursts(c).length,0);await helper('proxy',{rpc:'board_role',fail:false});await barrier(a);assert.equal(bursts(c).length,0);await emit(a);await delivered(b,2);await delivered(c,1);
+  const a=await join(),b=await join('editor'),c=await join('viewer');
+  await helper('proxy',{rpc:'access_changes_after',fail:true,parameters:{board:f.a}});await emit(a);assert.equal(bursts(b).length+bursts(c).length,0);
+  await helper('proxy',{rpc:'access_changes_after',fail:false});
+  // After the single fresh replay, the recipient's required source is its
+  // synchronous admission read. Fail that read on c only, after b's delivery.
+  await reactionInfo({failAdmission:f.people.viewer.id});await emit(a);await delivered(b,1);assert.equal(bursts(c).length,0);
+  await reactionInfo({failAdmission:null});await barrier(a);assert.equal(bursts(c).length,0);await emit(a);await delivered(b,2);await delivered(c,1);
 });
 check(369,'lock Trash and lifecycle close admit no later reaction',async()=>{
-  for(const ending of ['lock','trash']){await fresh();const a=await join(),b=await join('viewer');if(ending==='lock')await driver.control({board:f.a,raiseFence:true});else await ok(`/boards/${f.a}/trash`,'owner','POST',{requestId:crypto.randomUUID(),expectedCycle:0});await until(()=>a.p.closed!==null&&b.p.closed!==null);assert.equal(a.p.closed,ending==='lock'?4423:4403);assert.equal(bursts(b).length,0);assert.notEqual((await req(`/boards/${f.a}/join-tickets`,'viewer','POST')).status,201);}
+  for(const ending of ['lock','trash']){
+    await fresh();const a=await join(),b=await join('viewer');
+    const ticket=await ok(`/boards/${f.a}/join-tickets`,'viewer','POST',undefined,201);
+    // Hold real received reaction frames until the room has closed, then release
+    // them. A late frame must not be admitted by an old connection attachment.
+    await driver.control({holdRoom:'reactions-closure'});a.p.send(reaction('heart'));b.p.send(reaction('star'));
+    await until(()=>driver.control({heldRoomCount:true}),count=>count===2);
+    if(ending==='lock')await driver.control({board:f.a,raiseFence:true});else await ok(`/boards/${f.a}/trash`,'owner','POST',{requestId:crypto.randomUUID(),expectedCycle:0});
+    await driver.control({releaseRoom:true});await driver.control({board:f.a,settled:true});
+    await closedAs(a,ending==='lock'?4423:4403);await closedAs(b,ending==='lock'?4423:4403);
+    // Attempt a fresh socket with an unused pre-closure ticket. A later ticket
+    // request may complete recovery, so its HTTP status is not admission proof.
+    let late:Peer|undefined;
+    try{late=await driver.connect(`/boards/${f.a}/join?ticket=${ticket.ticket}`);}catch(error){assert.match(String(error),/401|403|404|409|423|503/);}
+    if(late){peers.push(late);await until(()=>late!.closed!==null);assert(!late.messages.some(m=>m.kind==='joined'||m.kind==='reacted'));}
+    assert.equal(bursts(a).length,0);assert.equal(bursts(b).length,0);
+  }
 });
 check(370,'late join reconnect reload and snapshots contain no earlier reaction',async()=>{
   const a=await join(),b=await join('viewer');await emit(a);await delivered(b,1);await b.p.close();const next=await join('viewer');await barrier(next);assert.equal(bursts(next).length,0);assert(!Object.keys(next.j).some(k=>/react/i.test(k)));const late=await join('editor');await barrier(late);assert.equal(bursts(late).length,0);await emit(a);await delivered(next,1);await delivered(late,1);
@@ -139,7 +161,9 @@ check(376,'live attachment reconstruction keeps budget and relays no old frame; 
 });
 check(377,'fifty connections at budget relay bounded frames and remove closed connection budgets',async()=>{
   const clients:Client[]=[];for(let i=0;i<50;i++)clients.push(await join(i%2?'viewer':'editor'));
+  const relayStarted=performance.now();
   for(const c of clients){for(let i=0;i<5;i++)c.p.send(reaction());await barrier(c);}
   for(const c of clients){await delivered(c,245);assert(bursts(c).every(v=>byteLength(v)<=512));const groups=new Map<string,number>();for(const v of bursts(c))groups.set(v.connection,(groups.get(v.connection)??0)+1);assert.equal(groups.size,49);assert([...groups.values()].every(n=>n===5));}
+  measure.fiftyRelayMs=performance.now()-relayStarted;
   const full=await reactionInfo();assert.equal(full.attachments.length,50);assert(full.attachments.every((a:any)=>a.reactionTimes.length===5&&byteLength(a)<=16384));const ids=new Set(clients.map(c=>c.j.self.connection));for(const c of clients)await c.p.close();await until(()=>reactionInfo(),v=>v.attachments.every((a:any)=>!ids.has(a.connectionId)));measure.fiftyRelays=50*49*5;
 });

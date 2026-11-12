@@ -455,7 +455,7 @@ part of this implementation handoff.
 
 ## Ephemeral reactions (0007-W4 v1)
 
-`workshop-reactions.test.mjs` registers R4-U01–R4-U33 in `npm test`.
+`workshop-reactions.test.mjs` registers R4-U01–R4-U40 in `npm test`.
 Named dynamic imports check the eight ids, strict wire shapes and byte bounds,
 independent room/client rolling budgets, current sender and recipient admission,
 source outages, voting refusal, unchanged storage/document bytes, no replay,
@@ -482,3 +482,23 @@ CLI, browsers, R4-S1–R4-S24, baseline capability negatives, A–J and accepted
 regression scenarios remain for the separate server-only and independent check
 runs (V9–V13). Registering tests is not execution or acceptance. The six known
 W2 baseline failures remain separately classified and outside this milestone.
+
+Server fix round 1 keeps S369 on socket admission and relay: real reaction frames
+are held until closure, old sockets close with their required codes, and a fresh
+socket using an unused pre-closure ticket is refused or closed. Ticket HTTP
+status is not admission proof. S372 compares all application tables, rows and
+meta while excluding `_cf_*` and `sqlite_*` runtime tables on both runners; it
+uses no application-table allowlist.
+
+The reaction relay performs one fresh strict access replay per frame using the
+existing Timer authority boundary. After its lifecycle/fence checks, a local
+frame context supplies each sender/recipient admission read without further
+storage or service I/O. The context is discarded after the synchronous relay.
+S366 holds that replay before revocation. S368 fails the required replay source
+for the sender, then fails only one recipient's synchronous admission read,
+retaining earlier deliveries and proving no retry. S367/S375 keep their current
+admission/order assertions. S377 retains 50 connections, 245 bursts each from 49
+senders times five, 512-byte bounds, and closed-budget cleanup. R4-U34–R4-U40
+cover the replay count, protected inventory fixture, pending admission at closure,
+I/O-free recipient checks, a timed 12,250-relay Node unit harness, isolated read
+failures and admission rechecks after the authority await. S80 is unchanged.

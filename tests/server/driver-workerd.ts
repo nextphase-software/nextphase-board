@@ -25,12 +25,21 @@ export async function makeDriver(context: Context): Promise<Driver> {
       return result;
     },
     async control(value) {
+      if (value.heldRoomCount) return runInDurableObject(bindings.CONTROLS.get(bindings.CONTROLS.idFromName('controls')), (instance:any) => instance.held.size);
       if (value.board && value.reactions) return runInDurableObject(roomStub(String(value.board)), async (instance:any) => {
         const v = value.reactions as any;
         if (v.reconstruct) instance.room = undefined;
         const room = await instance.getRoom(String(value.board));
         return room.ordered(async () => {
           await instance.refreshControls(); await room.load();
+          if (Object.hasOwn(v, 'failAdmission')) {
+            const reactions = room.reactions, target = reactions as any;
+            target.readAdmission ??= reactions.admitted.bind(reactions);
+            reactions.admitted = (c:any, admission:Parameters<typeof reactions.admitted>[1]) => {
+              if (c.attachment().id === v.failAdmission) throw Error('Required current admission read unavailable');
+              return target.readAdmission(c, admission);
+            };
+          }
           for (const c of room.env.connections()) {
             if (v.connection && c.attachment().connectionId !== v.connection) continue;
             const a = c.attachment();
@@ -38,7 +47,7 @@ export async function makeDriver(context: Context): Promise<Driver> {
             if (v.maximal) c.attach({ ...a, label: '"'.repeat(256), presence: { ...a.presence, label: '"'.repeat(256), selection: Array.from({length:250}, () => crypto.randomUUID()) },
               ...Object.fromEntries(['presenceTimes','timerTimes','timerReadTimes','voteTimes','voteReadTimes','spotlightTimes','spotlightReadTimes','reactionTimes'].map(k => [k, Array(k === 'presenceTimes' ? 10 : 5).fill(Number.MAX_SAFE_INTEGER)])) });
           }
-          return { attachments: room.env.connections().map((c:any) => c.attachment()), tables: room.env.storage.all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"), meta: room.env.storage.all('SELECT * FROM meta ORDER BY key') };
+          return { attachments: room.env.connections().map((c:any) => c.attachment()), tables: room.env.storage.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT GLOB '_cf_*' AND name NOT GLOB 'sqlite_*' ORDER BY name"), meta: room.env.storage.all('SELECT * FROM meta ORDER BY key') };
         });
       });
       if(value.board&&value.spotlight)return runInDurableObject(roomStub(String(value.board)),async(instance:any)=>{

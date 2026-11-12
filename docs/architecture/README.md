@@ -486,3 +486,23 @@ allowed files and checks. Timer v2, hosted persistence v10, document v15 and boa
 file v4 remain unchanged: no stored spotlight value or format/version bump.
 Document10/fileVersion2/room layout7/backup envelope1, identity v4/comments v4/
 local storage v3/toolchain-lock-inventory v5/runtime notices v3 remain in force.
+
+For 0007-W4 v1, use these five successor contracts in place of their earlier
+versions, including inherited cross-references:
+
+- [0004 presence v4](0004-presence-v4.md): the eight reaction ids, `react` and
+  `reacted` frames, bounds, per-connection budget, voting gate and relay.
+- [0003 sync v13](0003-sync-v13.md) and [access v12](0003-access-v12.md):
+  fire-and-forget routing with no replay, and send/receive rights checked at
+  relay and per recipient.
+- [0001 interaction v38](0001-interaction-v38.md): single source of the
+  Reactions button, wheel, keys, armed pointer, burst and artwork values.
+- [0001 web modules v36](0001-web-modules-v36.md): three team modules and two
+  package modules; 51 team modules/22 state hooks; App.tsx unchanged.
+
+[The W4 brief](../briefs/0007-W4-send-ephemeral-workshop-reactions.md) defines
+allowed files and checks. API v11, hosted storage v11, self-host runner v7, voting
+v2, timer v2, board lifecycle v5, hosted persistence v10, document v15 and board
+file v4 remain unchanged: no stored reaction value or format/version bump.
+Document10/fileVersion2/room layout7/backup envelope1, identity v4/comments v4/
+local storage v3/toolchain-lock-inventory v5/runtime notices v3 remain in force.

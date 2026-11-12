@@ -395,3 +395,10 @@ role, safe offers/leave/rejoin, expected-version takeover and connection-bound
 lifetime on both runners. Ten successor contracts define original-close/rebind/
 attachment behavior and exact people-menu/banner/focus/speech values. No stored
 format, dependency or timer behavior change; implementation has not started.
+
+[0007-W4 v1 — Send ephemeral workshop reactions](0007-W4-send-ephemeral-workshop-reactions.md)
+(draft) lets every admitted role on a hosted team board send one of eight reactions
+as a short burst at their pointer, seen by everyone currently admitted, never
+stored or replayed, rate-limited per connection and off during a vote. Five
+successor contracts define the frames, rights, look and modules. No stored
+format or dependency change; implementation has not started.

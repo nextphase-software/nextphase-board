@@ -363,3 +363,92 @@ delegated to implementation.
 ## Implementation record
 
 (Appended by the implementer.)
+
+### Implementation handoff — 2026-11-11
+
+- Branch: `codex/0007-W4-send-ephemeral-workshop-reactions`.
+- Committed prerequisite base: `5312cdaf2704a87f3a4bce84919d4f21b4e22f87`.
+  Behaviour baseline: `e88a6909af85c2e455e656d49dba2de5ca0aa0c2`.
+- Validated source/test revision: `26ab02eb956d7a3fa84a0694b69b38143237564d` (source tree
+  `4d3c9dbf7a4611c7a8bf873b5b8d41f3ac087a92`). This record is a separate
+  documentation commit. The record-inclusive branch tip is reported in the
+  implementation handoff; it is not the validated source revision.
+- Node `26.13.0`, npm `11.20.0`. No added dependencies, service permissions,
+  stored formats, rows or browser disk values. No production adapter change.
+- Implemented the bounded ephemeral relay, client controller, reaction tool,
+  wheel, pointer and burst rendering through the approved seams. Reaction actions
+  preserve following; reaction Escape runs before existing follow handlers.
+  App.tsx is byte-identical to the prerequisite base (264 lines).
+
+All commands ran at the repository root unless the clean archive is named.
+Builds used `BOARD_SUPABASE_URL=http://127.0.0.1:55321`,
+`BOARD_SUPABASE_ANON_KEY=synthetic` and `BOARD_SERVER_URL=http://127.0.0.1:8796`.
+Scratch paths in the commands below stand for disposable validation output.
+
+| Row | Command / evidence | Result and count |
+| --- | --- | --- |
+| V1 | Python byte comparisons of `git show <prerequisite-base>:<path>` with candidate files; manifests, package lock, all versioned dependency locks/inventories and runtime notices | PASS: 20 files unchanged; zero new dependencies |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund`, in the worktree, a clean archive of the validated source, and an independent clean archive of the behaviour baseline | PASS: all three exit 0; 118 packages each |
+| V3 | `npm run typecheck` | PASS: exit 0 across all five workspace members |
+| V4 | `npm test` | PASS: 1,097 tests, 1,097 passed, 0 failed/cancelled/skipped/todo; R4-U01–R4-U33 all pass. Module guards: 51 team modules, 22 state hooks; App unchanged. P1-U47 maximal attachment including reactionTimes: 12,992 bytes (cap 16,384), spotlight metadata 959 bytes (cap 1,024) |
+| V5 | `BOARD_TEAM_FEATURES=off npm run build`; `npm run audit:licenses`; independent baseline off build and audit; byte comparisons and esbuild metadata inspection | PASS: all exit 0; index.html and notices byte-identical to baseline; zero team, Supabase or reaction inputs in off metadata |
+| V6 | `npm run build:fixtures`; `BOARD_TEAM_FEATURES=on npm run build`; `npm run audit:licenses`; independent baseline on build and audit; byte comparisons | PASS: all exit 0; index.html equals baseline on; notices equal both baseline on and runtime notices v3 |
+| V7 | `npm run build:server`; `npm run audit:licenses`; `WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=<scratch>/wrangler.log npx wrangler deploy --dry-run --outdir <scratch>/worker -c apps/server/wrangler.json` | PASS: all exit 0; Node and Worker bundles built with verified notices; dry run only, no deploy; unchanged ROOMS/FENCES bindings |
+| V8 | All source/test hunks inspected; `git diff --name-status <prerequisite-base>..<validated-source>`; `git diff --check <prerequisite-base>..<validated-source>` | PASS: 26 source/test/documentation files in deliverables 1–4; no whitespace errors. This separate record appends only this section |
+
+Additional focused verification: five changed server-test/control TypeScript
+files parsed with esbuild's `transform(..., {loader:'ts', target:'es2022'})`.
+This checks syntax only; no server suite was executed.
+
+An early focused test expected a trashed-room call to return normally; it was
+corrected to assert the existing not_found rejection. The final full suite above
+passes. An additional exploratory off-JavaScript byte comparison differed because
+of the approved optional palette slot; V5 requires HTML/notices byte equality and
+absence of team/reaction inputs, which pass. The initial Wrangler dry run exited
+0 but emitted a sandbox error opening its default global log; the recorded rerun
+redirected that log to scratch and completed without the error.
+
+**Unrun and exclusions.** Browsers and the Supabase CLI were not started in this
+sandbox. No schema application, Node/workerd server suite, R4 browser scenario,
+baseline capability-negative run, A–J compare, or accepted Y1/Z1/P1/W2 browser
+regression was run. S356–S377 are registered (22 on each runner), not passed;
+V9–V13 remain for the server-only and independent check runs. Existing physical
+exclusions and the six separately tracked W2 baseline failures are unchanged.
+No merge, push, publication or deployment. The unrelated W2 evidence file was
+not changed. No implementation-scope or contract escalation.
+
+**Tooling limits.** The graph MCP required unavailable approval; direct file
+inspection was used. Mandatory public-boundary hooks passed. The source commit
+succeeded, but Git emitted a sandbox denial creating packed-refs.lock during
+maintenance; the branch ref, source tree and commit were verified afterward.
+
+**Changed files in the validated source (26):**
+
+- `apps/web/src/team/hosted-board.ts`
+- `apps/web/src/team/presence-layer.tsx`
+- `apps/web/src/team/reactions-layer.tsx`
+- `apps/web/src/team/reactions-rules.ts`
+- `apps/web/src/team/reactions.ts`
+- `apps/web/src/team/spotlight-layer.tsx`
+- `apps/web/src/team/team-app.tsx`
+- `apps/web/src/ui/palette.tsx`
+- `apps/web/style.css`
+- `packages/board-room/src/presence.ts`
+- `packages/board-room/src/protocol.ts`
+- `packages/board-room/src/reactions.ts`
+- `packages/board-room/src/room.ts`
+- `packages/board-sync/src/reactions.ts`
+- `packages/board-sync/src/session.ts`
+- `tests/README.md`
+- `tests/modules.test.mjs`
+- `tests/server/driver-workerd.ts`
+- `tests/server/node-test.ts`
+- `tests/server/reactions.test.ts`
+- `tests/server/setup.ts`
+- `tests/server/spotlight.test.ts`
+- `tests/workshop-reactions.test.mjs`
+- `tests/workshop-spotlight.test.mjs`
+- `vitest.node.config.ts`
+- `vitest.workerd.config.ts`
+
+The record commit changes only this brief by appending this implementation record.

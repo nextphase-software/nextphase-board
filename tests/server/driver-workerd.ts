@@ -25,6 +25,22 @@ export async function makeDriver(context: Context): Promise<Driver> {
       return result;
     },
     async control(value) {
+      if (value.board && value.reactions) return runInDurableObject(roomStub(String(value.board)), async (instance:any) => {
+        const v = value.reactions as any;
+        if (v.reconstruct) instance.room = undefined;
+        const room = await instance.getRoom(String(value.board));
+        return room.ordered(async () => {
+          await instance.refreshControls(); await room.load();
+          for (const c of room.env.connections()) {
+            if (v.connection && c.attachment().connectionId !== v.connection) continue;
+            const a = c.attachment();
+            if (v.patch) c.attach({ ...a, ...v.patch });
+            if (v.maximal) c.attach({ ...a, label: '"'.repeat(256), presence: { ...a.presence, label: '"'.repeat(256), selection: Array.from({length:250}, () => crypto.randomUUID()) },
+              ...Object.fromEntries(['presenceTimes','timerTimes','timerReadTimes','voteTimes','voteReadTimes','spotlightTimes','spotlightReadTimes','reactionTimes'].map(k => [k, Array(k === 'presenceTimes' ? 10 : 5).fill(Number.MAX_SAFE_INTEGER)])) });
+          }
+          return { attachments: room.env.connections().map((c:any) => c.attachment()), tables: room.env.storage.all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"), meta: room.env.storage.all('SELECT * FROM meta ORDER BY key') };
+        });
+      });
       if(value.board&&value.spotlight)return runInDurableObject(roomStub(String(value.board)),async(instance:any)=>{
         const v=value.spotlight as any;if(v.reconstruct)instance.room=undefined;
         const room=await instance.getRoom(String(value.board));

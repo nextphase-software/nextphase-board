@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { Reactions } from "./reactions.ts";
 import { Spotlight } from "./spotlight.ts";
 import { WorkshopVoting, resetVoting } from "./voting.ts";
 import { WorkshopTimer, resetTimer, markExplicitRecovery } from "./timer.ts";
@@ -27,6 +28,7 @@ export class Room {
   access: Access;
   edits: EditSession;
   presence: Presences;
+  reactions: Reactions;
   comments: Comments;
   history: History;
   lifecycle: RoomLifecycle;
@@ -51,6 +53,7 @@ export class Room {
     this.timer = new WorkshopTimer(this);
     this.voting = new WorkshopVoting(this);
     this.spotlight = new Spotlight(this);
+    this.reactions = new Reactions(this);
     this.access.closing=(c,code)=>this.spotlight.closed(c,code);
     this.presence.gate=(c,accepted)=>this.spotlight.spatial(c,accepted);
     this.presence.recipient=(from,to)=>this.spotlight.relayTo(from,to);
@@ -354,6 +357,9 @@ export class Room {
         } catch { this.close(connection, 4401); }
         await this.schedule();
         return;
+      }
+      if (message?.kind === "react") {
+        await this.reactions.receive(connection, message, bytes(text).length); return;
       }
       if (message?.kind === "presence") {
         await this.presence.receive(connection, message, bytes(text).length);

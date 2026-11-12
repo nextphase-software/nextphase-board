@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
+import { BoardReactions } from "./reactions";
 import { BoardSpotlight } from "./spotlight";
 import { BoardVoting } from "./voting";
 import { BoardTimer } from "./timer";
 import { BoardLifecycle, lifecycleNavigation } from "./lifecycle";
 import { BoardHistory, historyNavigation } from "./history";
-import { BoardSession, type Transport, type Role, type SessionEvent, type TimerSnapshot, type TimerFrame, type TimerAction, type VoteProjection, type VoteFrame, type VoteCommand, type SpotlightCommand, type SpotlightFrame } from "nextphase-board-sync/session.ts";
+import { BoardSession, type Transport, type Role, type SessionEvent, type TimerSnapshot, type TimerFrame, type TimerAction, type VoteProjection, type VoteFrame, type VoteCommand, type SpotlightCommand, type SpotlightFrame, type ReactionId } from "nextphase-board-sync/session.ts";
 import type { BoardV10 } from "nextphase-board-rules/document.ts";
 import type { CommentOperation } from "./comments/rules";
 import { api, ApiError } from "./api";
@@ -18,6 +19,7 @@ import { attemptOutcome, isSpecialClose, renewalDelay, retryDelay, saveState, wo
   changeCounts, countChanges, dismissNotice, emptyLossRecord, isOutstanding, lossNotices, updateLossRecord,
   type AttemptEvent, type NoticeReason, type Outcome } from "./notices";
 
+export type { ReactionId, Reacted, ReactionEvent } from "nextphase-board-sync/session.ts";
 export type { SpotlightProjection, SpotlightSession, SpotlightOwn, SpotlightAction, SpotlightCause, SpotlightFrame, SpotlightReason, SpotlightCommand, VoteProjection, VoteFrame, VoteCommand, VoteSession, VoteOwn, VoteTarget, BallotTarget, VoteAction, VoteCause, VoteReason, TimerSnapshot, TimerFrame, TimerAction, TimerCause } from "nextphase-board-sync/session.ts";
 
 type Attempt = { outcome: Outcome | null; joined: boolean; cancelled: boolean; timer: ReturnType<typeof setTimeout>;
@@ -30,6 +32,8 @@ export type PresenceSnapshot = {
   self?: Presence; others: Presence[]; followed: string | null; showCursors: boolean; requested?:number;
 };
 export class HostedBoard {
+  readonly reactions = new BoardReactions(this);
+  sendReaction(reaction: ReactionId, x: number, y: number) { return this.snapshot.connected && !this.stopped && !this.ended && !!this.session?.react(reaction, x, y); }
   readonly lifecycle = new BoardLifecycle();
   readonly history = new BoardHistory(this);
   readonly timer = new BoardTimer(this);
@@ -127,6 +131,7 @@ export class HostedBoard {
     for (const listener of this.presenceListeners) listener();
   }
   private clearPresence() {
+    this.reactions.clear();
     this.received.clear();
     this.publishPresence({ self: undefined, others: [], followed: null });
   }
@@ -212,6 +217,7 @@ export class HostedBoard {
     }
     this.snapshot = { ...this.snapshot, ...change,
       toastId: this.snapshot.toastId + (change.toast === undefined ? 0 : 1) };
+    this.reactions.sync();
     for (const listener of this.listeners) listener();
     this.publishComments();
   }
@@ -350,6 +356,7 @@ export class HostedBoard {
       this.session = session;
       for (const [id, request] of notificationRequests(this.boardId)) session.commentRequests.set(id, request);
       session.subscribe((event) => this.changed(session, event));
+      session.subscribeReactions(event => { if (!this.stopped && !this.ended && session === this.session) this.reactions.receive(event); });
       session.subscribeSpotlight(event=>{if(!this.stopped&&!this.ended&&session===this.session)this.spotlight.receive(event as SpotlightFrame|{kind:"spotlight_closed"|"spotlight_invalid";recover?:boolean});});
       session.subscribeVoting(event=>{if(!this.stopped&&!this.ended&&session===this.session)this.voting.receive(event as VoteFrame|{kind:"vote_invalid"|"vote_closed"});});
       session.subscribeTimer(event => { if(!this.stopped && !this.ended && session===this.session)this.timer.receive(event as TimerFrame|{kind:"timer_invalid"|"timer_closed"}); });
@@ -485,6 +492,7 @@ export class HostedBoard {
     this.publish({ connected: false, outcome: { name, retry: false } });
   }
   stop() {
+    this.reactions.clear();
     if (this.stopped) return;
     window.removeEventListener("offline", this.offline);
     this.losses = emptyLossRecord();

@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import { checkReaction, checkReacted, type ReactionId, type ReactionEvent } from "./reactions.ts";
+export { REACTIONS, checkReaction, checkReacted, reactionBudget, reactionBytes } from "./reactions.ts";
+export type { ReactionId, Reaction, Reacted, ReactionEvent } from "./reactions.ts";
 import { checkSpotlightFrame, spotlightProjection, retryClose, terminalSpotlightClose, type SpotlightProjection, type SpotlightCommand } from "./spotlight.ts";
 export type { SpotlightProjection, SpotlightSession, SpotlightOwn, SpotlightAction, SpotlightCause, SpotlightFrame, SpotlightReason, SpotlightCommand } from "./spotlight.ts";
 import { checkVoteFrame, voteProjection, type VoteProjection, type VoteCommand } from './voting.ts';
@@ -81,6 +84,16 @@ export class BoardSession<T = unknown> {
   readonly present = new Map<string, Presence>();
   readonly threads = new Map<string, CommentThread>();
   readonly commentRequests = new Map<string, CommentRequest>();
+  private reactionListener?: (event: ReactionEvent) => void;
+  subscribeReactions(listener: (event: ReactionEvent) => void) {
+    this.reactionListener = listener;
+    return () => { if (this.reactionListener === listener) this.reactionListener = undefined; };
+  }
+  react(reaction: ReactionId, x: number, y: number) {
+    const frame = { kind: 'react', reaction, x, y };
+    if (!this.joined || this.votingSnapshot?.session.status === 'running' || typeof checkReaction(frame, sizeOf(JSON.stringify(frame))) === 'string') return false;
+    return this.send(JSON.stringify(frame));
+  }
   spotlightSnapshot?:SpotlightProjection;
   private retiredSpotlightAuthorities=new Set<string>();
   private spotlightListeners=new Set<(event:SessionEvent)=>void>();
@@ -112,6 +125,7 @@ export class BoardSession<T = unknown> {
     if(old&&(projection.session.sessionVersion<old.session.sessionVersion||projection.session.sessionVersion===old.session.sessionVersion&&old.own&&'ballotVersion'in old.own&&projection.own&&'ballotVersion'in projection.own&&projection.own.ballotVersion<old.own.ballotVersion))return;
     const was=this.votingSnapshot?.session.status==='running',running=projection.session.status==='running';
     this.votingSnapshot=projection;
+    if(running && !was)this.reactionListener?.({kind:"reactions_clear"});
     if(was!==running){
       this.timers();
       for(const [id,p] of this.present)this.present.set(id,{...p,cursor:null,selection:[],view:{x:0,y:0,width:1,height:1}});
@@ -169,6 +183,7 @@ export class BoardSession<T = unknown> {
     ++this.generation;
     this.transport = undefined;
     this.joined = false; this.recovering = false; this.recovery = [];
+    this.reactionListener?.({kind:"reactions_clear"});
     for (const [id, request] of this.requests) {
       if (request.state === "sent" || request.state === "received") request.state = "waiting";
       this.cancelDeadline(id);
@@ -212,7 +227,7 @@ export class BoardSession<T = unknown> {
         message: (text) => {
           if (generation !== this.generation || this.ended) return;
           const message = JSON.parse(text);
-          this.apply(message);
+          this.apply(message, sizeOf(text));
           if (message.kind === "joined") { this.rejectJoin = undefined; resolve(); }
         },
         close: (code) => {
@@ -227,7 +242,12 @@ export class BoardSession<T = unknown> {
     this.endAttempt(undefined,false);
     void this.connect().catch((error) => this.report({ kind: "join_failed", reason: String(error) }));
   }
-  private apply(message: any) {
+  private apply(message: any, wireSize = sizeOf(JSON.stringify(message))) {
+    if (message?.kind === 'reacted') {
+      if (this.joined && this.votingSnapshot?.session.status !== 'running' && checkReacted(message, wireSize) && this.present.has(message.connection)) this.reactionListener?.(message);
+      return;
+    }
+    if (message?.kind === 'refused' && ['reaction_too_large', 'bad_reaction', 'reactions_voting'].includes(message.reason)) return;
     if(typeof message?.kind==='string'&&message.kind.startsWith('spotlight_')){
       if(!checkSpotlightFrame(message,sizeOf(JSON.stringify(message)))){this.reportSpotlight({kind:'spotlight_invalid'});return;}
       if(message.restoreGeneration!==undefined&&message.restoreGeneration!==this.restoreGeneration)return;

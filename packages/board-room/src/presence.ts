@@ -9,7 +9,7 @@ export const placeholder = (): PresenceInput => ({ cursor: null, selection: [],
   view: { x: 0, y: 0, width: 1, height: 1 }, active: false });
 export function currentAttachment(value: Attachment) {
   const bounded=(v:unknown)=>v===undefined||Array.isArray(v)&&v.length<=5&&v.every(n=>Number.isSafeInteger(n)&&n>=0);
-  if(!validSpotlightAttachment(value)||bytes(JSON.stringify(value)).length>16384||![value.timerTimes,value.timerReadTimes,value.voteTimes,value.voteReadTimes].every(bounded))return false;
+  if(!validSpotlightAttachment(value)||bytes(JSON.stringify(value)).length>16384||![value.timerTimes,value.timerReadTimes,value.voteTimes,value.voteReadTimes,value.reactionTimes].every(bounded))return false;
   return typeof value.label === "string" && Number.isSafeInteger(value.ordinal) &&
     Object.hasOwn(value, "presence") && typeof value.presenceAt === "number" && Array.isArray(value.presenceTimes);
 }

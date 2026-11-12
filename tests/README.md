@@ -452,3 +452,33 @@ remain unrun here. The server-only run and fresh independent check own V9–V13.
 Known NB-108 W2-S7/S8/S9/S16/S20/S21 remain separately classified baseline failures;
 none is a substitute for new reconnect proof. No publication or deployment is
 part of this implementation handoff.
+
+## Ephemeral reactions (0007-W4 v1)
+
+`workshop-reactions.test.mjs` registers R4-U01–R4-U33 in `npm test`.
+Named dynamic imports check the eight ids, strict wire shapes and byte bounds,
+independent room/client rolling budgets, current sender and recipient admission,
+source outages, voting refusal, unchanged storage/document bytes, no replay,
+controller clearing, wheel geometry, burst frames at 80/600/1,200ms, reduced
+motion, the 20-burst cap and E's protected targets. These checks run without a
+browser or Supabase and do not constitute browser acceptance.
+
+`server/reactions.test.ts` registers S356–S377 (22) and `SUMMARY-REACTIONS` in both
+runner configurations. It uses real sockets, a controlled clock, ordered renewal
+barriers, current authority, bounded attachment inspection and live reconstruction.
+Test-only parameter-matched source failures let one recipient fail independently.
+S318 now includes the maximal five-entry reaction budget in its full attachment.
+No production adapter change is needed. Existing physical exclusions S37, S43,
+S70 and S168 and the Node-only S344 physical subcase stay unchanged.
+
+Module guards require 51 team modules and 22 state hooks; `reactions-rules.ts`
+joins the pure-rule list. App.tsx and all other palette/control expectations stay
+unchanged except the single Reactions tool before Comment, for every admitted
+role. Reaction refusals remain separate from document recovery and presence
+refusals. Reaction actions and their Escape handling preserve spotlight following.
+
+The implementation runs V1–V8 only. Server suites, schema application, Supabase
+CLI, browsers, R4-S1–R4-S24, baseline capability negatives, A–J and accepted
+regression scenarios remain for the separate server-only and independent check
+runs (V9–V13). Registering tests is not execution or acceptance. The six known
+W2 baseline failures remain separately classified and outside this milestone.

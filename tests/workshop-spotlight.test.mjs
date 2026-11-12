@@ -110,7 +110,7 @@ unit(47,'maximal verified labels, selections and budgets are bounded before tran
   const a=await f.open('editor',randomUUID(),'"'.repeat(256)),b=await f.open();
   assert.equal((await f.send(a,'start')).kind,'spotlight_result');
   const a0=a.c.attachment(),p={...a0.presence,selection:Array.from({length:250},randomUUID),cursor:{x:-1000000,y:1000000},view:{x:-1000000,y:1000000,width:1000000,height:1000000}};
-  const full={...a0,presence:p,timerTimes:Array(5).fill(Number.MAX_SAFE_INTEGER),timerReadTimes:Array(5).fill(Number.MAX_SAFE_INTEGER),voteTimes:Array(5).fill(Number.MAX_SAFE_INTEGER),voteReadTimes:Array(5).fill(Number.MAX_SAFE_INTEGER),spotlightTimes:Array(5).fill(Number.MAX_SAFE_INTEGER),spotlightReadTimes:Array(5).fill(Number.MAX_SAFE_INTEGER)};
+  const full={...a0,presence:p,reactionTimes:Array(5).fill(Number.MAX_SAFE_INTEGER),timerTimes:Array(5).fill(Number.MAX_SAFE_INTEGER),timerReadTimes:Array(5).fill(Number.MAX_SAFE_INTEGER),voteTimes:Array(5).fill(Number.MAX_SAFE_INTEGER),voteReadTimes:Array(5).fill(Number.MAX_SAFE_INTEGER),spotlightTimes:Array(5).fill(Number.MAX_SAFE_INTEGER),spotlightReadTimes:Array(5).fill(Number.MAX_SAFE_INTEGER)};
   assert(validSpotlightAttachment(full));assert(spotlightBytes(full)<=16384);const metadata=spotlightBytes({spotlightPresenter:full.spotlightPresenter});assert(metadata<=1024);
   await f.send(a,'stop');const oversized=await f.open('editor',randomUUID(),'\u0000'.repeat(256)),before=structuredClone(f.room.spotlight.session);
   assert.equal((await f.send(oversized,'start')).reason,'spotlight_message_too_large');assert.deepEqual(f.room.spotlight.session,before);assert.equal((await f.read(b)).spotlight.session.phase,'idle');

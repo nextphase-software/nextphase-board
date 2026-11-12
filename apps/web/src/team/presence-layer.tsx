@@ -6,6 +6,7 @@ import { boundingBox } from "../selection";
 import { usePresence } from "../state/use-presence";
 import { screenPoint, type View } from "../view";
 import type { HostedBoard } from "./hosted-board";
+import { ReactionsLayer } from "./reactions-layer";
 import { SpotlightLayer } from "./spotlight-layer";
 import { pillWords } from "./presence";
 
@@ -42,6 +43,7 @@ export function PresenceLayer(props: Props) {
           </div>}
         </div>;
       })}
+      <ReactionsLayer hosted={hosted} scene={props.scene} view={view} size={size}/>
     </div>
     <SpotlightLayer hosted={hosted}/>
   </>;

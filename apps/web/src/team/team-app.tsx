@@ -5,6 +5,7 @@ import { auth, type AuthSession } from "./auth";
 import { HostedBoard } from "./hosted-board";
 import { People } from "./people";
 import { PresenceLayer } from "./presence-layer";
+import { ReactionTool } from "./reactions-layer";
 import { CommentTool } from "./comments/tool";
 import { CommentsLayer } from "./comments/layer";
 import { parseLink, type TeamLink } from "./links";
@@ -26,7 +27,7 @@ export type TeamParts = {
   votingLayer?: typeof VotingOverlay; hosted?: HostedBoard; timerControl?: ReactNode; saveControl?: ReactNode; account?: ReactNode; banner?: ReactNode;
   people?: ReactNode; presenceLayer?: typeof PresenceLayer; backToFiles?: () => void;
   nameSent?: (title: string) => void;
-  commentTool?: typeof CommentTool; commentsLayer?: typeof CommentsLayer;
+  reactionTool?: typeof ReactionTool; commentTool?: typeof CommentTool; commentsLayer?: typeof CommentsLayer;
 };
 export function TeamApp() {
   const [fragment, setFragment] = useState(location.hash);
@@ -158,7 +159,7 @@ function HostedRoute({ link, session, active, account, close, signInAgain, resta
     ? outcome?.name === "restoring" ? words.restoring : waiting ? words.reconnectingWaiting(waiting) : words.reconnecting
     : snapshot.role === "viewer" ? words.viewOnly(snapshot.workspace) : "";
   const notices = board.notices;
-  return <><App team={{ hosted: board, votingLayer: VotingOverlay, account, backToFiles: session ? close : undefined, people: <People hosted={board} />, presenceLayer: PresenceLayer, commentTool: CommentTool, commentsLayer: CommentsLayer,
+  return <><App team={{ hosted: board, votingLayer: VotingOverlay, account, backToFiles: session ? close : undefined, people: <People hosted={board} />, presenceLayer: PresenceLayer, reactionTool: ReactionTool, commentTool: CommentTool, commentsLayer: CommentsLayer,
     nameSent: (title) => { sentTitles.current.add(title); },
     timerControl: <TimerControl timer={board.timer} voting={board.voting} objects={snapshot.board.objects} preview={board.history.previewing} />,
     saveControl: <button className="primary" onClick={() => { board.showSurface("share"); setShare(true); }}>Share</button>,

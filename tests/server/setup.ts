@@ -66,7 +66,7 @@ export default async function setup(project: any) {
         rpcLog.push(record);
         const control = rpcControls.get(name);
         if (control?.delayMs) await new Promise((resolve) => setTimeout(resolve, control.delayMs));
-        if (control?.fail) { res.writeHead(503); res.end(); return; }
+        if (control?.fail && Object.entries(control.parameters ?? {}).every(([key,value]) => record!.parameters[key] === value)) { res.writeHead(503); res.end(); return; }
         if(control?.holdBefore && Object.entries(control.parameters ?? {}).every(([key,value])=>record!.parameters[key]===value)) {
           record.heldAt=Date.now(); await new Promise<void>(release=>held.push({name:name!,release}));
         }
@@ -77,7 +77,7 @@ export default async function setup(project: any) {
       const bytes = Buffer.from(await response.arrayBuffer());
       const control = name ? rpcControls.get(name) : undefined;
       if (record && name === "create_board" && response.ok) record.reply = JSON.parse(bytes.toString());
-      if (control?.failAfter) { res.writeHead(503); res.end(); return; }
+      if (control?.failAfter && Object.entries(control.parameters ?? {}).every(([key,value]) => record?.parameters[key] === value)) { res.writeHead(503); res.end(); return; }
       if (record && control?.hold && Object.entries(control.parameters ?? {}).every(([key, value]) => record!.parameters[key] === value)) {
         record.heldAt = Date.now();
         await new Promise<void>((release) => held.push({ name: name!, release }));

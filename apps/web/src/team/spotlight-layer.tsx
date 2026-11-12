@@ -28,10 +28,11 @@ export function SpotlightLayer({hosted}:{hosted:HostedBoard}){
     let gesture=false,composing=false;
     const editor=()=>document.activeElement instanceof Element&&!!document.activeElement.closest('input,textarea,select,[contenteditable=true],.inline');
     const safety=()=>s.safetyChanged({visible:document.visibilityState==='visible',editing:editor(),composing,gesture,preview:hosted.history.previewing});
-    const down=(e:PointerEvent)=>{if(e.target instanceof Element&&e.target.closest('.scene,.inline,.palette,.context')){s.localAction();gesture=true;safety();}};
+    const down=(e:PointerEvent)=>{if(hosted.reactions.ownsEvent(e))return;if(e.target instanceof Element&&e.target.closest('.scene,.inline,.palette,.context')){s.localAction();gesture=true;safety();}};
     const up=()=>{gesture=false;safety();};
     const start=()=>{composing=true;safety();};const end=()=>{composing=false;safety();};
     const key=(e:KeyboardEvent)=>{
+      if(hosted.reactions.ownsEvent(e))return;
       if(e.isComposing||e.target instanceof Element&&e.target.closest('.team-dialog,[role=menu],[role=dialog],input,textarea,select,[contenteditable=true],.inline,.context'))return;
       if(e.key==='Escape'&&s.visible){e.preventDefault();e.stopPropagation();s.escape();}
       else if(!e.metaKey&&!e.ctrlKey&&!e.altKey&&e.key.length===1)s.localAction();

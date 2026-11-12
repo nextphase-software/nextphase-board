@@ -452,3 +452,71 @@ maintenance; the branch ref, source tree and commit were verified afterward.
 - `vitest.workerd.config.ts`
 
 The record commit changes only this brief by appending this implementation record.
+
+### Server fix round 1 — 2026-11-11
+
+- Branch: `codex/0007-W4-send-ephemeral-workshop-reactions`.
+- Fix-round base: `b394a7b745009a50e2a5fe9236a0aacdc974d03e` (prior
+  validated source `26ab02eb956d7a3fa84a0694b69b38143237564d`).
+- Validated fix source/test revision: `539db93601038686fe6c51bcb0e7e6311151c8b5`;
+  source tree `322ec8f12f7a59b3d5bf5a7241c520eeadc59ca0`. This append-only record is committed separately;
+  the record-inclusive tip is reported in the handoff.
+
+The prior server-only run reported Node 371 passed / 2 failed / 0 skipped and
+workerd 365 passed / 4 failed / 2 skipped. S318 passed on both. Filtered retries
+reproduced S369 and S377 on both runners and S372 on workerd. S80 passed its
+candidate retry and three baseline retries. These describe the prior candidate,
+not execution or acceptance of this fix source.
+
+| Item | Fix and preserved intent | Local evidence / limit |
+| --- | --- | --- |
+| S369 | Test actual socket admission: hold two real reaction frames until closure; verify both old sockets close with 4423 for lock or 4403 for Trash; release the frames and assert neither socket receives reacted. Attempt a fresh socket using an unused pre-closure ticket and require refusal or closure with no joined/reacted. Remove the unsupported post-lock ticket HTTP-status assertion. A later ticket request may complete recovery and is not closure admission proof | R4-U36 passes using the actual Room: both close codes, pending-ticket rejection, no late reaction. Actual socket scenario is unrun here |
+| S372 | Both runner inventories exclude only `_cf_*` and `sqlite_*` runtime tables. Keep every application table, row and meta comparison and the Supabase row inventory; use no application-table allowlist | R4-U35 executes both inventory queries against a fixture containing `_cf_METADATA`, meta and an unexpected reaction table. Runtime table is excluded; unexpected application table remains detectable. Native workerd SQLITE_AUTH scenario is unrun |
+| S377 | Replace authority per recipient with one fresh strict Timer authority boundary per input frame, including its lifecycle/fence checks and one access replay. After the await, construct a context local to that frame and synchronously check sender/recipient current attachments, presence, expiry, epoch, effective role and restoreGeneration before sending. The recipient loop has no storage or service I/O; no context/admission success survives the frame | R4-U34: one replay, zero unchanged-person role calls, two lifecycle and two fence reads, compared with 150 replays, 50 role calls and 200 lifecycle/fence reads each before the fix. R4-U37 rejects storage I/O inside admission reads. R4-U38 delivers 12,250 bounded frames and removes all 50 closed budgets |
+| S366/S367/S368/S375 | S366 holds the fresh replay before removal/disable; S367/S375 retain current-admission and ordering assertions. S368 fails the required replay source for the sender and then one recipient's required synchronous admission read, keeping earlier delivery and no-retry assertions. The per-recipient read is now non-I/O; its failure is injected only by test adapters | R4-U11–U13, U39 and U40 pass: isolated failures, revocation, no retry, and sender/recipient rechecks of expiry/role/epoch/generation after the authority await. Real server scenarios remain unrun |
+| S80 | No change to the older removal close-deadline check | Not rerun here; prior candidate retry and baseline evidence remain separately classified |
+
+The local S377 Node unit harness measured 157.214 ms for the relay portion
+(50 connections, 250 inputs, 12,250 relays, 250 strict replays, 245 bursts per
+connection from 49 senders times five, every frame at most 512 bytes, 50 closed
+budgets removed). It uses actual Room.message and NodeStorage with fixture access
+sources, not Supabase or physical sockets. This is not a server-suite duration or
+a both-runner acceptance result. S377's server renew barriers and all its relay,
+budget and cleanup assertions remain; the server test now records relay duration.
+
+Validation on the source revision above:
+
+| Row | Command / inspection | Result |
+| --- | --- | --- |
+| V3 | `npm run typecheck` | PASS: exit 0, all five workspaces |
+| V4 | `npm test` | PASS: exit 0, 1,104 tests passed, 0 failed/cancelled/skipped/todo; all 40 reaction checks pass |
+| V8 | All six fix-file hunks inspected; `git diff --name-status <fix-round-base>..<validated-source>`; `git diff --check <fix-round-base>..<validated-source>` | PASS: only six authorized source/test/documentation files; no whitespace errors; App.tsx, S80 and the unrelated W2 evidence remain unchanged. This record appends only this section |
+
+Additional syntax verification: esbuild `transform` parsed the three changed
+server-test/control TypeScript files. The initial local replay-count regression
+failed by name (150 rather than one); the inventory fixture failed because the
+old query included the protected table. The expanded closure fixture was adjusted
+to return connection snapshots like both runners, so closing one peer cannot
+mutate an array being iterated. A new post-await test uses the existing 4409
+upgrade code when a viewer-stamped attachment disagrees with an editor grant.
+All final checks above pass.
+
+Unrun in this sandbox: Supabase CLI/start/schema, both full server suites and
+filtered socket retries, native workerd protected-table reproduction, all browser
+scenarios and other V rows. No second server-only run is claimed. No dependency,
+format, permission, UI or production runner change. No merge, push or deployment.
+No scope escalation. Graph tools still require unavailable approval; file
+inspection was used. Public-boundary hooks passed. The source commit succeeded
+and its ref/tree were verified despite the same sandbox packed-refs.lock
+maintenance warning as the initial implementation.
+
+Changed fix-source files (six):
+
+- `packages/board-room/src/reactions.ts`
+- `tests/workshop-reactions.test.mjs`
+- `tests/server/reactions.test.ts`
+- `tests/server/node-test.ts`
+- `tests/server/driver-workerd.ts`
+- `tests/README.md`
+
+The separate record commit changes only this brief.

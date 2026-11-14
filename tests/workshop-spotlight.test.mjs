@@ -289,3 +289,10 @@ for(const confirmed of [false,true])unit(confirmed?61:60,`NB-112 presenter Stop 
     f.time.advance(6000);assert.equal(f.s.visible,false);assert.equal(f.commands.length,1);
   } finally { f.close(); }
 });
+unit(62,'NB-113 narrow spotlight status explicitly occupies its own flex row',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const css=await readFile(new URL('../apps/web/style.css',import.meta.url),'utf8');
+  const narrow=[...css.matchAll(/@media\s*\(max-width:\s*599\.98px\)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g)].map(m=>m[1]).join('\n');
+  assert.equal(/\.spotlight-banner\s*>\s*\.spotlight-status\s*\{[^}]*flex-basis:\s*100%;/.test(narrow),true,'status has flex-basis:100% below 600px');
+  assert.match(css,/\.spotlight-banner\s*>\s*\.spotlight-status\s*\{\s*flex:\s*0 1 auto;/);
+});

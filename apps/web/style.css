@@ -1440,6 +1440,7 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
 .presence-menu .spotlight-disabled-reason { margin: 4px 8px; font: 12px/1.45 system-ui; color: #b9b6c3; overflow-wrap: anywhere; }
 @media (max-width: 599.98px) {
   .spotlight-banner > .spotlight-status, .spotlight-banner .spotlight-actions { width: 100%; }
+  .spotlight-banner > .spotlight-status { flex-basis: 100%; }
 }
 
 .presence-menu .presence-person:disabled .presence-follow-word { visibility: visible; }

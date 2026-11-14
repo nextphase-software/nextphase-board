@@ -426,3 +426,62 @@ Changed files in the validated source revision:
   `tests/server/lifecycle.test.ts`, `tests/server/reactions.test.ts`,
   `vitest.node.config.ts`, `vitest.workerd.config.ts`, `tests/README.md`.
 - Record commit only: `docs/briefs/0008-W2-save-and-reuse-team-activities.md`.
+
+### Server fix round 1
+
+Branch: `codex/0008-W2-save-and-reuse-team-activities`.
+Fix base: record tip `f9ada0f11be3c2f68c097d5e967c9ea346e790e3`, whose
+validated source was `5a491c46293e7df0b9eb207a8b4819db10e18e1e`.
+Validated source/test revision for this round:
+`8f5a82d6557d7fdf524c5d0c1264fbf702193274`
+(`test(templates): exclude backup time from S395 equality`). This section is
+appended in a separate record commit; its tip is reported in the handoff.
+
+The supplied independent server receipts for the preceding candidate showed
+Node: 395 passed, 2 failed, 0 skipped; workerd: 391 passed, 2 failed, 2 skipped.
+Templates were 23 passed / 1 failed on each runner. S395 failed on both full
+runs and both filtered retries because the backup envelope's `createdAt`
+changes when the backup is produced, even for an unchanged room. The filtered
+Node retry differed only by 100 ms in that envelope timestamp. The production
+backup implementation confirms it uses the current time for that field.
+
+Changed only S395 in `tests/server/templates.test.ts`: each backup's envelope
+`createdAt` must be a string that round-trips through `Date.toISOString()`, and
+only that top-level field is excluded from the before/after equality. Every
+other envelope field and every backup table remain in the comparison. The
+source export/document, board rows (including revision and edited-at), versions,
+room inventory comparison, saves/edits/replaces/deletes and no-socket-frame
+assertion are otherwise exactly as before. No product code, schema, dependency,
+manifest, lock or other test changed. No dependency versions or licenses were
+added.
+
+S170 (Node) and S93 (workerd) each failed once in the supplied full-run receipts,
+then passed their filtered candidate retry and all three filtered baseline
+retries on `2bbcc413a78bae192d876b0bf1c54450cddfc61d`. They remain unchanged;
+the independent check run must rerun both full suites. S389, its UNPROVED
+message and its summary remain unchanged; review owns that disposition. The
+17-table checks S48, S192, S193, S221 and S372 passed in the supplied receipts.
+Those results describe the preceding candidate, not a server run of this fix.
+
+Validation used Node 26.13.0 and npm 11.20.0 on the clean test commit above:
+
+| Check | Command / inspection | Result |
+| --- | --- | --- |
+| Local reproduction and focused probe | `node <scratch>/0008-W2-server-fix-1-probe.mjs` | PASS: reproduced the original equality failure using the production backup function and unchanged in-memory SQLite storage, with reads 100 ms apart. The actual S395 helper extracted from the test passed 11 checks: changing envelope time is accepted, invalid/missing/non-string timestamps are refused, all 16 logical-backup tables are retained, and payload, table inventory and nested timestamp changes still differ |
+| V3 | `npm run typecheck` | PASS: exit 0, all five workspace members |
+| V4 | `npm test` | PASS: exit 0, 1,124/1,124; zero failures, cancellations or skips; includes the existing 12 focused template units |
+| V8 | Inspect every hunk; `git diff --name-status f9ada0f11be3c2f68c097d5e967c9ea346e790e3..8f5a82d6557d7fdf524c5d0c1264fbf702193274`; `git diff --check` over that range | PASS: exactly one changed file, `tests/server/templates.test.ts`, with changes confined to S395. Prefix/suffix comparison confirms every other check is byte-identical. This separate record commit changes only this brief's appended record |
+
+**Unrun in this fix round:** S395 through authenticated HTTP on either runner,
+Supabase/schema checks, both full server suites and their filtered retries,
+browser acceptance and builds. Supabase CLI and browsers cannot start in this
+sandbox; none was attempted. The local probe verifies the production backup
+behavior and the comparison helper, not template HTTP operations, socket
+silence or full S395 acceptance. V1, V2, V5–V7 and V9–V13 were not rerun; this
+round was limited to the requested V3, V4, V8 and focused local reproduction.
+No new escalation was introduced.
+
+Mandatory privacy hooks passed for the test commit. Git emitted the same
+sandbox `packed-refs.lock` maintenance warning while the commit succeeded.
+No hooks were bypassed, no stash was used, and no push, merge, publication or
+deployment occurred. The unrelated 0007-W2 evidence path was not read or changed.

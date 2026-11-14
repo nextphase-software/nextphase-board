@@ -315,3 +315,67 @@ contract. No unresolved product decision is delegated to implementation.
 ## Implementation record
 
 (Appended by the implementer.)
+
+### Build (implement 1)
+
+Branch: `claude/0009-W2-build-and-restructure-mind-maps`. Prerequisite base (this
+brief and its three contracts): `cf64aea9b30c7efd838537c2d76ba81665481acd`.
+Behaviour baseline: `9f843d0babc6645d7c40fca432b483ecf6bf9bfd`. Validated
+source/test revision: `0cedeb07c3d121c6ae5e0bf0212cd3b80b2de72c`
+(`feat(mindmaps): build and restructure mind maps`). This record is appended in a
+separate commit; its tip is reported in the handoff.
+
+Validation used Node 26.13.0 and npm 11.20.0 on the clean source commit above,
+with `BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic
+BOARD_SERVER_URL=http://127.0.0.1:8796` for both web builds:
+
+| Check | Command / inspection | Result |
+| --- | --- | --- |
+| V1 | `git diff --quiet cf64aea..0cedeb0` over every `package.json`, `package-lock.json`, the dependency lock v5, inventory v5 and runtime notices v3 | PASS: unchanged; no dependency added |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` | PASS: exit 0 on the candidate (the independent baseline install belongs to the check run) |
+| V3 | `npm run typecheck` | PASS: exit 0, all five workspace members |
+| V4 | `npm test` | PASS: exit 0, 1,147/1,147 (1,130 existing plus MM-U1–MM-U17 in `tests/mind-map.test.mjs`); no failures, cancellations or skips. Module guards: 14 rules files, 9 object types, 13 scene parts, 27 screen parts, 22 state hooks, effect counts unchanged, App equal to 9f843d0's App with the six substitutions |
+| V5 | `BOARD_TEAM_FEATURES=off npm run build`; `npm run audit:licenses` | PASS: exit 0 / exit 0; lock, runtime inventory and distributed notices verified |
+| V6 | `npm run build:fixtures`; `BOARD_TEAM_FEATURES=on npm run build`; `npm run audit:licenses` | PASS: exit 0 each |
+| V7 | `npm run build:server`; `npm run audit:licenses`; `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` | PASS: exit 0 each; dry run only, no deploy |
+| V8 | Every hunk; `git diff --name-status cf64aea..0cedeb0` (98 files: 7 added, 91 modified); `git diff --check` over that range | PASS: no whitespace errors. Changed files are the brief's deliverables, the listed shared-path dispositions (only the named lines; history/lifecycle server tests also carry the import rename) and rename-only files, each checked mechanically: reversing `BoardV11`/`ItemV11` reproduces the base byte for byte |
+
+**Unrun:** V9 (M9-S1–M9-S26), V10, V11 (both server suites, including the new
+S402–S406 in `tests/server/mind-maps.test.ts`, which was only syntax-checked),
+V12 (A–J) and V13 (O, N, M, K, L, P, Q and fixture pages), browser rendering and
+focus, Safari, native IME and the Supabase CLI. These belong to the later
+server-only and check runs; none was started here.
+
+**Interpretations within the contracts** (for review):
+- Hosted load upgrade: on load, a stored version 10 board has its board map's
+  `schemaVersion` set to 11 in the room's document, and a snapshot is written at the
+  current revision (no edits row, receipt or revision change). Automatic history
+  capture treats a board without mind nodes whose version 10 serialization equals
+  the last capture as unchanged, so the upgrade alone captures no version.
+  `edit-session.ts` needed no change.
+- History restore: the selected document is upgraded before its restore intent is
+  prepared and before the snapshot and live board are written; previews return the
+  stored document as stored.
+- One step for an add and its first text session: locally, the add's commit records
+  a step that the node's first text session replaces, starting from the board before
+  the add; on hosted boards the add carries a fresh group that the session reuses, and
+  shared Undo starts a group on an add-only step that adds a mind node (an add of any
+  other type still ends a group, as the existing grouped-edit checks require).
+- A dragged root moves its map with the map frame shown; a dragged non-root node shows
+  no frame and no selection outline.
+- A lone collapsed non-root node copied, cut into the clipboard or duplicated becomes a
+  root, so it is expanded (a root is never collapsed); it stays collapsed when its
+  parent is copied with it.
+- Add buttons, badges, tooltips, the frame margin, the drop outline and the dashed
+  preview keep their stated screen sizes at every zoom (like the connection dots);
+  branch width 3.5 scales with the board like connector lines.
+- The `mindNode` record's `fill` and `edge` return nothing, as the text record's do.
+- In the Objects panel a selection holding a mind node shows no position or size
+  fields; Arrange stays, unavailable with the stated reasons.
+- Enter or Escape in the canvas node editor returns focus to the canvas so the node
+  keys keep working; the node's field is labelled Content with the "Add text"
+  placeholder.
+
+No escalation. Mandatory hooks ran (public boundary passed); no hook was bypassed,
+no stash was used, and nothing was pushed, merged, published or deployed. The
+unrelated 0007-W2 evidence path was not read or changed.

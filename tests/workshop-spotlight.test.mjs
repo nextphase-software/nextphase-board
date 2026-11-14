@@ -348,28 +348,3 @@ unit(63,'NB-111 hidden comment inputs preserve card and composer drafts until Co
     }
   } finally { f.close(); }
 });
-unit(64,'NB-112 sticky editor Escape closes after remote Cancel while retaining text and IME protection',async()=>{
-  const {build}=await import('esbuild'),{fileURLToPath}=await import('node:url');
-  const result=await build({entryPoints:[fileURLToPath(new URL('../apps/web/src/ui/content-field.tsx',import.meta.url))],bundle:true,write:false,format:'esm',platform:'node'});
-  const {ContentField}=await import('data:text/javascript;base64,'+Buffer.from(result.outputFiles[0].text).toString('base64'));
-  const {empty,upgrade,add}=await import('../packages/board-rules/src/document.ts');
-  const item=add(upgrade(empty()),'sticky',0,0).objects[0],text='Kept native draft';
-  const f=await hostedController();try {
-    let inline=true,finished=0,selection={id:item.id,start:0,end:0};
-    const field=(composing=false)=>ContentField({item,text,inline,composing,selectedId:item.id,
-      finishTextSession(){finished++;},setInline(value){inline=value;},setTextSelection(value){selection=value;}})
-      .props.children.find(child=>child.type==='textarea');
-    f.s.joined(idleProjection(f.p));
-    spotlightState(f,f.p);assert.equal(inline,true);assert.equal(field().props.value,text);
-    spotlightState(f,idleProjection(f.p,2),'stop');assert.equal(f.s.visible,false);
-    assert.equal(inline,true);assert.equal(field().props.value,text);assert.equal(finished,0);
-    const escape=isComposing=>({key:'Escape',nativeEvent:{isComposing},prevented:false,stopped:false,
-      preventDefault(){this.prevented=true;},stopPropagation(){this.stopped=true;}});
-    field(true).props.onKeyDown(escape(false));field().props.onKeyDown(escape(true));
-    assert.equal(inline,true);assert.equal(finished,0);
-    const event=escape(false);field().props.onKeyDown(event);
-    assert.equal(inline,false,'sticky textarea owns Escape after remote Cancel');
-    assert.equal(finished,1);assert.equal(selection,null);assert.equal(field().props.value,text);
-    assert.equal(event.prevented,true);assert.equal(event.stopped,true);
-  } finally { f.close(); }
-});

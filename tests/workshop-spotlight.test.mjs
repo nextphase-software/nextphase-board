@@ -275,3 +275,17 @@ unit(59,'NB-111 People hides comment surfaces and keeps drafts clock and spotlig
     assert.equal(f.s.motion,true);assert.equal(host.presence.followed,null);assert.deepEqual(f.commands,[]);
   } finally { f.close(); }
 });
+for(const confirmed of [false,true])unit(confirmed?61:60,`NB-112 presenter Stop clears banner and manual follow ${confirmed?'right after confirmation':'while follow is pending'}`,async()=>{
+  const f=await hostedController();try {
+    f.s.joined(f.p);
+    f.host.follow(f.p.session.presenter.person);
+    assert.deepEqual(f.commands.map(c=>c.action),['follow']);
+    if(confirmed)confirmFollow(f);
+    assert.equal(f.s.visible,true);
+    spotlightState(f,idleProjection(f.p,2),'stop');
+    assert.equal(f.s.visible,false);assert.equal(f.s.following,false);assert.equal(f.s.motion,false);
+    assert.equal(f.host.presence.followed,null);
+    assert.equal(f.s.mode,'ready');
+    f.time.advance(6000);assert.equal(f.s.visible,false);assert.equal(f.commands.length,1);
+  } finally { f.close(); }
+});

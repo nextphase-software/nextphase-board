@@ -54,7 +54,7 @@ export function ContentField({
         onFocus={(e) => { beginTextSession(item); track(e); }}
         onSelect={track}
         onKeyDown={(e) => {
-          if (type?.ends && inline && e.key === "Escape" && !composing && !e.nativeEvent.isComposing) {
+          if (inline && e.key === "Escape" && !composing && !e.nativeEvent.isComposing) {
             e.preventDefault(); e.stopPropagation(); finishTextSession(); setTextSelection(null); setInline(false); return;
           }
           if (!type?.richText || composing || e.nativeEvent.isComposing || !(e.ctrlKey || e.metaKey) || e.altKey) return;

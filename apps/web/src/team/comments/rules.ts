@@ -4,6 +4,10 @@ export * from "nextphase-board-sync/mentions.ts";
 import { nameObject, type CommentThread, type CommentRequest } from "nextphase-board-sync/comments.ts";
 import type { BoardV10 } from "nextphase-board-rules/document.ts";
 
+export function commentInputBlocked(surface: string | null, history: { open: boolean; previewing: boolean; locked: boolean }) {
+  return surface === "people" || surface === "timer" || surface === "share" || history.open || history.previewing || history.locked;
+}
+
 export const words = {
   empty: "No comments yet. Click a sticky, shape or empty spot to start a thread. Press Esc to stop commenting.",
   onlyYours: "No threads you started, replied to or were mentioned in.", noResolved: "No resolved threads.",

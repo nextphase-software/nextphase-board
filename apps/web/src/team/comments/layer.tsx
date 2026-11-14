@@ -11,7 +11,7 @@ import { api } from "../api";
 import { CommentCard, CommentField, type Draft } from "./card";
 import { CommentsPanel } from "./panel";
 import { CommentIcon } from "./icons";
-import { anchorAt, anchorPoint, authorColour, drawingOrder, placeBox, refusalWords, threadName, visibleThreads,
+import { anchorAt, anchorPoint, authorColour, commentInputBlocked, drawingOrder, placeBox, refusalWords, threadName, visibleThreads,
   words, type Anchor, type CommentOperation, type CommentThread, type Point } from "./rules";
 
 type Props = { hosted: HostedBoard; board: BoardV10; objects: ResolvedItem[]; view: View; size: { w: number; h: number };
@@ -125,8 +125,9 @@ function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool
     const canvas = scene.current;
     if (!canvas) return;
     const keys = (event: globalThis.KeyboardEvent) => {
+      if (commentInputBlocked(hosted.surface, hosted.history)) return;
       const target = event.target as Element;
-      if (target.closest(".w1-panel,.w1-trigger") || hosted.history.previewing || hosted.history.locked) return;
+      if (target.closest(".w1-panel,.w1-trigger")) return;
       if (target.closest(".comment-card,.comment-composer,.comment-menu")) return;
       if (event.key === "Escape" && !event.isComposing) {
         if (composer) { setComposer(null); setDraft({ text: "" }); canvas.focus(); }
@@ -148,10 +149,10 @@ function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool
     };
     const up = (event: globalThis.KeyboardEvent) => { if (event.code === "Space") spaceHeld.current = false; };
     const down = (event: globalThis.PointerEvent) => {
-      if (!mode || event.button !== 0 || spaceHeld.current || !(event.target === canvas || event.target instanceof HTMLCanvasElement)) return;
+      if (commentInputBlocked(hosted.surface, hosted.history) || !mode || event.button !== 0 || spaceHeld.current || !(event.target === canvas || event.target instanceof HTMLCanvasElement)) return;
       event.preventDefault(); event.stopPropagation(); place(point(event));
     };
-    const move = (event: globalThis.PointerEvent) => { if (mode) setHover(anchor(point(event)).objectId); };
+    const move = (event: globalThis.PointerEvent) => { if (!commentInputBlocked(hosted.surface, hosted.history) && mode) setHover(anchor(point(event)).objectId); };
     const leave = () => setHover(null);
     window.addEventListener("keydown", keys, true); window.addEventListener("keyup", up, true);
     canvas.addEventListener("pointerdown", down, true); canvas.addEventListener("pointermove", move); canvas.addEventListener("pointerleave", leave);

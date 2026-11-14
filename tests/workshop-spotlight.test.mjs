@@ -296,3 +296,55 @@ unit(62,'NB-113 narrow spotlight status explicitly occupies its own flex row',as
   assert.equal(/\.spotlight-banner\s*>\s*\.spotlight-status\s*\{[^}]*flex-basis:\s*100%;/.test(narrow),true,'status has flex-basis:100% below 600px');
   assert.match(css,/\.spotlight-banner\s*>\s*\.spotlight-status\s*\{\s*flex:\s*0 1 auto;/);
 });
+
+async function commentInputState(host,options={}) {
+  // Execute the production capture callbacks against state ports, without a DOM.
+  const {readFile}=await import('node:fs/promises'),{createContext,runInContext}=await import('node:vm');
+  const {transform}=await import('esbuild'),rules=await import('../apps/web/src/team/comments/rules.ts');
+  const source=await readFile(new URL('../apps/web/src/team/comments/layer.tsx',import.meta.url),'utf8');
+  const close=source.slice(source.indexOf('  function closeCard()'),source.indexOf('  function open('));
+  const place=source.slice(source.indexOf('  function place('),source.indexOf('  useEffect(() => {\n    const canvas = scene.current;'));
+  const callbacks=source.slice(source.indexOf('    const keys ='),source.indexOf('    window.addEventListener("keydown", keys'));
+  assert(close&&place&&callbacks);
+  const thread=randomUUID(),kept={reply:{text:'Unposted spotlight handoff draft.'},editing:null};
+  host.commentDrafts.set(thread,kept);
+  const canvas={focus(){state.focused++;},closest(){return null;}};
+  const state={...rules,hosted:host,canvas,scene:{current:canvas},pins:{current:new Map()},landing:undefined,
+    opened:{id:thread},composer:null,draft:{text:'Unposted composer draft'},mode:false,focused:0,
+    spaceHeld:{current:false},point:()=>({x:1,y:2}),anchor:p=>p,view:{x:0,y:0},
+    setOpened(value){state.opened=value;},setComposer(value){state.composer=value;},setDraft(value){state.draft=value;},
+    setTool(value){state.mode=value==='Comment';},setHidden(){},setHover(){},
+    requestAnimationFrame(run){run();},...options};
+  const js=await transform(close+place+callbacks+'\nglobalThis.handlers={keys,down,move};',{loader:'ts'});
+  runInContext(js.code,createContext(state));
+  return {state,thread,kept,event(target=canvas,key='Escape'){
+    return {target,key,code:key===' '?'Space':key,button:0,isComposing:false,prevented:false,stopped:false,
+      preventDefault(){this.prevented=true;},stopPropagation(){this.stopped=true;}};
+  }};
+}
+unit(63,'NB-111 hidden comment inputs preserve card and composer drafts until Comments reopens',async()=>{
+  const f=await hostedController();try {
+    for(const surface of ['people','timer','share','history'])for(const composer of [false,true]) {
+      f.host.history.open=surface==='history';f.host.showSurface(surface);
+      const c=await commentInputState(f.host,composer?{opened:null,composer:{x:1,y:2},mode:true}:{});
+      const opened=c.state.opened,anchor=c.state.composer,draft=c.state.draft;
+      const other={closest(){return null;}};
+      for(const key of ['Escape','c','C','Enter',' ']) {
+        const event=c.event(other,key);c.state.handlers.keys(event);
+        assert.equal(c.state.opened,opened,`${surface}: ${key} must not close a hidden card`);
+        assert.equal(c.state.composer,anchor,`${surface}: ${key} must not cancel a hidden composer`);
+        assert.equal(c.state.draft,draft);assert.equal(f.host.commentDrafts.get(c.thread),c.kept);
+        assert.equal(event.prevented,false);assert.equal(event.stopped,false);
+      }
+      c.state.handlers.down(c.event());
+      assert.equal(c.state.opened,opened);assert.equal(c.state.composer,anchor);assert.equal(c.state.draft,draft);
+      assert.equal(f.host.commentDrafts.get(c.thread),c.kept);assert.equal(c.state.focused,0);
+      f.host.showSurface('comments');c.state.mode=true;
+      assert.equal(f.host.commentDrafts.get(c.thread).reply.text,'Unposted spotlight handoff draft.');
+      const escape=c.event();c.state.handlers.keys(escape);
+      assert.equal(c.state.composer,null);assert.equal(c.state.opened,null);
+      assert.equal(escape.prevented,true);assert.equal(escape.stopped,true);
+      if(composer)assert.equal(c.state.draft.text,'');else assert.equal(f.host.commentDrafts.has(c.thread),false);
+    }
+  } finally { f.close(); }
+});

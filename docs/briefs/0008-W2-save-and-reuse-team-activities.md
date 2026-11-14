@@ -337,3 +337,92 @@ decision is delegated to implementation.
 ## Implementation record
 
 (Appended by the implementer.)
+
+### Implementation — v1
+
+Branch: `codex/0008-W2-save-and-reuse-team-activities`.
+Prerequisite base: `415c2f2aaf35c3c2f60352b77bc2399cc8d9af63`.
+Behaviour baseline: `2bbcc413a78bae192d876b0bf1c54450cddfc61d`.
+Validated source/test revision: `5a491c46293e7df0b9eb207a8b4819db10e18e1e`
+(`feat(templates): save and reuse workspace activities`). The implementation
+record is a separate documentation commit; its record-inclusive tip is reported
+separately in the handoff.
+
+Implemented the workspace template table, six service-only database functions
+and five HTTP routes; current membership checks, the serialized 25-template cap,
+client/server document-10 object validation and the exact API response/refusal
+forms. The hosted Templates panel gains the team group, previews, card menu and
+four dialogs, with hosted toast notices and fresh reads before independent
+insertion through the existing activity path. App.tsx changes only its two
+permitted bindings and remains 264 lines. No dependency was added (there are no
+new dependency versions or licenses to record), and no room, socket, adapter,
+document, file or backup format changed.
+
+All following commands ran with Node 26.13.0 and npm 11.20.0. Candidate checks
+ran against the clean validated source revision above. The independent baseline
+was extracted from the behaviour baseline into separate scratch, installed and
+built off/on; its outputs were retained for byte comparisons. Candidate off and
+on outputs were copied aside before subsequent builds.
+
+| Check | Commands / inspection | Result and count |
+| --- | --- | --- |
+| V1 | Byte-compare tracked manifests, locks, dependency inventories and runtime notices with the prerequisite base | PASS: 20 files identical; zero added dependencies |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` on candidate and independent baseline | PASS: exit 0 on both; 118 packages each |
+| V3 | `npm run typecheck` | PASS: all five workspace members, exit 0 |
+| V4 | `npm test` | PASS: 1,124/1,124; zero failures, cancellations or skips; includes T8-U1–T8-U12 (12), unchanged activity assertions, 54 team modules, 22 state hooks and the exact two-line App guard |
+| V5 | `BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build`; `npm run audit:licenses`; inspect metadata and byte-compare outputs | PASS: both exit 0; HTML and notices equal baseline off; 216 inputs, zero team or Supabase inputs, including zero new team-template modules |
+| V6 | `npm run build:fixtures`; `BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build`; `npm run audit:licenses` | PASS: all exit 0; HTML equals baseline on; notices equal baseline on and runtime notices v3 |
+| V7 | `npm run build:server`; `npm run audit:licenses`; `WRANGLER_LOG_PATH=<scratch>/wrangler.log WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch>/worker -c apps/server/wrangler.json` | PASS: all exit 0; dry-run upload 1,366.45 KiB (gzip 280.54 KiB); no deploy |
+| V8 | Inspect all hunks; `git diff --name-status 415c2f2aaf35c3c2f60352b77bc2399cc8d9af63..5a491c46293e7df0b9eb207a8b4819db10e18e1e`; `git diff --check` over that range | PASS: 27 source/test/documentation files within deliverables 1–4; clean whitespace. This separate record adds only the append below the existing Implementation record heading |
+
+Before the final clean-revision validation, focused units found two fixture
+mistakes (object text above its type limit and an empty board title) and a test
+assertion using `reason` instead of the error's `message`; those tests were
+corrected. Typechecking found the document-10 preview needed to narrow text
+objects before applying their paint functions; that source correction is in the
+validated revision. The first dry run exited 0 but its default logger attempted
+an unwritable directory; the recorded command redirects the log into scratch
+and completed without that warning.
+
+**Unrun:** V9–V13, including S378–S401 (24) on each server runner, all inherited
+server suites, schema execution against Supabase, T8 browser scenarios and the
+17 state captures, independent baseline capability failures, A–J off, activity
+Q, Safari, native IME and browser focus/layout acceptance. Browsers and the
+Supabase CLI cannot start in this implementation sandbox; none was attempted.
+The new server cases are registered, not claimed passed. Unit controller checks
+substitute the HTTP port and do not prove real database authorization or browser
+rendering. No unrelated acceptance or performance campaign ran.
+
+**Escalation for independent review:** S389 requests a creator whose effective
+role on a source board of the same workspace is viewer. The inherited
+`board_role` takes the strongest workspace/grant role, so a current workspace
+editor remains editor even with a viewer board grant. A creator lowered to
+workspace viewer is refused by the earlier manage check (`needed: "owner"`).
+The required defensive source-board viewer guard is implemented, but that
+particular natural fixture is unreachable without changing inherited access
+policy. S389 and `SUMMARY-TEMPLATES` explicitly report this unproved subcase;
+review must disposition it. No access policy was changed to manufacture it.
+
+The code graph tool was unavailable under the run's approval policy; file-based
+discovery was used after that refusal. Source commit privacy hooks passed. Git
+emitted a sandbox `packed-refs.lock` maintenance warning after the hooks, while
+the source commit succeeded. No hooks were bypassed, no stash was used, and no
+push, merge, publication or deployment occurred. The unrelated 0007-W2 evidence
+path was not read or changed.
+
+Changed files in the validated source revision:
+
+- Server: `apps/server/supabase/nextphase_board.sql`, `apps/server/src/app.ts`,
+  `apps/server/src/runtime.ts`, `apps/server/src/supabase.ts`,
+  `apps/server/src/templates.ts`, `apps/server/src/routes/templates.ts`.
+- Web: `apps/web/src/App.tsx`, `apps/web/src/activities.ts`,
+  `apps/web/src/state/use-editing-commands.ts`, `apps/web/src/team/team-app.tsx`,
+  `apps/web/src/team/templates-rules.ts`, `apps/web/src/team/templates.ts`,
+  `apps/web/src/team/templates-section.tsx`, `apps/web/src/ui/palette.tsx`,
+  `apps/web/src/ui/templates-panel.tsx`, `apps/web/style.css`.
+- Tests and guards: `tests/team-templates.test.mjs`, `tests/modules.test.mjs`,
+  `tests/server/templates.test.ts`, `tests/server/setup.ts`,
+  `tests/server/suite.test.ts`, `tests/server/history.test.ts`,
+  `tests/server/lifecycle.test.ts`, `tests/server/reactions.test.ts`,
+  `vitest.node.config.ts`, `vitest.workerd.config.ts`, `tests/README.md`.
+- Record commit only: `docs/briefs/0008-W2-save-and-reuse-team-activities.md`.

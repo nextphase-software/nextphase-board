@@ -379,3 +379,51 @@ server-only and check runs; none was started here.
 No escalation. Mandatory hooks ran (public boundary passed); no hook was bypassed,
 no stash was used, and nothing was pushed, merged, published or deployed. The
 unrelated 0007-W2 evidence path was not read or changed.
+
+### Fix round 1 (server)
+
+Branch: `claude/0009-W2-build-and-restructure-mind-maps`. Fix base: record tip
+`33b89d63352b18cb7cfe90f4ffe4a5ff35105367` (validated source `0cedeb0`).
+Validated source/test revision for this round:
+`3adc3ece00ea095bf3bc3cabee60740b989c1c1d`
+(`test(mindmaps): seed S405 history metadata and size imports at version 11`).
+This section is appended in a separate record commit.
+
+The independent server-only run on the preceding candidate reported three Node
+failures (its workerd suite was invalid because the host slept):
+
+- **S405** answered `restore_pending` (503) on its first restore. Root cause: the
+  test fixture, not the product. The seed inserted a stored version with ordinal
+  max + 1 without raising the room's `history_ordinal`. A restore's first capture
+  (`before_restore`) takes ordinal `history_ordinal + 1`, and `versions.ordinal` is
+  `UNIQUE`, so that insert failed inside `resume` and the restore stayed pending.
+  Every real stored version is written by the room's capture, which raises
+  `history_ordinal` in the same transaction, so the product cannot reach this
+  state. Evidence: on a local stack the unchanged seed reproduces the 503, and the
+  corrected seed passes. A direct SQLite probe of the committed schema refuses a
+  second row at that ordinal (`UNIQUE constraint failed: versions.ordinal`). The
+  seed now sets `history_ordinal`, `history_revision`, `history_capture_sha256` and
+  `history_capture_bytes` as a real capture of that version would. No product code
+  changed.
+- **S135 and S140** received `invalid_document` because `tests/import-fixture.mjs`
+  `sizedBoard()` defaulted to document version 10, which the import route no longer
+  accepts. Planner-approved disposition amendment (a version-literal file the
+  dispositions above missed): only that default moves from 10 to 11. Its other
+  callers keep their results: the team-import units (including the explicit
+  version 8 case) pass in `npm test`, and S135/S140 pass on both runners.
+
+| Check | Command / inspection | Result |
+| --- | --- | --- |
+| V3 | `npm run typecheck` | PASS: exit 0, all five workspace members |
+| V4 | `npm test` | PASS: exit 0, 1,147/1,147 |
+| Filtered Node | `npx vitest run -c vitest.node.config.ts -t <id>` for S135, S140, S402, S403, S404, S405, S406, each separately | PASS: 7/7, exit 0 each |
+| Filtered workerd | `npx vitest run -c vitest.workerd.config.ts -t "S40[2-6] "` and `-t "S13[5] import\|S140 editor"` | PASS: 5/5 and 2/2, exit 0 |
+
+The stack was a uniquely named local Supabase project in a scratch clone of the
+fix commit. It was started from the committed config with only `project_id`
+changed, the committed schema was installed, and the stack was stopped with
+`--no-backup`. Container and volume listings matched before and after; the
+clone, including its signing key, was removed. No host sleep fell inside the run
+window. The full server suites, V1, V2, V5–V7 and V9–V13 were not rerun here; the
+next independent check run owns them. No new escalation. No hook was bypassed, no
+stash was used, and nothing was pushed, merged, published or deployed.

@@ -554,3 +554,41 @@ Browsers and Supabase CLI cannot start in this sandbox and remain unrun; no DOM
 rendering, focus/IME, browser acceptance, builds or server suites ran. Server
 suites were not required because no server/package source changed. No escalation,
 push, merge or publication.
+
+Fix round 1: prerequisite/source base `f1854821a451806410eaa93b5cdfc0060d7c0c1b`,
+same branch; validated source/test revision
+`3ff5a7bb794baf5647b46ead2a8357b318357aab`. NB-111's capture-phase Escape handler
+still closed a hidden card and deleted its retained reply, before the People menu
+could handle Escape. The small pure `commentInputBlocked` rule now gates comment
+keyboard/pointer input while People, Timer, Share or History owns the surface.
+Hidden card/composer drafts remain; visible comment Escape retains its existing
+close behavior. The regression executes the production capture callbacks against
+state ports, including the real `closeCard`/`place` code, without a DOM.
+
+P1-S39's separate editor finding is a proven product bug (NB-112): ContentField
+handled inline Escape only for connectors, while usePageKeys intentionally skips
+textareas. Sticky text therefore had no Escape close path, independently of remote
+Cancel timing. Apply the existing inline close action to all inline text fields;
+retain composition guards and text. Spotlight/presence capture handlers already
+yield to textareas, and App's stable inline editor position has no spotlight key
+or remount branch. The remote Stop verdict above remains unchanged.
+
+| New check name | f185482 source | Fixed source |
+| --- | --- | --- |
+| P1-U63 NB-111 hidden comment inputs preserve card and composer drafts until Comments reopens | FAIL: People Escape closed hidden card | PASS |
+| P1-U64 NB-112 sticky editor Escape closes after remote Cancel while retaining text and IME protection | FAIL: sticky remained inline | PASS |
+
+`npm run typecheck` passed all five workspaces. `npm test` ran once this round:
+1,112/1,112 passed, zero failures/skips. Focused command:
+`node --test --test-reporter=tap --test-name-pattern='P1-U6[34]' tests/workshop-spotlight.test.mjs`.
+After both issue commits, `git checkout f185482 --` restored only
+`apps/web/src/team/comments/layer.tsx`, `apps/web/src/team/comments/rules.ts` and
+`apps/web/src/ui/content-field.tsx`, leaving the tests in place: both failed by
+name. Restoring those files with `git checkout HEAD --` passed both tests and
+left `git status --short` empty. Diff checks and mandatory public-boundary hooks
+passed; the sandbox's packed-refs maintenance warning persisted without preventing
+commits. This separate documentation commit records the results; its final tip is
+reported in the handoff. No dependencies, contracts, internal check scripts,
+server or package source changed. Browsers, Supabase CLI, browser rendering/focus,
+native IME checks, builds and server suites remain unrun; no escalation, push,
+merge or publication.

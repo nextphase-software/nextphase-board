@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { freshIdentifier, type BoardV10, type ConnectorItem, type ItemV10 } from "nextphase-board-rules/document.ts";
+import { freshIdentifier, type BoardV11, type ConnectorItem, type ItemV11 } from "nextphase-board-rules/document.ts";
 import { editingCommandReason } from "./commands.ts";
 import { eligibleIdea, hasPoints, hasEnds, hasRectangle, isContainer, orderBand, typeWithEnds, type EndsKeys, type End, type ConnectorStyle, defaultConnectorStyle, validConnectorStyle, outlinePoint, lineWidth, lineDash } from "nextphase-board-rules/objects/registry.ts";
 import { boxSelection, type DisplayObject, type Point } from "./selection.ts";
@@ -198,31 +198,31 @@ export function remapEnds<T extends { type: string }>(o: T, ids: ReadonlyMap<str
 export function copiedSetReason(objects: readonly { id: string; type: string; section?: string | null }[], selected: ReadonlySet<string>): string {
   return selected.size && !copiedSet(objects, selected).size ? COPY_REASON : "";
 }
-export function connectReason(board: BoardV10, selected: ReadonlySet<string>, state: Parameters<typeof editingCommandReason>[0]): string {
+export function connectReason(board: BoardV11, selected: ReadonlySet<string>, state: Parameters<typeof editingCommandReason>[0]): string {
   const reason = editingCommandReason(state);
   if (reason) return reason;
   const ideas = board.objects.filter((o) => selected.has(o.id));
   if (selected.size !== 2 || ideas.length !== 2 || !ideas.every(eligibleIdea)) return "Select exactly two ideas to connect.";
   return board.objects.length >= 250 ? "250 object limit reached" : "";
 }
-export function createConnector(board: BoardV10, from: string, to: string, style: ConnectorStyle = defaultConnectorStyle()): { board: BoardV10; id: string } {
+export function createConnector(board: BoardV11, from: string, to: string, style: ConnectorStyle = defaultConnectorStyle()): { board: BoardV11; id: string } {
   if (from === to || [from, to].some((id) => !board.objects.some((o) => o.id === id && eligibleIdea(o)))) throw Error("Invalid connector ends");
   if (board.objects.length >= 250) throw Error("250 object limit reached");
   const type = typeWithEnds(), id = freshIdentifier(board);
   const object: ConnectorItem = { id, generation: freshIdentifier(board, [id]), type: type.type,
     text: type.initialText, ...type.defaultStyle, ...style, group: null, marks: [], section: null,
     from: { object: from, anchor: "auto" }, to: { object: to, anchor: "auto" }, order: board.objects.length };
-  return { id, board: { ...board, objects: bands<ItemV10>([...board.objects, object]).map((o, order) => ({ ...o, order })) } };
+  return { id, board: { ...board, objects: bands<ItemV11>([...board.objects, object]).map((o, order) => ({ ...o, order })) } };
 }
 
-export function changeConnectorStyle<K extends keyof ConnectorStyle>(board: BoardV10, selected: ReadonlySet<string>, key: K, value: ConnectorStyle[K]): BoardV10 {
+export function changeConnectorStyle<K extends keyof ConnectorStyle>(board: BoardV11, selected: ReadonlySet<string>, key: K, value: ConnectorStyle[K]): BoardV11 {
   const targets = board.objects.filter((o) => selected.has(o.id));
   if (!targets.length || targets.length !== selected.size || !targets.every(hasEnds)) return board;
   if (!validConnectorStyle({ ...targets[0], [key]: value } as ConnectorStyle)) return board;
   const objects = board.objects.map((o) => hasEnds(o) && selected.has(o.id) && o[key] !== value ? { ...o, [key]: value } : o);
   return objects.some((o, i) => o !== board.objects[i]) ? { ...board, objects } : board;
 }
-export function reconnect(board: BoardV10, id: string, end: "from" | "to", target: End): BoardV10 {
+export function reconnect(board: BoardV11, id: string, end: "from" | "to", target: End): BoardV11 {
   const object = board.objects.find((o) => o.id === id);
   if (!object || !hasEnds(object) || !typeWithEnds().validExtras({ ...object, [end]: target }) ||
     target.object === object[end === "from" ? "to" : "from"].object ||

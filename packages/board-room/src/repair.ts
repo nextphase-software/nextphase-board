@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
-import type { BoardV10, ItemV10 } from "nextphase-board-rules/document.ts";
-import { hasEnds, hasText } from "nextphase-board-rules/objects/registry.ts";
+import type { BoardV11, ItemV11 } from "nextphase-board-rules/document.ts";
+import { hasEnds, hasText, isMindNode, type MindNodeKeys } from "nextphase-board-rules/objects/registry.ts";
 import { normalize } from "nextphase-board-rules/marks.ts";
 
-export function repair(doc: Y.Doc, before: BoardV10, merged: BoardV10) {
-  const removed: ItemV10[] = [];
+export function repair(doc: Y.Doc, before: BoardV11, merged: BoardV11) {
+  const removed: ItemV11[] = [];
   let changed = false;
   const objects = doc.getMap<Y.Map<unknown>>("objects");
   const live = new Set(merged.objects.map((object) => object.id));
@@ -29,6 +29,10 @@ export function repair(doc: Y.Doc, before: BoardV10, merged: BoardV10) {
         objects.get(object.id)!.set("marks", marks); changed = true;
       }
     }
+    for (const [id, values] of mindNodeRepairs(remaining)) {
+      const map = objects.get(id)!;
+      for (const [key, value] of Object.entries(values)) if (map.get(key) !== value) { map.set(key, value); changed = true; }
+    }
     remaining.sort((a, b) => a.order - b.order || Number(previous.has(b.id)) - Number(previous.has(a.id)) ||
       (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     remaining.forEach((object, order) => {
@@ -36,4 +40,36 @@ export function repair(doc: Y.Doc, before: BoardV10, merged: BoardV10) {
     });
   });
   return { changed, removed };
+}
+
+type Structure = Pick<MindNodeKeys, "parent" | "side" | "collapsed">;
+// Document v16's repair order. It only changes parents, sides and collapse
+// states; it never moves a node (the map's next change lays it out).
+export function mindNodeRepairs(objects: readonly ItemV11[]): Map<string, Structure> {
+  const nodes = new Map(objects.filter(isMindNode).map((o): [string, Structure] => [o.id, { parent: o.parent, side: o.side, collapsed: o.collapsed }]));
+  for (const node of nodes.values()) if (node.parent !== null && !nodes.has(node.parent)) node.parent = null;
+  for (let loop = cycle(nodes); loop; loop = cycle(nodes)) {
+    nodes.get(loop.reduce((a, b) => a < b ? a : b))!.parent = null;
+  }
+  for (const node of nodes.values()) {
+    if (node.parent === null) { node.side = null; node.collapsed = false; }
+    else if (nodes.get(node.parent)!.parent === null) node.side ??= "right";
+    else node.side = null;
+  }
+  return nodes;
+}
+function cycle(nodes: ReadonlyMap<string, Structure>): string[] | undefined {
+  const settled = new Set<string>();
+  for (const start of nodes.keys()) {
+    const path: string[] = [];
+    let id: string | null = start;
+    while (id !== null && !settled.has(id)) {
+      const at = path.indexOf(id);
+      if (at >= 0) return path.slice(at);
+      path.push(id);
+      id = nodes.get(id)!.parent;
+    }
+    for (const visited of path) settled.add(visited);
+  }
+  return undefined;
 }

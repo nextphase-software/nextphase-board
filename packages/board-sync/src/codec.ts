@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
-import type { BoardV10, ItemV10 } from "nextphase-board-rules/document.ts";
+import type { BoardV11, ItemV11 } from "nextphase-board-rules/document.ts";
 import { hasEnds, hasRectangle, hasText, objectType } from "nextphase-board-rules/objects/registry.ts";
 
 function exact(value: unknown, keys: readonly string[]): Record<string, unknown> {
@@ -18,7 +18,7 @@ function map(value: unknown, keys: readonly string[]): Y.Map<unknown> {
 
 // Check the complete mapping before projecting it. Silently discarding an
 // unknown field here would allow hidden data to live in an otherwise valid board.
-export function readBoard(doc: Y.Doc): BoardV10 {
+export function readBoard(doc: Y.Doc): BoardV11 {
   if ([...doc.share.keys()].some((key) => !["board", "objects", "retired"].includes(key))) {
     throw Error("invalid_update");
   }
@@ -28,7 +28,7 @@ export function readBoard(doc: Y.Doc): BoardV10 {
   if ([...retired.values()].some((value) => value !== true)) throw Error("invalid_update");
   const items = [...objects.entries()].map(([id, value]) => {
     if (!(value instanceof Y.Map) || typeof value.get("type") !== "string") throw Error("invalid_update");
-    const type = value.get("type") as ItemV10["type"];
+    const type = value.get("type") as ItemV11["type"];
     let record;
     try { record = objectType(type); } catch { throw Error("invalid_update"); }
     const object = { type };
@@ -64,10 +64,10 @@ export function readBoard(doc: Y.Doc): BoardV10 {
     for (const key of ["fill", "border"] as const) {
       if (key in result) exact(result[key], key === "fill" ? ["mode", "color"] : ["style", "color"]);
     }
-    return result as ItemV10;
+    return result as ItemV11;
   });
   return {
-    schemaVersion: board.get("schemaVersion") as 10,
+    schemaVersion: board.get("schemaVersion") as 11,
     boardId: board.get("boardId") as string,
     title: board.get("title") as string,
     objects: items.sort((a, b) => a.order - b.order),

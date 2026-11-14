@@ -5,6 +5,7 @@ import { bandOrder, orderParticipants, remapSection } from "./sections.ts";
 
 import { cascade, copiedSet, remapEnds, COPY_REASON } from "./connectors.ts";
 import { hasRectangle } from "nextphase-board-rules/objects/registry.ts";
+import { afterDelete, copiedStructure, remapParent, type MeasureNode } from "./mind-map.ts";
 
 type ObjectChange = { before: Item | null; after: Item | null };
 export type Step = { changes: ObjectChange[]; affectedIds?: string[] };
@@ -107,10 +108,10 @@ function targets(board: Board, target: Item | Item[]): Item[] {
   return [...new Map(items.map((o) => [o.id, o])).values()].sort((a, b) => a.order - b.order);
 }
 
-export function duplicate(board: Board, history: History, target: Item | Item[]): Change {
+export function duplicate(board: Board, history: History, target: Item | Item[], measure?: MeasureNode): Change {
   const selectedTargets = targets(board, target);
   const copied = copiedSet(board.objects, new Set(selectedTargets.map((o) => o.id)));
-  const items = board.objects.filter((o) => copied.has(o.id));
+  const items = copiedStructure(board.objects.filter((o) => copied.has(o.id)), measure);
   if (!items.length) throw Error(COPY_REASON);
   if (board.objects.length + items.length > 250) throw Error("250 object limit reached");
   const objects = [...board.objects];
@@ -130,7 +131,7 @@ export function duplicate(board: Board, history: History, target: Item | Item[])
   const ids = new Map([...identities].map(([source, copy]) => [source, copy.id]));
   for (const item of items) {
     objects.push({
-      ...remapEnds(item, ids), ...identities.get(item.id)!,
+      ...remapParent(remapEnds(item, ids), ids), ...identities.get(item.id)!,
       ...("section" in item ? { section: remapSection(item.section, ids) } : {}),
       ...("group" in item ? { group: item.group ? groups.get(item.group)! : null } : {}),
       ...(hasRectangle(item) ? { x: Math.max(-1e6, Math.min(1e6 - item.width, item.x + 24)),
@@ -143,13 +144,14 @@ export function duplicate(board: Board, history: History, target: Item | Item[])
   return { board: next, history: record(history, board, next), affectedId: affectedIds[0], affectedIds };
 }
 
-export function deleteObject(board: Board, history: History, target: Item | Item[]): Change {
+export function deleteObject(board: Board, history: History, target: Item | Item[], measure?: MeasureNode): Change {
   const deleting = cascade(board.objects, new Set(targets(board, target).map((o) => o.id)));
   const items = board.objects.filter((o) => deleting.has(o.id));
   const removed = new Set(items.map((o) => o.id));
   const deleted = apply(board, items.map((source) => ({ source, target: null })));
-  const next = { ...deleted, objects: deleted.objects.map((o) =>
-    "section" in o && o.section && removed.has(o.section) ? { ...o, section: null } : o) };
+  // Deleting a mind node moves its children up (interaction v40).
+  const next = afterDelete(board, { ...deleted, objects: deleted.objects.map((o) =>
+    "section" in o && o.section && removed.has(o.section) ? { ...o, section: null } : o) }, measure);
   const affectedIds = items.map((o) => o.id);
   return { board: next, history: record(history, board, next), affectedId: affectedIds[0], affectedIds };
 }

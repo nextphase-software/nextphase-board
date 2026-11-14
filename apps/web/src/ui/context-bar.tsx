@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
-import { clamp, count, type ItemV10 as Item } from "nextphase-board-rules/document.ts";
+import { clamp, count, type BoardV11 as Board, type ItemV11 as Item } from "nextphase-board-rules/document.ts";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, colorEntry, type Style } from "nextphase-board-rules/styles.ts";
-import { objectType, hasText } from "nextphase-board-rules/objects/registry.ts";
+import { objectType, hasText, isMindNode } from "nextphase-board-rules/objects/registry.ts";
+import { children, type MapCommand } from "../mind-map";
 import { FLAGS, FLAG_LABELS, type Flag } from "nextphase-board-rules/marks.ts";
 import { Icon } from "../icons";
 import type { ArrangeCommand } from "../arrange";
@@ -15,6 +16,7 @@ import { ArrangeControls } from "./arrange-controls";
 import { ImageControls, type DescriptionControl } from "./image-controls";
 
 type Props = {
+  board: Board;
   imageCount: number; imagesOnly: boolean; description: DescriptionControl;
   strokeSelection: StrokeControlProps["selection"]; strokeCommands: StrokeControlProps["commands"];
   connectorObjects: ConnectorMenuProps["objects"]; connectorCommands: ConnectorMenuProps["commands"]; connectorPopup: ConnectorMenuProps["popup"];
@@ -66,17 +68,21 @@ type Props = {
   closeArrange: () => void;
   arrange: (name: ArrangeCommand) => void;
   arrangementReason: (name: ArrangeCommand) => string;
-  command: (name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut") => void;
+  command: (name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut" | MapCommand) => void;
 };
 
 export function ContextBar({
-  imageCount, imagesOnly, description, strokeSelection, strokeCommands, connectorObjects, connectorCommands, connectorPopup, connectorOnly, connectorCount, duplicateReason, shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
+  board, imageCount, imagesOnly, description, strokeSelection, strokeCommands, connectorObjects, connectorCommands, connectorPopup, connectorOnly, connectorCount, duplicateReason, shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
   inline, richText, finishTextSession, setInline, scene, edit, text, colourControl, colourButton,
   selectionReason, colourLabel, swatchOpen, setArrangeFor, setSwatchFor, selectionKey,
   selectionColor, swatches, contextWidth, size, closeSwatches, changeStyle, selectionSize,
   selectionAlign, selectionFormats, toggleFormat, arrangeControl, arrangeButton, arrangeOpen, arrangeMenu, arrangeHeight,
   closeArrange, arrange, arrangementReason, command
 }: Props) {
+  // A node's bar: no text size, alignment, formatting or Arrange; a non-root
+  // node with children adds Collapse or Expand.
+  const nodes = board.objects.filter((o) => selected.has(o.id) && isMindNode(o));
+  const branch = item && isMindNode(item) && item.parent !== null && children(board.objects, item.id).length ? item : undefined;
   return (
     <section
       ref={contextBar}
@@ -108,7 +114,7 @@ export function ContextBar({
           } else edit();
         }}
       >
-        <Icon name="pencil" />{inline ? "Done" : richText ? "Edit text" : "Edit name"}
+        <Icon name="pencil" />{inline ? "Done" : richText || isMindNode(item) ? "Edit text" : "Edit name"}
       </button>
       <span className="divider" aria-hidden="true" />
       <small>{count(text)} / {objectType(item.type).textLimit.toLocaleString("en-US")}</small>
@@ -177,7 +183,14 @@ export function ContextBar({
       </span>
       </>}
       </>}
-      <span className="arrange-control" ref={arrangeControl}>
+      {branch && <>
+      <span className="divider" aria-hidden="true" />
+      <button aria-label={branch.collapsed ? "Expand branch" : "Collapse branch"} disabled={!!selectionReason}
+        aria-describedby="selection-reason" onClick={() => command(branch.collapsed ? "Expand" : "Collapse")}>
+        <Icon name={branch.collapsed ? "Expand" : "Collapse"} />{branch.collapsed ? "Expand" : "Collapse"}
+      </button>
+      </>}
+      {!nodes.length && <span className="arrange-control" ref={arrangeControl}>
         <button ref={arrangeButton} className="icon-button" disabled={!!selectionReason}
           aria-label="Arrange" title={selectionReason || "Arrange"}
           aria-describedby="selection-reason" aria-expanded={arrangeOpen}
@@ -204,7 +217,7 @@ export function ContextBar({
           }}>
           <ArrangeControls prefix="menu-arrange" choose={(name) => { if (name === "Connect") { closeArrange(); arrange(name); } else { arrange(name); closeArrange(); } }} arrangementReason={arrangementReason} />
         </div>}
-      </span>
+      </span>}
       {(["Duplicate", "Delete"] as const).map((name) => (
         <button key={name} className="icon-button" aria-label={name}
           aria-describedby={name === "Duplicate" && duplicateReason !== selectionReason ? "duplicate-reason" : "selection-reason"} disabled={!!(name === "Duplicate" ? duplicateReason : selectionReason)}

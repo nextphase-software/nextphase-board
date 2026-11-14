@@ -172,7 +172,7 @@ async function hostedMentionHarness() {
  return hostedHarness;
 }
 function readyHosted(HostedBoard) {
- const board={schemaVersion:10,boardId:crypto.randomUUID(),title:'Synthetic',objects:[],retiredGenerations:[]};
+ const board={schemaVersion:11,boardId:crypto.randomUUID(),title:'Synthetic',objects:[],retiredGenerations:[]};
  const hosted=new HostedBoard({kind:'board',board:board.boardId},()=>{});
  const session={commentsReady:true,threads:new Map(),commentRequests:new Map(),self:{person:key,label:'ben'},requests:new Map(),discard(){},close(){},interrupt(){}};
  hosted.session=session;hosted.snapshot={...hosted.snapshot,board,connected:true,role:'editor'};

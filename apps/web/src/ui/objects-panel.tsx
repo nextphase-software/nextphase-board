@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject, ReactNode } from "react";
-import type { BoardV10 as Board, ItemV10 as Item } from "nextphase-board-rules/document.ts";
+import type { BoardV11 as Board, ItemV11 as Item } from "nextphase-board-rules/document.ts";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "nextphase-board-rules/styles.ts";
 import { objectLabel } from "../sections";
-import { ADD_OPTIONS, isContainer, sectionIdea, hasRectangle, hasEnds } from "nextphase-board-rules/objects/registry.ts";
+import { ADD_OPTIONS, isContainer, sectionIdea, hasRectangle, hasEnds, isMindNode } from "nextphase-board-rules/objects/registry.ts";
+import { hiddenIds } from "../mind-map";
 import { FLAGS, FLAG_LABELS, type Flag } from "nextphase-board-rules/marks.ts";
 import { Icon } from "../icons";
 import type { Rectangle } from "../resize";
@@ -75,6 +76,8 @@ export function ObjectsPanel({
   const geometryReason = !selected.size || readOnly || composing || busy ? selectionReason : board.objects.some((o) => selected.has(o.id) && hasRectangle(o)) ? "" : FOLLOW_REASON;
   const sections = board.objects.filter(isContainer);
   const sharedSection = ideas.length && ideas.every((o) => o.section === ideas[0].section) ? ideas[0].section ?? "" : "mixed";
+  // Hidden mind nodes are not listed; a node has no position or size fields.
+  const hidden = hiddenIds(board.objects), placed = board.objects.some((o) => selected.has(o.id) && isMindNode(o));
   return (
     <section
       className="objects floating"
@@ -105,7 +108,7 @@ export function ObjectsPanel({
           select(Array.from(e.currentTarget.selectedOptions, (o) => o.value));
         }}
       >
-        {board.objects.map((o) => (
+        {board.objects.filter((o) => !hidden.has(o.id)).map((o) => (
           <option key={o.id} value={o.id}>
             {objectLabel(board, o, numbers, drafts)}
           </option>
@@ -174,7 +177,7 @@ export function ObjectsPanel({
         ))}
       </div>
       {geometryReason === FOLLOW_REASON && <span className="sr-only" id="geometry-reason">{geometryReason}</span>}
-      <div className="moves">
+      {!placed && <><div className="moves">
         {[
           ["left", -10, 0, "←"],
           ["up", 0, -10, "↑"],
@@ -203,7 +206,7 @@ export function ObjectsPanel({
           disabled={!!geometryReason} title={geometryReason === FOLLOW_REASON ? geometryReason : undefined} aria-describedby={geometryReason === FOLLOW_REASON ? "geometry-reason" : undefined}
           onClick={() => resizeBy(Number(x), Number(y))}>{name}</button>)}
       </div>
-      <GrowButton available={growAvailable} grow={shapeCommands.grow} />
+      <GrowButton available={growAvailable} grow={shapeCommands.grow} /></>}
       {selected.size > 0 && <div className="objects-arrange" role="group" aria-label="Arrange">
         <h2>Arrange</h2>
         <ArrangeControls prefix="objects-arrange" choose={(name) => arrange(name, true)} arrangementReason={arrangementReason} />

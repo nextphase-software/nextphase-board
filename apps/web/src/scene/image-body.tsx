@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Group, Image, Rect, Text } from "react-konva";
-import type { ImageItem, BoardV10 } from "nextphase-board-rules/document.ts";
+import type { ImageItem, BoardV11 } from "nextphase-board-rules/document.ts";
 import { isImage } from "nextphase-board-rules/objects/registry.ts";
 export function ImageBody({ object: o, bitmap, selected, zoom }: { object: ImageItem; bitmap?: ImageBitmap; selected: boolean; zoom: number }) {
   const available = bitmap?.width === o.pixelWidth && bitmap?.height === o.pixelHeight;
@@ -12,6 +12,6 @@ export function ImageBody({ object: o, bitmap, selected, zoom }: { object: Image
     {selected && <Rect x={o.x} y={o.y} width={o.width} height={o.height} stroke="#518de0" strokeWidth={2 / zoom} />}
   </Group>;
 }
-export function ImageNames({ board }: { board: BoardV10 }) {
+export function ImageNames({ board }: { board: BoardV11 }) {
   return <>{board.objects.filter(isImage).map((o) => <span key={o.id} className="sr-only" role="img" aria-label={o.description || "No description"} />)}</>;
 }

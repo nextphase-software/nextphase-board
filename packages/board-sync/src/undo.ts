@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
-import { canonical, freshIdentifier, validate, type BoardV10, type ItemV10 } from "nextphase-board-rules/document.ts";
+import { canonical, freshIdentifier, validate, type BoardV11, type ItemV11 } from "nextphase-board-rules/document.ts";
 import { checkTransition } from "nextphase-board-rules/transition.ts";
-import { hasEnds } from "nextphase-board-rules/objects/registry.ts";
+import { hasEnds, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { readBoard } from "./codec.ts";
 
 type Unit = { value: unknown; identity: string };
-export type State = { board: BoardV10; units: Map<string, Map<string, Unit>> };
+export type State = { board: BoardV11; units: Map<string, Map<string, Unit>> };
 type Entry = { id: string; key: string; before: unknown; after: unknown; guard: string; live: boolean };
 type Step = Entry[];
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -53,16 +53,19 @@ function stepBetween(before: State, after: State): Step {
   }
   return step;
 }
-function applyUnit(object: ItemV10, key: string, value: unknown): ItemV10 {
+function applyUnit(object: ItemV11, key: string, value: unknown): ItemV11 {
   return ["geometry", "style", "ends", "connectorStyle"].includes(key)
     ? { ...object, ...value as object } : { ...object, [key]: value };
 }
-function remapObject(object: ItemV10, ids: Map<string, { id: string; generation: string }>): ItemV10 {
+function remapObject(object: ItemV11, ids: Map<string, { id: string; generation: string }>): ItemV11 {
   return { ...object, ...ids.get(object.id),
     ...(hasEnds(object) ? { from: { ...object.from, object: ids.get(object.from.object)?.id ?? object.from.object },
       to: { ...object.to, object: ids.get(object.to.object)?.id ?? object.to.object } } : {}),
+    ...(isMindNode(object) ? { parent: remapId(object.parent, ids) } : {}),
     section: object.section ? ids.get(object.section)?.id ?? object.section : null };
 }
+const remapId = (value: unknown, ids: Map<string, { id: string; generation: string }>) =>
+  typeof value === "string" ? ids.get(value)?.id ?? value : value as string | null;
 
 // A history belongs to one connection. It observes assignment identities, not
 // just values: another writer assigning the same value kills a guard forever.
@@ -101,14 +104,18 @@ export class SharedUndo {
       this.future = [];
       return;
     }
-    this.group = !direction && unitOnly && group ? group : undefined;
+    // The add of a mind node carries its first text session's group, so the text
+    // and the layout written when that session ends join this step.
+    const addsNode = step.every((entry) => entry.key !== "object" || !entry.before) &&
+      step.some((entry) => entry.key === "object" && !entry.before && isMindNode(entry.after as ItemV11));
+    this.group = !direction && (unitOnly || addsNode) && group ? group : undefined;
     if (direction === "undo") this.future.push(step);
     else {
       this.past.push(step); this.past = this.past.slice(-100);
       if (!direction) this.future = [];
     }
   }
-  take(state: State, direction: "undo" | "redo"): BoardV10 | string {
+  take(state: State, direction: "undo" | "redo"): BoardV11 | string {
     this.group = undefined;
     const step = (direction === "undo" ? this.past : this.future).pop();
     if (!step) return "nothing_to_undo";
@@ -127,16 +134,18 @@ export class SharedUndo {
     for (const entry of eligible) {
       if (entry.key !== "object") {
         if (entry.id === "") board.title = entry.before as string;
-        else board.objects = board.objects.map((object) => object.id === entry.id ? applyUnit(object, entry.key, entry.before) : object);
+        else board.objects = board.objects.map((object) => object.id === entry.id
+          ? applyUnit(object, entry.key, entry.key === "parent" ? remapId(entry.before, restored) : entry.before) : object);
       } else if (entry.after && !entry.before) {
         const object = board.objects.find((o) => o.id === entry.id);
         if (object) board.retiredGenerations.push(object.generation);
         board.objects = board.objects.filter((o) => o.id !== entry.id);
       } else if (entry.before && !entry.after) {
-        const object = remapObject(entry.before as ItemV10, restored);
+        const object = remapObject(entry.before as ItemV11, restored);
         const live = new Set([...board.objects.map((o) => o.id), ...[...restored.values()].map((o) => o.id)]);
         if (hasEnds(object) && (!live.has(object.from.object) || !live.has(object.to.object))) continue;
         if (object.section && !live.has(object.section)) object.section = null;
+        if (isMindNode(object) && object.parent !== null && !live.has(object.parent)) Object.assign(object, { parent: null, side: null, collapsed: false });
         board.objects.splice(Math.min(object.order, board.objects.length), 0, object);
       }
     }
@@ -149,9 +158,9 @@ export class SharedUndo {
     for (const older of [...this.past, ...this.future]) for (const entry of older) {
       const replacement = restored.get(entry.id);
       if (entry.key === "object") {
-        if (entry.before) entry.before = remapObject(entry.before as ItemV10, restored);
-        if (entry.after) entry.after = remapObject(entry.after as ItemV10, restored);
-      } else if (entry.key === "section") {
+        if (entry.before) entry.before = remapObject(entry.before as ItemV11, restored);
+        if (entry.after) entry.after = remapObject(entry.after as ItemV11, restored);
+      } else if (entry.key === "section" || entry.key === "parent") {
         entry.before = restored.get(entry.before as string)?.id ?? entry.before;
         entry.after = restored.get(entry.after as string)?.id ?? entry.after;
       } else if (entry.key === "ends") {

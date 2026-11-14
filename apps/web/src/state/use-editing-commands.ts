@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { Board as SavedBoard, BoardV10 as Board, ItemV10 as Item } from "nextphase-board-rules/document.ts";
+import type { Board as SavedBoard, BoardV11 as Board, ItemV11 as Item } from "nextphase-board-rules/document.ts";
 import { count } from "nextphase-board-rules/document.ts";
 import { catalog } from "../activities/catalog";
 import { activityPreview, insertActivity, readActivity, type Activity, type Preview } from "../activities";
 import { codePointOffset, formatted, toggle, type Flag } from "nextphase-board-rules/marks.ts";
-import { deleteObject, duplicate, redo, undo, type History } from "../history";
+import { deleteObject, duplicate, record, redo, undo, type History } from "../history";
 import { savedHeight, type ResolvedItem } from "../geometry";
 import { textUnits, type Style } from "nextphase-board-rules/styles.ts";
 import type { View } from "../view";
 import { arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "../arrange";
 import { assignSection, commandObjectLabel, orderInBands, wrapReason, wrapSelection } from "../sections";
-import { type ConnectorStyle, type End, objectType, isImage, hasRectangle, hasText, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, type ShapeKeys, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
+import { type ConnectorStyle, type End, objectType, isImage, hasRectangle, hasText, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, isMindNode, type ShapeKeys, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
+import { addChild, addSibling, collapse, descendants, hiddenIds, settle, withHiddenDescendants, MAP_WORDS, type MapCommand, type MeasureNode } from "../mind-map";
+import { editingCommandReason } from "../commands";
 import { groupObjects, groupReason, ungroupObjects } from "../group";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "../clipboard";
 
@@ -28,7 +30,7 @@ type Input = {
   growHeight: number;
   growAvailable: boolean;
   model: RefObject<Board>;
-  commit: (input: SavedBoard, recordObject?: boolean, orderIds?: readonly string[]) => void;
+  commit: (input: SavedBoard, recordObject?: boolean, orderIds?: readonly string[], opens?: string) => void;
   historyRef: RefObject<History>;
   updateHistory: (next: History) => void;
   setDrafts: Dispatch<SetStateAction<Record<string, string>>>;
@@ -53,13 +55,15 @@ type Input = {
   editingState: Parameters<typeof arrangeReason>[2];
   arrangementMembers: ResolvedItem[];
   lineCount: (object: Item, text?: string) => number;
+  measureNode: MeasureNode;
 };
+const MAP_COMMANDS: readonly string[] = ["Add child", "Add child left", "Add child right", "Add sibling", "Collapse", "Expand"] satisfies MapCommand[];
 
 export function useEditingCommands({
   tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
   setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
   displayedObjects, commandReason, selectionReason, clipboardState, editingState,
-  arrangementMembers, lineCount, editor, selector, setPanel, setTool, hosted,
+  arrangementMembers, lineCount, measureNode, editor, selector, setPanel, setTool, hosted,
 }: Input) {
   const [objectClipboard, setObjectClipboard] = useState<Snapshot | null>(null);
   const [templatePreviews, setTemplatePreviews] = useState<Record<string, Preview>>({});
@@ -108,7 +112,7 @@ export function useEditingCommands({
   }
   const templateCommands = { addActivity, insertStored, commandReason, selected: selected.size > 0, objectCount: model.current.objects.length,
     snapshot: () => ({ title: model.current.title, selected: selected.size > 0,
-      snapshot: buildSnapshot(model.current, selected.size ? selected : new Set(model.current.objects.map(o => o.id)), displayedObjects) }) };
+      snapshot: buildSnapshot(model.current, selected.size ? selected : new Set(model.current.objects.map(o => o.id)), displayedObjects, measureNode) }) };
   function writePlainText(snapshot: Snapshot, copiedMessage: string) {
     const sequence = messageSequence.current;
     const failed = () => {
@@ -138,7 +142,7 @@ export function useEditingCommands({
         setObjectClipboard({ ...objectClipboard!, pasteCount: result.pasteCount });
         setMessage("Pasted " + ids.length + (ids.length === 1 ? " object." : " objects."));
       } else {
-        const snapshot = buildSnapshot(model.current, selected, displayedObjects)!;
+        const snapshot = buildSnapshot(model.current, selected, displayedObjects, measureNode)!;
         const copiedMessage = name === "Cut" ? command("Cut")
           : "Copied " + snapshot.objects.length + (snapshot.objects.length === 1 ? " object." : " objects.");
         // Delete can refuse (for example at the retired-generation limit).
@@ -149,7 +153,40 @@ export function useEditingCommands({
       }
     } catch (error) { setMessage(String(error)); }
   }
-  function command(name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut") {
+  // Adding, collapsing and expanding nodes; each is one step with its layout.
+  function mapCommand(name: MapCommand, id?: string) {
+    const targetId = id ?? (selected.size === 1 ? [...selected][0] : "");
+    const target = model.current.objects.find((o) => o.id === targetId);
+    // A root has no sibling: Add sibling on a root does nothing.
+    if (!target || !isMindNode(target) || name === "Add sibling" && target.parent === null) return;
+    if (commandReason) { setMessage(commandReason); return; }
+    finishTextSession();
+    const current = model.current, node = current.objects.find((o) => o.id === targetId)!;
+    const text = (id: string | null) => current.objects.find((o) => o.id === id && hasText(o)) as { text: string } | undefined;
+    if (!isMindNode(node)) return;
+    try {
+      if (name === "Collapse" || name === "Expand") {
+        const next = collapse(current, node.id, name === "Collapse");
+        if (next === current) return;
+        commit(next, true);
+        // Hidden selected nodes leave the selection.
+        const hidden = hiddenIds(model.current.objects);
+        if ([...selected].some((s) => hidden.has(s))) select([...selected].filter((s) => !hidden.has(s)));
+        setMessage(name === "Collapse" ? MAP_WORDS.collapsed(node.text, descendants(current.objects, node.id).length) : MAP_WORDS.expanded(node.text));
+        return;
+      }
+      const result = name === "Add sibling" ? addSibling(current, node.id, measureNode)
+        : addChild(current, node.id, measureNode, name === "Add child left" ? "left" : name === "Add child right" ? "right" : undefined);
+      if (!result) return;
+      commit(result.board, true, undefined, result.id);
+      select(result.id);
+      setPanel("");
+      setInline(true);
+      setMessage(name === "Add sibling" ? MAP_WORDS.addedSibling(text(node.parent)!.text) : MAP_WORDS.addedChild(node.text));
+    } catch (error) { setMessage(String(error)); }
+  }
+  function command(name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut" | MapCommand, id?: string) {
+    if (MAP_COMMANDS.includes(name)) { mapCommand(name as MapCommand, id); return; }
     if (commandReason) {
       setMessage(commandReason);
       return;
@@ -165,7 +202,7 @@ export function useEditingCommands({
     }
     try {
       const deleting = name === "Delete" || name === "Cut";
-      const acted = name === "Cut" || name === "Duplicate" ? copiedSet(model.current.objects, selected) : selected;
+      const acted = name === "Cut" || name === "Duplicate" ? copiedSet(model.current.objects, withHiddenDescendants(model.current.objects, selected)) : selected;
       const targets = model.current.objects.filter((o) => acted.has(o.id));
       const current = targets[0];
       const label = current ? commandObjectLabel(model.current, current) : "object";
@@ -178,11 +215,15 @@ export function useEditingCommands({
         (name === "Undo" ? historyRef.current.past : historyRef.current.future).at(-1), name === "Undo") : undefined;
       const result = name === "Undo" ? undo(model.current, historyRef.current)
         : name === "Redo" ? redo(model.current, historyRef.current)
-        : name === "Duplicate" ? duplicate(model.current, historyRef.current, targets)
-        : deleteObject(model.current, historyRef.current, targets);
-      const affected = result.board.objects.filter((o) => result.affectedIds.includes(o.id));
-      commit(result.board);
-      updateHistory(result.history);
+        : name === "Duplicate" ? duplicate(model.current, historyRef.current, targets, measureNode)
+        : deleteObject(model.current, historyRef.current, targets, measureNode);
+      // The step holds the layout of every map the command changes.
+      const board = name === "Undo" || name === "Redo" ? result.board : settle(model.current, result.board);
+      const steps = board === result.board ? result.history : record(historyRef.current, model.current, board);
+      const hidden = hiddenIds(board.objects);
+      const affected = board.objects.filter((o) => result.affectedIds.includes(o.id) && !hidden.has(o.id));
+      commit(board);
+      updateHistory(steps);
       if (paint) shapeSession.update(paint);
       setDrafts((d) => {
         const next = { ...d };
@@ -218,7 +259,9 @@ export function useEditingCommands({
     }
   }
   function arrangementReason(name: ArrangeCommand) {
-    if (name === "Connect") return connectReason(model.current, selected, editingState);
+    if (name === "Connect") return editingCommandReason(editingState) ||
+      (model.current.objects.some((o) => selected.has(o.id) && isMindNode(o)) ? "Mind map nodes can't be connected." : "") ||
+      connectReason(model.current, selected, editingState);
     if (name === "Section from selection") return wrapReason(model.current, selected, displayedObjects, editingState);
     return name === "Group" || name === "Ungroup"
       ? groupReason(name, model.current, selected, editingState)

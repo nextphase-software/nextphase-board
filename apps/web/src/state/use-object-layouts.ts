@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useMemo, type RefObject } from "react";
 import Konva from "konva";
-import type { BoardV10 as Board, ItemV10 as Item } from "nextphase-board-rules/document.ts";
+import type { BoardV11 as Board, ItemV11 as Item } from "nextphase-board-rules/document.ts";
 import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT, type ResolvedItem } from "../geometry";
-import { objectType, textBox, hasText, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds, voteTextAnchor } from "nextphase-board-rules/objects/registry.ts";
+import { objectType, textBox, hasText, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds, voteTextAnchor, isMindNode } from "nextphase-board-rules/objects/registry.ts";
+import { hiddenIds, nodeBox, nodeLines } from "../mind-map";
 import { groupNumbers, wholeGroups } from "../group";
 import { cornerPoint, type Corner } from "../resize";
 import { boundingBox } from "../selection";
@@ -43,6 +44,9 @@ function measure(text: string, style: RunStyle, fontSize: number): number {
   }
   return measurement.measureSize(text).width;
 }
+// Konva text measurement in the node look: a root is bold.
+const measureText = (text: string, bold: boolean, size: number) => measure(text, bold ? { bold: true } : {}, size);
+function measureNode(text: string, root: boolean) { return nodeBox(text, root, measureText); }
 function runLines(object: Item, text = object.text ?? "") {
   if (!hasRectangle(object) || !hasText(object)) return null;
   const marks = text === object.text ? object.marks : remap(object.marks, object.text, text);
@@ -71,6 +75,8 @@ export function useObjectLayouts({
 }: Input) {
   const objectLayouts = useMemo(() => {
     const layouts = new Map(board.objects.filter(hasRectangle).map((o): [string, { height: number; runs: RunLine[] | null; limited: boolean; fadeStart: number; fadeEnd: number; fits?: boolean; fitHeight?: number; connector?: ConnectorLayout }] => {
+    if (isMindNode(o)) return [o.id, { height: o.height, runs: nodeLines(inline && o.id === selectedId ? text : o.text, o.parent === null, measureText),
+      limited: false, fadeStart: 0, fadeEnd: 0 }];
     if (!hasText(o) || !objectType(o.type).richText) return [o.id, { height: o.height, runs: null,
       limited: false, fadeStart: 0, fadeEnd: 0 }];
     // Uncommitted composition/invalid input may grow the editor's preview only.
@@ -102,7 +108,9 @@ export function useObjectLayouts({
     }
     return layouts;
   }, [board.objects, inline, selectedId, text]);
-  const displayedObjects: ResolvedItem[] = board.objects.map((o) => {
+  // Hidden mind nodes are not drawn, hit, selected or listed.
+  const hidden = hiddenIds(board.objects);
+  const displayedObjects: ResolvedItem[] = board.objects.filter((o) => !hidden.has(o.id)).map((o) => {
     const layout = objectLayouts.get(o.id)!;
     let firstLine: {right:number;centerY:number}|undefined;
     if(voteTextAnchor(o)&&hasText(o)&&hasRectangle(o)&&(inline&&o.id===selectedId?text:o.text).length) {
@@ -120,7 +128,7 @@ export function useObjectLayouts({
   const bounds = boundingBox(rectanglesSelected.length ? rectanglesSelected : displayedObjects.filter((o) => selected.has(o.id)));
   const selectedGroups = wholeGroups(displayedObjects, selected);
   const numbers = groupNumbers(board.objects);
-  const handlesVisible = rectanglesSelected.length > 0 && !!bounds && tool === "Select" && !readOnly && (!inline || !!item && !objectType(item.type).richText) && !composing &&
+  const handlesVisible = rectanglesSelected.length > 0 && !rectanglesSelected.some(isMindNode) && !!bounds && tool === "Select" && !readOnly && (!inline || !!item && !objectType(item.type).richText) && !composing &&
     (!busy || !!drag.current?.corner);
   const handlePoints = bounds ? CORNERS.map((corner) => ({
     corner, ...cornerPoint(corner, bounds),
@@ -133,6 +141,6 @@ export function useObjectLayouts({
   const itemHeight = item ? objectLayouts.get(item.id)!.height : 0;
   return {
     editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
-    handlesVisible, handlePoints, itemHeight,
+    handlesVisible, handlePoints, itemHeight, measureNode,
   };
 }

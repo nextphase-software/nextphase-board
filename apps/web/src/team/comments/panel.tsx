@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState } from "react";
-import type { BoardV10 } from "nextphase-board-rules/document.ts";
+import type { BoardV11 } from "nextphase-board-rules/document.ts";
 import { MentionText } from "./mention-editor";
 import { CommentIcon } from "./icons";
 import { CommentMenu } from "./card";
 import { authorColour, onWords, replyCount, threadName, timeWords, words, type CommentThread } from "./rules";
 export function CommentsPanel({ threads, board, current, showResolved, onlyYours, setResolved, setYours, open, close, sort, setSort, unread, landing }: {
   landing?: string; sort: boolean; setSort: (value: boolean) => void; unread: Map<string, Set<string>>;
-  threads: CommentThread[]; board: BoardV10; current?: string; showResolved: boolean; onlyYours: boolean;
+  threads: CommentThread[]; board: BoardV11; current?: string; showResolved: boolean; onlyYours: boolean;
   setResolved: (value: boolean) => void; setYours: (value: boolean) => void;
   open: (thread: CommentThread) => void; close: () => void;
 }) {

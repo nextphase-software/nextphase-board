@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { validMarks, type Mark } from "./marks.ts";
-import { OBJECT_TYPES, objectType, extraValues, objectKeys, hasEnds, hasRectangle, eligibleIdea, rectangleType, type ImageKeys, isImage, type RectangleType, type TextRectangleType, type PointsType, type StrokeKeys, hasText, type EndsType, type EndsKeys, type Rectangle, type ShapeKeys, type ConnectorStyle, defaultConnectorStyle, connectorStyleOf, typeWithEnds } from "./objects/registry.ts";
+import { OBJECT_TYPES, objectType, extraValues, objectKeys, hasEnds, hasRectangle, eligibleIdea, rectangleType, type ImageKeys, isImage, type RectangleType, type TextRectangleType, type PointsType, type StrokeKeys, hasText, type EndsType, type EndsKeys, type Rectangle, type ShapeKeys, type ConnectorStyle, defaultConnectorStyle, connectorStyleOf, typeWithEnds, isMindNode, type MindNodeKeys } from "./objects/registry.ts";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "./styles.ts";
 export type ItemV1 = {
   id: string;
@@ -31,7 +31,9 @@ export type ImageItem = Pick<ItemV5, "id" | "generation" | "group" | "section" |
   shape?: never; fill?: never; border?: never;
 };
 export type ItemV10 = ItemV9 | ImageItem;
-export type Item = ItemV1 | ItemV2 | ItemV3 | ItemV4 | ItemV5 | ItemV6 | ItemV7 | ItemV8 | ItemV9 | ImageItem;
+export type MindNodeItem = ItemV6 & MindNodeKeys & { type: typeof import("./objects/mind-node.ts").mindNode.type };
+export type ItemV11 = ItemV10 | MindNodeItem;
+export type Item = ItemV1 | ItemV2 | ItemV3 | ItemV4 | ItemV5 | ItemV6 | ItemV7 | ItemV8 | ItemV9 | ImageItem | MindNodeItem;
 type BoardFields = {
   boardId: string;
   title: string;
@@ -47,7 +49,8 @@ export type BoardV7 = BoardFields & { schemaVersion: 7; objects: ItemV7[] };
 export type BoardV8 = BoardFields & { schemaVersion: 8; objects: ItemV8[] };
 export type BoardV9 = BoardFields & { schemaVersion: 9; objects: ItemV9[] };
 export type BoardV10 = BoardFields & { schemaVersion: 10; objects: ItemV10[] };
-export type Board = BoardFields & { schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10; objects: Item[] };
+export type BoardV11 = BoardFields & { schemaVersion: 11; objects: ItemV11[] };
+export type Board = BoardFields & { schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11; objects: Item[] };
 const uuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export const count = (s: string) => Array.from(s).length;
@@ -68,7 +71,7 @@ export function validate(value: unknown): Board {
       "title",
       "objects",
       "retiredGenerations",
-    ]) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(b.schemaVersion) || typeof b.boardId !== "string" || !uuid.test(b.boardId) ||
+    ]) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(b.schemaVersion) || typeof b.boardId !== "string" || !uuid.test(b.boardId) ||
     typeof b.title !== "string" || !validText(b.title, 120, true) ||
     !Array.isArray(b.objects) || b.objects.length > 250 ||
     !Array.isArray(b.retiredGenerations) || b.retiredGenerations.length > 10000
@@ -127,7 +130,30 @@ export function validate(value: unknown): Board {
     if (hasEnds(o) && (o.from.object === o.to.object || [o.from, o.to].some((end) =>
       !b.objects.some((idea) => idea.id === end.object && eligibleIdea(idea))))) throw Error("Invalid connector ends");
   }
+  if (b.schemaVersion >= 11 && !validStructure(b.objects)) throw Error("Invalid mind map");
   return b;
+}
+// The single home of the mind-map structure rule: every parent is another mind
+// node in the document, every parent chain reaches a root, only first-level
+// nodes have a side and a root is never collapsed.
+export function validStructure(objects: readonly { id: string; type: string }[]): boolean {
+  const nodes = new Map(objects.filter(isMindNode).map((o) => [o.id, o]));
+  if ([...nodes.values()].some((o) => o.parent !== null && (o.parent === o.id || !nodes.has(o.parent)))) return false;
+  const reaches = new Map<string, boolean>();
+  for (const o of nodes.values()) {
+    const chain: string[] = [];
+    let current = o;
+    while (current.parent !== null && !reaches.has(current.id)) {
+      if (chain.includes(current.id)) return false;
+      chain.push(current.id);
+      current = nodes.get(current.parent)!;
+    }
+    for (const id of chain) reaches.set(id, true);
+    reaches.set(current.id, true);
+    const parent = o.parent === null ? undefined : nodes.get(o.parent)!;
+    if (!parent ? o.side !== null || o.collapsed : parent.parent === null ? o.side === null : o.side !== null) return false;
+  }
+  return true;
 }
 export function canonical(b: Board) {
   validate(b);
@@ -159,12 +185,12 @@ export function markOf(m: Mark): Mark {
 }
 // Adoption is deliberately separate from decoding/canonicalization: opening
 // legacy bytes never rewrites them or advances the editing revision.
-export function upgrade(b: Board): BoardV10 {
-  if (b.schemaVersion === 10) return b as BoardV10;
-  if (b.schemaVersion === 9) return { ...b, schemaVersion: 10 } as BoardV10;
-  if (b.schemaVersion === 8) return { ...b, schemaVersion: 10, objects: (b.objects as ItemV8[]).map((o) => hasEnds(o) ? { ...o, ...defaultConnectorStyle() } : o) };
+export function upgrade(b: Board): BoardV11 {
+  if (b.schemaVersion === 11) return b as BoardV11;
+  if (b.schemaVersion === 10 || b.schemaVersion === 9) return { ...b, schemaVersion: 11 } as BoardV11;
+  if (b.schemaVersion === 8) return { ...b, schemaVersion: 11, objects: (b.objects as ItemV8[]).map((o) => hasEnds(o) ? { ...o, ...defaultConnectorStyle() } : o) };
   return {
-    ...b, schemaVersion: 10,
+    ...b, schemaVersion: 11,
     objects: (b.objects as ItemV7[]).map((o) => {
       const current = { ...o,
         ...(b.schemaVersion === 1 ? objectType(o.type).legacyStyle : styleOf(o as ItemV2)),
@@ -175,9 +201,9 @@ export function upgrade(b: Board): BoardV10 {
     }),
   };
 }
-export function empty(): BoardV10 {
+export function empty(): BoardV11 {
   return {
-    schemaVersion: 10,
+    schemaVersion: 11,
     boardId: crypto.randomUUID(),
     title: "",
     objects: [],
@@ -195,7 +221,7 @@ export function freshIdentifier(board: Board, extra: readonly string[] = []): st
   do id = crypto.randomUUID(); while (used.has(id));
   return id;
 }
-export function add(input: Board, type: TextRectangleType, x: number, y: number): BoardV10 {
+export function add(input: Board, type: TextRectangleType, x: number, y: number): BoardV11 {
   const b = upgrade(input);
   if (b.objects.length >= 250) throw Error("250 object limit reached");
   const record = objectType(type);

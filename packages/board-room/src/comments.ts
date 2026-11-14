@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { requireActive } from "./lifecycle.ts";
-import type { BoardV10 } from "nextphase-board-rules/document.ts";
+import type { BoardV11 } from "nextphase-board-rules/document.ts";
 import { hasRectangle } from "nextphase-board-rules/objects/registry.ts";
 import { anchorPoint, detachAnchor, nameObject, textProblem, type Anchor, type AnchorInput,
   type Comment, type CommentOperation, type Thread } from "nextphase-board-sync/comments.ts";
@@ -37,8 +37,8 @@ export class Comments {
   mentions: Mentions;
   private env: RoomEnvironment;
   private access: Access;
-  private host: { board: BoardV10; boardId: string; generation: number };
-  constructor(env: RoomEnvironment, access: Access, host: { board: BoardV10; boardId: string; generation: number }) {
+  private host: { board: BoardV11; boardId: string; generation: number };
+  constructor(env: RoomEnvironment, access: Access, host: { board: BoardV11; boardId: string; generation: number }) {
     this.mentions = new Mentions(env, host);
     this.env = env; this.access = access; this.host = host;
   }
@@ -174,7 +174,7 @@ export class Comments {
   }
 }
 // Called inside the edit's own transaction; only deletions need wire frames.
-export function keepAnchors(env: RoomEnvironment, before: BoardV10, after: BoardV10) {
+export function keepAnchors(env: RoomEnvironment, before: BoardV11, after: BoardV11) {
   const detached: Thread[] = [];
   for (const row of env.storage.all("SELECT * FROM threads ORDER BY sequence")) {
     const thread = threadRow(row), next = detachAnchor(thread.anchor, before, after);

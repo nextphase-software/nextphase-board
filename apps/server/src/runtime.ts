@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { BoardV10 } from "nextphase-board-rules/document.ts";
+import type { BoardV11 } from "nextphase-board-rules/document.ts";
 import type { Person } from "nextphase-board-room/protocol.ts";
 import type { Auth } from "./auth.ts";
 import type { Supabase } from "./supabase.ts";
@@ -16,7 +16,7 @@ export interface RoomClient {
   saveVersion(person: Person, value: import("nextphase-board-sync/history.ts").SaveVersion): Promise<any>;
   nameVersion(person: Person, id: string, value: { name: string; description: string }): Promise<any>;
   restoreVersion(person: Person, id: string, value: import("nextphase-board-sync/history.ts").RestoreVersion): Promise<any>;
-  create(document: BoardV10): Promise<void>;
+  create(document: BoardV11): Promise<void>;
   ticket(person: Person): Promise<{ ticket: string; expiresAt: number }>;
   rename(person: Person, title: string): Promise<{ id: string; title: string; revision: number }>;
   export(person: Person): Promise<string>;

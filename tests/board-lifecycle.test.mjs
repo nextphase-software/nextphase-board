@@ -83,7 +83,7 @@ test('L-U09 resumed rows refresh through GET only, without creating a mutation r
 });
 test('L-U10 confirmed unavailability terminally clears requests and ignores late wire data; 4403 alone keeps drafts',async()=>{
   const {BoardSession,encode}=await import('../packages/board-sync/src/session.ts');const {Adapter}=await import('../packages/board-sync/src/document-adapter.ts');const Y=await import('yjs');
-  const adapter=new Adapter();adapter.set({schemaVersion:10,boardId:board,title:'Protected',objects:[],retiredGenerations:[]});let handlers;
+  const adapter=new Adapter();adapter.set({schemaVersion:11,boardId:board,title:'Protected',objects:[],retiredGenerations:[]});let handlers;
   const session=await BoardSession.join({ticket:async()=>'',open:async()=>({send(){},close(){},listen(h){handlers=h;h.message(JSON.stringify({kind:'joined',role:'editor',epoch:1,revision:0,restoreGeneration:0,update:encode(Y.encodeStateAsUpdate(adapter.doc)),present:[]}));}}),clock:{now:Date.now,after(){return()=>{};}}});
   session.commentRequests.set('draft',{state:'unconfirmed',text:'protected',epoch:1,restoreGeneration:0});handlers.close(4403);assert.equal(session.commentRequests.size,1);session.unavailable();assert.doesNotMatch(JSON.stringify(session.doc.toJSON()),/Protected/);assert.equal(session.commentRequests.size,0);assert.equal(session.requests.size,0);handlers.message(JSON.stringify({kind:'comments_snapshot',done:true}));assert.equal(session.commentsReady,false);adapter.destroy();
 });

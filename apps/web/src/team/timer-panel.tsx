@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { workshopPanel } from './workshop-panel';
 import { VotingCard } from './voting-card';
 import type { BoardVoting } from './voting';
-import type { ItemV10 } from 'nextphase-board-rules/document.ts';
+import type { ItemV11 } from 'nextphase-board-rules/document.ts';
 import type { BoardTimer } from './timer';
 import { draftMs, MAX_TIME } from './timer-rules';
 function Glyph({name}:{name:'timer'|'play'|'pause'|'stop'|'close'}) {
@@ -12,7 +12,7 @@ function Glyph({name}:{name:'timer'|'play'|'pause'|'stop'|'close'}) {
   </svg>;
 }
 const focusKey=(node:HTMLElement)=>node.getAttribute('data-timer')??node.getAttribute('aria-label');
-export function TimerControl({timer,voting,objects=[],preview=false}:{timer:BoardTimer;voting?:BoardVoting;objects?:ItemV10[];preview?:boolean}) {
+export function TimerControl({timer,voting,objects=[],preview=false}:{timer:BoardTimer;voting?:BoardVoting;objects?:ItemV11[];preview?:boolean}) {
   const [,redraw]=useState(0),[top,setTop]=useState(72);
   const trigger=useRef<HTMLButtonElement>(null),panel=useRef<HTMLDivElement>(null),wasOpen=useRef(false);
   const focused=useRef<{node:HTMLElement;key:string|null}|null>(null),lastMode=useRef('');

@@ -10,7 +10,7 @@ import { checkTimerFrame, timerSnapshot, timerInteger, type TimerSnapshot, type 
 export { checkTimerFrame, timerSnapshot, timerInteger } from "./timer.ts";
 export type { TimerSnapshot, TimerFrame, TimerAction, TimerCause } from "./timer.ts";
 import * as Y from "yjs";
-import { type BoardV10 } from "nextphase-board-rules/document.ts";
+import { type BoardV11 } from "nextphase-board-rules/document.ts";
 import { Adapter } from "./document-adapter.ts";
 import { readBoard } from "./codec.ts";
 import { capture, SharedUndo } from "./undo.ts";
@@ -414,11 +414,11 @@ export class BoardSession<T = unknown> {
     return requestId;
   }
   private blocked() { return !this.joined || this.recovering ? "join_required" : this.role === "viewer" ? "role_too_low" : null; }
-  edit(board: BoardV10, group?: string): string {
+  edit(board: BoardV11, group?: string): string {
     const blocked = this.blocked(); if (blocked) return blocked;
     return this.write(board, undefined, group);
   }
-  private write(board: BoardV10, direction?: "undo" | "redo", group?: string) {
+  private write(board: BoardV11, direction?: "undo" | "redo", group?: string) {
     const previous = this.board;
     const before = capture(this.doc), vector = Y.encodeStateVector(this.doc);
     this.adapter.set(board);

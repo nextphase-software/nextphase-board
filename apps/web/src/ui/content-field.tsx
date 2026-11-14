@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction, SyntheticEvent } from "react";
-import { count, type ItemV10 as Item, validText } from "nextphase-board-rules/document.ts";
-import { objectType, hasText } from "nextphase-board-rules/objects/registry.ts";
+import { count, type ItemV11 as Item, validText } from "nextphase-board-rules/document.ts";
+import { objectType, hasText, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { codePointOffset, type Flag, type TextSelection } from "nextphase-board-rules/marks.ts";
 
 type Props = {
@@ -31,7 +31,8 @@ export function ContentField({
 }: Props) {
   if (item && !hasText(item)) return null;
   const type = item ? objectType(item.type) : undefined;
-  const label = type && !type.richText ? "Name" : "Content";
+  const node = !!item && isMindNode(item);
+  const label = type && !type.richText && !node ? "Name" : "Content";
   const limit = type?.textLimit ?? 1000;
   function track(e: SyntheticEvent<HTMLTextAreaElement>) {
     const field = e.currentTarget;
@@ -48,7 +49,7 @@ export function ContentField({
         ref={editor}
         aria-label={inline ? label === "Name" ? "Edit selected name on canvas" : "Edit selected object on canvas" : label}
         value={text}
-        placeholder={inline && type?.ends ? "Add text" : undefined}
+        placeholder={inline && type?.ends || node ? "Add text" : undefined}
         readOnly={readOnly || busy}
         disabled={!item}
         onFocus={(e) => { beginTextSession(item); track(e); }}
@@ -56,6 +57,15 @@ export function ContentField({
         onKeyDown={(e) => {
           if (type?.ends && inline && e.key === "Escape" && !composing && !e.nativeEvent.isComposing) {
             e.preventDefault(); e.stopPropagation(); finishTextSession(); setTextSelection(null); setInline(false); return;
+          }
+          // Enter and Escape end a node's editing; it has no line breaks. With
+          // Cmd or Ctrl, Enter belongs to the page keys (add child or sibling).
+          if (node && (e.key === "Enter" || e.key === "Escape") && !composing && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) return;
+            e.stopPropagation(); finishTextSession(); setTextSelection(null);
+            if (inline) document.querySelector<HTMLElement>(".scene")?.focus();
+            setInline(false); return;
           }
           if (!type?.richText || composing || e.nativeEvent.isComposing || !(e.ctrlKey || e.metaKey) || e.altKey) return;
           const key = e.key.toLowerCase();

@@ -2,7 +2,7 @@
 import { editingCommandReason } from "./commands.ts";
 import type { DisplayObject } from "./selection.ts";
 
-import { hasRectangle } from "nextphase-board-rules/objects/registry.ts";
+import { hasRectangle, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { FOLLOW_REASON } from "./connectors.ts";
 
 export const ARRANGE_GROUPS = [
@@ -35,6 +35,8 @@ function axis(objects: readonly DisplayObject[], horizontal: boolean) {
 export function arrangeReason(command: ArrangeCommand, objects: readonly (DisplayObject & { type?: string })[], state: EditingState): string {
   const editing = editingCommandReason(state);
   if (editing) return editing;
+  // A map places its nodes, so align, distribute and order never move one.
+  if (objects.some((o) => o.type && isMindNode({ type: o.type }))) return "Mind map nodes are placed by their map.";
   if (isOrderCommand(command)) return objects.length ? "" : "Select an object to duplicate or delete.";
   const rectangles = objects.filter((o) => !o.type || hasRectangle({ type: o.type }));
   if (objects.length && !rectangles.length) return FOLLOW_REASON;

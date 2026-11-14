@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import { freshIdentifier, type BoardV10 } from "nextphase-board-rules/document.ts";
-import { isContainer, hasRectangle } from "nextphase-board-rules/objects/registry.ts";
+import { freshIdentifier, type BoardV11 } from "nextphase-board-rules/document.ts";
+import { isContainer, hasRectangle, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { editingCommandReason } from "./commands.ts";
 
 import { FOLLOW_REASON } from "./connectors.ts";
@@ -47,13 +47,14 @@ export function groupNumbers(objects: readonly Member[]): Map<string, number> {
   return numbers;
 }
 
-export function groupReason(command: GroupCommand, board: BoardV10, selected: ReadonlySet<string>, state: EditingState): string {
+export function groupReason(command: GroupCommand, board: BoardV11, selected: ReadonlySet<string>, state: EditingState): string {
   const editing = editingCommandReason(state);
   if (editing) return editing;
   const members = board.objects.filter(hasRectangle).filter((o) => selected.has(o.id));
   if (!members.length && selected.size) return FOLLOW_REASON;
   if (command === "Ungroup") return members.some((o) => o.group !== null) ? "" : "Select a grouped object to ungroup.";
   if (members.some(isContainer)) return "Sections cannot be grouped.";
+  if (members.some(isMindNode)) return "Mind map nodes can't be grouped.";
   if (members.length < 2) return "Select two or more objects to group.";
   const group = members[0].group;
   return group !== null && members.every((o) => o.group === group) &&
@@ -62,14 +63,14 @@ export function groupReason(command: GroupCommand, board: BoardV10, selected: Re
 }
 
 const editable = { readOnly: false, composing: false, pointerGesture: false, invalidObjectText: false };
-export function groupObjects(board: BoardV10, selected: ReadonlySet<string>): BoardV10 {
+export function groupObjects(board: BoardV11, selected: ReadonlySet<string>): BoardV11 {
   const reason = groupReason("Group", board, selected, editable);
   if (reason) throw Error(reason);
   const group = freshIdentifier(board);
   return { ...board, objects: board.objects.map((o) => hasRectangle(o) && selected.has(o.id) ? { ...o, group } : o) };
 }
 
-export function ungroupObjects(board: BoardV10, selected: ReadonlySet<string>): BoardV10 {
+export function ungroupObjects(board: BoardV11, selected: ReadonlySet<string>): BoardV11 {
   const reason = groupReason("Ungroup", board, selected, editable);
   if (reason) throw Error(reason);
   const groups = new Set(board.objects.filter((o) => selected.has(o.id) && o.group !== null).map((o) => o.group));

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { BoardV10, ItemV10 } from "nextphase-board-rules/document.ts";
-import { hasRectangle, orderBand } from "nextphase-board-rules/objects/registry.ts";
+import type { BoardV11, ItemV11 } from "nextphase-board-rules/document.ts";
+import { hasRectangle, isMindNode, labelPrefix, orderBand } from "nextphase-board-rules/objects/registry.ts";
 
 export type Point = { x: number; y: number };
 export type AnchorInput = Point & { objectId: string | null; u: number; v: number };
@@ -34,16 +34,16 @@ export function authorColour(person: string) {
   for (const character of person) hash = (Math.imul(hash, 31) + character.codePointAt(0)!) >>> 0;
   return commentColours[hash % 8];
 }
-export function nameObject(object: ItemV10) {
-  const objectType = object.type === "stroke" ? "drawing" : object.type;
+export function nameObject(object: ItemV11) {
+  const objectType = object.type === "stroke" ? "drawing" : isMindNode(object) ? labelPrefix(object) : object.type;
   const text = "text" in object ? object.text ?? "" : "";
   const label = text.slice(0, 120).replace(/[\x00-\x1f\x7f-\x9f]/g, " ");
   return { objectType, objectLabel: label.trim() ? label : objectType[0].toUpperCase() + objectType.slice(1) };
 }
-export function drawingOrder(a: ItemV10, b: ItemV10) {
+export function drawingOrder(a: ItemV11, b: ItemV11) {
   return orderBand(a) - orderBand(b) || a.order - b.order;
 }
-export function anchorAt(board: BoardV10, point: Point, onConnector = false): Anchor {
+export function anchorAt(board: BoardV11, point: Point, onConnector = false): Anchor {
   const object = !onConnector && [...board.objects].sort(drawingOrder).reverse().find((object) =>
     hasRectangle(object) && point.x >= object.x && point.x <= object.x + object.width &&
     point.y >= object.y && point.y <= object.y + object.height);
@@ -53,12 +53,12 @@ export function anchorAt(board: BoardV10, point: Point, onConnector = false): An
   return { ...point, objectId: object.id, u: clamp((point.x - object.x) / object.width),
     v: clamp((point.y - object.y) / object.height), detached: false, ...nameObject(object) };
 }
-export function anchorPoint(anchor: Anchor, board: BoardV10): Point {
+export function anchorPoint(anchor: Anchor, board: BoardV11): Point {
   const object = !anchor.detached && board.objects.find((object) => object.id === anchor.objectId);
   return object && hasRectangle(object) ? { x: object.x + object.width * anchor.u,
     y: object.y + object.height * anchor.v } : { x: anchor.x, y: anchor.y };
 }
-export function detachAnchor(anchor: Anchor, before: BoardV10, after: BoardV10): Anchor {
+export function detachAnchor(anchor: Anchor, before: BoardV11, after: BoardV11): Anchor {
   if (anchor.detached || anchor.objectId === null) return anchor;
   const object = before.objects.find((object) => object.id === anchor.objectId);
   if (!after.objects.some((object) => object.id === anchor.objectId)) {

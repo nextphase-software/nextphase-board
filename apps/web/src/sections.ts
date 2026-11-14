@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-import { add, clamp, type BoardV10 as Board, type ItemV10 as Item } from "nextphase-board-rules/document.ts";
+import { add, clamp, type BoardV11 as Board, type ItemV11 as Item } from "nextphase-board-rules/document.ts";
 import { arrangeOrder, type OrderCommand } from "./arrange.ts";
 import { editingCommandReason } from "./commands.ts";
 import { boundingBox, limitMove, type DisplayObject, type Point } from "./selection.ts";
-import { isImage, containerType, isContainer, labelPrefix, hasRectangle, hasEnds, hasText, sectionIdea, orderBand } from "nextphase-board-rules/objects/registry.ts";
+import { isImage, containerType, isContainer, labelPrefix, hasRectangle, hasEnds, hasText, sectionIdea, orderBand, isMindNode } from "nextphase-board-rules/objects/registry.ts";
+import { withMaps } from "./mind-map.ts";
 
 import { bands, FOLLOW_REASON } from "./connectors.ts";
 
@@ -58,7 +59,8 @@ export function dropped(board: Board, moving: ReadonlySet<string>): Board {
 }
 
 export function moveWithMembers(board: Board, selected: ReadonlySet<string>, dx: number, dy: number): Board {
-  const ids = withMembers(board.objects, selected);
+  // A section never carries a mind node; a moved node moves its whole map.
+  const ids = withMaps(board.objects, withMembers(board.objects, selected));
   const delta = limitMove(board.objects.filter(hasRectangle).filter((o) => ids.has(o.id)), { x: dx, y: dy });
   if (!delta.x && !delta.y) return board;
   return { ...board, objects: board.objects.map((o) => hasRectangle(o) && ids.has(o.id)
@@ -74,7 +76,7 @@ export function assignSection(board: Board, selected: ReadonlySet<string>, secti
 export function placeObject(board: Board, object: Item): Board {
   if (!hasRectangle(object)) throw Error("An object with ends cannot be placed by a tool");
   const section = isContainer(object);
-  const placed = section ? object : { ...object, section: sectionAt(board.objects, centre(object))?.id ?? null };
+  const placed = section || !sectionIdea(object) ? object : { ...object, section: sectionAt(board.objects, centre(object))?.id ?? null };
   const objects = bandOrder([...board.objects, placed]).map((o, order) => ({ ...o, order,
     section: section && sectionIdea(o) && contains(object, centre(o)) ? object.id : o.section,
   }));
@@ -97,6 +99,7 @@ export function wrapReason(board: Board, selected: ReadonlySet<string>, drawn: r
   if (!objects.length && selected.size) return FOLLOW_REASON;
   if (!objects.length) return "Select an object to duplicate or delete.";
   if (objects.some(isContainer)) return "Sections cannot contain sections.";
+  if (objects.some(isMindNode)) return "Mind map nodes can't be put in a section.";
   if (board.objects.length >= 250) return "250 object limit reached";
   const box = boundingBox(drawn.filter((o) => selected.has(o.id) && board.objects.some((item) => item.id === o.id && hasRectangle(item))))!;
   return box.width + 80 > containerType().sizeRange.max || box.height + 80 > containerType().sizeRange.max
@@ -121,7 +124,7 @@ function numberedObjectLabel(board: Board, object: Item): string {
 
 export function commandObjectLabel(board: Board, object: Item): string {
   return hasText(object)
-    ? object.type + " " + (object.order + 1) + " · " + (object.text.slice(0, 36) || "Empty")
+    ? (isMindNode(object) ? labelPrefix(object) : object.type) + " " + (object.order + 1) + " · " + (object.text.slice(0, 36) || "Empty")
     : numberedObjectLabel(board, object);
 }
 

@@ -21,7 +21,7 @@ import { useSelection } from "./state/use-selection";
 import { useObjectLayouts } from "./state/use-object-layouts";
 import { useEditorPlacement } from "./state/use-editor-placement";
 import { BoardDrawing } from "./scene/board-drawing";
-import { Overlays } from "./scene/overlays"; import { ConnectionDots } from "./scene/connection-dots";
+import { Overlays } from "./scene/overlays"; import { ConnectionDots } from "./scene/connection-dots"; import { MindMapButtons } from "./scene/mind-map-buttons";
 import { InlineEditor } from "./scene/inline-editor";
 import { ShapesPanel } from "./ui/shapes-panel";
 import { GrowButton } from "./ui/shape-controls";
@@ -64,7 +64,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     getView: () => view, getStore: () => store.current, isAlive: () => alive.current, barVisible: () => size.w >= 768 && contextFits || panel === "Objects" });
   const busy = images.busy; const {
     editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
-    handlesVisible, handlePoints, itemHeight,
+    handlesVisible, handlePoints, itemHeight, measureNode,
   } = useObjectLayouts({
     board, selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,
   });
@@ -95,7 +95,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
   } = useGeometryEdits({
     shapeSession, model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,
     item, selected, select, objectLayouts, readOnly, busy, composing,
-    setStatus, setTool, setPanel, setInline, editor, lineCount,
+    setStatus, setTool, setPanel, setInline, editor, lineCount, measureNode,
   });
   const {
     preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,
@@ -126,7 +126,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
-    arrangementMembers, lineCount, editor, selector, setPanel, setTool, hosted: team?.hosted,
+    arrangementMembers, lineCount, measureNode, editor, selector, setPanel, setTool, hosted: team?.hosted,
   });
   const { pageKeyDown } = usePageKeys({
     voting: team?.hosted?.voting, chooseImages: images.chooseImages,
@@ -177,7 +177,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
           handlePoints={handlePoints} spacePan={spacePan} selectionBox={selectionBox} tool={tool}
         />
         <GrowButton available={growAvailable} grow={shapeCommands.grow} style={resolvedItem ? { left: pos(resolvedItem).left + resolvedItem.width * view.z / 2, top: pos(resolvedItem).top + resolvedItem.height * view.z } : undefined} />
-        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} />
+        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={board} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} />
       </div>
       {team?.commentsLayer && team.hosted && <team.commentsLayer hosted={team.hosted} board={board} objects={displayedObjects} view={view} size={size} tool={tool} setTool={setTool} setView={setView} scene={scene} select={select} setInline={setInline} />}{team?.presenceLayer && team.hosted && <team.presenceLayer hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}
       {team?.votingLayer && team.hosted && <team.votingLayer hosted={team.hosted} objects={displayedObjects} view={view} size={size} finishTextSession={finishTextSession} cancel={cancel} setInline={setInline} setTool={setTool} select={select} setView={setView} />}
@@ -220,7 +220,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
       )}
       {selected.size > 0 && (
         <ContextBar
-          description={images.description} imageCount={images.count} imagesOnly={images.only} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
+          board={board} description={images.description} imageCount={images.count} imagesOnly={images.only} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
           connectorObjects={connectors} connectorPopup={connectorPopup} connectorOnly={connectorOnly} connectorCount={connectors.length} duplicateReason={duplicateReason} contextBar={contextBar} contextFits={contextFits} contextLeft={contextLeft}
           contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
           composing={composing} busy={busy} inline={inline} finishTextSession={finishTextSession}

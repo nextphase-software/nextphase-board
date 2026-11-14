@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import type { BoardV10 as Board } from "nextphase-board-rules/document.ts";
+import type { BoardV11 as Board } from "nextphase-board-rules/document.ts";
 import type { ClipboardCommand } from "../clipboard";
 import type { Flag } from "nextphase-board-rules/marks.ts";
 
 import { nativePasteKey } from "../images.ts";
+import { hiddenIds, type MapCommand } from "../mind-map";
 
 import type { BoardVoting } from "../team/voting";
 type Input = {
   voting?: BoardVoting;
   chooseImages: () => void;
-  command: (name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut") => string | undefined;
+  command: (name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut" | MapCommand) => string | undefined;
   clipboardCommand: (name: ClipboardCommand) => void;
   toggleFormat: (flag: Flag) => void;
   model: RefObject<Board>;
@@ -37,6 +38,14 @@ export function usePageKeys({
     if(voting?.mode&&e.target===scene.current){if(e.key==='Delete'||e.key==='Backspace')e.preventDefault();return;}
     const nativeText = e.target instanceof Element &&
       !!e.target.closest("input,textarea,[contenteditable]:not([contenteditable=false])");
+    // Cmd/Ctrl+Enter adds a child and Cmd/Ctrl+Shift+Enter a sibling, from the
+    // canvas or the node editor.
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.altKey && !composing && !e.nativeEvent.isComposing &&
+      (e.target === scene.current || e.target instanceof HTMLTextAreaElement && e.target.id === "content")) {
+      e.preventDefault();
+      command(e.shiftKey ? "Add sibling" : "Add child");
+      return;
+    }
     if (!nativeText && (e.ctrlKey || e.metaKey) && !e.altKey) {
       const key = e.key.toLowerCase();
       if (key === "k" && e.shiftKey && !composing && !e.nativeEvent.isComposing) { e.preventDefault(); chooseImages(); return; }
@@ -48,7 +57,8 @@ export function usePageKeys({
       if (key === "a" && !e.shiftKey && e.target === scene.current) {
         if (!busy && !composing && model.current.objects.length) {
           e.preventDefault();
-          select(model.current.objects.map((o) => o.id));
+          const hidden = hiddenIds(model.current.objects);
+          select(model.current.objects.filter((o) => !hidden.has(o.id)).map((o) => o.id));
         }
         return;
       }

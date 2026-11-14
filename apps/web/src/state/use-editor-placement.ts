@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { ResolvedItem as Item } from "../geometry";
-import { objectType, rectangleType, hasText, textBox, hasEnds } from "nextphase-board-rules/objects/registry.ts";
+import { objectType, rectangleType, hasText, textBox, hasEnds, isMindNode, fontSize } from "nextphase-board-rules/objects/registry.ts";
 import { labelEditorBox } from "../connectors";
 import { textUnits } from "nextphase-board-rules/styles.ts";
 import type { View } from "../view";
@@ -41,7 +41,9 @@ export function useEditorPlacement({
   useEffect(() => {
     if (inline && !composing) {
       editor.current?.focus();
-      if (item && hasText(item) && !objectType(item.type).richText && item.text === objectType(item.type).initialText) editor.current?.select();
+      // A node's editor opens with the caret at the end (only a starter map selects its root's text).
+      if (item && isMindNode(item)) editor.current?.setSelectionRange(editor.current.value.length, editor.current.value.length);
+      else if (item && hasText(item) && !objectType(item.type).richText && item.text === objectType(item.type).initialText) editor.current?.select();
     }
   }, [inline, selected]);
   useEffect(() => {
@@ -78,6 +80,11 @@ export function useEditorPlacement({
           rect.top < r.bottom && rect.bottom > r.top;
       });
     const richText = objectType(item.type).richText;
+    if (isMindNode(item)) {
+      if (size.w < 768 || p.left < 0 || p.top < 0 || p.left + item.width * view.z > size.w ||
+        p.top + item.height * view.z > size.h || fontSize(item) * view.z < 12 || obscured) fallbackEditor();
+      return;
+    }
     if (hasEnds(item)) {
       const box = labelEditorBox(item.connectorLayout!.labelPoint, text), p = pos(box);
       if (size.w < 768 || p.left < 0 || p.top < 0 || p.left + box.width * view.z > size.w ||

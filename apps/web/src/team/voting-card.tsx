@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { BoardVoting } from './voting';
-import type { ItemV10 } from 'nextphase-board-rules/document.ts';
+import type { ItemV11 } from 'nextphase-board-rules/document.ts';
 import { eligibleTargets, eligibleVote, ownBallot, rankedResults, remainingWords, targetMatches, validQuestion, validBudget, voteLabel } from './voting-rules';
 const identity=(n:HTMLElement)=>n.getAttribute('data-vote')??n.getAttribute('aria-label')??n.id;
-export function VotingCard({voting,objects,preview}:{voting:BoardVoting;objects:ItemV10[];preview:boolean}) {
+export function VotingCard({voting,objects,preview}:{voting:BoardVoting;objects:ItemV11[];preview:boolean}) {
   const [,redraw]=useState(0),root=useRef<HTMLDivElement>(null),heading=useRef<HTMLHeadingElement>(null);
   const focused=useRef<{node:HTMLElement;key:string|null}|null>(null),previous=useRef('');
   useEffect(()=>voting.subscribe(()=>redraw(n=>n+1)),[voting]);

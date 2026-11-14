@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { PointerEventHandler, ReactNode, RefObject } from "react";
 import { TEXT_INSET, TEXT_LAYOUT, type ResolvedItem as Item } from "../geometry";
-import { objectType, textBox, hasText, hasEnds } from "nextphase-board-rules/objects/registry.ts";
+import { objectType, textBox, hasText, hasEnds, isMindNode, fontSize } from "nextphase-board-rules/objects/registry.ts";
 import { labelEditorBox } from "../connectors";
 import { textUnits } from "nextphase-board-rules/styles.ts";
 import type { View } from "../view";
@@ -19,6 +19,15 @@ type Props = {
 
 export function InlineEditor({ inlineSurface, trackPointer, pos, item, view, itemHeight, text, nativeEditor }: Props) {
   if (!hasText(item)) return null;
+  // The node editor lies exactly over the node's box, in the node look.
+  if (isMindNode(item)) return (
+    <section ref={inlineSurface} className="inline node-editor" onPointerEnter={trackPointer} onPointerDown={trackPointer} onPointerMove={trackPointer}
+      style={{ ...pos(item), width: item.width * view.z, height: item.height * view.z, padding: `${6 * view.z}px ${8 * view.z}px`,
+        fontFamily: TEXT_LAYOUT.fontFamily, fontSize: fontSize(item) * view.z, fontWeight: item.parent === null ? 700 : 400,
+        color: objectType(item.type).textColor(item) }}>
+      {nativeEditor}
+    </section>
+  );
   const richText = objectType(item.type).richText;
   const ends = hasEnds(item);
   const box = ends ? labelEditorBox(item.connectorLayout!.labelPoint, text) : textBox({ ...item, height: itemHeight });

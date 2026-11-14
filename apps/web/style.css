@@ -1495,3 +1495,20 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
 .team-template-dialog .template-preview { margin-top: 14px; }
 .team-template-dialog .team-template-what { font-size: 12px; color: #6b6772; margin: 8px 0 0; }
 .team-template-dialog .board-question-actions { margin-top: 20px; }
+
+/* Mind maps: add buttons, collapse badges and the node editor (interaction v40). */
+.scene > .mind-map-add, .scene > .mind-map-badge { position: absolute; transform: translate(-50%, -50%); display: grid; place-items: center;
+  min-width: 0; min-height: 0; padding: 0; border-radius: 50%; background: white; pointer-events: auto; cursor: pointer; }
+.scene > .mind-map-add { width: 22px; height: 22px; border: 1.5px solid #518de0; color: #518de0; }
+.scene > .mind-map-badge { width: 20px; height: 20px; border: 1.5px solid #6b6b6b; color: #3b3a40; font: 600 11px/1 system-ui; }
+.mind-map-add::before, .mind-map-badge::before { content: ""; position: absolute; left: 50%; top: 50%; width: 28px; height: 28px;
+  transform: translate(-50%, -50%); border-radius: 50%; }
+.scene > .mind-map-add:hover:not(:disabled), .scene > .mind-map-badge:hover:not(:disabled) { background: #eef4fd; }
+.scene > .mind-map-add:active:not(:disabled), .scene > .mind-map-badge:active:not(:disabled) { background: #dce8fb; }
+.scene > .mind-map-add:focus-visible, .scene > .mind-map-badge:focus-visible { outline: 2px solid #518de0; outline-offset: 2px; }
+.mind-map-tip { position: absolute; left: 50%; top: calc(50% + 18px); transform: translateX(-50%); z-index: 5; visibility: hidden;
+  pointer-events: none; background: #302d36; color: white; font: 12px/1.35 system-ui; padding: 4px 8px; border-radius: 4px; white-space: nowrap; }
+.mind-map-add:hover .mind-map-tip, .mind-map-add:focus-visible .mind-map-tip { visibility: visible; }
+.inline.node-editor:focus-within { outline: none; }
+.inline.node-editor textarea { overflow: hidden; color: inherit; font-weight: inherit; }
+.inline.node-editor textarea::placeholder { color: #79737f; opacity: 1; }

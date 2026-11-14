@@ -54,7 +54,7 @@ function webImportProblems(content, file = "") {
 
 test("the package holds exactly its modules", () => {
   assert.deepEqual(rulesParts, [
-    "document.ts", "marks.ts", "objects/connector.ts", "objects/image.ts", "objects/registry.ts",
+    "document.ts", "marks.ts", "objects/connector.ts", "objects/image.ts", "objects/mind-node.ts", "objects/registry.ts",
     "objects/section.ts", "objects/shape.ts", "objects/sticky.ts", "objects/stroke.ts", "objects/text.ts",
     "platform.d.ts", "styles.ts", "transition.ts",
   ]);
@@ -181,13 +181,16 @@ test("every screen part begins with the Apache-2.0 licence header", () => {
   }
 });
 
-test("scene parts contain exactly the ten modules named through 0009-W1 v1", () => {
+test("scene parts contain exactly the thirteen modules named through 0009-W2 v1", () => {
   assert.deepEqual(sceneParts, [
     "board-drawing.tsx",
     "connection-dots.tsx",
     "connector-body.tsx",
     "image-body.tsx",
     "inline-editor.tsx",
+    "mind-map-buttons.tsx",
+    "mind-map-layer.tsx",
+    "mind-node-body.tsx",
     "note-body.tsx",
     "overlays.tsx",
     "section-body.tsx",
@@ -196,8 +199,8 @@ test("scene parts contain exactly the ten modules named through 0009-W1 v1", () 
   ]);
 });
 
-test("object types contain exactly the eight object-type modules named through 0009-W1 v1", () => {
-  assert.deepEqual(objectTypes, ["connector.ts", "image.ts", "registry.ts", "section.ts", "shape.ts", "sticky.ts", "stroke.ts", "text.ts"]);
+test("object types contain exactly the nine object-type modules named through 0009-W2 v1", () => {
+  assert.deepEqual(objectTypes, ["connector.ts", "image.ts", "mind-node.ts", "registry.ts", "section.ts", "shape.ts", "sticky.ts", "stroke.ts", "text.ts"]);
 });
 
 test("object types never import React or Konva", () => {
@@ -577,10 +580,23 @@ test("the hosted board hook holds exactly one passive effect", () => {
   assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });
 
-// The composition seam may substitute only these two existing bindings.
-test("0008-W2 App composition changes only the two templateCommands lines", () => {
-  const base = execFileSync("git", ["show", "415c2f2aaf35c3c2f60352b77bc2399cc8d9af63:apps/web/src/App.tsx"], { encoding: "utf8" });
-  const expected = base.replace("loadTemplates, addActivity, templatePreviews", "loadTemplates, templateCommands, templatePreviews")
-    .replace("addActivity={addActivity}", "templateCommands={templateCommands}");
-  assert.equal(readFileSync(new URL("App.tsx", source), "utf8"), expected);
+// Web modules v38: App changes only by these six substitutions on existing lines.
+test("0009-W2 App composition changes only its six substitutions", () => {
+  const base = execFileSync("git", ["show", "9f843d0babc6645d7c40fca432b483ecf6bf9bfd:apps/web/src/App.tsx"], { encoding: "utf8" });
+  const substitutions = [
+    ['import { ConnectionDots } from "./scene/connection-dots";\n', 'import { ConnectionDots } from "./scene/connection-dots"; import { MindMapButtons } from "./scene/mind-map-buttons";\n'],
+    ["handlesVisible, handlePoints, itemHeight,\n", "handlesVisible, handlePoints, itemHeight, measureNode,\n"],
+    ["setInline, editor, lineCount,\n", "setInline, editor, lineCount, measureNode,\n"],
+    ["arrangementMembers, lineCount, editor,", "arrangementMembers, lineCount, measureNode, editor,"],
+    ["pos={pos} zoom={view.z} />\n", "pos={pos} zoom={view.z} /><MindMapButtons board={board} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} />\n"],
+    ["<ContextBar\n          description=", "<ContextBar\n          board={board} description="],
+  ];
+  let expected = base;
+  for (const [from, to] of substitutions) {
+    assert.equal(expected.split(from).length, 2, from);
+    expected = expected.replace(from, to);
+  }
+  const app = readFileSync(new URL("App.tsx", source), "utf8");
+  assert.equal(app, expected);
+  assert.equal(app.split("\n").length, base.split("\n").length);
 });

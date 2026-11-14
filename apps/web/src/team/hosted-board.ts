@@ -6,7 +6,7 @@ import { BoardTimer } from "./timer";
 import { BoardLifecycle, lifecycleNavigation } from "./lifecycle";
 import { BoardHistory, historyNavigation } from "./history";
 import { BoardSession, type Transport, type Role, type SessionEvent, type TimerSnapshot, type TimerFrame, type TimerAction, type VoteProjection, type VoteFrame, type VoteCommand, type SpotlightCommand, type SpotlightFrame, type ReactionId } from "nextphase-board-sync/session.ts";
-import type { BoardV10 } from "nextphase-board-rules/document.ts";
+import type { BoardV11 } from "nextphase-board-rules/document.ts";
 import type { CommentOperation } from "./comments/rules";
 import { api, ApiError } from "./api";
 import { auth, type AuthSession } from "./auth";
@@ -25,7 +25,7 @@ export type { SpotlightProjection, SpotlightSession, SpotlightOwn, SpotlightActi
 type Attempt = { outcome: Outcome | null; joined: boolean; cancelled: boolean; timer: ReturnType<typeof setTimeout>;
   socket?: WebSocket; acceptance: boolean };
 export type HostedSnapshot = {
-  board?: BoardV10; role?: Role; connected: boolean; workspace: string; workspaceId: string;
+  board?: BoardV11; role?: Role; connected: boolean; workspace: string; workspaceId: string;
   workspaceOwner?: boolean; outcome: Outcome | null; toast: string; toastId: number; generation: number;
 };
 export type PresenceSnapshot = {
@@ -416,7 +416,7 @@ export class HostedBoard {
       this.recoveringIds = [];
     } else this.publish({ board: session.board });
   }
-  edit(board: BoardV10, group?: string) {
+  edit(board: BoardV11, group?: string) {
     if (!this.canEdit || !this.session || JSON.stringify(board) === JSON.stringify(this.session.board)) return false;
     return this.deliberate(() => this.session!.edit(board, group));
   }

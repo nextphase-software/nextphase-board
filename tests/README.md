@@ -624,3 +624,30 @@ a current workspace editor inherits editor on every same-workspace board, even
 with a viewer grant, so a creator with a viewer source-board role cannot be
 constructed under the inherited access contract. The defensive board-role check
 is retained; independent review must disposition that requested subcase.
+
+## Mind maps (0009-W2 v1)
+
+`mind-map.test.mjs` adds MM-U1–MM-U17 (17 focused units): the `mindNode` record,
+its keys and defaults; schema 11, reading versions 1–10 and their in-memory
+upgrade; each refusal of the structure rule (missing, self and non-node parents,
+loops, sides, collapsed roots, text and key limits); the layout on fixed
+measurements (box, wrap at 320, columns on both sides, blocks, centring, one
+rounding, rank rewriting and idempotence); the starter map; add child and
+sibling; reparent, detach, join, drop targets and the cycle rule; collapse,
+hidden nodes and counts; delete moving children up and root splits; the
+consistent copy snapshot, paste and duplicate remap of `parent`; the codec and
+adapter round trip of the four keys; shared Undo's `parent` remap and the add
+that joins its first text session; the room's repair order through the edit
+check; the commit's layout of changed maps; and the words and exclusions. Each
+test imports its subject dynamically, so on the baseline it fails by name.
+
+`server/mind-maps.test.ts` registers S402–S406 and `SUMMARY-MIND-MAPS` for both
+Node and workerd: a stored version 10 board served as version 11 with no edits
+row or history version, the room's repair of merged nodes and refusal of edits
+still invalid after it, concurrent reparenting, history restores of version 10
+and 11 snapshots, and the import route. Existing server checks change only their
+document version from 10 to 11.
+
+Implementation validation is limited to V1–V8 in the brief. S402–S406, the
+inherited server suites, the M9 browser scenario, A–J and the accepted
+regression scenarios require the later server-only and check runs.

@@ -10,14 +10,16 @@ import { stroke, type StrokeKeys } from "./stroke.ts";
 export * from "./stroke.ts";
 import { image, type ImageKeys } from "./image.ts";
 export * from "./image.ts";
+import { mindNode, type MindNodeKeys } from "./mind-node.ts";
+export * from "./mind-node.ts";
 export type Rectangle = { x: number; y: number; width: number; height: number };
 
-export type ObjectType = typeof sticky | typeof shape | typeof text | typeof section | typeof connector | typeof stroke | typeof image;
+export type ObjectType = typeof sticky | typeof shape | typeof text | typeof section | typeof connector | typeof stroke | typeof image | typeof mindNode;
 export type TextRectangleType = Exclude<ObjectType, typeof connector | typeof stroke | typeof image>["type"];
 export type RectangleType = TextRectangleType | typeof stroke.type | typeof image.type;
 export type PointsType = typeof stroke.type;
 export type EndsType = typeof connector.type;
-export const OBJECT_TYPES: readonly ObjectType[] = [sticky, shape, text, section, stroke, connector, image];
+export const OBJECT_TYPES: readonly ObjectType[] = [sticky, shape, text, section, stroke, connector, image, mindNode];
 
 export function objectType<T extends string>(type: T): Extract<ObjectType, { type: T }>;
 export function objectType(type: string): ObjectType {
@@ -52,11 +54,12 @@ export function hasRectangle<T extends { type: string }>(o: T): o is T & Rectang
 }
 export function hasPoints<T extends { type: string }>(o: T): o is T & StrokeKeys & Rectangle & { type: PointsType } { return objectType(o.type).points; }
 export function hasText<T extends { type: string }>(o: T): o is T & { type: Exclude<ObjectType, typeof stroke | typeof image>["type"] } { return objectType(o.type).text; }
-export const sectionIdea = <T extends { type: string }>(o: T): o is T & Rectangle & { type: RectangleType } => hasRectangle(o) && !isContainer(o);
+export const sectionIdea = <T extends { type: string }>(o: T): o is T & Rectangle & { type: RectangleType } => hasRectangle(o) && !isContainer(o) && !isMindNode(o);
 export const eligibleVote = (o: { type: string }) => objectType(o.type).voting;
 export const voteTextAnchor = (o: { type: string }) => o.type === text.type;
 export const eligibleIdea = <T extends { type: string }>(o: T): o is T & Rectangle & { type: TextRectangleType } => sectionIdea(o) && !hasPoints(o) && !isImage(o);
 export function isImage<T extends { type: string }>(o: T): o is T & ImageKeys & Rectangle & { type: typeof image.type } { return o.type === image.type; }
+export function isMindNode<T extends { type: string }>(o: T): o is T & MindNodeKeys & Rectangle & { type: typeof mindNode.type } { return o.type === mindNode.type; }
 export const keepsProportions = (o: { type: string }) => hasPoints(o) || isImage(o);
 export const imageType = () => image;
 export const typeWithPoints = () => stroke;
@@ -86,7 +89,7 @@ export function objectKeys(type: string, version: number): string[] {
     ...(version >= 5 ? ["section"] : []), ...(version >= 6 ? objectType(type).extraKeys.filter((key) => version >= 9 || !CONNECTOR_STYLE_KEYS.includes(key as keyof ConnectorStyle)) : []),
     ...(objectType(type).ends ? [] : ["x", "y", "width", "height"]), "order"];
 }
-export const ADD_OPTIONS = OBJECT_TYPES.filter((t): t is Exclude<ObjectType, typeof connector | typeof stroke | typeof image> => t.tool !== null).sort((a, b) => (Number(a.container) * 2 + Number(a.shapePaint)) - (Number(b.container) * 2 + Number(b.shapePaint))).flatMap((t) => t.kinds.length
+export const ADD_OPTIONS = OBJECT_TYPES.filter((t): t is Exclude<ObjectType, typeof connector | typeof stroke | typeof image> => t.tool !== null && !isMindNode(t)).sort((a, b) => (Number(a.container) * 2 + Number(a.shapePaint)) - (Number(b.container) * 2 + Number(b.shapePaint))).flatMap((t) => t.kinds.length
   ? t.kinds.map((k) => ({ type: t.type, tool: k.tool, label: k.kind }))
   : [{ type: t.type, tool: t.tool, label: t.type }]);
 

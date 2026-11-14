@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { CSSProperties, RefObject } from "react";
-import type { ItemV10 as Item } from "nextphase-board-rules/document.ts";
+import type { ItemV11 as Item } from "nextphase-board-rules/document.ts";
 import { SHAPE_KINDS, SHAPE_COLORS, FILL_MODES, BORDER_STYLES, shapeColor, shapeColorLabel, darkened, kindInfo, type ShapeKeys } from "nextphase-board-rules/objects/registry.ts";
 import { Icon } from "../icons";
 

@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { add, clamp, type Board as SavedBoard, type BoardV10 as Board } from "nextphase-board-rules/document.ts";
+import { add, clamp, type Board as SavedBoard, type BoardV11 as Board } from "nextphase-board-rules/document.ts";
 import type { ResolvedItem as Item } from "../geometry";
 import { expandSelection, pressSelection, toggleGroup } from "../group";
 import { nearestHandle, type Corner } from "../resize";
 import type { View } from "../view";
 import { drawRectangle, dropped, placeObject, withMembers } from "../sections";
-import { isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, type ShapePaint, type ConnectorStyle } from "nextphase-board-rules/objects/registry.ts";
-import type { Drag, ResizeStart } from "../gesture";
+import { isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, isMindNode, type ShapePaint, type ConnectorStyle } from "nextphase-board-rules/objects/registry.ts";
+import type { Drag, NodeDrop, ResizeStart } from "../gesture";
+import { branchIds, dropTarget, MAP_WORDS } from "../mind-map";
 
 import { connectionDots, pressedDot, connectionTarget, pressedEnd, reconnectTarget } from "../connection-drag";
 import { hitObject, selectInBox, createConnector, reconnect } from "../connectors";
@@ -30,11 +31,11 @@ type Input = {
   setView: Dispatch<SetStateAction<View>>;
   trackPointer: (e: React.PointerEvent) => void;
   setMessage: (value: string) => void;
-  create: (tool: string, x: number, y: number, native?: boolean) => void;
+  create: (tool: string, x: number, y: number, native?: boolean, released?: boolean) => void;
   resizeStart: () => ResizeStart[];
   resizeStillValid: (start: ResizeStart[]) => boolean;
   resizedBoard: (corner: Corner, start: ResizeStart[], dx: number, dy: number, shift: boolean) => Board;
-  movedBoard: (ids: string[], dx: number, dy: number) => Board;
+  movedBoard: (ids: string[], dx: number, dy: number, drop?: NodeDrop) => Board;
   scene: RefObject<HTMLDivElement | null>;
   view: View;
   size: { w: number; h: number };
@@ -74,7 +75,8 @@ export function useCanvasInput({
   const dotsVisible = dots.length > 0;
   const activeDrawing = drag.current?.drawing;
   const preview = activeDrawing && !isEraser(activeDrawing.tool) && (drag.current?.crossed || inkInfo(drawingStyleFor(activeDrawing.tool, drawing.style)).round)
-    ? { ...drawingStyleFor(activeDrawing.tool, drawing.style), ...strokeGeometry(drawingPoints(activeDrawing.positions), drawingStyleFor(activeDrawing.tool, drawing.style)) } : null;
+    ? { ...drawingStyleFor(activeDrawing.tool, drawing.style), ...strokeGeometry(drawingPoints(activeDrawing.positions), drawingStyleFor(activeDrawing.tool, drawing.style)) }
+    : drag.current?.mapDrag && drag.current.crossed ? { mapDrag: drag.current.mapDrag } : null;
   const drawingCursor = isEraser(tool) ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Ccircle cx='7' cy='7' r='6' fill='white' fill-opacity='.4' stroke='%235f5b66'/%3E%3C/svg%3E") 7 7, crosshair` : undefined;
   const connection = drag.current?.connection;
   function point(e: { clientX: number; clientY: number }) {
@@ -154,7 +156,7 @@ export function useCanvasInput({
       }
       return;
     }
-    if (e.key === "Enter" && !drag.current) {
+    if (e.key === "Enter" && !drag.current && !e.metaKey && !e.ctrlKey) {
       e.preventDefault();
       if (placementTool(tool)) {
         create(
@@ -246,6 +248,9 @@ export function useCanvasInput({
           if (!readOnly) drag.current = {
             id: hit.id, ids: hasEnds(hit) ? undefined : ids, x: hit.x, y: hit.y,
             cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false,
+            // One node pressed and dragged carries its branch and may reparent.
+            ...(ids.length === 1 && isMindNode(hit) ? { mapDrag: { node: hit.id, branch: branchIds(model.current.objects, hit.id),
+              root: hit.parent === null, target: null, side: "right" as const } } : {}),
           };
         }
       } else {
@@ -319,6 +324,12 @@ export function useCanvasInput({
         setSelectionBox(null);
         select(d.additive ? d.previous ?? [] : []);
       }
+    } else if (d.ids && d.mapDrag && Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3) {
+      const next = movedBoard(d.ids, dx, dy, { preview: true });
+      const target = dropTarget(next.objects, point(e), new Set(d.mapDrag.branch));
+      d.mapDrag = { ...d.mapDrag, target: target?.target ?? null, side: target?.side ?? "right" };
+      d.crossed = true;
+      setBoard(next);
     } else if (d.ids && Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3) {
       const next = movedBoard(d.ids, dx, dy);
       d.crossed = next !== model.current;
@@ -382,7 +393,8 @@ export function useCanvasInput({
       }
       setBoard({ ...model.current });
     } else if (!d.pan && placementTool(d.id)) {
-      if (placementTool(d.id)!.draws || delta < 3 && !d.cancelled) {
+      if (isMindNode({ type: typeForTool(d.id) }) && delta < 3 && !d.cancelled) create(d.id, d.x, d.y, false, true);
+      else if (placementTool(d.id)!.draws || delta < 3 && !d.cancelled) {
         try {
           let object = creationValues(add(model.current, typeForTool(d.id), d.x, d.y).objects.at(-1)!, d.id, shapeSession.paint.current);
           if (placementTool(d.id)!.draws && delta >= 3) {
@@ -406,7 +418,16 @@ export function useCanvasInput({
         select(expandSelection(model.current.objects, [...(d.additive ? d.previous ?? [] : []), ...selectInBox(d, end, displayedObjects)]));
       } else select(d.additive ? d.previous ?? [] : []);
     } else if (!d.pan) {
-      if (delta >= 3 && d.ids) {
+      if (delta >= 3 && d.ids && d.mapDrag) {
+        const { node, target, side, root } = d.mapDrag, before = model.current;
+        const next = movedBoard(d.ids, (e.clientX - d.cx) / d.view.z, (e.clientY - d.cy) / d.view.z, { target, side });
+        if (next !== before) {
+          commit(next, true);
+          const name = (id: string | null) => before.objects.find((o) => o.id === id && hasText(o)) as { text: string } | undefined;
+          if (model.current !== before && (target || !root)) setMessage(target ? MAP_WORDS.moved(name(node)!.text, name(target)!.text) : MAP_WORDS.separate(name(node)!.text));
+        }
+        setBoard({ ...model.current });
+      } else if (delta >= 3 && d.ids) {
         const next = movedBoard(d.ids, (e.clientX - d.cx) / d.view.z, (e.clientY - d.cy) / d.view.z);
         if (next !== model.current) commit(dropped(next, new Set(d.ids)), true);
         setBoard({ ...model.current });

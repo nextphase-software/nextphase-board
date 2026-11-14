@@ -15,7 +15,7 @@ async function fixture(count=4){
     changes:async(_board,after)=>{if(offline)throw Error('Replay unavailable');return {latest,lowestKept:1,changes:changes.filter(c=>c.number>after)};}},
     lifecycle:{lifecycle:async()=>({state:life,generation})},fence:async()=>generation,raiseFence:async(min=0)=>generation=Math.max(generation,min)+1,
     hash:async v=>createHash('sha256').update(v).digest('hex'),randomId:randomUUID,randomTicket:randomUUID,verify:async()=>{},connections:()=>connections,schedule:async()=>{},backupLimit:16777216};
-  let room=new Room(id,env),board={schemaVersion:10,boardId:id,title:'Spotlight board',objects:[],retiredGenerations:[]};
+  let room=new Room(id,env),board={schemaVersion:11,boardId:id,title:'Spotlight board',objects:[],retiredGenerations:[]};
   for(let i=0;i<count;i++)board=add(board,'sticky',i*260,0);
   await room.create(board);
   async function open(role='editor',person=randomUUID(),label='synthetic'){
@@ -88,7 +88,7 @@ unit(45,'dedicated focus/status and notice observers retain native surfaces',asy
 unit(46,'every retrying session path sends 4410/retry_recovery and terminal paths stay clean',async()=>{
   const Y=await import('yjs');
   const {BoardSession,encode}=await import('../packages/board-sync/src/session.ts'),{Adapter}=await import('../packages/board-sync/src/document-adapter.ts');
-  const seed=new Adapter();seed.set({schemaVersion:10,boardId:randomUUID(),title:'Recovery fixture',objects:[],retiredGenerations:[]});
+  const seed=new Adapter();seed.set({schemaVersion:11,boardId:randomUUID(),title:'Recovery fixture',objects:[],retiredGenerations:[]});
   try{for(const action of ['interrupt','reconnect','deadline','send_failure','discard','unavailable','close',1000,1006,4410,4401,4403,4409,4423]){
     let now=0;const tasks=new Set(),wires=[],events=[];
     const session=await BoardSession.join({ticket:async()=>'',clock:{now:()=>now,after:(ms,run)=>{const t={at:now+ms,run};tasks.add(t);return()=>tasks.delete(t);}},open:async()=>{

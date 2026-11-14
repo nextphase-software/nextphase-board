@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { requireActive } from "./lifecycle.ts";
 import * as Y from "yjs";
-import type { BoardV10 } from "nextphase-board-rules/document.ts";
+import type { BoardV11 } from "nextphase-board-rules/document.ts";
 import type { Access } from "./access.ts";
 import type { RoomEnvironment } from "./interfaces.ts";
 import { evaluate } from "./edits.ts";
@@ -12,7 +12,7 @@ import { keepAnchors } from "./comments.ts";
 import type { Thread } from "nextphase-board-sync/comments.ts";
 import { endPresence } from "./presence.ts";
 type Edit = { requestId: string; epoch: number; update: string; restoreGeneration: number };
-type LiveBoard = { doc: Y.Doc; board: BoardV10; saved(): void };
+type LiveBoard = { doc: Y.Doc; board: BoardV11; saved(): void };
 
 // Called only inside the room's queue. This module owns edit authorization,
 // receipts and waiting edits; the room owns lifecycle and transport framing.

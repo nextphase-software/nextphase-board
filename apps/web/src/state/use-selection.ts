@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from "react";
-import type { BoardV10 as Board } from "nextphase-board-rules/document.ts";
+import type { BoardV11 as Board } from "nextphase-board-rules/document.ts";
 import { count } from "nextphase-board-rules/document.ts";
 import { FLAGS, formatted, formattedRange, type Flag, type TextSelection } from "nextphase-board-rules/marks.ts";
 import { objectType, isImage, hasText, hasPoints, usesShapePaint, commonShapeValue, hasRectangle, hasEnds } from "nextphase-board-rules/objects/registry.ts";

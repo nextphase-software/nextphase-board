@@ -2,7 +2,8 @@
 import * as Y from 'yjs';
 import { readBoard } from 'nextphase-board-sync/codec.ts';
 import { Adapter } from 'nextphase-board-sync/document-adapter.ts';
-import { canonical, validate, type BoardV10 } from 'nextphase-board-rules/document.ts';
+import { canonical, upgrade, validate, type Board, type BoardV11 } from 'nextphase-board-rules/document.ts';
+import { isMindNode } from 'nextphase-board-rules/objects/registry.ts';
 import { HISTORY_AGE, HISTORY_CHUNK, HISTORY_INTERVAL, HISTORY_LIMIT, historyId, historyInteger,
   historyReasons, wellFormed, metadataValid, versionValid, versionHeading, type Version, type HistoryReason, type SaveVersion,
   type RestoreVersion, type RestoreResult } from 'nextphase-board-sync/history.ts';
@@ -24,21 +25,21 @@ export function versionRow(row: Row): Version {
     generation: Number(row.generation), reason: row.reason as HistoryReason, name: String(row.name), description: String(row.description),
     actor: row.actor === null ? null : String(row.actor), namedBy: row.named_by === null ? null : String(row.named_by), sourceName: String(row.source_name) };
 }
-export function documentBytes(rows: Row[], board: string): { board: BoardV10; data: Uint8Array } {
+export function documentBytes(rows: Row[], board: string): { board: BoardV11; data: Uint8Array } {
   if (!rows.length || rows.some((r, i) => r.chunk_index !== i || !(r.bytes instanceof Uint8Array) || !r.bytes.length || r.bytes.length > HISTORY_CHUNK)) throw Error('bad_chunks');
   const data = new Uint8Array(rows.reduce((n, r) => n + (r.bytes as Uint8Array).length, 0));
   if (data.length > 2097152) throw Error('document_too_large');
   let at = 0; for (const row of rows) { data.set(row.bytes as Uint8Array, at); at += (row.bytes as Uint8Array).length; }
   const text = new TextDecoder().decode(data), value = validate(JSON.parse(text));
-  if (value.schemaVersion !== 10 || value.boardId !== board || value.objects.some(o => o.type === 'image') || canonical(value) !== text) throw Error('bad_document');
-  return { board: value as BoardV10, data };
+  if (![10, 11].includes(value.schemaVersion) || value.boardId !== board || value.objects.some(o => o.type === 'image') || canonical(value) !== text) throw Error('bad_document');
+  return { board: value as BoardV11, data };
 }
 export class History {
   private host: Room;
   constructor(host: Room) { this.host = host; }
   get env() { return this.host.env; }
   get s() { return this.env.storage; }
-  async prepare(board: BoardV10): Promise<Prepared> {
+  async prepare(board: Board): Promise<Prepared> {
     const data = bytes(canonical(board)); return { data, sha256: await this.env.hash(data) };
   }
   prune() {
@@ -66,7 +67,9 @@ export class History {
     const next = meta(this.s, 'history_next_at'), now = this.env.now();
     if (reason === 'checkpoint' && now < next) return;
     const prepared = await this.prepare(this.host.board);
-    const same = this.s.all("SELECT value FROM meta WHERE key = 'history_capture_sha256'")[0]?.value === prepared.sha256 && meta(this.s, 'history_capture_bytes') === prepared.data.length;
+    // A board upgraded on load from version 10 is the same board: the upgrade alone captures no version.
+    const legacy = this.host.board.objects.some(isMindNode) ? undefined : await this.prepare({ ...this.host.board, schemaVersion: 10 });
+    const same = [prepared, legacy].some((p) => p && this.s.all("SELECT value FROM meta WHERE key = 'history_capture_sha256'")[0]?.value === p.sha256 && meta(this.s, 'history_capture_bytes') === p.data.length);
     await this.host.lifecycle.active();
     this.s.transaction(() => {
       if (!same) this.capture(prepared, meta(this.s, 'revision'), meta(this.s, 'restore_generation'), reason);
@@ -161,7 +164,7 @@ export class History {
     const version = this.selected(id), selected = this.read(id);
     this.validateIdentity(selected.board);
     if (value.expectedRevision !== meta(this.s, 'revision') || value.expectedGeneration !== meta(this.s, 'restore_generation')) throw new RoomError(409, 'head_changed');
-    const selectedPrepared = await this.prepare(selected.board), replaced = await this.prepare(this.host.board);
+    const selectedPrepared = await this.prepare(upgrade(selected.board)), replaced = await this.prepare(this.host.board);
     await this.authorize(person, true);
     try {
       this.s.transaction(() => {
@@ -185,7 +188,7 @@ export class History {
     try { return await this.resume(this.receipt(person, value.requestId, digest)!); }
     catch { throw new RoomError(503, 'restore_pending'); }
   }
-  validateIdentity(board: BoardV10) {
+  validateIdentity(board: BoardV11) {
     for (const o of board.objects) {
       const rows = this.s.all('SELECT * FROM identifiers WHERE object_id = ? AND generation = ?', o.id, o.generation);
       if (rows.length !== 1) throw new RoomError(400, 'bad_request');
@@ -231,21 +234,21 @@ export class History {
     this.host.generation = intent.generation;
     if (intent.phase === 'reserved') {
       await this.host.lifecycle.active();
-      const adapter = new Adapter(); adapter.set(selected.board);
+      const restoredBoard = upgrade(selected.board), adapter = new Adapter(); adapter.set(restoredBoard);
       try {
         this.s.transaction(() => {
           const before = this.capture(replaced, intent.expectedRevision, intent.oldGeneration, 'before_restore');
           const restored = this.capture(selected, intent.expectedRevision + 1, intent.generation, 'restored', intent.actor, '', '', versionHeading(intent.version));
-          keepAnchors(this.env, replaced.board, selected.board);
+          keepAnchors(this.env, replaced.board, restoredBoard);
           this.s.exec('DELETE FROM waiting'); this.s.exec('DELETE FROM tickets'); this.s.exec('DELETE FROM edits');
-          snapshot(this.s, adapter.doc, selected.board, intent.expectedRevision + 1);
+          snapshot(this.s, adapter.doc, restoredBoard, intent.expectedRevision + 1);
           setMeta(this.s, 'revision', intent.expectedRevision + 1); setMeta(this.s, 'restore_generation', intent.generation);
           setMeta(this.s, 'last_edit_at', this.env.now());
           intent.result = { requestId: String(row!.request_id), revision: intent.expectedRevision + 1, generation: intent.generation, beforeVersionId: before.id, restoredVersionId: restored.id };
           intent.phase = 'replaced';
           this.result(String(row!.person_id), String(row!.request_id), String(row!.digest), 'restore', intent);
         });
-        this.host.doc.destroy(); this.host.doc = adapter.doc; this.host.board = selected.board;
+        this.host.doc.destroy(); this.host.doc = adapter.doc; this.host.board = restoredBoard;
       } catch (error) { adapter.destroy(); throw error; }
     }
     this.host.voting.reconcileTargets();
@@ -298,7 +301,7 @@ export async function validateHistoryBackup(env: RoomEnvironment, tables: Record
       if (Number(r.revision)>Number(snapshots.at(-1))) Y.applyUpdate(doc,r.update);
     }
     const head=readBoard(doc); validate(head); canonical(head);
-    if (head.boardId!==board || head.schemaVersion!==10 || head.objects.some(o=>o.type==='image'||identity.get(o.id)!==o.generation)) throw Error('bad_head');
+    if (head.boardId!==board || ![10,11].includes(head.schemaVersion) || head.objects.some(o=>o.type==='image'||identity.get(o.id)!==o.generation)) throw Error('bad_head');
   } finally {doc.destroy();}
   if (tables.snapshot_chunks.some(r=>!['json','yjs'].includes(String(r.kind)))) throw Error('bad_snapshot');
   const comments = new Map(tables.comments.map(r=>[r.id,r])), threads = new Map(tables.threads.map(r=>[r.id,r]));

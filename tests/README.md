@@ -502,3 +502,55 @@ senders times five, 512-byte bounds, and closed-budget cleanup. R4-U34–R4-U40
 cover the replay count, protected inventory fixture, pending admission at closure,
 I/O-free recipient checks, a timed 12,250-relay Node unit harness, isolated read
 failures and admission rechecks after the authority await. S80 is unchanged.
+
+## Spotlight bug batch (0007-B1)
+
+Bug-lane implementation against the existing [0007-W3 brief](../docs/briefs/0007-W3-follow-a-facilitator-through-a-board.md)
+(P1-S27/S39/S40) and [interaction v37](../docs/architecture/0001-interaction-v37.md)
+(including P1-S21). Branch `codex/0007-B1-fix-spotlight-follow-bugs`, prerequisite
+main `11f4d0f7851efb644189a975a856d35e3a6e4fb0`; validated source/test revision
+`89c922e2e8784c7c9475fafaf4ced6ce75b21537`. This separate record commit changes
+documentation only; the record-inclusive branch tip is reported in the handoff.
+
+NB-110: repeated history emits during an existing preview declined a newly deferred
+offer. Apply the local preview action only on preview entry. Separately, late
+presenter presence/readback could reschedule the 100ms offer tick beyond the
+3,000ms deadline; cap its next delay to the remaining deadline. The deterministic
+hidden-return regression proves that timing failure, not a permanent hidden-state
+deadlock. NB-111: People already uses `showSurface`, but the comment layer's
+surface gate omitted People; add it while retaining drafts and clocks. NB-112 is
+not a product bug in either tested ordering: an idle frame clears pending/confirmed
+spotlight UI and no manual follow remains. No product code changed for NB-112;
+the browser check must await the received idle state. NB-113 here changes only the
+narrow status `flex-basis:100%`, as already required by v37.
+
+`workshop-spotlight.test.mjs` adds these state/controller/CSS checks. The comment
+check evaluates the production visibility gate with actual HostedBoard state;
+it does not mount React or provide browser rendering/focus proof.
+
+| New check name | Base source | Fixed source |
+| --- | --- | --- |
+| P1-U57 NB-110 preview history emits preserve a new deferred offer until current board and full window | FAIL: no follow | PASS |
+| P1-U58 NB-110 hidden return follows exactly at the full safe deadline despite late presence and readback | FAIL: no follow at deadline | PASS |
+| P1-U59 NB-111 People hides comment surfaces and keeps drafts clock and spotlight on reopening | FAIL: surface still visible | PASS |
+| P1-U60 NB-112 presenter Stop clears banner and manual follow while follow is pending | PASS | PASS |
+| P1-U61 NB-112 presenter Stop clears banner and manual follow right after confirmation | PASS | PASS |
+| P1-U62 NB-113 narrow spotlight status explicitly occupies its own flex row | FAIL: missing basis | PASS |
+
+Commands/results: `npm ci --ignore-scripts --no-audit --no-fund` passed with Node
+26.13.0/npm 11.20.0; `npm run typecheck` passed all five workspaces; `npm test`
+ran once, 1,110/1,110 passed, zero failures/skips. Focused execution used
+`node --test --test-reporter=tap --test-name-pattern='NB-11[0-3]' tests/workshop-spotlight.test.mjs`.
+After the issue commits, `git checkout 11f4d0f --` restored only
+`apps/web/src/team/spotlight.ts`, `apps/web/src/team/comments/layer.tsx` and
+`apps/web/style.css`, retaining all new tests: the four failures above occurred by
+name, both NB-112 checks passed. `git checkout HEAD --` restored those same files;
+the focused six passed and `git status --short` was empty. `git diff --check` and
+mandatory public-boundary hooks passed. Git also emitted a sandbox-denied
+`packed-refs.lock` maintenance warning; all commits succeeded.
+
+No dependencies added; no contracts/check scripts/server/packages changed.
+Browsers and Supabase CLI cannot start in this sandbox and remain unrun; no DOM
+rendering, focus/IME, browser acceptance, builds or server suites ran. Server
+suites were not required because no server/package source changed. No escalation,
+push, merge or publication.

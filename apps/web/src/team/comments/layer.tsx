@@ -186,7 +186,7 @@ function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool
   const rect = scene.current?.getBoundingClientRect();
   const area = { w: size.w, h: Math.min(size.h, window.innerHeight - (rect?.top ?? 0)) };
   const cardThread = current ?? opened;
-  const surfaceHidden = hosted.surface === "timer" || hosted.surface === "share";
+  const surfaceHidden = hosted.surface === "timer" || hosted.surface === "share" || hosted.surface === "people";
   if (hosted.history.open || hosted.history.previewing) return null;
   return <>
     <div className="comment-pins" role="group" aria-label="Comment pins">

@@ -248,3 +248,30 @@ unit(58,'NB-110 hidden return follows exactly at the full safe deadline despite 
     confirmFollow(f);f.time.advance(12000);assert.equal(f.commands.length,1);
   } finally { f.close(); }
 });
+unit(59,'NB-111 People hides comment surfaces and keeps drafts clock and spotlight on reopening',async()=>{
+  const f=await hostedController();try {
+    const {host}=f,thread=randomUUID(),draft={reply:{text:'Unposted handoff reply'},editing:{id:randomUUID(),draft:{text:'Unposted edit'}}};
+    // Exercise the layer's actual state gate without mounting React or a DOM.
+    const {readFile}=await import('node:fs/promises'),{runInNewContext}=await import('node:vm');
+    const layer=await readFile(new URL('../apps/web/src/team/comments/layer.tsx',import.meta.url),'utf8');
+    const gate=layer.match(/const surfaceHidden = ([^;]+);/);assert(gate);
+    const surfacesHidden=()=>runInNewContext(gate[1],{hosted:host});
+    host.commentDrafts.set(thread,draft);
+    host.timer.snapshot={status:'running',durationMs:134000,endsAtServerMs:134000,remainingMs:null,version:1,timerId:randomUUID()};
+    host.timer.draft={minutes:'01',seconds:'15'};
+    let tool='Comment';host.hideComments=()=>{tool='Select';};
+    f.s.joined({...f.p,own:{membershipVersion:1,following:true}});
+    const projection=structuredClone(f.s.projection),timer=structuredClone(host.timer.snapshot),timerDraft=structuredClone(host.timer.draft);
+    host.showSurface('comments');host.showSurface('people');
+    assert.equal(surfacesHidden(),true,'People suppresses both the open card and panel');
+    assert.equal(tool,'Select');assert.equal(host.surface,'people');
+    assert.equal(host.commentDrafts.get(thread),draft);
+    tool='Comment';host.showSurface('comments');
+    assert.equal(surfacesHidden(),false);assert.equal(tool,'Comment');
+    assert.deepEqual(host.commentDrafts.get(thread),draft);
+    assert.deepEqual(host.timer.snapshot,timer);
+    assert.deepEqual(host.timer.draft,timerDraft);
+    assert.deepEqual(f.s.projection,projection);assert.equal(f.s.following,true);
+    assert.equal(f.s.motion,true);assert.equal(host.presence.followed,null);assert.deepEqual(f.commands,[]);
+  } finally { f.close(); }
+});

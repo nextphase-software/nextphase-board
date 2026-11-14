@@ -402,3 +402,11 @@ as a short burst at their pointer, seen by everyone currently admitted, never
 stored or replayed, rate-limited per connection and off during a vote. Five
 successor contracts define the frames, rights, look and modules. No stored
 format or dependency change; implementation has not started.
+
+[0008-W2 v1 — Save and reuse team activities](0008-W2-save-and-reuse-team-activities.md)
+(draft) lets a workspace's owners and editors save a selection or a whole hosted
+board as a team template, shows the workspace's templates to its owners, editors
+and viewers in the Templates panel, and adds independent copies by the existing
+activity insertion. Five successor contracts define the stored record, routes,
+rights, look and modules. One new service table; no document, file or dependency
+change; implementation has not started.

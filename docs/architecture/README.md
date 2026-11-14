@@ -506,3 +506,25 @@ v2, timer v2, board lifecycle v5, hosted persistence v10, document v15 and board
 file v4 remain unchanged: no stored reaction value or format/version bump.
 Document10/fileVersion2/room layout7/backup envelope1, identity v4/comments v4/
 local storage v3/toolchain-lock-inventory v5/runtime notices v3 remain in force.
+
+For 0008-W2 v1, use these five successor contracts in place of their earlier
+versions, including inherited cross-references:
+
+- [0008 team templates v1](0008-team-templates-v1.md): the stored `templates`
+  record, objects and validation, rights, limits, database functions and client
+  rules.
+- [0003 API v12](0003-api-v12.md) and [access v13](0003-access-v13.md): the five
+  template routes, and template rights per current workspace role; 17 service
+  tables.
+- [0001 interaction v39](0001-interaction-v39.md): single source of the team
+  group, card menu, dialogs, words, notices and keys.
+- [0001 web modules v37](0001-web-modules-v37.md): three team modules and the
+  panel, palette, editing-commands and server seams; 54 team modules/22 state
+  hooks.
+
+[The W2 brief](../briefs/0008-W2-save-and-reuse-team-activities.md) defines
+allowed files and checks. Activity catalogue v1, hosted storage v11, hosted
+persistence v10 (service-table count now 17), sync v13, presence v4, self-host
+runner v7, identity v4 and document v15 remain unchanged.
+Document10/fileVersion2/room layout7/backup envelope1, comments v4/local storage
+v3/toolchain-lock-inventory v5/runtime notices v3 remain in force.

@@ -95,6 +95,20 @@ export function useEditingCommands({
       setMessage(`Added “${entry.name}”: ${result.ids.length} objects.`);
     } catch (error) { setMessage(String(error)); }
   }
+  function insertStored(name: string, activity: Board) {
+    if (!alive.current) return;
+    if (activityState.current.commandReason) { hosted?.toast(activityState.current.commandReason); return; }
+    try {
+      const result = insertActivity(model.current, activity, activityState.current.view, {
+        w: scene.current!.clientWidth, h: scene.current!.clientHeight,
+      });
+      finishTextSession(); commit(result.board, true); select(result.ids); setPanel(""); setView(result.view);
+      scene.current?.focus(); hosted?.toast(`Added “${name}”: ${result.ids.length} objects.`);
+    } catch (error) { hosted?.toast(String(error)); }
+  }
+  const templateCommands = { addActivity, insertStored, commandReason, selected: selected.size > 0, objectCount: model.current.objects.length,
+    snapshot: () => ({ title: model.current.title, selected: selected.size > 0,
+      snapshot: buildSnapshot(model.current, selected.size ? selected : new Set(model.current.objects.map(o => o.id)), displayedObjects) }) };
   function writePlainText(snapshot: Snapshot, copiedMessage: string) {
     const sequence = messageSequence.current;
     const failed = () => {
@@ -337,5 +351,5 @@ export function useEditingCommands({
   };
   const strokeCommands = { color: strokeColor, weight: strokeWeight };
   const shapeCommands = { changeShape, changeFill: changeShapeFill, changeBorder: changeShapeBorder, grow };
-  return { connectorCommands, strokeCommands, loadTemplates, addActivity, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
+  return { connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
 }

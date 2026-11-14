@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { RefObject } from "react";
+import type { RefObject, ReactNode } from "react";
 import { catalog } from "../activities/catalog";
 import type { Activity, Preview } from "../activities";
 
@@ -9,11 +9,13 @@ type Props = {
   previews: Record<string, Preview>;
   firstButton: RefObject<HTMLButtonElement | null>;
   disabled: boolean;
+  teamSection?: ReactNode;
 };
 
-export function TemplatesPanel({ close, addActivity, previews, firstButton, disabled }: Props) {
+export function TemplatesPanel({ close, addActivity, previews, firstButton, disabled, teamSection }: Props) {
   return <section className="templates-panel floating" aria-label="Templates">
     <header><h2>Templates</h2><button onClick={close}>Close</button></header>
+    {teamSection}
     <h3>Activities</h3>
     <div className="template-cards">
       {catalog.map((entry, index) => {

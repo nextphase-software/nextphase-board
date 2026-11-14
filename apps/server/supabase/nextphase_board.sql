@@ -870,6 +870,144 @@ BEGIN
   RETURN nextphase_board.lifecycle_value(lifecycle_raise.board);
 END $$;
 
+-- A workspace library is independent of board documents and room storage.
+CREATE TABLE IF NOT EXISTS nextphase_board.templates (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES nextphase_board.workspaces(id),
+  name text NOT NULL CHECK (char_length(name) BETWEEN 1 AND 120 AND name !~ '^\s*$'),
+  description text NOT NULL CHECK (char_length(description) <= 300),
+  objects jsonb NOT NULL CHECK (jsonb_typeof(objects) = 'array'),
+  object_count integer NOT NULL CHECK (object_count BETWEEN 1 AND 250 AND object_count = jsonb_array_length(objects)),
+  content_bytes integer NOT NULL CHECK (content_bytes BETWEEN 1 AND 262144),
+  creator_id uuid NOT NULL REFERENCES nextphase_board.people(id), creator_label text NOT NULL,
+  source_board_id uuid NOT NULL, source_title text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS templates_updated ON nextphase_board.templates(workspace_id, updated_at DESC, id);
+ALTER TABLE nextphase_board.templates ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION nextphase_board.list_templates(person uuid, workspace uuid) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_role text; v_template nextphase_board.templates;
+BEGIN
+  SELECT m.role INTO v_role FROM nextphase_board.workspace_members m
+    JOIN nextphase_board.people p ON p.id=m.person_id AND NOT p.disabled
+    WHERE m.workspace_id=list_templates.workspace AND m.person_id=list_templates.person;
+  IF v_role IS NULL THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF v_role='guest' THEN RAISE EXCEPTION 'role_too_low' USING DETAIL='viewer'; END IF;
+  RETURN jsonb_build_object('canSave',v_role IN ('owner','editor'),'templates',coalesce((
+    SELECT jsonb_agg(to_jsonb(t) || jsonb_build_object('can_manage',v_role='owner' OR (v_role='editor' AND t.creator_id=list_templates.person))
+      ORDER BY t.updated_at DESC,t.id) FROM nextphase_board.templates t WHERE t.workspace_id=list_templates.workspace
+  ),'[]'::jsonb));
+END $$;
+
+CREATE OR REPLACE FUNCTION nextphase_board.get_template(person uuid, workspace uuid, template uuid) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_role text; v_template nextphase_board.templates;
+BEGIN
+  SELECT m.role INTO v_role FROM nextphase_board.workspace_members m
+    JOIN nextphase_board.people p ON p.id=m.person_id AND NOT p.disabled
+    WHERE m.workspace_id=get_template.workspace AND m.person_id=get_template.person;
+  IF v_role IS NULL THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF v_role='guest' THEN RAISE EXCEPTION 'role_too_low' USING DETAIL='viewer'; END IF;
+  SELECT * INTO v_template FROM nextphase_board.templates t
+    WHERE t.workspace_id=get_template.workspace AND t.id=get_template.template;
+  IF NOT FOUND THEN RAISE EXCEPTION 'not_found'; END IF;
+  RETURN to_jsonb(v_template) || jsonb_build_object('can_manage',v_role='owner' OR (v_role='editor' AND v_template.creator_id=get_template.person));
+END $$;
+
+CREATE OR REPLACE FUNCTION nextphase_board.save_template(person uuid, workspace uuid, board uuid, name text, description text, objects jsonb, object_count integer, content_bytes integer, creator_label text, source_title text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_role text; v_template nextphase_board.templates; v_title text; v_board_role text;
+BEGIN
+  PERFORM 1 FROM nextphase_board.workspaces w WHERE w.id=save_template.workspace FOR UPDATE;
+  SELECT m.role INTO v_role FROM nextphase_board.workspace_members m
+    JOIN nextphase_board.people p ON p.id=m.person_id AND NOT p.disabled
+    WHERE m.workspace_id=save_template.workspace AND m.person_id=save_template.person;
+  IF v_role IS NULL THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF v_role='guest' THEN RAISE EXCEPTION 'role_too_low' USING DETAIL='viewer'; END IF;
+  IF v_role NOT IN ('owner','editor') THEN RAISE EXCEPTION 'role_too_low' USING DETAIL='editor'; END IF;
+  SELECT b.title INTO v_title FROM nextphase_board.boards b
+    WHERE b.id=save_template.board AND b.workspace_id=save_template.workspace AND nextphase_board.board_active(b.id);
+  IF NOT FOUND THEN RAISE EXCEPTION 'not_found'; END IF;
+  v_board_role:=nextphase_board.board_role(save_template.person,save_template.board);
+  IF v_board_role IS NULL THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF v_board_role NOT IN ('owner','editor') THEN RAISE EXCEPTION 'role_too_low' USING DETAIL='editor'; END IF;
+  IF (SELECT count(*) FROM nextphase_board.templates t WHERE t.workspace_id=save_template.workspace)>=25 THEN
+    RAISE EXCEPTION 'template_limit';
+  END IF;
+  INSERT INTO nextphase_board.templates(workspace_id,name,description,objects,object_count,content_bytes,creator_id,creator_label,source_board_id,source_title)
+    VALUES(save_template.workspace,save_template.name,save_template.description,save_template.objects,save_template.object_count,
+      save_template.content_bytes,save_template.person,save_template.creator_label,save_template.board,v_title) RETURNING * INTO v_template;
+  RETURN to_jsonb(v_template) || jsonb_build_object('can_manage',v_role='owner' OR (v_role='editor' AND v_template.creator_id=save_template.person));
+END $$;
+
+CREATE OR REPLACE FUNCTION nextphase_board.update_template_details(person uuid, workspace uuid, template uuid, name text, description text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_role text; v_template nextphase_board.templates;
+BEGIN
+  SELECT m.role INTO v_role FROM nextphase_board.workspace_members m
+    JOIN nextphase_board.people p ON p.id=m.person_id AND NOT p.disabled
+    WHERE m.workspace_id=update_template_details.workspace AND m.person_id=update_template_details.person;
+  IF v_role IS NULL THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF v_role='guest' THEN RAISE EXCEPTION 'role_too_low' USING DETAIL='viewer'; END IF;
+  SELECT * INTO v_template FROM nextphase_board.templates t
+    WHERE t.workspace_id=update_template_details.workspace AND t.id=update_template_details.template FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF v_role<>'owner' AND NOT (v_role='editor' AND v_template.creator_id=update_template_details.person) THEN
+    RAISE EXCEPTION 'role_too_low' USING DETAIL='owner';
+  END IF;
+  UPDATE nextphase_board.templates t SET name=update_template_details.name,description=update_template_details.description,updated_at=clock_timestamp()
+    WHERE t.id=v_template.id RETURNING * INTO v_template;
+  RETURN to_jsonb(v_template) || jsonb_build_object('can_manage',v_role='owner' OR (v_role='editor' AND v_template.creator_id=update_template_details.person));
+END $$;
+
+CREATE OR REPLACE FUNCTION nextphase_board.replace_template(person uuid, workspace uuid, template uuid, board uuid, objects jsonb, object_count integer, content_bytes integer, source_title text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_role text; v_template nextphase_board.templates; v_title text; v_board_role text;
+BEGIN
+  SELECT m.role INTO v_role FROM nextphase_board.workspace_members m
+    JOIN nextphase_board.people p ON p.id=m.person_id AND NOT p.disabled
+    WHERE m.workspace_id=replace_template.workspace AND m.person_id=replace_template.person;
+  IF v_role IS NULL THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF v_role='guest' THEN RAISE EXCEPTION 'role_too_low' USING DETAIL='viewer'; END IF;
+  SELECT * INTO v_template FROM nextphase_board.templates t
+    WHERE t.workspace_id=replace_template.workspace AND t.id=replace_template.template FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF v_role<>'owner' AND NOT (v_role='editor' AND v_template.creator_id=replace_template.person) THEN
+    RAISE EXCEPTION 'role_too_low' USING DETAIL='owner';
+  END IF;
+  SELECT b.title INTO v_title FROM nextphase_board.boards b
+    WHERE b.id=replace_template.board AND b.workspace_id=replace_template.workspace AND nextphase_board.board_active(b.id);
+  IF NOT FOUND THEN RAISE EXCEPTION 'not_found'; END IF;
+  v_board_role:=nextphase_board.board_role(replace_template.person,replace_template.board);
+  IF v_board_role IS NULL THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF v_board_role NOT IN ('owner','editor') THEN RAISE EXCEPTION 'role_too_low' USING DETAIL='editor'; END IF;
+  UPDATE nextphase_board.templates t SET objects=replace_template.objects,object_count=replace_template.object_count,
+    content_bytes=replace_template.content_bytes,source_board_id=replace_template.board,source_title=v_title,updated_at=clock_timestamp()
+    WHERE t.id=v_template.id RETURNING * INTO v_template;
+  RETURN to_jsonb(v_template) || jsonb_build_object('can_manage',v_role='owner' OR (v_role='editor' AND v_template.creator_id=replace_template.person));
+END $$;
+
+CREATE OR REPLACE FUNCTION nextphase_board.delete_template(person uuid, workspace uuid, template uuid) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_role text; v_template nextphase_board.templates;
+BEGIN
+  SELECT m.role INTO v_role FROM nextphase_board.workspace_members m
+    JOIN nextphase_board.people p ON p.id=m.person_id AND NOT p.disabled
+    WHERE m.workspace_id=delete_template.workspace AND m.person_id=delete_template.person;
+  IF v_role IS NULL THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF v_role='guest' THEN RAISE EXCEPTION 'role_too_low' USING DETAIL='viewer'; END IF;
+  SELECT * INTO v_template FROM nextphase_board.templates t
+    WHERE t.workspace_id=delete_template.workspace AND t.id=delete_template.template FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'not_found'; END IF;
+  IF v_role<>'owner' AND NOT (v_role='editor' AND v_template.creator_id=delete_template.person) THEN
+    RAISE EXCEPTION 'role_too_low' USING DETAIL='owner';
+  END IF;
+  DELETE FROM nextphase_board.templates t WHERE t.id=v_template.id;
+  RETURN NULL;
+END $$;
+
 -- Repeated runs replace policies without widening privileges.
 DO $$ DECLARE t text; BEGIN
   FOREACH t IN ARRAY ARRAY['people','workspaces','workspace_members','boards','board_opens','board_grants','invitations','access_changes','access_log_floor','access_deliveries'] LOOP
@@ -899,3 +1037,5 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA nextphase_board TO service_role;
 GRANT EXECUTE ON FUNCTION nextphase_board.board_role(uuid,uuid), nextphase_board.is_owner(uuid) TO authenticated;
 
 REVOKE ALL ON nextphase_board.board_lifecycle, nextphase_board.board_lifecycle_requests, nextphase_board.deleted_board_ids FROM PUBLIC, anon, authenticated;
+
+REVOKE ALL ON nextphase_board.templates FROM PUBLIC, anon, authenticated;

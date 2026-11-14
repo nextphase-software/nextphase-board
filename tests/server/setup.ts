@@ -143,6 +143,7 @@ export default async function setup(project: any) {
           result={...person,token:await token(key,issuer,person,{now:value.now,exp:Math.floor(value.now/1000)+86400})};break;
         }
         case "/shared-fixture": result = await removalFixture("shared"); break;
+        case "/template-schema": result = sql(schema); break;
         case "/server-config": result = JSON.parse(await readFile(new URL("apps/server/wrangler.json", root), "utf8")); break;
         case "/proxy":
           if (value.offline !== undefined) offline = value.offline;
@@ -214,6 +215,7 @@ export default async function setup(project: any) {
   return async () => {
     offline = false;
     for (const workspace of createdWorkspaces) sql(`BEGIN;
+      DELETE FROM nextphase_board.templates WHERE workspace_id='${workspace}';
       DELETE FROM nextphase_board.invitations WHERE workspace_id='${workspace}';
       DELETE FROM nextphase_board.access_changes WHERE workspace_id='${workspace}';
       DELETE FROM nextphase_board.board_grants WHERE board_id IN (SELECT id FROM nextphase_board.boards WHERE workspace_id='${workspace}');

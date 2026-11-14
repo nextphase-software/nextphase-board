@@ -22,8 +22,10 @@ import { VotingOverlay } from "./voting-overlay";
 import { TimerControl } from "./timer-panel";
 import { Home } from "./home";
 import { holdName, type HeldNames } from "./home-rules";
+import { TemplatesSection } from "./templates-section";
 
 export type TeamParts = {
+  templatesSection?: typeof TemplatesSection;
   votingLayer?: typeof VotingOverlay; hosted?: HostedBoard; timerControl?: ReactNode; saveControl?: ReactNode; account?: ReactNode; banner?: ReactNode;
   people?: ReactNode; presenceLayer?: typeof PresenceLayer; backToFiles?: () => void;
   nameSent?: (title: string) => void;
@@ -159,7 +161,7 @@ function HostedRoute({ link, session, active, account, close, signInAgain, resta
     ? outcome?.name === "restoring" ? words.restoring : waiting ? words.reconnectingWaiting(waiting) : words.reconnecting
     : snapshot.role === "viewer" ? words.viewOnly(snapshot.workspace) : "";
   const notices = board.notices;
-  return <><App team={{ hosted: board, votingLayer: VotingOverlay, account, backToFiles: session ? close : undefined, people: <People hosted={board} />, presenceLayer: PresenceLayer, reactionTool: ReactionTool, commentTool: CommentTool, commentsLayer: CommentsLayer,
+  return <><App team={{ hosted: board, templatesSection: TemplatesSection, votingLayer: VotingOverlay, account, backToFiles: session ? close : undefined, people: <People hosted={board} />, presenceLayer: PresenceLayer, reactionTool: ReactionTool, commentTool: CommentTool, commentsLayer: CommentsLayer,
     nameSent: (title) => { sentTitles.current.add(title); },
     timerControl: <TimerControl timer={board.timer} voting={board.voting} objects={snapshot.board.objects} preview={board.history.previewing} />,
     saveControl: <button className="primary" onClick={() => { board.showSurface("share"); setShare(true); }}>Share</button>,

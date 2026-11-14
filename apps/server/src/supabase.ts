@@ -6,6 +6,8 @@ import type { Cursor, Sort, Order } from "./cursor.ts";
 export type RecordRow = Record<string, any>;
 import { duplicateSuffixes } from "nextphase-board-sync/mentions.ts";
 import { labelOf } from "nextphase-board-room/tickets.ts";
+import type { TeamTemplate } from "./runtime.ts";
+import type { templateObjects } from "./templates.ts";
 export class Supabase implements AccessSource, BoardRows {
   lifecycleGuard?: (board:string,row:import("nextphase-board-room/lifecycle.ts").Lifecycle|null,request:Record<string,unknown>|null)=>Promise<void>;
   async lifecycle(board: string): Promise<import("nextphase-board-room/lifecycle.ts").Lifecycle | null> {
@@ -79,6 +81,38 @@ export class Supabase implements AccessSource, BoardRows {
     await this.rpc("record_board_open", { person, board, opened_at: new Date(at).toISOString() });
   }
   workspaces(person: string): Promise<RecordRow[]> { return this.rpc("list_workspaces", { person }); }
+  private async templateCall<T>(name: string, parameters: Record<string, unknown>): Promise<T> {
+    // These functions carry the specific required role in the PostgreSQL error detail.
+    const { data, error } = await this.client.schema("nextphase_board").rpc(name, parameters);
+    if (error) {
+      if (error.message === "role_too_low") throw new RoomError(403, "role_too_low", error.details);
+      const status = ({ not_found: 404, bad_request: 400, template_limit: 409 } as Record<string, number>)[error.message];
+      throw new RoomError(status ?? 503, status ? error.message : "service_unavailable");
+    }
+    return data as T;
+  }
+  async listTemplates(person: string, workspace: string) {
+    const value = await this.templateCall<{ templates: RecordRow[]; canSave: boolean }>("list_templates", { person, workspace });
+    return { templates: value.templates.map(templateRow), limit: 25, canSave: value.canSave };
+  }
+  async getTemplate(person: string, workspace: string, template: string) {
+    return templateRow(await this.templateCall("get_template", { person, workspace, template }));
+  }
+  async saveTemplate(person: string, workspace: string, board: string, details: { name: string; description: string },
+    content: ReturnType<typeof templateObjects>, creatorLabel: string) {
+    return templateRow(await this.templateCall("save_template", { person, workspace, board, ...details, objects: content.objects,
+      object_count: content.objectCount, content_bytes: content.contentBytes, creator_label: creatorLabel, source_title: "" }));
+  }
+  async updateTemplateDetails(person: string, workspace: string, template: string, details: { name: string; description: string }) {
+    return templateRow(await this.templateCall("update_template_details", { person, workspace, template, ...details }));
+  }
+  async replaceTemplate(person: string, workspace: string, template: string, board: string, content: ReturnType<typeof templateObjects>) {
+    return templateRow(await this.templateCall("replace_template", { person, workspace, template, board, objects: content.objects,
+      object_count: content.objectCount, content_bytes: content.contentBytes, source_title: "" }));
+  }
+  async deleteTemplate(person: string, workspace: string, template: string) {
+    await this.templateCall("delete_template", { person, workspace, template });
+  }
   async activeRows(rows:RecordRow[]):Promise<RecordRow[]> {
     const states=await Promise.all(rows.map(row=>this.lifecycle(String(row.id))));
     return rows.filter((_,i)=>states[i]?.state==='active');
@@ -133,6 +167,11 @@ export class Supabase implements AccessSource, BoardRows {
 }
 export function boardDetails(row: RecordRow): BoardDetails {
   return { id: row.id, workspaceId: row.workspace_id, title: row.title, createdAt: new Date(row.created_at).toISOString() };
+}
+function templateRow(row: RecordRow): TeamTemplate {
+  return { id: row.id, name: row.name, description: row.description, creatorLabel: row.creator_label,
+    sourceTitle: row.source_title, objectCount: row.object_count, createdAt: new Date(row.created_at).toISOString(),
+    updatedAt: new Date(row.updated_at).toISOString(), canManage: row.can_manage, objects: row.objects };
 }
 export function invitationDetails(row: RecordRow) {
   return { id: row.id, workspaceId: row.workspace_id, boardId: row.board_id, email: row.email,

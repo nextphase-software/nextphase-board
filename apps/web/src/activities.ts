@@ -2,10 +2,17 @@
 import { readBoardFile } from "./board-file.ts";
 import { upgrade, type BoardV7, type ItemV7, type BoardV10, type ItemV10 } from "nextphase-board-rules/document.ts";
 import { copyObjects } from "./clipboard.ts";
-import { hasEnds, hasRectangle, isContainer, rectangleType } from "nextphase-board-rules/objects/registry.ts";
+import { hasEnds, hasRectangle, hasText, isContainer, rectangleType } from "nextphase-board-rules/objects/registry.ts";
 import type { View } from "./view.ts";
+import type { Snapshot } from "./clipboard.ts";
 
 export type Activity = { name: string; file: string };
+export type TemplateCommands = {
+  addActivity: (entry: Activity) => void;
+  snapshot: () => { title: string; selected: boolean; snapshot: Snapshot | null };
+  insertStored: (name: string, board: BoardV10) => void;
+  commandReason: string; selected: boolean; objectCount: number;
+};
 export type Box = { left: number; top: number; right: number; bottom: number };
 type Size = { w: number; h: number };
 export type Preview = {
@@ -44,7 +51,7 @@ export function activityView(box: Box, current: View, size: Size): View {
   return { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2, z };
 }
 
-export function insertActivity(board: BoardV10, activity: BoardV7, view: View, size: Size) {
+export function insertActivity(board: BoardV10, activity: BoardV7 | BoardV10, view: View, size: Size) {
   const box = activityBox(activity.objects)!, existing = activityBox(board.objects);
   const dx = existing ? existing.right + 120 - box.left : view.x - (box.left + box.right) / 2;
   const dy = existing ? existing.top - box.top : view.y - (box.top + box.bottom) / 2;
@@ -60,14 +67,15 @@ export function insertActivity(board: BoardV10, activity: BoardV7, view: View, s
   return { board: next, ids: added.map((o) => o.id), view: activityView(activityBox(added)!, view, size) };
 }
 
-export function activityPreview(objects: readonly ItemV7[]): Preview {
+export function activityPreview(objects: readonly (ItemV7 | ItemV10)[]): Preview {
   const box = activityBox(objects)!;
   const rectangles = objects.filter(hasRectangle);
   return {
     viewBox: `${box.left - 40} ${box.top - 40} ${box.right - box.left + 80} ${box.bottom - box.top + 80}`,
     preserveAspectRatio: "xMidYMid meet",
     rectangles: rectangles.map((o) => {
-      const style = rectangleType(o.type), fill = style.fill(o), edge = style.edge(o);
+      const fill = hasText(o) ? rectangleType(o.type).fill(o) : undefined,
+        edge = hasText(o) ? rectangleType(o.type).edge(o) : undefined;
       return { id: o.id, x: o.x, y: o.y, width: o.width, height: o.height,
         fill: isContainer(o) ? "#f0eff3" : fill ?? "none",
         stroke: isContainer(o) ? "#dbd9df" : fill ? "none" : edge ?? "#dedede" };

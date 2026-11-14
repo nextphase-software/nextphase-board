@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction, RefObject } from "react";
 import { OBJECT_TYPES, placementTool, kindForTool, SHAPE_KINDS } from "nextphase-board-rules/objects/registry.ts";
 import { DrawButton, DrawingBar, type DrawingControls } from "./drawing-tools";
 import { TemplatesPanel } from "./templates-panel";
-import type { Activity, Preview } from "../activities";
+import type { TemplateCommands, Preview } from "../activities";
 import { Icon } from "../icons";
 
 import { ImageButton, type ImagePicker } from "./image-controls";
@@ -19,7 +19,7 @@ type Props = {
   toggle: (name: string) => void;
   templatesButton: RefObject<HTMLButtonElement | null>;
   firstTemplateButton: RefObject<HTMLButtonElement | null>;
-  addActivity: (entry: Activity) => void;
+  templateCommands: TemplateCommands;
   templatePreviews: Record<string, Preview>;
   tool: string;
   busy: boolean;
@@ -31,7 +31,7 @@ type Props = {
 };
 
 export function Palette({
-  imagePicker, drawing, loadTemplates, panel, toggle, templatesButton, firstTemplateButton, addActivity, templatePreviews, tool, busy, composing, readOnly, setTool, setInline, scene, team
+  imagePicker, drawing, loadTemplates, panel, toggle, templatesButton, firstTemplateButton, templateCommands, templatePreviews, tool, busy, composing, readOnly, setTool, setInline, scene, team
 }: Props) {
   const arm = (name: string) => { setTool(name); setInline(false); scene.current?.focus(); };
   return (
@@ -68,7 +68,8 @@ export function Palette({
       {team?.commentTool && <team.commentTool tool={tool} setTool={setTool} scene={scene} disabled={busy || composing || !!team?.hosted?.history.previewing || !!team?.hosted?.history.locked} />}
     </nav>
     <DrawingBar tool={tool} drawing={drawing} disabled={readOnly || busy || composing} arm={arm} />
-    {panel === "Templates" && <TemplatesPanel close={() => toggle("Templates")} addActivity={addActivity}
+    {panel === "Templates" && <TemplatesPanel close={() => toggle("Templates")} addActivity={templateCommands.addActivity}
+      teamSection={team?.templatesSection && team.hosted ? <team.templatesSection hosted={team.hosted} commands={templateCommands} disabled={readOnly || busy || composing} /> : undefined}
       previews={templatePreviews} firstButton={firstTemplateButton} disabled={readOnly || busy || composing} />}
     </>
   );

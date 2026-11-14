@@ -3,6 +3,11 @@ import type { BoardV10 } from "nextphase-board-rules/document.ts";
 import type { Person } from "nextphase-board-room/protocol.ts";
 import type { Auth } from "./auth.ts";
 import type { Supabase } from "./supabase.ts";
+export type TeamTemplate = {
+  id: string; name: string; description: string; creatorLabel: string; sourceTitle: string;
+  objectCount: number; createdAt: string; updatedAt: string; canManage: boolean;
+  objects: import("./templates.ts").TemplateObjects;
+};
 export interface RoomClient {
   admitLifecycle(request: import("nextphase-board-room/lifecycle.ts").LifecycleRequest): Promise<import("nextphase-board-room/lifecycle.ts").Lifecycle>;
   fenceLifecycle(row: import("nextphase-board-room/lifecycle.ts").Lifecycle, ready?: boolean): Promise<void>;

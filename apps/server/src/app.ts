@@ -12,6 +12,7 @@ import { historyRoutes } from "./routes/history.ts";
 import { boards } from "./routes/boards.ts";
 import { invitations } from "./routes/invitations.ts";
 import { operators } from "./routes/operator.ts";
+import { templateRoutes } from "./routes/templates.ts";
 export function createApp(runtime: Runtime) {
   const app = new Hono<{ Variables: AppVariables }>();
   app.onError((error, c) => {
@@ -44,6 +45,7 @@ export function createApp(runtime: Runtime) {
   boards(app, runtime);
   historyRoutes(app, runtime);
   lists(app, runtime);
+  templateRoutes(app, runtime);
   mentions(app, runtime);
   accessRoutes(app, runtime);
   invitations(app, runtime);

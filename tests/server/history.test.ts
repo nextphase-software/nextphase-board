@@ -199,7 +199,7 @@ check(192,'inventory reports every room/history row and independent fence withou
   }
   assert.equal(tables.workshop_timer.rows,1);assert(tables.workshop_timer.serializedRowBytes.every((n:number)=>n<=1024));assert(!('workshop_timer' in (await backup()).tables));
   assert.equal(tables.workshop_vote.rows,1);assert(!('workshop_vote' in (await backup()).tables));
-  const count=await helper('sql',{sql:"SELECT count(*) FROM pg_tables WHERE schemaname='nextphase_board'"});assert.equal(Number(String(count).trim()),16);measure.inventory={tables,fence:await driver.control({board:f.a,fences:true}),serviceTables:16,globallyBounded:false};console.log('MEASURE-S192 '+JSON.stringify(measure.inventory));
+  const count=await helper('sql',{sql:"SELECT count(*) FROM pg_tables WHERE schemaname='nextphase_board'"});assert.equal(Number(String(count).trim()),17);measure.inventory={tables,fence:await driver.control({board:f.a,fences:true}),serviceTables:17,globallyBounded:false};console.log('MEASURE-S192 '+JSON.stringify(measure.inventory));
   await freshTokens();const version=(await list()).versions[0];await driver.control({fixedNow:version.capturedAt+2592000000});await driver.control({board:f.a,alarm:true});assert.equal((await rows('versions')).length,0);assert.equal((await rows('version_chunks')).length,0);assert.equal((await rows('history_intent_chunks')).length,0);
 });
 check(193,'carry is service-only, idempotent at target and rejects conflicting checkpoints',async()=>{
@@ -207,7 +207,7 @@ check(193,'carry is service-only, idempotent at target and rejects conflicting c
   const privilege=await helper('sql',{sql:"SELECT has_function_privilege('anon','nextphase_board.carry_board_mentions(uuid,bigint,bigint)','EXECUTE'),has_function_privilege('authenticated','nextphase_board.carry_board_mentions(uuid,bigint,bigint)','EXECUTE')"});assert.equal(String(privilege).trim(),'f|f');
   await rpc('carry_board_mentions',{board:f.a,from_generation:0,to_generation:1});const before=await helper('rows',{table:'mention_delivery',filters:{board_id:f.a}});await rpc('carry_board_mentions',{board:f.a,from_generation:0,to_generation:1});assert.deepEqual(await helper('rows',{table:'mention_delivery',filters:{board_id:f.a}}),before);
   const conflict=await fetch(context.helperUrl+'/rpc',{method:'POST',body:JSON.stringify({name:'carry_board_mentions',parameters:{board:f.a,from_generation:0,to_generation:2}})});assert.equal(conflict.status,500);assert.deepEqual(await helper('rows',{table:'mention_delivery',filters:{board_id:f.a}}),before);
-  const result=await helper('sql',{sql:`SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='nextphase_board' AND c.relkind='r' AND c.relrowsecurity`});assert.equal(Number(String(result).trim()),16);
+  const result=await helper('sql',{sql:`SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='nextphase_board' AND c.relkind='r' AND c.relrowsecurity`});assert.equal(Number(String(result).trim()),17);
 });
 check(194,'actual HTTP adapters enforce exact keys/body limits/export boundaries without deletion',async()=>{
   const v=(await list()).versions[0];assert.deepEqual(Object.keys(v),['id','ordinal','capturedAt','revision','generation','reason','name','description','actor','namedBy','sourceName']);assert.deepEqual(Object.keys(await list()),['versions','head']);assert.deepEqual(Object.keys(await ok(path(v.id))),['version','document']);

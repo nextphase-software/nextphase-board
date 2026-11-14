@@ -590,3 +590,37 @@ reported in the handoff. No dependencies, contracts, internal check scripts,
 server or package source changed. Browsers, Supabase CLI, browser rendering/focus,
 native IME checks, builds and server suites remain unrun; no escalation, push,
 merge or publication.
+
+## Team templates (0008-W2 v1)
+
+`team-templates.test.mjs` adds T8-U1–T8-U12 (12 focused units): Copy selection
+and whole-board sets, client/server wrapped document-10 validation, counts and
+image refusal, compact UTF-8 content at 262,144/262,145 bytes, code-point limits,
+Save labels and disabled-reason precedence, exact response parsing and order,
+notice words, menu movement, independent insertion without provenance, and the
+page-memory controller's role gate, fresh reads, refresh, refusals and pending
+requests. Controller tests replace the HTTP port; they do not prove browser
+rendering, modal focus or real server authorization.
+
+`server/templates.test.ts` registers S378–S401 (24) and `SUMMARY-TEMPLATES` for
+both Node and workerd. They use the existing real-token HTTP drivers and the
+owned Supabase fixture, including its proxy for an induced database failure.
+The setup helper reapplies the committed schema for S398 and removes templates
+before workspace cleanup. S48, S192, S193, S221 and S372 change only their service
+table count from 16 to 17; their other assertions and grants are retained.
+Module guards expect 54 team modules, 22 state hooks, and only the two permitted
+App.tsx substitutions. Existing activity assertions retain their results.
+
+Implementation validation is limited to V1–V8 in the brief: install, typecheck,
+the full unit suite, off/on web builds with license audits, fixtures, server
+build and deployment dry run, dependency byte comparisons and diff inspection.
+No deployment occurs. S378–S401 and the inherited server suites require the
+later server-only/check runs; T8-S1–T8-S23, the off A–J comparison, activity Q
+and independent baseline capability failures require the later check run.
+Browser focus, the 17 visual captures, native IME and Safari acceptance are not
+proved by these unit checks. Existing runner exclusions remain unchanged; no
+whole-case server exclusion is introduced. S389 reports one unproved subcase:
+a current workspace editor inherits editor on every same-workspace board, even
+with a viewer grant, so a creator with a viewer source-board role cannot be
+constructed under the inherited access contract. The defensive board-role check
+is retained; independent review must disposition that requested subcase.

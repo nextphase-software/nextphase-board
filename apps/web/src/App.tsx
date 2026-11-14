@@ -122,7 +122,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
     item: resolvedItem, itemHeight, dotsVisible, editorBox,
   });
-  const { connectorCommands, strokeCommands, loadTemplates, addActivity, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
+  const { connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
     tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
@@ -244,7 +244,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
       <ShapesPanel tool={tool} setTool={setTool} scene={scene} disabled={busy || composing || readOnly} />
       <Palette team={team}
         imagePicker={images.picker} drawing={drawing} tool={tool} busy={busy} composing={composing} readOnly={readOnly} setTool={setTool}
-        setInline={setInline} scene={scene} loadTemplates={loadTemplates} panel={panel} toggle={toggle} templatesButton={templatesButton} firstTemplateButton={firstTemplateButton} addActivity={addActivity} templatePreviews={templatePreviews}
+        setInline={setInline} scene={scene} loadTemplates={loadTemplates} panel={panel} toggle={toggle} templatesButton={templatesButton} firstTemplateButton={firstTemplateButton} templateCommands={templateCommands} templatePreviews={templatePreviews}
       />
       <ZoomControls
         busy={busy} composing={composing} setView={setView} view={view} panel={panel}

@@ -565,18 +565,16 @@ Hidden card/composer drafts remain; visible comment Escape retains its existing
 close behavior. The regression executes the production capture callbacks against
 state ports, including the real `closeCard`/`place` code, without a DOM.
 
-P1-S39's separate editor finding is a proven product bug (NB-112): ContentField
-handled inline Escape only for connectors, while usePageKeys intentionally skips
-textareas. Sticky text therefore had no Escape close path, independently of remote
-Cancel timing. Apply the existing inline close action to all inline text fields;
-retain composition guards and text. Spotlight/presence capture handlers already
-yield to textareas, and App's stable inline editor position has no spotlight key
-or remount branch. The remote Stop verdict above remains unchanged.
+P1-S39's separate editor step expected Escape to close a sticky's inline editor. Interaction v4
+keeps native Escape behaviour inside native text inputs, so the sticky editor staying open is the
+contracted behaviour, not a product bug. The fix-round change that closed every inline editor on
+Escape (`3ff5a7b`, with its check P1-U64) was reverted in `1bdd937`; the check script's
+expectation is corrected instead. The remote Stop verdict above remains unchanged.
 
 | New check name | f185482 source | Fixed source |
 | --- | --- | --- |
 | P1-U63 NB-111 hidden comment inputs preserve card and composer drafts until Comments reopens | FAIL: People Escape closed hidden card | PASS |
-| P1-U64 NB-112 sticky editor Escape closes after remote Cancel while retaining text and IME protection | FAIL: sticky remained inline | PASS |
+| P1-U64 NB-112 sticky editor Escape closes after remote Cancel while retaining text and IME protection | FAIL: sticky remained inline | Reverted with `3ff5a7b` (see above) |
 
 `npm run typecheck` passed all five workspaces. `npm test` ran once this round:
 1,112/1,112 passed, zero failures/skips. Focused command:

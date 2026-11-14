@@ -528,3 +528,22 @@ persistence v10 (service-table count now 17), sync v13, presence v4, self-host
 runner v7, identity v4 and document v15 remain unchanged.
 Document10/fileVersion2/room layout7/backup envelope1, comments v4/local storage
 v3/toolchain-lock-inventory v5/runtime notices v3 remain in force.
+
+For 0009-W2 v1, use these three successor contracts in place of their earlier
+versions, including inherited cross-references:
+
+- [0001 document v16](0001-document-v16.md): the `mindNode` type, schema 11, the
+  structure rule, version references in other contracts, the hosted room's load
+  upgrade and mind-node repair, and the adapter.
+- [0001 interaction v40](0001-interaction-v40.md): single source of the Mind map
+  tool, layout, branches, add buttons, moving and reparenting, collapse, deleting,
+  context bar, words and keys.
+- [0001 web modules v38](0001-web-modules-v38.md): five new modules, the counts
+  (14 package files, 9 object types, 13 scene parts), six App.tsx line
+  substitutions, the seams and the `BoardV11`/`ItemV11` rename.
+
+[The W2 brief](../briefs/0009-W2-build-and-restructure-mind-maps.md) defines
+allowed files and checks. Storage v3, board file v4, hosted persistence v10,
+hosted storage v11, sync v13, board lifecycle v5, API v12, team templates v1 and
+the activity catalogue v1 change only their document version, as document v16
+states. fileVersion2/room layout7/backup envelope1/17 service tables remain.

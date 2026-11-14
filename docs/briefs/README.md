@@ -410,3 +410,10 @@ and viewers in the Templates panel, and adds independent copies by the existing
 activity insertion. Five successor contracts define the stored record, routes,
 rights, look and modules. One new service table; no document, file or dependency
 change; implementation has not started.
+
+[0009-W2 v1 — Build and restructure mind maps](0009-W2-build-and-restructure-mind-maps.md)
+(draft) adds a Mind map tool that places a starter map, add buttons and keys for children and
+siblings, an automatic layout after every change, reparenting and detaching by drag with no loops,
+collapsible branches and one Undo per step, on local and hosted boards. Three successor contracts
+define the `mindNode` type (document version 11), the look and behaviour, and the modules; the hosted
+room upgrades version 10 boards on load. No dependency change; implementation has not started.

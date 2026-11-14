@@ -23,7 +23,7 @@ export function richBoard() {
 
 // Long drawing coordinates reach the canonical byte boundary within 250 objects.
 // Canonicalize the small skeleton first, so an over-limit fixture can still be serialized.
-export function sizedBoard(bytes = 2097152, version = 10) {
+export function sizedBoard(bytes = 2097152, version = 11) {
   let board = richBoard();
   board.title = "Sized";
   board.objects[2].text = "";

@@ -177,7 +177,13 @@ check(405, "a stored version 10 history snapshot restores as version 11; a versi
   const ordinal = Math.max(...list.versions.map((v: any) => v.ordinal)) + 1;
   await sql([{ sql: "INSERT OR IGNORE INTO identifiers VALUES (?, ?, 0)", bindings: [object.id, object.generation] },
     { sql: "INSERT INTO versions VALUES (?, ?, ?, ?, ?, 'manual', 'Old', '', NULL, NULL, '')", bindings: [id, ordinal, Date.now(), head.revision, head.generation] },
-    { sql: `INSERT INTO version_chunks VALUES (?, 0, ${hex(bytes)})`, bindings: [id] }]);
+    { sql: `INSERT INTO version_chunks VALUES (?, 0, ${hex(bytes)})`, bindings: [id] },
+    // Leave the room's history metadata as a real capture would: the next capture's
+    // ordinal is meta + 1, and ordinals are unique.
+    { sql: "UPDATE meta SET value = ? WHERE key = 'history_ordinal'", bindings: [ordinal] },
+    { sql: "UPDATE meta SET value = ? WHERE key = 'history_revision'", bindings: [head.revision] },
+    { sql: "UPDATE meta SET value = ? WHERE key = 'history_capture_sha256'", bindings: [await sha256(bytes)] },
+    { sql: "UPDATE meta SET value = ? WHERE key = 'history_capture_bytes'", bindings: [bytes.length] }]);
   let restored = await ok(`/boards/${f.a}/versions/${id}/restore`, "owner", "POST", { requestId: crypto.randomUUID(), expectedRevision: head.revision, expectedGeneration: head.generation });
   let stored = await exported();
   assert.equal(stored.schemaVersion, 11); assert.deepEqual(stored.objects.map((o: any) => [o.id, o.type, o.text]), [[object.id, "sticky", ""]]);

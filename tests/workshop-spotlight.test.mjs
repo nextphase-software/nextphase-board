@@ -184,3 +184,67 @@ unit(55,'Worker normalization cleanup preserves original grace while real termin
   }
 });
 unit(56,'banner top measures only top bars, context and notices, never the bottom tool palette',async()=>{const {readFile}=await import('node:fs/promises');const s=await readFile(new URL('../apps/web/src/team/spotlight-layer.tsx',import.meta.url),'utf8');const m=s.match(/visible\('([^']*)'\)\.map\(n=>n\.getBoundingClientRect\(\)\.bottom\)/);assert(m,'bottom selector found');const parts=m[1].split(',').map(x=>x.trim());for(const want of ['.file','.actions','.context','.context-bar','.team-banner','.team-notice-column'])assert(parts.includes(want),want);assert(!parts.includes('.palette'),'bottom palette must not set the banner top');const {spotlightGeometry:g}=await import('../apps/web/src/team/spotlight-rules.ts');const r=g(1280,800,[56,60],[]);assert.equal(r.top,72);assert(r.maxHeight>600);});
+
+let hostedModule;
+async function hostedController() {
+  // Bundle the existing extensionless web imports; replace only browser I/O ports.
+  hostedModule ??= (async () => {
+    const {build}=await import('esbuild');
+    const {mkdtemp,writeFile,rm}=await import('node:fs/promises');
+    const {join}=await import('node:path'),{tmpdir}=await import('node:os');
+    const {fileURLToPath,pathToFileURL}=await import('node:url');
+    const result=await build({entryPoints:[fileURLToPath(new URL('../apps/web/src/team/hosted-board.ts',import.meta.url))],bundle:true,write:false,format:'esm',platform:'node',plugins:[{name:'spotlight-unit-ports',setup(b){
+      b.onLoad({filter:/\/team\/api\.ts$/},()=>({contents:"export function api(){throw Error('Unexpected HTTP request');} export class ApiError extends Error {}",loader:'js'}));
+      b.onLoad({filter:/\/team\/auth\.ts$/},()=>({contents:'export const auth={};',loader:'js'}));
+      b.onLoad({filter:/\/team\/config\.ts$/},()=>({contents:"export const socketOrigin='ws://127.0.0.1';",loader:'js'}));
+    }}]});
+    const folder=await mkdtemp(join(tmpdir(),'board-spotlight-unit-'));
+    try { const path=join(folder,'host.mjs');await writeFile(path,result.outputFiles[0].text);return await import(pathToFileURL(path).href); }
+    finally { await rm(folder,{recursive:true,force:true}); }
+  })();
+  const {HostedBoard}=await hostedModule,f=await controller();
+  const host=new HostedBoard({kind:'board',board:randomUUID()},()=>{}),s=host.spotlight;
+  host.snapshot={...host.snapshot,connected:true,role:'editor'};
+  host.presence={...host.presence,...f.host.presence};
+  host.readSpotlight=id=>{f.reads.push(id);return true;};
+  host.sendSpotlight=c=>{f.commands.push(c);return true;};
+  return {...f,host,s,close(){s.clear();f.close();}};
+}
+function idleProjection(p,controlVersion=0) {
+  return {...p,session:{...p.session,sessionId:null,controlVersion,phase:'idle',presenter:null},own:{membershipVersion:0,following:false}};
+}
+function spotlightState(f,p,cause='start') {
+  f.s.receive({kind:'spotlight_state',cause,spotlight:p,restoreGeneration:0});
+}
+function confirmFollow(f) {
+  f.s.receive({kind:'spotlight_result',requestId:f.commands.at(-1).requestId,cause:'follow',spotlight:{...f.p,own:{membershipVersion:1,following:true}},restoreGeneration:0});
+}
+unit(57,'NB-110 preview history emits preserve a new deferred offer until current board and full window',async()=>{
+  const f=await hostedController();try {
+    f.s.joined(idleProjection(f.p));
+    f.host.history.previewing=true;f.host.historyChanged();
+    spotlightState(f,f.p);f.s.presence(f.p.session.presenter.connection);
+    for(const at of [500,1000,2000]) { f.time.advance(at);f.host.historyChanged(); }
+    f.time.advance(6000);
+    assert.equal(f.commands.length,0);assert.equal(f.s.motion,false);
+    f.host.history.previewing=false;f.host.historyChanged();
+    f.s.presence(f.p.session.presenter.connection);
+    f.time.advance(8999);assert.equal(f.commands.length,0);
+    f.time.advance(9000);assert.deepEqual(f.commands.map(c=>c.action),['follow']);
+    confirmFollow(f);f.time.advance(12000);assert.equal(f.commands.length,1);
+  } finally { f.close(); }
+});
+unit(58,'NB-110 hidden return follows exactly at the full safe deadline despite late presence and readback',async()=>{
+  const f=await controller();try {
+    f.s.joined(idleProjection(f.p));f.s.safetyChanged({visible:false});
+    spotlightState(f,f.p);f.s.presence(f.p.session.presenter.connection);
+    f.time.advance(6000);assert.equal(f.commands.length,0);assert.equal(f.s.motion,false);
+    f.s.safetyChanged({visible:true});
+    // Foreground readback and real active=false presence may arrive off the tick grid.
+    f.time.advance(8100);f.s.receive({kind:'spotlight_snapshot',requestId:f.reads.at(-1),spotlight:f.p,restoreGeneration:0});
+    f.time.advance(8780);f.s.presence(f.p.session.presenter.connection);
+    f.time.advance(8999);assert.equal(f.commands.length,0);
+    f.time.advance(9000);assert.deepEqual(f.commands.map(c=>c.action),['follow']);
+    confirmFollow(f);f.time.advance(12000);assert.equal(f.commands.length,1);
+  } finally { f.close(); }
+});

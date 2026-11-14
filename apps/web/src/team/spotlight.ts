@@ -99,7 +99,7 @@ export class BoardSpotlight {
     this.mode='offer';this.deadline??=Date.now()+3000;
     this.seconds=Math.max(1,Math.ceil((this.deadline-Date.now())/1000));
     if(Date.now()>=this.deadline){this.command('follow');return;}
-    clearTimeout(this.timer);this.timer=setTimeout(()=>{this.offer();this.changed();},100);
+    clearTimeout(this.timer);this.timer=setTimeout(()=>{this.offer();this.changed();},Math.min(100,this.deadline-Date.now()));
   }
   safetyChanged(change:Partial<Safety>){const foreground=!this.safety.visible&&change.visible===true;this.safety={...this.safety,...change};if(foreground){if(Date.now()-this.sampleAt>=30000)this.uncertain();if(this.reading&&Date.now()-this.readAt>=15000)this.reading=undefined;this.read();}this.offer();this.changed();}
   command(action:SpotlightAction){
@@ -120,7 +120,7 @@ export class BoardSpotlight {
   dismiss=()=>{if(this.following||this.pending?.action==='follow')this.leave();this.intent='dismissed';this.changed();};
   localAction(){if(!this.presenting&&(this.following||this.mode==='offer'||this.mode==='deferred'))this.following?this.leave():this.decline();}
   workshopChanged(){this.capability=undefined;this.suppressed=true;this.deadline=undefined;this.pending=undefined;clearTimeout(this.timer);if(this.projection?.session.phase!=='idle'){this.reading=undefined;this.uncertain();}}
-  preview(){if(this.host.history.previewing){if(this.presenting)this.command('stop');else this.localAction();}this.safetyChanged({preview:this.host.history.previewing});}
+  preview(){if(this.host.history.previewing&&!this.safety.preview){if(this.presenting)this.command('stop');else this.localAction();}this.safetyChanged({preview:this.host.history.previewing});}
   escape(){if(this.pending){this.following||this.pending.action==='follow'?this.leave():this.dismiss();return;}if(this.presenting)this.command('stop');else if(this.following)this.leave();else if(this.visible)this.decline();}
   private uncertain(){clearTimeout(this.timer);this.pending=undefined;this.mode='uncertain';this.deadline=undefined;this.fresh=false;this.changed();if(this.reading&&Date.now()-this.readAt>=15000)this.reading=undefined;this.read();}
   disconnect(recover=true){clearInterval(this.health);this.reading=undefined;clearTimeout(this.timer);this.pending=undefined;this.deadline=undefined;this.resumeReady=false;this.fresh=false;if(!recover){this.clear();return;}this.mode='uncertain';this.changed();}

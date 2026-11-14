@@ -212,14 +212,21 @@ async function backup() {
   const r = await driver.request(`/operator/boards/${f.a}/backup`, { method: "POST", headers: { "Board-Operator-Key": context.operatorKey } }); assert.equal(r.status, 200); return r.json() as Promise<any>;
 }
 check(395, "library mutations leave source document revision history and room inventory unchanged", async () => {
+  async function backupState() {
+    // The envelope time describes this read, not a change to the room.
+    const { createdAt, ...state } = await backup();
+    assert.equal(typeof createdAt, "string");
+    assert.equal(new Date(createdAt).toISOString(), createdAt);
+    return state;
+  }
   const { peer } = await join(); await ok(`/boards/${f.a}/versions`);
-  const before = { export: await ok(`/boards/${f.a}/export`), backup: await backup(),
+  const before = { export: await ok(`/boards/${f.a}/export`), backup: await backupState(),
     board: await helper("rows", { table: "boards", filters: { id: f.a } }), versions: await ok(`/boards/${f.a}/versions`) };
   await driver.control({ board: f.a, settled: true }); const frames = peer.messages.length;
   const t = await save(); await ok(path(t.id), "owner", "PATCH", { name: "Updated", description: "" });
   await ok(path(t.id), "owner", "PATCH", { sourceBoard: f.a, objects: content(true) }); await ok(path(t.id), "owner", "DELETE", undefined, 204);
   await driver.control({ board: f.a, settled: true }); assert.equal(peer.messages.length, frames);
-  assert.deepEqual({ export: await ok(`/boards/${f.a}/export`), backup: await backup(),
+  assert.deepEqual({ export: await ok(`/boards/${f.a}/export`), backup: await backupState(),
     board: await helper("rows", { table: "boards", filters: { id: f.a } }), versions: await ok(`/boards/${f.a}/versions`) }, before);
 });
 check(396, "tickets joined and room snapshots never carry template data", async () => {

@@ -2,6 +2,7 @@
 
 Contract version: 41 (for 0009-W3 brief v1, 2026-11-14). Status: Draft. When accepted it replaces
 [interaction v40](0001-interaction-v40.md) for later work. Uses [document v17](0001-document-v17.md).
+Amended in 0009-W3 fix round 1 (2026-11-14): spacing handles take presses, the Tidy up bar sits outside the scene, and oversized grids disable Apply.
 
 Every rule in v40 (and, through it, v39 back to v4 and the 0001-W3 presentation) still applies except
 where this version replaces or adds to it. This version adds three things, on local and hosted boards
@@ -273,7 +274,7 @@ tallest item in it. The **spacing** `s` (default **24**, between 0 and 400, whol
 neighbouring columns and neighbouring rows. The grid's width is the sum of its column widths plus
 `(c − 1) × s`, its height likewise. Its top-left is placed so the grid is centred on the centre of the
 items' bounds before tidying, rounded to whole units (halves away from zero); if the grid would cross
-the board's edge it is moved inside by the least distance. Each item's **offset** in each direction is
+the board's edge it is moved inside by the least distance. When the grid is wider or taller than the board (2,000,000 units), its left (or top) edge is placed at the board's edge and Apply is unavailable: the button is disabled with the `title` `The grid doesn't fit on the board.` and Enter does nothing, until a change of columns or spacing makes it fit. Each item's **offset** in each direction is
 `round(target − current)` (halves away from zero), where the target is the position that centres its
 box in its cell; every member of a group or section item moves by its item's offset. Positions that
 were fractional stay fractional. The last row is filled from the left.
@@ -292,7 +293,7 @@ state does not change.
   between vertically neighbouring cells, a horizontal handle at the gap's centre and the column's
   horizontal centre. A handle is a 28 CSS pixel line across the gap, 2 CSS pixels wide, in the accent
   `#7051cf`, with a white circle of radius 4.5 CSS pixels (to the middle of its 2 CSS pixel accent ring)
-  at its centre; its press area is 20 × 28 CSS pixels along the line. Handles are pointer targets only:
+  at its centre; its press area is 20 × 28 CSS pixels along the line. Handles are pointer targets only: they take presses although the scene's other overlays do not;
   not buttons, not focusable, no hover background, with the `ew-resize` (vertical handle) or
   `ns-resize` (horizontal handle) cursor; keyboard users use the Spacing field. While dragged its line
   is 3 CSS pixels wide and its circle radius 6, filled with the accent, and a label shows the spacing:
@@ -303,7 +304,7 @@ state does not change.
   handle's axis (x for a vertical handle, y for a horizontal one) divided by the zoom, rounded, between
   0 and 400; the preview follows the pointer.
 - **The Tidy up bar** replaces the context bar: a `section` with the context bar's class and look,
-  rendered inside the scene (so a press on it is not a canvas press), placed by the context bar's rule
+  rendered beside the context bar, outside the scene, and stacked like it above the palette and zoom bar (so a press on it is not a canvas press), placed by the context bar's rule
   with the grid's screen bounds, as for a selection with no connection dots, no single item and no
   inline editor, using its own measured width. Left to right: the label `Tidy up` (white, 13 CSS
   pixels, weight 600, 0 × 8 padding); a divider; a **Columns** group: the text `Columns` (`#d9d6de`,

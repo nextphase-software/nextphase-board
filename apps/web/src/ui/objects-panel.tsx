@@ -193,7 +193,7 @@ export function ObjectsPanel({
           <button
             key={name}
             aria-label={(selected.size > 1 ? "Move objects " : "Move object ") + name}
-            disabled={!!geometryReason} title={geometryReason || undefined} aria-describedby={geometryReason === FOLLOW_REASON ? "geometry-reason" : undefined}
+            disabled={!!geometryReason} title={tidy.open ? TIDY_WAIT : undefined} aria-describedby={geometryReason === FOLLOW_REASON ? "geometry-reason" : undefined}
             onClick={() => move(Number(x), Number(y))}
           >
             {s}

@@ -58,7 +58,7 @@ export function tidyGrid(input: readonly TidyItem[], columns=Math.ceil(Math.sqrt
   const handles:SpacingHandle[]=[];
   for(let r=0;r<rows;r++) for(let c=0;c<columns-1;c++) if(items[r*columns+c+1]) handles.push({id:`v-${r}-${c}`,axis:'x',x:xs[c]+widths[c]+spacing/2,y:ys[r]+heights[r]/2});
   for(let r=0;r<rows-1;r++) for(let c=0;c<columns;c++) if(items[(r+1)*columns+c]) handles.push({id:`h-${r}-${c}`,axis:'y',x:xs[c]+widths[c]/2,y:ys[r]+heights[r]+spacing/2});
-  return {items,columns,spacing,bounds,widths,heights,offsets,handles};
+  return {items,columns,spacing,bounds,widths,heights,offsets,handles,fits:width<=2e6&&height<=2e6};
 }
 export type TidyGrid = ReturnType<typeof tidyGrid>;
 export function applyTidy(board: Board, grid: TidyGrid): Board {

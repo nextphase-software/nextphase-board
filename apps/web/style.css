@@ -1520,7 +1520,7 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
 .context .tape-label, .context .tidy-label { color: white; font-size: 13px; font-weight: 600; padding: 0 8px; white-space: nowrap; }
 .tape-control summary { padding: 0 6px; }
 .tidy-grid { position: absolute; margin: -1px; border: 1.5px solid #518de0; pointer-events: none; box-sizing: border-box; }
-.tidy-handle { position: absolute; z-index: 2; touch-action: none; }
+.scene > .tidy-handle { position: absolute; z-index: 2; touch-action: none; pointer-events: auto; }
 .tidy-handle.vertical { width: 20px; height: 28px; margin: -14px 0 0 -10px; cursor: ew-resize; }
 .tidy-handle.horizontal { width: 28px; height: 20px; margin: -10px 0 0 -14px; cursor: ns-resize; }
 .tidy-handle-line { position: absolute; background: #7051cf; pointer-events: none; }

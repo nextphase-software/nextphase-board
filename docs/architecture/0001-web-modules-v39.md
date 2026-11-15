@@ -1,6 +1,7 @@
 # 0001 — Web app modules
 
 Note version: 39 (for 0009-W3 brief v1, 2026-11-14). Status: Draft.
+Amended in 0009-W3 fix round 1 (2026-11-14): TidyUpLayer stays inside the scene and TidyUpBar renders beside ContextBar outside it.
 Replaces [web modules v38](0001-web-modules-v38.md), whose registry, import, composition,
 one-state-owner and team guards remain word for word except as below. [Document v17](0001-document-v17.md)
 and [interaction v41](0001-interaction-v41.md) add washi tape, twelve shape kinds and Tidy up with
@@ -57,18 +58,15 @@ permitted changes are these eleven substitutions on existing lines (5397b75 line
    outlines follow the preview;
 5. the `useCanvasInput` argument line that passes `drawing` (104) gains `tidy`;
 6. the `BoardDrawing` props line (173) passes `board={tidy.board}` and `selected={tidy.selected}`;
-7. the `ConnectionDots`/`MindMapButtons` line (180) gains `<TidyUpLayer … />` and `<TidyUpBar … />`
-   after `<MindMapButtons … />`, passing only values App already has;
-8. the condition `selected.size > 0 &&` opening the `ContextBar` block (221) becomes
-   `selected.size > 0 && !tidy.open &&`;
+7. the `ConnectionDots`/`MindMapButtons` line (180) gains `<TidyUpLayer … />` after `<MindMapButtons … />`, passing only values App already has;
+8. the condition `selected.size > 0 &&` opening the `ContextBar` block (221) becomes `{tidy.open && <TidyUpBar … />}{selected.size > 0 && !tidy.open &&`, `TidyUpBar` receiving only values App already has;
 9. the first props line of `<ContextBar` (223) gains `tapeSelection={tapeSelection} tidy={tidy}`;
 10. the first props line of `<ObjectsPanel` (210) gains `tapeSelection={tapeSelection} tidy={tidy}`;
 11. the `useCommandReasons` argument line that passes `displayedObjects` (115) gains `tidy`, so the
     selection and clipboard reasons read `Apply or cancel Tidy up first.` while a preview is open.
 The existing "0009-W2 App composition" test in `tests/modules.test.mjs` (583–602) is rewritten (not kept
 beside a new one) to derive the expected App from 5397b75's App with exactly these eleven
-substitutions. Line 180's elements get `pos`, `view`, `size` and `layout`, which App already has, so
-`TidyUpBar` places itself with `contextBarPosition`.
+substitutions. `TidyUpBar` gets `pos`, `view`, `size` and `layout`, which App already has, and places itself with `contextBarPosition`.
 The session pattern travels inside `drawing` (from `use-gesture-state.ts`), the tape pattern command
 inside `strokeCommands` (from `use-editing-commands.ts`), and tape end moves inside `use-canvas-input.ts`
 through `tape.ts` and `commit`, so none needs another App change.

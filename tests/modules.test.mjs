@@ -623,11 +623,11 @@ test("0009-W3 App composition changes only its eleven substitutions", () => {
   ],
   [
     "readOnly={readOnly} command={command} />\n",
-    "readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><TidyUpBar tidy={tidy} pos={pos} view={view} size={size} layout={layout} />\n"
+    "readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} />\n"
   ],
   [
     "{selected.size > 0 && (",
-    "{selected.size > 0 && !tidy.open && ("
+    "{tidy.open && <TidyUpBar tidy={tidy} pos={pos} view={view} size={size} layout={layout} />}{selected.size > 0 && !tidy.open && ("
   ],
   [
     "<ContextBar\n          board={board}",

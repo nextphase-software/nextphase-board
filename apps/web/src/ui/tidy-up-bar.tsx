@@ -23,6 +23,6 @@ export function TidyUpBar({tidy,...position}:{tidy:TidyUI}&TidyPosition) {
     <span className="tidy-field">Columns <button className="tidy-step" aria-label="Fewer columns" disabled={tidy.columns===1} onClick={()=>tidy.changeColumns(tidy.columns-1)}>−</button>
       {field('Columns',tidy.columns,tidy.changeColumns,tidy.grid.items.length)}<button className="tidy-step" aria-label="More columns" disabled={tidy.columns===tidy.grid.items.length} onClick={()=>tidy.changeColumns(tidy.columns+1)}>+</button></span>
     <span className="tidy-field">Spacing {field('Spacing',tidy.spacing,tidy.changeSpacing,400)}</span><span className="divider" aria-hidden="true" />
-    <button className="tidy-cancel" onClick={()=>tidy.cancel(true)}>Cancel</button><button className="tidy-apply" onClick={tidy.apply}>Apply</button>
+    <button className="tidy-cancel" onClick={()=>tidy.cancel(true)}>Cancel</button><button className="tidy-apply" disabled={!tidy.grid.fits} title={tidy.grid.fits ? undefined : "The grid doesn't fit on the board."} onClick={tidy.apply}>Apply</button>
   </section>;
 }

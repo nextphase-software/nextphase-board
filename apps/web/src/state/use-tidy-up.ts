@@ -36,7 +36,7 @@ export function useTidyUp({board,selected,commit,tool,setMessage,hosted,scene,re
     setSession({before:board,items,tool,selection,columns:Math.ceil(Math.sqrt(items.length)),spacing:24});setDrag(null);focus();
   }
   function apply() {
-    if(readOnly||!session||!grid)return;
+    if(readOnly||!session||!grid||!grid.fits)return;
     if(placedChanged(session.before,board,session.items)){cancel();return;}
     setSession(null);setDrag(null);commit(applyTidy(board,grid),true);focus();
     setMessage(`Tidied ${grid.items.length} objects into ${grid.columns} columns.`);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 const load=p=>import(new URL('../'+p,import.meta.url));
 const tidy=()=>load('apps/web/src/tidy-up.ts');
 async function six(){const {empty,add}=await load('packages/board-rules/src/document.ts');let b={...empty(),title:'Layout'};for(const [x,y]of [[0,0],[400,0],[800,0],[0,400],[400,400],[800,400]]) b=add(b,'sticky',x,y);return b;}
@@ -75,4 +76,46 @@ test('TU-U10 actual hosted change cancels only when a placed object or member ch
  h.props.selected=new Set(b.objects.slice(0,3).map(o=>o.id));h.refresh();h.tidy.start(editable);h.refresh();h.props.board={...b,objects:b.objects.map((o,i)=>i===5?{...o,text:'Other edit'}:o)};h.refresh();assert(h.tidy.open);assert.equal(h.tidy.board.objects[5].text,'Other edit');
  h.props.board={...h.props.board,objects:h.props.board.objects.map((o,i)=>i===0?{...o,x:o.x+1}:o)};h.refresh();assert(!h.tidy.open);assert.deepEqual(toasts,['Tidy up was cancelled because the objects changed.']);assert.equal(h.events.commits.length,0);
  }finally{h.close();}
+});
+test('TU-U11 spacing handles override scene hit suppression while the grid and label stay pointer-free',()=>{
+ const css=readFileSync(new URL('../apps/web/style.css',import.meta.url),'utf8');
+ const rule=selector=>css.match(new RegExp('(?:^|})\\s*'+selector.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*\\{([^}]*)\\}'))?.[1]??'';
+ assert.match(rule('.scene > div'),/pointer-events:\s*none/);
+ // Two classes outrank the scene's class + element rule; a bare handle class does not.
+ assert.match(rule('.scene > .tidy-handle'),/pointer-events:\s*auto/);
+ for(const selector of ['.tidy-grid','.tidy-spacing-label'])assert.match(rule(selector),/pointer-events:\s*none/);
+});
+let screenParts;
+async function screens(){
+ if(!screenParts)screenParts=(async()=>{
+ const {build}=await import('esbuild'),reactURL=new URL('../node_modules/react/index.js',import.meta.url),{createElement}=await import(reactURL),{renderToStaticMarkup}=await import('react-dom/server');
+ const result=await build({stdin:{contents:'export {TidyUpBar} from "./ui/tidy-up-bar.tsx";export {ObjectsPanel} from "./ui/objects-panel.tsx";export {useCanvasInput} from "./state/use-canvas-input.ts";',resolveDir:new URL('../apps/web/src/',import.meta.url).pathname,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',plugins:[{name:'shared-react',setup(b){b.onResolve({filter:/^react(?:\/.*)?$/},args=>({path:args.path==='react'?reactURL.href:new URL('../node_modules/'+args.path+'.js',import.meta.url).href,external:true}));}}]});
+ const parts=await import('data:text/javascript;base64,'+Buffer.from(result.outputFiles[0].text).toString('base64'));
+ return {...parts,render:(part,props)=>renderToStaticMarkup(createElement(part,props))};
+ })();return screenParts;
+}
+test('TU-U12 Objects move buttons have titles only during a Tidy up preview',async()=>{
+ const {ObjectsPanel,render}=await screens(),{empty}=await load('packages/board-rules/src/document.ts');
+ const props={board:{...empty(),title:'Layout'},selected:new Set(),description:{},tapeSelection:{objects:[]},strokeSelection:{objects:[]},shapeSelection:{objects:[]},shapeCommands:{},numbers:new Map(),drafts:{},selectionReason:'Select an object to duplicate or delete.',duplicateReason:'Select an object to duplicate or delete.',clipboardState:editable,objectClipboard:null,view:{x:0,y:0,z:1}};
+ for(const open of [false,true]){
+ const html=render(ObjectsPanel,{...props,tidy:{open}}),buttons=[...html.matchAll(/<button[^>]*aria-label="Move object (?:left|up|down|right)"[^>]*>/g)].map(m=>m[0]);assert.equal(buttons.length,4);
+ for(const button of buttons){assert.match(button,/disabled=""/);if(open)assert.match(button,/title="Apply or cancel Tidy up first\."/);else assert.doesNotMatch(button,/\btitle=/);}
+ }
+});
+test('TU-U13 oversized width or height pins to the board edge and refuses Apply/Enter until columns or spacing fit',async()=>{
+ const {empty,validate}=await load('packages/board-rules/src/document.ts'),{TidyUpBar,useCanvasInput,render}=await screens();
+ for(const axis of ['x','y'])for(const change of ['columns','spacing']){
+ const board={...empty(),title:'Large layout',objects:Array.from({length:3},(_,order)=>({id:crypto.randomUUID(),generation:crypto.randomUUID(),type:'stroke',kind:'marker',color:'black',weight:'thin',group:null,section:null,x:axis==='x'?-1e6:order*10,y:axis==='y'?-1e6:order*10,width:axis==='x'?1e6:4,height:axis==='y'?1e6:4,points:axis==='x'?[[2,2],[999998,2]]:[[2,2],[2,999998]],order}))};
+ assert.doesNotThrow(()=>validate(board));const before=structuredClone(board),h=await stateHarness(board);
+ try{
+ h.tidy.start(editable);h.refresh();assert(h.tidy.open);assert.equal(h.tidy.grid.fits,false);assert.equal(h.tidy.grid.bounds[axis],-1e6);
+ const bar=()=>render(TidyUpBar,{tidy:h.tidy,pos:o=>({left:o.x,top:o.y}),view:{x:0,y:0,z:1},size:{w:1280,h:800},layout:{notice:0,panel:0}});
+ const applyButton=()=>bar().match(/<button[^>]*class="tidy-apply"[^>]*>/)?.[0];assert.match(applyButton(),/disabled=""/);assert.match(applyButton(),/title="The grid doesn&#x27;t fit on the board\."/);
+ h.tidy.apply();h.refresh();assert(h.tidy.open);assert.equal(h.events.commits.length,0);
+ let input;render(()=>{input=useCanvasInput({tidy:h.tidy,tool:'Select',selected:ids(board),drag:{current:null},spacePanRef:{current:false},view:{x:0,y:0,z:1},displayedObjects:[]});return null;});
+ const target={};input.sceneKeyDown({key:'Enter',target,currentTarget:target,preventDefault(){},stopPropagation(){}});h.refresh();assert(h.tidy.open);assert.equal(h.events.commits.length,0);assert.deepEqual(board,before);assert.equal(h.events.messages.length,0);
+ if(change==='spacing')h.tidy.changeSpacing(0);else h.tidy.changeColumns(axis==='x'?1:3);h.refresh();assert(h.tidy.grid.fits);assert.doesNotMatch(applyButton(),/\b(?:disabled|title)=/);
+ const preview=h.tidy.board;h.tidy.apply();h.refresh();assert(!h.tidy.open);assert.deepEqual(h.events.commits,[{next:preview,record:true}]);assert.doesNotThrow(()=>validate(preview));
+ }finally{h.close();}
+ }
 });

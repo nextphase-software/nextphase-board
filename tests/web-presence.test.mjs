@@ -102,7 +102,7 @@ test("follow fits equal and differently sized scenes around the sent view centre
 
 test("follow respects the zoom floor ceiling and board centre limits", async () => {
   const { fitFollow } = await import("../apps/web/src/team/presence.ts");
-  assert.deepEqual(fitFollow({ x: -1200, y: -700, width: 2560, height: 1600 }, { w: 900, h: 700 }), { x: 80, y: 100, z: .5 });
+  assert.deepEqual(fitFollow({ x: -1200, y: -700, width: 2560, height: 1600 }, { w: 900, h: 700 }), { x: 80, y: 100, z: 0.3515625 });
   assert.deepEqual(fitFollow({ x: 50, y: -100, width: 100, height: 100 }, { w: 1280, h: 800 }), { x: 100, y: -50, z: 2 });
   assert.deepEqual(fitFollow({ x: 1e6, y: 1e6, width: 100, height: 100 }, { w: 1280, h: 800 }), { x: 1e6, y: 1e6, z: 2 });
 });

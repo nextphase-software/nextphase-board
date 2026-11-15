@@ -1539,3 +1539,34 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
 .context.tidy-bar .tidy-apply { color: white; background: #7051cf; border: 0; font-size: 13px; font-weight: 600; height: 30px; min-height: 30px; padding: 0 14px; border-radius: 6px; margin-left: 4px; }
 .context.tidy-bar .tidy-apply:hover { color: white; background: #6142be; }
 .context.tidy-bar .tidy-step:hover:not(:disabled), .context.tidy-bar .tidy-cancel:hover { background: #57525f; color: white; }
+
+/* Find and navigation, interaction v42. Rings are in scene screen coordinates. */
+.find-bar { right: 12px; top: 68px; width: 290px; padding: 3px 6px 3px 12px; z-index: 4; color: #29202e; line-height: 1.2; }
+.find-bar:has(input:focus) { border-color: #7051cf; }
+.find-row { display: grid; grid-template-columns: 18px minmax(0,1fr) auto 40px 40px 5px 40px; grid-template-rows: 40px; column-gap: 4px; row-gap: 2px; align-items: center; }
+.find-search { display: flex; color: #6f6876; grid-column: 1; grid-row: 1; }
+.find-row input { grid-column: 2; grid-row: 1; min-width: 0; width: 100%; border: 0; background: transparent; outline: none; padding: 0 4px; font-size: 14px; line-height: 1.2; }
+.find-live { display: contents; }
+.find-counter { grid-column: 3; grid-row: 1; font-size: 13px; color: #6f6876; font-variant-numeric: tabular-nums; white-space: nowrap; margin-right: 2px; }
+.find-row > button { grid-row: 1; }
+.find-row > button:nth-of-type(1) { grid-column: 4; }
+.find-row > button:nth-of-type(2) { grid-column: 5; }
+.find-row > button:nth-of-type(2) > svg { transform: rotate(180deg); }
+.find-row > button:nth-of-type(3) { grid-column: 7; }
+.find-divider { grid-column: 6; grid-row: 1; width: 1px; height: 20px; margin: 0 2px; background: #e9e7ed; }
+.find-removed { grid-column: 2 / -1; grid-row: 2; padding: 0 0 3px 4px; font-size: 12px; color: #6f6876; overflow-wrap: anywhere; }
+.find-bar .tooltip { bottom: auto; top: calc(100% + 8px); }
+.find-bar button:last-child .tooltip { left: auto; right: 0; transform: none; }
+.find-ring { position: absolute; pointer-events: none; border: 2px solid #fcc419; border-radius: 6px; }
+.find-ring.current { border: 3px solid #f08c00; border-radius: 7px; box-shadow: 0 0 0 3px rgba(240,140,0,0.18); }
+.navigation kbd { font: 12px/1.2 system-ui; color: #6f6876; }
+.navigation .find-hint { margin-left: 6px; }
+.navigation-fit { display: flex; gap: 8px; }
+.navigation-fit button { flex: 1; min-width: 0; padding: 6px 4px; line-height: 1.2; }
+.navigation-fit kbd { display: block; font-size: 11px; margin-top: 2px; }
+.navigation h3 { font-size: 13px; font-weight: 600; margin: 6px 0 0; }
+.navigation-sections { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.navigation-sections button { width: 100%; overflow-wrap: anywhere; }
+.navigation-empty { margin: 0; font-size: 13px; color: #6f6876; }
+.navigation-pan { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 767px) { .find-bar { left: 12px; right: 12px; width: calc(100% - 24px); } }

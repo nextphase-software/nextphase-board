@@ -16,6 +16,12 @@ still run normally; never bypass them.
 
 ## Reference commands and coverage
 
+`find.test.mjs` covers 0010-W1's searchable displayed objects, matching and reading order,
+object boxes, current/removed/restored result navigation, counters, fading and section labels,
+and the Find state and key boundaries. `view.test.mjs` covers its zoom steps and free-area,
+fit and show rules. They run with `npm test` without a browser or Supabase; F1 and the
+independent baseline and A–J comparisons belong to the later check run.
+
 `home.test.mjs` covers 0003-W5's Home links, page joining, edited-time words, role and
 sort words, creation and rename permissions, held names and menu placement. It runs
 with `npm test` without Supabase or a browser.

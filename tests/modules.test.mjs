@@ -116,7 +116,7 @@ test("the import guards catch each forbidden form", () => {
   }
 });
 
-test("screen parts contain exactly the twenty-nine screen modules named through 0009-W3 v1", () => {
+test("screen parts contain exactly the thirty screen modules named through 0010-W1 v1", () => {
   assert.deepEqual(screenParts, [
     "arrange-controls.tsx",
     "board-panel.tsx",
@@ -130,6 +130,7 @@ test("screen parts contain exactly the twenty-nine screen modules named through 
     "context-bar.tsx",
     "drawing-tools.tsx",
     "file-bar.tsx",
+    "find-bar.tsx",
     "format-preview.tsx",
     "image-controls.tsx",
     "information-button.tsx",
@@ -183,11 +184,12 @@ test("every screen part begins with the Apache-2.0 licence header", () => {
   }
 });
 
-test("scene parts contain exactly the fifteen modules named through 0009-W3 v1", () => {
+test("scene parts contain exactly the sixteen modules named through 0010-W1 v1", () => {
   assert.deepEqual(sceneParts, [
     "board-drawing.tsx",
     "connection-dots.tsx",
     "connector-body.tsx",
+    "find-rings.tsx",
     "image-body.tsx",
     "inline-editor.tsx",
     "mind-map-buttons.tsx",
@@ -236,7 +238,7 @@ test("screen and scene guard detects equality and inequality in both operand ord
   }
 });
 
-test("state contains exactly the twenty-three hooks named through web modules v39", () => {
+test("state contains exactly the twenty-four hooks named through web modules v40", () => {
   assert.deepEqual(files(new URL("state/", source)).sort(), [
     "use-board-document.ts",
     "use-canvas-input.ts",
@@ -244,6 +246,7 @@ test("state contains exactly the twenty-three hooks named through web modules v3
     "use-context-bar.ts",
     "use-editing-commands.ts",
     "use-editor-placement.ts",
+    "use-find.ts",
     "use-geometry-edits.ts",
     "use-gesture-state.ts",
     "use-hosted-board.ts",
@@ -585,59 +588,48 @@ test("the hosted board hook holds exactly one passive effect", () => {
   assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });
 
-// Web modules v39: eleven clauses, including the two import substitutions.
-test("0009-W3 App composition changes only its eleven substitutions", () => {
-  const base = execFileSync("git", ["show", "5397b75:apps/web/src/App.tsx"], { encoding: "utf8" });
+// Web modules v40: the nine substitutions from the behaviour baseline.
+test("0010-W1 App composition changes only its nine substitutions", () => {
+  const base = execFileSync("git", ["show", "4f53e7f:apps/web/src/App.tsx"], { encoding: "utf8" });
   const substitutions = [
   [
-    "import { useObjectLayouts } from \"./state/use-object-layouts\";",
-    "import { useObjectLayouts } from \"./state/use-object-layouts\"; import { useTidyUp } from \"./state/use-tidy-up\";"
+    "import { useObjectLayouts } from \"./state/use-object-layouts\"; import { useTidyUp } from \"./state/use-tidy-up\";",
+    "import { useObjectLayouts } from \"./state/use-object-layouts\"; import { useTidyUp } from \"./state/use-tidy-up\"; import { useFind } from \"./state/use-find\";"
   ],
   [
-    "import { MindMapButtons } from \"./scene/mind-map-buttons\";",
-    "import { MindMapButtons } from \"./scene/mind-map-buttons\"; import { TidyUpLayer } from \"./scene/tidy-up-layer\"; import { TidyUpBar } from \"./ui/tidy-up-bar\";"
+    "import { TidyUpBar } from \"./ui/tidy-up-bar\";",
+    "import { TidyUpBar } from \"./ui/tidy-up-bar\"; import { FindRings } from \"./scene/find-rings\"; import { FindBar } from \"./ui/find-bar\";"
   ],
   [
-    "    strokeSelection, connectorOnly,",
-    "    tapeSelection, strokeSelection, connectorOnly,"
+    "  const pos = (o: { x: number; y: number }) => screenPoint(o, view, size);",
+    "  const pos = (o: { x: number; y: number }) => screenPoint(o, view, size); const find = useFind({ boardId: board.boardId, displayedObjects, selected, select, view, setView, size, scene, composing, busy, tidy, finishTextSession, setInline });"
   ],
   [
-    "  } = useSelection({ board, drafts, textSelection });",
-    "  } = useSelection({ board, drafts, textSelection }); const tidy = useTidyUp({ board, selected, commit, tool, setMessage, hosted: team?.hosted, scene, readOnly });"
+    "voting: team?.hosted?.voting, drawing, tidy, connectorStyle",
+    "voting: team?.hosted?.voting, drawing, tidy, find, connectorStyle"
   ],
   [
-    "    board, selected, selectedId, item, text, inline, textEditing:",
-    "    board: tidy.board, selected: tidy.selected, selectedId, item, text, inline, textEditing:"
+    "backgroundSize: `${24 * view.z}px ${24 * view.z}px`,",
+    "backgroundSize: `${24 * view.z}px ${24 * view.z}px`, backgroundImage: view.z < .5 ? \"none\" : undefined,"
   ],
   [
-    "voting: team?.hosted?.voting, drawing, connectorStyle",
-    "voting: team?.hosted?.voting, drawing, tidy, connectorStyle"
+    "bitmaps={images.bitmaps} connection={connection}",
+    "faded={find.faded} bitmaps={images.bitmaps} connection={connection}"
   ],
   [
-    "history, selected, visibleMessage, snapshots, displayedObjects, hosted:",
-    "history, selected, visibleMessage, snapshots, displayedObjects, tidy, hosted:"
+    "<TidyUpLayer tidy={tidy} pos={pos} view={view} />",
+    "<TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} pos={pos} zoom={view.z} />"
   ],
   [
-    "size={size} view={view} board={board} objectLayouts={objectLayouts} selected={selected}",
-    "size={size} view={view} board={tidy.board} objectLayouts={objectLayouts} selected={tidy.selected}"
+    "      <ZoomControls",
+    "      {find.open && <FindBar find={find} />}<ZoomControls"
   ],
   [
-    "readOnly={readOnly} command={command} />\n",
-    "readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} />\n"
-  ],
-  [
-    "{selected.size > 0 && (",
-    "{tidy.open && <TidyUpBar tidy={tidy} pos={pos} view={view} size={size} layout={layout} />}{selected.size > 0 && !tidy.open && ("
-  ],
-  [
-    "<ContextBar\n          board={board}",
-    "<ContextBar\n          tapeSelection={tapeSelection} tidy={tidy} board={board}"
-  ],
-  [
-    "<ObjectsPanel\n          description=",
-    "<ObjectsPanel\n          tapeSelection={tapeSelection} tidy={tidy} description="
+    "busy={busy} composing={composing} setView={setView} setPanel={setPanel} navButton={navButton}",
+    "busy={busy} composing={composing} setView={setView} setPanel={setPanel} navButton={navButton} find={find}"
   ]
 ];
+  assert.equal(substitutions.length, 9);
   let expected = base;
   for (const [from, to] of substitutions) {
     assert.equal(expected.split(from).length, 2, from);
@@ -646,6 +638,11 @@ test("0009-W3 App composition changes only its eleven substitutions", () => {
   const app = readFileSync(new URL("App.tsx", source), "utf8");
   assert.equal(app, expected);
   assert.equal(app.split("\n").length, base.split("\n").length);
+});
+test("Find owns exactly one passive effect", () => {
+  const content = readFileSync(new URL("state/use-find.ts", source), "utf8");
+  assert.equal((content.match(/\buseEffect\s*\(/g) ?? []).length, 1);
+  assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });
 test("Tidy up owns at most two passive effects", () => {
   const content=readFileSync(new URL("state/use-tidy-up.ts",source),"utf8");

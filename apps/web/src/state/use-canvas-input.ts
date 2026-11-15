@@ -15,6 +15,7 @@ import { hitObject, selectInBox, createConnector, reconnect } from "../connector
 import { deleteObject } from "../history";
 import { drawingPoints, strokeGeometry, makeStroke, erasedStrokes } from "../strokes";
 import { makeTape, tapeGeometry, tapeEnds, moveTapeEnd } from "../tape";
+import type { FindActions } from "../find";
 import type { TidyActions } from "../tidy-up";
 import { editingCommandReason } from "../commands";
 
@@ -23,6 +24,7 @@ import type { BoardVoting } from "../team/voting";
 type Input = {
   voting?: BoardVoting;
   tidy?: TidyActions;
+  find?: FindActions;
   drawing: { style: DrawingStyle; pattern?: TapePattern };
   connectorStyle: RefObject<ConnectorStyle>;
   shapeSession: { paint: RefObject<ShapePaint> };
@@ -67,7 +69,7 @@ type Input = {
 };
 
 export function useCanvasInput({
-  voting, drawing, tidy, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+  voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
   setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
   scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
   selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
@@ -141,6 +143,10 @@ export function useCanvasInput({
   }, [readOnly]);
   function sceneKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget || composing) return;
+    if (e.shiftKey && (e.code === "Digit1" || e.code === "Digit2") && !e.ctrlKey && !e.metaKey && !e.altKey &&
+      !inline && !textEditing && !e.nativeEvent.isComposing && !busy && !drag.current && !tidy?.open) {
+      e.preventDefault(); e.stopPropagation(); e.code === "Digit1" ? find?.zoomToFit() : find?.zoomToSelection(); return;
+    }
     if(voting?.key(e,selected))return;
     if (tidy?.open && (e.key === "Escape" || e.key === "Enter")) { e.preventDefault(); e.stopPropagation(); e.key === "Escape" ? tidy.cancel(true) : tidy.apply(); return; }
     if (e.code === "KeyT" && e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && !inline && !textEditing && !e.nativeEvent.isComposing) {

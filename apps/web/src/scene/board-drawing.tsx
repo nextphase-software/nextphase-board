@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { ConnectionDrag } from "../connection-drag";
 import { reconnectPreview } from "../connectors";
-import { Layer, Stage } from "react-konva";
+import { Group, Layer, Stage } from "react-konva";
 import type { BoardV12 as Board } from "nextphase-board-rules/document.ts";
 import type { View } from "../view";
 import { bandOrder, dropTargets } from "../sections";
@@ -20,6 +20,7 @@ import { NoteBody, type ObjectLayout } from "./note-body";
 import { ImageBody } from "./image-body";
 
 type Props = {
+  faded: ReadonlySet<string>;
   bitmaps: ReadonlyMap<string, ImageBitmap>;
   connection?: ConnectionDrag;
   preview: (Rectangle & StrokeKeys) | (Rectangle & TapeKeys) | { mapDrag: MapDrag } | null;
@@ -32,7 +33,7 @@ type Props = {
   movingIds: readonly string[];
 };
 
-export function BoardDrawing({ bitmaps, connection, preview, size, view, board, objectLayouts, selected, inline, movingIds }: Props) {
+export function BoardDrawing({ faded, bitmaps, connection, preview, size, view, board, objectLayouts, selected, inline, movingIds }: Props) {
   const rectangles = new Map(board.objects.filter(hasRectangle).map((o) => [o.id, { ...o, displayHeight: objectLayouts.get(o.id)!.height }]));
   const targets = dropTargets(board, new Set(movingIds), true);
   const sections = new Set([...targets.values()].filter((id) => id !== null));
@@ -48,15 +49,16 @@ export function BoardDrawing({ bitmaps, connection, preview, size, view, board, 
       >
         {[0, 1, 1, 2].flatMap((band, pass) => [...pass === 3 ? [map("lines")] : [], ...bandOrder(board.objects).filter((o) => orderBand(o) === band && !hidden.has(o.id)).map((o) => {
           const layout = objectLayouts.get(o.id)!;
-          if (hasEnds(o)) return <ConnectorBody key={o.id + pass} object={o} layout={connection?.reconnect?.id === o.id ? reconnectPreview(o, connection.reconnect.end, connection.pointer, connection.side ?? "auto", rectangles, () => layout.connector!.labelBox.width - 24) : layout.connector!}
-            selected={selected.has(o.id)} inline={inline} zoom={view.z} pass={pass === 1 ? "line" : "label"} />;
-          if (isImage(o)) return <ImageBody key={o.id} object={o} bitmap={bitmaps.get(o.asset)} selected={selected.has(o.id)} zoom={view.z} />;
-          if (isTape(o)) return <TapeBody key={o.id} object={o} selected={selected.has(o.id)} zoom={view.z} />;
-          if (hasPoints(o)) return <StrokeBody key={o.id} object={o} selected={selected.has(o.id)} zoom={view.z} />;
+          const fade = (body: React.ReactNode) => faded.has(o.id) ? <Group key={o.id + pass} opacity={0.4}>{body}</Group> : body;
+          if (hasEnds(o)) return fade(<ConnectorBody key={o.id + pass} object={o} layout={connection?.reconnect?.id === o.id ? reconnectPreview(o, connection.reconnect.end, connection.pointer, connection.side ?? "auto", rectangles, () => layout.connector!.labelBox.width - 24) : layout.connector!}
+            selected={selected.has(o.id)} inline={inline} zoom={view.z} pass={pass === 1 ? "line" : "label"} />);
+          if (isImage(o)) return fade(<ImageBody key={o.id} object={o} bitmap={bitmaps.get(o.asset)} selected={selected.has(o.id)} zoom={view.z} />);
+          if (isTape(o)) return fade(<TapeBody key={o.id} object={o} selected={selected.has(o.id)} zoom={view.z} />);
+          if (hasPoints(o)) return fade(<StrokeBody key={o.id} object={o} selected={selected.has(o.id)} zoom={view.z} />);
           if (!hasRectangle(o)) return null;
-          if (isMindNode(o)) return <MindNodeBody key={o.id} o={o} layout={layout} editing={inline && selected.has(o.id)} zoom={view.z}
-            outline={selected.has(o.id) && !drag?.branch.includes(o.id)} faded={!!drag?.branch.includes(o.id)} />;
-          return (
+          if (isMindNode(o)) return fade(<MindNodeBody key={o.id} o={o} layout={layout} editing={inline && selected.has(o.id)} zoom={view.z}
+            outline={selected.has(o.id) && !drag?.branch.includes(o.id)} faded={!!drag?.branch.includes(o.id)} />);
+          return fade(
             objectType(o.type).shapePaint ? <ShapeBody key={o.id} o={o} layout={layout} selected={selected} inline={inline} view={view} /> : objectType(o.type).body === "note" ? <NoteBody key={o.id} o={o} layout={layout} selected={selected} inline={inline} view={view} />
               : <SectionBody key={o.id} o={o} selected={selected} inline={inline} dropTarget={sections.has(o.id)} />
           );

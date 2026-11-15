@@ -127,6 +127,7 @@ function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool
     const keys = (event: globalThis.KeyboardEvent) => {
       if (commentInputBlocked(hosted.surface, hosted.history)) return;
       const target = event.target as Element;
+      if (target.closest('.find-bar')) return;
       if (target.closest(".w1-panel,.w1-trigger")) return;
       if (target.closest(".comment-card,.comment-composer,.comment-menu")) return;
       if (event.key === "Escape" && !event.isComposing) {

@@ -18,10 +18,10 @@ import { useContextBar } from "./state/use-context-bar";
 import { useViewport } from "./state/use-viewport";
 import { useSceneSize } from "./state/use-scene-size";
 import { useSelection } from "./state/use-selection";
-import { useObjectLayouts } from "./state/use-object-layouts"; import { useTidyUp } from "./state/use-tidy-up";
+import { useObjectLayouts } from "./state/use-object-layouts"; import { useTidyUp } from "./state/use-tidy-up"; import { useFind } from "./state/use-find";
 import { useEditorPlacement } from "./state/use-editor-placement";
 import { BoardDrawing } from "./scene/board-drawing";
-import { Overlays } from "./scene/overlays"; import { ConnectionDots } from "./scene/connection-dots"; import { MindMapButtons } from "./scene/mind-map-buttons"; import { TidyUpLayer } from "./scene/tidy-up-layer"; import { TidyUpBar } from "./ui/tidy-up-bar";
+import { Overlays } from "./scene/overlays"; import { ConnectionDots } from "./scene/connection-dots"; import { MindMapButtons } from "./scene/mind-map-buttons"; import { TidyUpLayer } from "./scene/tidy-up-layer"; import { TidyUpBar } from "./ui/tidy-up-bar"; import { FindRings } from "./scene/find-rings"; import { FindBar } from "./ui/find-bar";
 import { InlineEditor } from "./scene/inline-editor";
 import { ShapesPanel } from "./ui/shapes-panel";
 import { GrowButton } from "./ui/shape-controls";
@@ -82,7 +82,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     revision, adapter, select, setInline, setView, invalid, busy, composing, pending, title, hosted: team?.hosted,
   });
   const size = useSceneSize(scene);
-  const pos = (o: { x: number; y: number }) => screenPoint(o, view, size);
+  const pos = (o: { x: number; y: number }) => screenPoint(o, view, size); const find = useFind({ boardId: board.boardId, displayedObjects, selected, select, view, setView, size, scene, composing, busy, tidy, finishTextSession, setInline });
   const {
     panel, setPanel, edit, toggle, editor, selector, templatesButton, firstTemplateButton, objectsButton, boardButton, navButton, infoButton,
   } = useEditorPlacement({
@@ -101,7 +101,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,
     pointerCancel, lostPointerCapture,
   } = useCanvasInput({
-    voting: team?.hosted?.voting, drawing, tidy, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+    voting: team?.hosted?.voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
     setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
     scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
     selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
@@ -153,7 +153,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
         style={{
           cursor: drag.current?.corner ? (drag.current.corner === "nw" || drag.current.corner === "se"
             ? "nwse-resize" : "nesw-resize") : drawingCursor,
-          backgroundSize: `${24 * view.z}px ${24 * view.z}px`,
+          backgroundSize: `${24 * view.z}px ${24 * view.z}px`, backgroundImage: view.z < .5 ? "none" : undefined,
           backgroundPosition: `${size.w / 2 - view.x * view.z}px ${
             size.h / 2 - view.y * view.z
           }px`,
@@ -170,14 +170,14 @@ export function App({ team }: { team?: TeamParts } = {}) {
         onLostPointerCapture={lostPointerCapture}
       >
         <BoardDrawing
-          bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={tidy.board} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
+          faded={find.faded} bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={tidy.board} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
         />
         <Overlays
           selectedGroups={selectedGroups} pos={pos} view={view} handlesVisible={handlesVisible}
           handlePoints={handlePoints} spacePan={spacePan} selectionBox={selectionBox} tool={tool}
         />
         <GrowButton available={growAvailable} grow={shapeCommands.grow} style={resolvedItem ? { left: pos(resolvedItem).left + resolvedItem.width * view.z / 2, top: pos(resolvedItem).top + resolvedItem.height * view.z } : undefined} />
-        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={board} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} />
+        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={board} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} pos={pos} zoom={view.z} />
       </div>
       {team?.commentsLayer && team.hosted && <team.commentsLayer hosted={team.hosted} board={board} objects={displayedObjects} view={view} size={size} tool={tool} setTool={setTool} setView={setView} scene={scene} select={select} setInline={setInline} />}{team?.presenceLayer && team.hosted && <team.presenceLayer hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}
       {team?.votingLayer && team.hosted && <team.votingLayer hosted={team.hosted} objects={displayedObjects} view={view} size={size} finishTextSession={finishTextSession} cancel={cancel} setInline={setInline} setTool={setTool} select={select} setView={setView} />}
@@ -246,7 +246,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
         imagePicker={images.picker} drawing={drawing} tool={tool} busy={busy} composing={composing} readOnly={readOnly} setTool={setTool}
         setInline={setInline} scene={scene} loadTemplates={loadTemplates} panel={panel} toggle={toggle} templatesButton={templatesButton} firstTemplateButton={firstTemplateButton} templateCommands={templateCommands} templatePreviews={templatePreviews}
       />
-      <ZoomControls
+      {find.open && <FindBar find={find} />}<ZoomControls
         busy={busy} composing={composing} setView={setView} view={view} panel={panel}
         navButton={navButton} toggle={toggle}
       />
@@ -256,7 +256,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
       />
       {panel === "Navigation" && (
         <NavigationPanel
-          busy={busy} composing={composing} setView={setView} setPanel={setPanel} navButton={navButton}
+          busy={busy} composing={composing} setView={setView} setPanel={setPanel} navButton={navButton} find={find}
         />
       )}
     </main>

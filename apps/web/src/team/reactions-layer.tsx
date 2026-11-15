@@ -43,6 +43,7 @@ export function ReactionTool({ hosted, tool, setTool, scene }: {
   }, [!!r.wheel]);
   useLayoutEffect(() => {
     const key = (e: KeyboardEvent) => {
+      if (e.target instanceof Element && e.target.closest('.find-bar')) return;
       if (e.isComposing || composing.current) return;
       if (e.key === 'Escape' && (r.wheel || r.armed)) {
         e.preventDefault(); e.stopImmediatePropagation(); r.wheel ? close() : (r.disarm(), scene.current?.focus()); return;

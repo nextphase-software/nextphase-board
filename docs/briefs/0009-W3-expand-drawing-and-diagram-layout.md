@@ -631,3 +631,73 @@ tests/tidy-up.test.mjs
 ```
 
 The separate record commit changes only this brief, appending this section.
+
+### Fix round 2 — 2026-11-14
+
+- Scope: the four authorized findings **F2b, F5, F6 and F3b** from scoped
+  recheck check-2 of record tip `3da891b58a3b19e540488b069291cf038f71a43f`.
+- Branch: `codex/0009-W3-expand-drawing-and-diagram-layout`.
+- Validated source/test revision:
+  **`ee1eab69d631313d2c819aa8ea832d18db99e251`**. V3–V7 ran on exactly
+  these committed source bytes. V8 inspected the range from prerequisite
+  `5afd4fa9d204f281851817f8d2db5548935fe333`; the inspected patch equals
+  the committed patch byte-for-byte.
+- Dependencies added: **none**. No new module, test file or service. The source
+  fix is one commit; this section is appended in a separate record-only commit.
+  No merge or push was performed.
+
+| Finding | Root cause proved in the code | Fix and focused evidence |
+| --- | --- | --- |
+| F2b — D9-S19 | `.context` has z-index 1, below `.floating` at 3. Moving the Tidy up bar outside the scene did not change that ordering, so a bottom-clamped bar still sat beneath the palette/zoom. The stacking claim in the first fix record is superseded by this finding. | `apps/web/style.css:1534` adds `.context.tidy-bar { z-index: 6; }`. TU-U14 guards this bar's higher stacking while ordinary context/floating values remain 1/3. |
+| F5 — D9-S21 | App removes ContextBar during preview without changing `selectionKey`. The width observer remained on the removed element and could report 0; the layout effect depended only on `selectionKey`, so it never bound/measured the remounted bar. The focused reproduction got width 0 after Apply. | `apps/web/src/state/use-context-bar.ts:49` also keys the existing measurement effect on `selectionReason`, which becomes the preview refusal reason on entry and returns to the normal reason on exit. It disconnects on entry and measures the new element on exit. TU-U15 exercises the actual context/Tidy hooks and observer lifecycle for 9 paths: Apply; Cancel button; canvas Escape; bar Escape; canvas press; tool change; selection change; narrow resize; incoming object change. Width is restored and `contextFits` is true when the viewport permits it. |
+| F6 — D9-S22 | The bar's Escape handler does run. `cancel(true)` clears the session, then focuses the canvas; that focus blurs Columns/Spacing. Their blur handlers called setters closing over the earlier non-null session and replaced the pending null with that old session. The reproduction observed the cancellation notice and canvas focus, but the preview reopened. | `apps/web/src/state/use-tidy-up.ts:45` and line 46 use functional updates that read the current session, retaining null after close. TU-U16 invokes the production control/bar handlers and focus-triggered field blur for all 6 controls, including unsubmitted Columns/Spacing values: preview stays closed, canvas focus returns once, the exact `Tidy up cancelled.` notice appears once, and no commit occurs. No new key handler is needed. |
+| F3b — V12 | `title={sizeReason \|\| undefined}` exposed every general editing/selection refusal as a new size-button title, including the empty-selection reason absent from the baseline. | `apps/web/src/ui/objects-panel.tsx:212` limits the title to preview refusal first, then tape resize refusal, otherwise no title. TU-U17 renders all 4 size buttons across the 4 tape/preview combinations, including the precedence when both apply. |
+
+F5 uses the authorized re-measure option. **App.tsx, its composition test and
+all contracts are unchanged in this round**: the existing composition guard
+passes with the same eleven substitutions and 264 lines. No effect was added;
+Tidy up still has two passive effects, and other effect counts are unchanged.
+F1, F4 and the prior move-button fix are preserved.
+
+| Check | Commands / inspection | Result and counts |
+| --- | --- | --- |
+| Focused regression | `node --test --test-reporter=tap --test-name-pattern='TU-U1[4-7]' tests/tidy-up.test.mjs` | Before fixes: **4 failed** at the four expected findings. After fixes: **4 passed, 0 failed, 0 skipped**. |
+| V3 | `npm run typecheck` | **PASS**, exit 0 across all **5** workspace members. |
+| V4 | `npm test` | **PASS**, exit 0; **1,186 passed, 0 failed, 0 skipped**. Includes **17** Tidy up, **10** tape and **5** shape-kind checks, plus module/composition guards. |
+| V5 | Team-off `npm run build`; `npm run audit:licenses` | **PASS**: **1** web build, **1** audit; complete distributed notices verified. |
+| V6 | `npm run build:fixtures`; team-on `npm run build`; `npm run audit:licenses` | **PASS**: **1** fixture build, **1** web build, **1** audit. |
+| V7 | `npm run build:server`; `npm run audit:licenses`; Wrangler dry run below | **PASS**: Node and Worker bundles, **1** audit, **1** dry run; no deployment. |
+| V8 | `git diff --no-ext-diff --unified=2 5afd4fa9d204f281851817f8d2db5548935fe333..ee1eab69d631313d2c819aa8ea832d18db99e251`; matching `git diff --name-status` and `git diff --check` | **PASS**: every one of **332 hunks / 115 files** accounted for (12 new, 103 modified). **325** hunk bodies match the previously inspected patch byte-for-byte; **7** changed/added hunks were inspected in full. The **39** exact type-rename-only files were reverified byte-for-byte. The round itself changes **5 files / 8 hunks**; **0** whitespace errors. |
+
+Exact web build settings and dry-run command:
+
+```sh
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+WRANGLER_LOG_PATH=.local/0009-W3/fix-2/wrangler-log WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir .local/0009-W3/fix-2/wrangler -c apps/server/wrangler.json
+```
+
+Unrun in this round: **V1–V2** reruns (no install/dependency change), **V9–V13**,
+Node/workerd server suites including S407–S410, D9 browser scenarios, A–J
+checkpoints and fixture-page browser checks. No browser or Supabase CLI was
+started. The focused CSS, observer, event-handler and rendered-markup units do
+not replace independent browser proof. No further escalation is requested.
+
+Graph discovery was unavailable under the execution policy, so the file-search
+fallback was used. The source commit's two privacy hooks reported **PUBLIC
+BOUNDARY: PASS**. Git again reported a sandbox-denied `packed-refs.lock`
+housekeeping write; the commit exited 0 and its branch ref was verified. No
+hook was bypassed; the internal repository remained read-only, and unrelated
+work/evidence was not changed.
+
+Files changed in the fix source/test commit (5):
+
+```text
+apps/web/src/state/use-context-bar.ts
+apps/web/src/state/use-tidy-up.ts
+apps/web/src/ui/objects-panel.tsx
+apps/web/style.css
+tests/tidy-up.test.mjs
+```
+
+The separate record commit changes only this brief, appending this section.

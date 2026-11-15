@@ -140,7 +140,7 @@ async function webHarness(hook = false) {
   const folder=await mkdtemp(join(tmpdir(),'board-history-unit-'));try{const path=join(folder,'test.mjs');await writeFile(path,result.outputFiles[0].text);return await import(pathToFileURL(path).href);}finally{await rm(folder,{recursive:true,force:true});}
 }
 function readyHost(HostedBoard) {
-  const board={schemaVersion:11,boardId:randomUUID(),title:'Live',objects:[],retiredGenerations:[]},host=new HostedBoard({kind:'board',board:board.boardId},()=>{});
+  const board={schemaVersion:12,boardId:randomUUID(),title:'Live',objects:[],retiredGenerations:[]},host=new HostedBoard({kind:'board',board:board.boardId},()=>{});
   host.snapshot={...host.snapshot,board,role:'editor',connected:true};host.session={requests:new Map(),commentRequests:new Map(),threads:new Map(),history:{past:[],future:[]},commentsReady:true,discard(){},close(){}};
   return host;
 }

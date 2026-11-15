@@ -2,14 +2,15 @@
 import type { ConnectionDrag } from "../connection-drag";
 import { reconnectPreview } from "../connectors";
 import { Layer, Stage } from "react-konva";
-import type { BoardV11 as Board } from "nextphase-board-rules/document.ts";
+import type { BoardV12 as Board } from "nextphase-board-rules/document.ts";
 import type { View } from "../view";
 import { bandOrder, dropTargets } from "../sections";
-import { isImage, objectType, hasRectangle, hasText, hasPoints, type StrokeKeys, type Rectangle, hasEnds, orderBand, isMindNode } from "nextphase-board-rules/objects/registry.ts";
+import { isTape, type TapeKeys, isImage, objectType, hasRectangle, hasText, hasPoints, type StrokeKeys, type Rectangle, hasEnds, orderBand, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { hiddenIds } from "../mind-map";
 import type { MapDrag } from "../gesture";
 import { MindNodeBody } from "./mind-node-body";
 import { MindMapLayer } from "./mind-map-layer";
+import { TapeBody } from "./tape-body";
 import { StrokeBody } from "./stroke-body";
 import { ConnectorBody } from "./connector-body";
 import { ShapeBody } from "./shape-body";
@@ -21,7 +22,7 @@ import { ImageBody } from "./image-body";
 type Props = {
   bitmaps: ReadonlyMap<string, ImageBitmap>;
   connection?: ConnectionDrag;
-  preview: (Rectangle & StrokeKeys) | { mapDrag: MapDrag } | null;
+  preview: (Rectangle & StrokeKeys) | (Rectangle & TapeKeys) | { mapDrag: MapDrag } | null;
   size: { w: number; h: number };
   view: View;
   board: Board;
@@ -50,6 +51,7 @@ export function BoardDrawing({ bitmaps, connection, preview, size, view, board, 
           if (hasEnds(o)) return <ConnectorBody key={o.id + pass} object={o} layout={connection?.reconnect?.id === o.id ? reconnectPreview(o, connection.reconnect.end, connection.pointer, connection.side ?? "auto", rectangles, () => layout.connector!.labelBox.width - 24) : layout.connector!}
             selected={selected.has(o.id)} inline={inline} zoom={view.z} pass={pass === 1 ? "line" : "label"} />;
           if (isImage(o)) return <ImageBody key={o.id} object={o} bitmap={bitmaps.get(o.asset)} selected={selected.has(o.id)} zoom={view.z} />;
+          if (isTape(o)) return <TapeBody key={o.id} object={o} selected={selected.has(o.id)} zoom={view.z} />;
           if (hasPoints(o)) return <StrokeBody key={o.id} object={o} selected={selected.has(o.id)} zoom={view.z} />;
           if (!hasRectangle(o)) return null;
           if (isMindNode(o)) return <MindNodeBody key={o.id} o={o} layout={layout} editing={inline && selected.has(o.id)} zoom={view.z}
@@ -63,8 +65,8 @@ export function BoardDrawing({ bitmaps, connection, preview, size, view, board, 
         {[...sections].map((id) => <SectionDropHint key={id}
           section={board.objects.filter(hasRectangle).filter(hasText).find((o) => o.id === id)!}
           ideas={board.objects.filter(hasRectangle).filter((o) => targets.get(o.id) === id).map((o) =>
-            ({ ...o, displayHeight: objectLayouts.get(o.id)!.height }))} />)}
-        {preview && !("mapDrag" in preview) && <StrokeBody object={preview} zoom={view.z} />}
+            ({ ...o, displayHeight: objectLayouts.get(o.id)!.height })) as Parameters<typeof SectionDropHint>[0]["ideas"]} />)}
+        {preview && !("mapDrag" in preview) && ("pattern" in preview ? <TapeBody object={preview} zoom={view.z} /> : <StrokeBody object={preview} zoom={view.z} />)}
       </Layer>
     </Stage>
   );

@@ -1,9 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 import { textUnits, type Style } from "../styles.ts";
 
+type FractionPoint = readonly [number, number];
+type Outline = 'round' | 'rounded' | readonly FractionPoint[];
+const starOutline: readonly FractionPoint[] = Array.from({ length: 10 }, (_, i) => {
+  const angle = -Math.PI / 2 + i * Math.PI / 5, radius = i % 2 ? .2 : .5;
+  return [.5 + Math.cos(angle) * radius, .54 + Math.sin(angle) * radius];
+});
+const kind = <K extends string, T extends string>(value: K, name: T, outline: Outline, textBox: readonly [number, number, number, number] | null, key: string | null = null, validFrom = 12) =>
+  ({ kind: value, name, tool: name, key, validFrom, outline, textBox, round: outline === 'round' });
 export const SHAPE_KINDS = [
-  { kind: "square", tool: "Square", key: "R", round: false },
-  { kind: "circle", tool: "Circle", key: "O", round: true },
+  kind('square', 'Square', 'rounded', null, 'R', 6),
+  kind('circle', 'Circle', 'round', null, 'O', 6),
+  kind('rounded-rectangle', 'Rounded rectangle', 'rounded', null),
+  kind('diamond', 'Diamond', [[.5,0],[1,.5],[.5,1],[0,.5]], [.25,.75,.25,.75]),
+  kind('triangle', 'Triangle', [[.5,0],[1,1],[0,1]], [.25,.75,.45,.92]),
+  kind('inverted-triangle', 'Inverted triangle', [[0,0],[1,0],[.5,1]], [.25,.75,.08,.55]),
+  kind('pentagon', 'Pentagon', [[.5,0],[1,.38],[.81,1],[.19,1],[0,.38]], [.18,.82,.32,.92]),
+  kind('octagon', 'Octagon', [[.29,0],[.71,0],[1,.29],[1,.71],[.71,1],[.29,1],[0,.71],[0,.29]], [.14,.86,.14,.86]),
+  kind('star', 'Star', starOutline, [.32,.68,.38,.72]),
+  kind('cross', 'Cross', [[.33,0],[.67,0],[.67,.33],[1,.33],[1,.67],[.67,.67],[.67,1],[.33,1],[.33,.67],[0,.67],[0,.33],[.33,.33]], [.06,.94,.35,.65]),
+  kind('arrow-left', 'Left arrow', [[0,.5],[.4,0],[.4,.28],[1,.28],[1,.72],[.4,.72],[.4,1]], [.40,.96,.30,.70]),
+  kind('arrow-right', 'Right arrow', [[1,.5],[.6,0],[.6,.28],[0,.28],[0,.72],[.6,.72],[.6,1]], [.04,.60,.30,.70]),
+  kind('chevron', 'Chevron', [[0,0],[.7,0],[1,.5],[.7,1],[0,1],[.3,.5]], [.32,.72,.10,.90]),
+  kind('speech-bubble', 'Speech bubble', [[0,0],[1,0],[1,.78],[.4,.78],[.2,1],[.2,.78],[0,.78]], [.05,.95,.06,.74]),
 ] as const;
 export const SHAPE_COLORS = [
   ["black", "#1e1e1e"], ["dark-gray", "#6b6b6b"], ["red", "#e5483b"],
@@ -45,14 +65,18 @@ export function shapeTextColor(o: Paintable): string {
 }
 const exact = (value: unknown, keys: string[]) => !!value && typeof value === "object" &&
   Object.keys(value).sort().join() === [...keys].sort().join();
-export function validShape(o: object): boolean {
+export function validShape(o: object, version = 12): boolean {
   const s = o as Paintable & { color: string };
-  return s.color === "neutral" && SHAPE_KINDS.some((k) => k.kind === s.shape) &&
+  return s.color === "neutral" && SHAPE_KINDS.some((k) => k.kind === s.shape && k.validFrom <= version) &&
     exact(s.fill, ["mode", "color"]) && FILL_MODES.some((m) => m.value === s.fill!.mode) && validShapeColor(s.fill!.color) &&
     exact(s.border, ["style", "color"]) && BORDER_STYLES.some((b) => b.value === s.border!.style) && validShapeColor(s.border!.color);
 }
 export function shapeTextBox(o: Box & Paintable): Box {
-  const round = SHAPE_KINDS.find((k) => k.kind === o.shape)?.round;
+  const info = SHAPE_KINDS.find((k) => k.kind === o.shape), round = info?.round;
+  if (info?.textBox) {
+    const [left, right, top, bottom] = info.textBox;
+    return { x: o.x + o.width * left, y: o.y + o.height * top, width: o.width * (right-left), height: o.height * (bottom-top) };
+  }
   const ix = round ? o.width * (1 - 1 / Math.SQRT2) / 2 + 6 : 16;
   const iy = round ? o.height * (1 - 1 / Math.SQRT2) / 2 + 4 : 12;
   return { x: o.x + ix, y: o.y + iy, width: Math.max(0, o.width - 2 * ix), height: Math.max(0, o.height - 2 * iy) };
@@ -93,12 +117,12 @@ export function shapeTextLayout(o: Box & Paintable & Pick<Style, "textSize"> & {
 export function fitHeight(o: Box & Paintable & Pick<Style, "textSize"> & { text: string }, layout: (width: number) => Line[], measure: Measure): number {
   const max = Math.min(2000, 1e6 - o.y), box = shapeTextBox(o);
   const lines = layout(box.width), lineHeight = textUnits(o.textSize) * 1.45;
-  const round = SHAPE_KINDS.find((k) => k.kind === o.shape)?.round;
+  const info = SHAPE_KINDS.find((k) => k.kind === o.shape), round = info?.round;
   const needed = Math.max(1, lines.length) * lineHeight;
-  let height = Math.min(max, Math.max(40, round ? (needed + 8) * Math.SQRT2 : needed + 24));
+  let height = Math.min(max, Math.max(40, info?.textBox ? Math.ceil(needed / (info.textBox[3] - info.textBox[2])) : round ? (needed + 8) * Math.SQRT2 : needed + 24));
   // Keep the fitting endpoint when floating arithmetic subtracts the insets.
   if (height < max && !shapeTextLayout({ ...o, height }, layout, measure).fits) {
-    height = Math.min(max, height + Number.EPSILON * Math.max(1, height));
+    height = Math.min(max, height + (info?.textBox ? 1 : Number.EPSILON * Math.max(1, height)));
   }
   return shapeTextLayout({ ...o, height: max }, layout, measure).fits ? height : max;
 }
@@ -137,7 +161,7 @@ export const shape = {
   validExtras: validShape, kinds: SHAPE_KINDS, shapePaint: true, growsWithText: false,
   previewRadius: 6, editorMinimum: { width: 40, height: 24 }, textBox: shapeTextBox,
   fontSize: (o: Pick<Style, "textSize">) => textUnits(o.textSize),
-  labelPrefix: (o: Paintable) => o.shape!,
+  labelPrefix: (o: Paintable) => SHAPE_KINDS.find(k => k.kind === o.shape)!.name.toLowerCase(),
   fill: (o: Paintable) => o.fill?.mode === "none" ? undefined : shapeColor(o.fill!.color),
   edge: (o: Paintable) => o.border?.style === "none" ? undefined : shapeColor(o.border!.color),
   textColor: shapeTextColor,

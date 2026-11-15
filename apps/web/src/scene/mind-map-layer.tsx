@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Group, Line, Rect } from "react-konva";
-import type { ItemV11 as Item } from "nextphase-board-rules/document.ts";
+import type { ItemV12 as Item } from "nextphase-board-rules/document.ts";
 import { isMindNode, type Rectangle } from "nextphase-board-rules/objects/registry.ts";
 import { mapOf, outerSides } from "../mind-map";
 import type { MapDrag } from "../gesture";

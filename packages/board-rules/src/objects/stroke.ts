@@ -5,7 +5,7 @@ export const INK_KINDS = [
   { kind: "highlighter", tool: "Highlighter", label: "Highlight", prefix: "highlight", round: false, widths: [22, 40],
     colors: [["grey", "#b3b3b3"], ["pink", "#f7a8d8"], ["orange", "#fdb46b"], ["yellow", "#fff04d"], ["green", "#a6ef6b"], ["cyan", "#7cf2ec"], ["violet", "#c6a6ff"], ["white", "#ffffff"]] },
 ] as const;
-export const DRAWING_TOOLS = [...INK_KINDS.map((k) => k.tool), "Eraser"] as const;
+export const DRAWING_TOOLS = [...INK_KINDS.map((k) => k.tool), "Washi tape", "Eraser"] as const;
 export type DrawingTool = typeof DRAWING_TOOLS[number];
 export type InkKind = typeof INK_KINDS[number]["kind"];
 export const INK_WEIGHTS = ["thin", "thick"] as const;
@@ -17,7 +17,7 @@ export const inkForTool = (tool: string) => INK_KINDS.find((k) => k.tool === too
 export const isDrawingTool = (tool: string): tool is DrawingTool => DRAWING_TOOLS.some((t) => t === tool);
 export const isEraser = (tool: string) => tool === "Eraser";
 export const drawingKey = (key: string, shift: boolean) => key.toLowerCase() === "m" ? INK_KINDS[shift ? 1 : 0].tool
-  : shift && (key === "Delete" || key === "Backspace") ? "Eraser" : undefined;
+  : !shift && key.toLowerCase() === "w" ? "Washi tape" : shift && (key === "Delete" || key === "Backspace") ? "Eraser" : undefined;
 export const inkWidth = (o: Pick<StrokeKeys, "kind" | "weight">) => inkInfo(o).widths[o.weight === "thin" ? 0 : 1];
 export const inkColors = (o: { kind?: InkKind }) => inkInfo(o).colors.map(([name, value]) => ({ name, value, label: name[0].toUpperCase() + name.slice(1) }));
 export const inkColor = (o: Pick<StrokeKeys, "kind" | "color">) => inkColors(o).find((c) => c.name === o.color)!.value;

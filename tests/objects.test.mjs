@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OBJECT_TYPES, objectType, typeForTool, placementTool, containerType, isContainer, isImage, isMindNode } from "../packages/board-rules/src/objects/registry.ts";
+import { OBJECT_TYPES, objectType, typeForTool, placementTool, containerType, isContainer, isImage, isMindNode, isTape } from "../packages/board-rules/src/objects/registry.ts";
 import { sticky } from "../packages/board-rules/src/objects/sticky.ts";
 import { section } from "../packages/board-rules/src/objects/section.ts";
 import { text } from "../packages/board-rules/src/objects/text.ts";
 import { COLORS, colorEntry, textUnits } from "../packages/board-rules/src/styles.ts";
 
 test("object types retain sticky and text order, labels and placement tools", () => {
-  assert.deepEqual(OBJECT_TYPES.map((t) => t.type), ["sticky", "shape", "text", "section", "stroke", "connector", "image", "mindNode"]);
+  assert.deepEqual(OBJECT_TYPES.map((t) => t.type), ["sticky", "shape", "text", "section", "stroke", "connector", "image", "mindNode", "tape"]);
   assert.equal(objectType("sticky"), sticky);
   assert.equal(objectType("text"), text);
   assert.equal(objectType("sticky").label, "Sticky");
@@ -41,7 +41,7 @@ test("v7 registry owns ends, rectangles, eligibility, bands and key sets", async
   for (const t of OBJECT_TYPES) {
     const o = { type: t.type };
     assert.equal(hasEnds(o), t.ends); assert.equal(hasRectangle(o), !t.ends);
-    assert.equal(eligibleIdea(o), !t.ends && !t.container && !t.points && !isImage(o) && !isMindNode(o));
+    assert.equal(eligibleIdea(o), !t.ends && !t.container && !t.points && !isImage(o) && !isMindNode(o) && !isTape(o));
     assert.equal(sectionIdea(o), !t.ends && !t.container && !isMindNode(o));
     assert.equal(hasPoints(o), t.points);
     assert.equal(orderBand(o), t.container ? 0 : t.ends ? 1 : 2);
@@ -146,8 +146,8 @@ test("v6 records own extras, kinds, text boxes, font size, paint, growth and edi
   assert.equal(shape.growsWithText, false); assert.equal(shape.shapePaint, true);
   for (const k of SHAPE_KINDS) {
     assert.equal(placementTool(k.tool), shape); assert.equal(typeForTool(k.tool), shape.type);
-    assert.equal(kindForTool(k.tool), k.kind); assert.equal(toolForKey(k.key.toLowerCase()), k.tool);
-    assert.equal(labelPrefix({ type: shape.type, shape: k.kind }), k.kind);
+    assert.equal(kindForTool(k.tool), k.kind); if (k.key) assert.equal(toolForKey(k.key.toLowerCase()), k.tool);
+    assert.equal(labelPrefix({ type: shape.type, shape: k.kind }), k.name.toLowerCase());
   }
   assert.equal(toolForKey("s"), undefined); assert.equal(kindForTool("Sticky"), undefined);
   assert.equal(objectKeys(shape.type, 6).includes("fill"), true);

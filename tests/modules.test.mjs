@@ -55,7 +55,7 @@ function webImportProblems(content, file = "") {
 test("the package holds exactly its modules", () => {
   assert.deepEqual(rulesParts, [
     "document.ts", "marks.ts", "objects/connector.ts", "objects/image.ts", "objects/mind-node.ts", "objects/registry.ts",
-    "objects/section.ts", "objects/shape.ts", "objects/sticky.ts", "objects/stroke.ts", "objects/text.ts",
+    "objects/section.ts", "objects/shape.ts", "objects/sticky.ts", "objects/stroke.ts", "objects/tape.ts", "objects/text.ts",
     "platform.d.ts", "styles.ts", "transition.ts",
   ]);
   for (const [name, content] of rulesContents) {
@@ -116,7 +116,7 @@ test("the import guards catch each forbidden form", () => {
   }
 });
 
-test("screen parts contain exactly the twenty-seven screen modules named through 0002-W3 v1", () => {
+test("screen parts contain exactly the twenty-nine screen modules named through 0009-W3 v1", () => {
   assert.deepEqual(screenParts, [
     "arrange-controls.tsx",
     "board-panel.tsx",
@@ -143,7 +143,9 @@ test("screen parts contain exactly the twenty-seven screen modules named through
     "shape-controls.tsx",
     "shapes-panel.tsx",
     "stroke-controls.tsx",
+    "tape-controls.tsx",
     "templates-panel.tsx",
+    "tidy-up-bar.tsx",
     "zoom-controls.tsx",
   ]);
 });
@@ -181,7 +183,7 @@ test("every screen part begins with the Apache-2.0 licence header", () => {
   }
 });
 
-test("scene parts contain exactly the thirteen modules named through 0009-W2 v1", () => {
+test("scene parts contain exactly the fifteen modules named through 0009-W3 v1", () => {
   assert.deepEqual(sceneParts, [
     "board-drawing.tsx",
     "connection-dots.tsx",
@@ -196,11 +198,13 @@ test("scene parts contain exactly the thirteen modules named through 0009-W2 v1"
     "section-body.tsx",
     "shape-body.tsx",
     "stroke-body.tsx",
+    "tape-body.tsx",
+    "tidy-up-layer.tsx",
   ]);
 });
 
-test("object types contain exactly the nine object-type modules named through 0009-W2 v1", () => {
-  assert.deepEqual(objectTypes, ["connector.ts", "image.ts", "mind-node.ts", "registry.ts", "section.ts", "shape.ts", "sticky.ts", "stroke.ts", "text.ts"]);
+test("object types contain exactly the ten object-type modules named through 0009-W3 v1", () => {
+  assert.deepEqual(objectTypes, ["connector.ts", "image.ts", "mind-node.ts", "registry.ts", "section.ts", "shape.ts", "sticky.ts", "stroke.ts", "tape.ts", "text.ts"]);
 });
 
 test("object types never import React or Konva", () => {
@@ -219,7 +223,7 @@ test("composition and screen parts ask the registry instead of comparing type na
 });
 
 test("screen and scene guard detects equality and inequality in both operand orders", () => {
-  for (const name of ["sticky", "text", "section", "shape", "square", "circle", "connector", "stroke", "image", "marker", "highlighter"]) {
+  for (const name of ["sticky", "text", "section", "shape", "square", "circle", "connector", "stroke", "tape", "image", "marker", "highlighter"]) {
     for (const operator of ["===", "!=="]) for (const quote of ['"', "'"]) {
       const literal = quote + name + quote;
       for (const comparison of [`o.type ${operator} ${literal}`, `${literal} ${operator} o.type`]) {
@@ -232,7 +236,7 @@ test("screen and scene guard detects equality and inequality in both operand ord
   }
 });
 
-test("state contains exactly the twenty-two hooks named through web modules v26", () => {
+test("state contains exactly the twenty-three hooks named through web modules v39", () => {
   assert.deepEqual(files(new URL("state/", source)).sort(), [
     "use-board-document.ts",
     "use-canvas-input.ts",
@@ -254,6 +258,7 @@ test("state contains exactly the twenty-two hooks named through web modules v26"
     "use-session-status.ts",
     "use-storage-session.ts",
     "use-text-entry.ts",
+    "use-tidy-up.ts",
     "use-validity.ts",
     "use-viewport.ts",
   ]);
@@ -427,8 +432,8 @@ test("object types import only siblings or styles, which never imports object ty
 
 function typeNameComparisons(source) {
   return [
-    /[=!]==\s*["'](?:sticky|text|section|shape|square|circle|connector|stroke|image|marker|highlighter)["']/,
-    /["'](?:sticky|text|section|shape|square|circle|connector|stroke|image|marker|highlighter)["']\s*[=!]==/,
+    /[=!]==\s*["'](?:sticky|text|section|shape|square|circle|connector|stroke|tape|image|marker|highlighter)["']/,
+    /["'](?:sticky|text|section|shape|square|circle|connector|stroke|tape|image|marker|highlighter)["']\s*[=!]==/,
   ].filter((pattern) => pattern.test(source));
 }
 
@@ -580,17 +585,59 @@ test("the hosted board hook holds exactly one passive effect", () => {
   assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });
 
-// Web modules v38: App changes only by these six substitutions on existing lines.
-test("0009-W2 App composition changes only its six substitutions", () => {
-  const base = execFileSync("git", ["show", "9f843d0babc6645d7c40fca432b483ecf6bf9bfd:apps/web/src/App.tsx"], { encoding: "utf8" });
+// Web modules v39: eleven clauses, including the two import substitutions.
+test("0009-W3 App composition changes only its eleven substitutions", () => {
+  const base = execFileSync("git", ["show", "5397b75:apps/web/src/App.tsx"], { encoding: "utf8" });
   const substitutions = [
-    ['import { ConnectionDots } from "./scene/connection-dots";\n', 'import { ConnectionDots } from "./scene/connection-dots"; import { MindMapButtons } from "./scene/mind-map-buttons";\n'],
-    ["handlesVisible, handlePoints, itemHeight,\n", "handlesVisible, handlePoints, itemHeight, measureNode,\n"],
-    ["setInline, editor, lineCount,\n", "setInline, editor, lineCount, measureNode,\n"],
-    ["arrangementMembers, lineCount, editor,", "arrangementMembers, lineCount, measureNode, editor,"],
-    ["pos={pos} zoom={view.z} />\n", "pos={pos} zoom={view.z} /><MindMapButtons board={board} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} />\n"],
-    ["<ContextBar\n          description=", "<ContextBar\n          board={board} description="],
-  ];
+  [
+    "import { useObjectLayouts } from \"./state/use-object-layouts\";",
+    "import { useObjectLayouts } from \"./state/use-object-layouts\"; import { useTidyUp } from \"./state/use-tidy-up\";"
+  ],
+  [
+    "import { MindMapButtons } from \"./scene/mind-map-buttons\";",
+    "import { MindMapButtons } from \"./scene/mind-map-buttons\"; import { TidyUpLayer } from \"./scene/tidy-up-layer\"; import { TidyUpBar } from \"./ui/tidy-up-bar\";"
+  ],
+  [
+    "    strokeSelection, connectorOnly,",
+    "    tapeSelection, strokeSelection, connectorOnly,"
+  ],
+  [
+    "  } = useSelection({ board, drafts, textSelection });",
+    "  } = useSelection({ board, drafts, textSelection }); const tidy = useTidyUp({ board, selected, commit, tool, setMessage, hosted: team?.hosted, scene, readOnly });"
+  ],
+  [
+    "    board, selected, selectedId, item, text, inline, textEditing:",
+    "    board: tidy.board, selected: tidy.selected, selectedId, item, text, inline, textEditing:"
+  ],
+  [
+    "voting: team?.hosted?.voting, drawing, connectorStyle",
+    "voting: team?.hosted?.voting, drawing, tidy, connectorStyle"
+  ],
+  [
+    "history, selected, visibleMessage, snapshots, displayedObjects, hosted:",
+    "history, selected, visibleMessage, snapshots, displayedObjects, tidy, hosted:"
+  ],
+  [
+    "size={size} view={view} board={board} objectLayouts={objectLayouts} selected={selected}",
+    "size={size} view={view} board={tidy.board} objectLayouts={objectLayouts} selected={tidy.selected}"
+  ],
+  [
+    "readOnly={readOnly} command={command} />\n",
+    "readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><TidyUpBar tidy={tidy} pos={pos} view={view} size={size} layout={layout} />\n"
+  ],
+  [
+    "{selected.size > 0 && (",
+    "{selected.size > 0 && !tidy.open && ("
+  ],
+  [
+    "<ContextBar\n          board={board}",
+    "<ContextBar\n          tapeSelection={tapeSelection} tidy={tidy} board={board}"
+  ],
+  [
+    "<ObjectsPanel\n          description=",
+    "<ObjectsPanel\n          tapeSelection={tapeSelection} tidy={tidy} description="
+  ]
+];
   let expected = base;
   for (const [from, to] of substitutions) {
     assert.equal(expected.split(from).length, 2, from);
@@ -599,4 +646,9 @@ test("0009-W2 App composition changes only its six substitutions", () => {
   const app = readFileSync(new URL("App.tsx", source), "utf8");
   assert.equal(app, expected);
   assert.equal(app.split("\n").length, base.split("\n").length);
+});
+test("Tidy up owns at most two passive effects", () => {
+  const content=readFileSync(new URL("state/use-tidy-up.ts",source),"utf8");
+  assert((content.match(/\buseEffect\s*\(/g)??[]).length<=2);
+  assert.doesNotMatch(content,/\buseLayoutEffect\b/);
 });

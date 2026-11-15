@@ -12,8 +12,8 @@ export function ShapesPanel({ tool, setTool, scene, disabled }: {
     <header><h2>Shapes</h2><button disabled={disabled} onClick={() => { setTool("Select"); scene.current?.focus(); }}>Close</button></header>
     <h3>Basic</h3>
     <div className="shape-tiles">{SHAPE_KINDS.map((k) => <button key={k.kind} disabled={disabled}
-      title={k.tool + " · " + k.key} aria-pressed={tool === k.tool}
-      onClick={() => { setTool(k.tool); scene.current?.focus(); }}><Icon name={k.tool} />{k.tool}</button>)}</div>
+      aria-label={k.name} title={k.name + (k.key ? " · " + k.key : "")} aria-pressed={tool === k.tool}
+      onClick={() => { setTool(k.tool); scene.current?.focus(); }}><Icon name={k.tool} /></button>)}</div>
     <p>Drag on the board to draw, or click for a 180 × 180 shape.</p>
   </section>;
 }

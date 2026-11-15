@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
-import type { BoardV11, ItemV11 } from "nextphase-board-rules/document.ts";
+import type { BoardV12, ItemV12 } from "nextphase-board-rules/document.ts";
 import { hasEnds, hasText, isMindNode, type MindNodeKeys } from "nextphase-board-rules/objects/registry.ts";
 import { normalize } from "nextphase-board-rules/marks.ts";
 
-export function repair(doc: Y.Doc, before: BoardV11, merged: BoardV11) {
-  const removed: ItemV11[] = [];
+export function repair(doc: Y.Doc, before: BoardV12, merged: BoardV12) {
+  const removed: ItemV12[] = [];
   let changed = false;
   const objects = doc.getMap<Y.Map<unknown>>("objects");
   const live = new Set(merged.objects.map((object) => object.id));
@@ -45,7 +45,7 @@ export function repair(doc: Y.Doc, before: BoardV11, merged: BoardV11) {
 type Structure = Pick<MindNodeKeys, "parent" | "side" | "collapsed">;
 // Document v16's repair order. It only changes parents, sides and collapse
 // states; it never moves a node (the map's next change lays it out).
-export function mindNodeRepairs(objects: readonly ItemV11[]): Map<string, Structure> {
+export function mindNodeRepairs(objects: readonly ItemV12[]): Map<string, Structure> {
   const nodes = new Map(objects.filter(isMindNode).map((o): [string, Structure] => [o.id, { parent: o.parent, side: o.side, collapsed: o.collapsed }]));
   for (const node of nodes.values()) if (node.parent !== null && !nodes.has(node.parent)) node.parent = null;
   for (let loop = cycle(nodes); loop; loop = cycle(nodes)) {

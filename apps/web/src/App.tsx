@@ -18,10 +18,10 @@ import { useContextBar } from "./state/use-context-bar";
 import { useViewport } from "./state/use-viewport";
 import { useSceneSize } from "./state/use-scene-size";
 import { useSelection } from "./state/use-selection";
-import { useObjectLayouts } from "./state/use-object-layouts";
+import { useObjectLayouts } from "./state/use-object-layouts"; import { useTidyUp } from "./state/use-tidy-up";
 import { useEditorPlacement } from "./state/use-editor-placement";
 import { BoardDrawing } from "./scene/board-drawing";
-import { Overlays } from "./scene/overlays"; import { ConnectionDots } from "./scene/connection-dots"; import { MindMapButtons } from "./scene/mind-map-buttons";
+import { Overlays } from "./scene/overlays"; import { ConnectionDots } from "./scene/connection-dots"; import { MindMapButtons } from "./scene/mind-map-buttons"; import { TidyUpLayer } from "./scene/tidy-up-layer"; import { TidyUpBar } from "./ui/tidy-up-bar";
 import { InlineEditor } from "./scene/inline-editor";
 import { ShapesPanel } from "./ui/shapes-panel";
 import { GrowButton } from "./ui/shape-controls";
@@ -53,9 +53,9 @@ export function App({ team }: { team?: TeamParts } = {}) {
     updateHistory, clearHistory, beginTextSession, finishTextSession, beginNameEntry, finishNameEntry, commit, load,
   } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent });
   const {
-    strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,
+    tapeSelection, strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,
     selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats, richText,
-  } = useSelection({ board, drafts, textSelection });
+  } = useSelection({ board, drafts, textSelection }); const tidy = useTidyUp({ board, selected, commit, tool, setMessage, hosted: team?.hosted, scene, readOnly });
   const { invalidObjectText, invalidFields, invalid, pending } = useValidity({
     board, drafts, title, composing, busy: gestureBusy,
   });
@@ -66,7 +66,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
     handlesVisible, handlePoints, itemHeight, measureNode,
   } = useObjectLayouts({
-    board, selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,
+    board: tidy.board, selected: tidy.selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,
   });
   const layout = usePanelLayout(scene);
   const { view, setView, setFollowView, trackPointer, inlineSurface } = useViewport({ scene, inline, drag, pending, ownViewChange: team?.hosted?.stopFollowing });
@@ -101,7 +101,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,
     pointerCancel, lostPointerCapture,
   } = useCanvasInput({
-    voting: team?.hosted?.voting, drawing, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+    voting: team?.hosted?.voting, drawing, tidy, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
     setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
     scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
     selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
@@ -112,7 +112,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     showNotice, editingState, arrangementMembers,
   } = useCommandReasons({
     readOnly, composing, busy, tool, invalidObjectText, invalid, textSession, model,
-    history, selected, visibleMessage, snapshots, displayedObjects, hosted: team?.hosted,
+    history, selected, visibleMessage, snapshots, displayedObjects, tidy, hosted: team?.hosted,
   });
   const {
     connectorPopup, shapePopup, contextWidth, contextLeft, contextTop, contextFits, swatchOpen, arrangeOpen,
@@ -170,14 +170,14 @@ export function App({ team }: { team?: TeamParts } = {}) {
         onLostPointerCapture={lostPointerCapture}
       >
         <BoardDrawing
-          bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={board} objectLayouts={objectLayouts} selected={selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
+          bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={tidy.board} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
         />
         <Overlays
           selectedGroups={selectedGroups} pos={pos} view={view} handlesVisible={handlesVisible}
           handlePoints={handlePoints} spacePan={spacePan} selectionBox={selectionBox} tool={tool}
         />
         <GrowButton available={growAvailable} grow={shapeCommands.grow} style={resolvedItem ? { left: pos(resolvedItem).left + resolvedItem.width * view.z / 2, top: pos(resolvedItem).top + resolvedItem.height * view.z } : undefined} />
-        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={board} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} />
+        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={board} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><TidyUpBar tidy={tidy} pos={pos} view={view} size={size} layout={layout} />
       </div>
       {team?.commentsLayer && team.hosted && <team.commentsLayer hosted={team.hosted} board={board} objects={displayedObjects} view={view} size={size} tool={tool} setTool={setTool} setView={setView} scene={scene} select={select} setInline={setInline} />}{team?.presenceLayer && team.hosted && <team.presenceLayer hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}
       {team?.votingLayer && team.hosted && <team.votingLayer hosted={team.hosted} objects={displayedObjects} view={view} size={size} finishTextSession={finishTextSession} cancel={cancel} setInline={setInline} setTool={setTool} select={select} setView={setView} />}
@@ -207,7 +207,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
       )}
       {panel === "Objects" && (
         <ObjectsPanel
-          description={images.description} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} growAvailable={growAvailable} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
+          tapeSelection={tapeSelection} tidy={tidy} description={images.description} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} growAvailable={growAvailable} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
           duplicateReason={duplicateReason} board={board} busy={busy} composing={composing} setPanel={setPanel}
           objectsButton={objectsButton} selector={selector} selected={selected}
           finishTextSession={finishTextSession} select={select} numbers={numbers} drafts={drafts}
@@ -218,9 +218,9 @@ export function App({ team }: { team?: TeamParts } = {}) {
           clipboardState={clipboardState} clipboardCommand={clipboardCommand} create={create} view={view} setSection={setSection}
         />
       )}
-      {selected.size > 0 && (
+      {selected.size > 0 && !tidy.open && (
         <ContextBar
-          board={board} description={images.description} imageCount={images.count} imagesOnly={images.only} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
+          tapeSelection={tapeSelection} tidy={tidy} board={board} description={images.description} imageCount={images.count} imagesOnly={images.only} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
           connectorObjects={connectors} connectorPopup={connectorPopup} connectorOnly={connectorOnly} connectorCount={connectors.length} duplicateReason={duplicateReason} contextBar={contextBar} contextFits={contextFits} contextLeft={contextLeft}
           contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
           composing={composing} busy={busy} inline={inline} finishTextSession={finishTextSession}

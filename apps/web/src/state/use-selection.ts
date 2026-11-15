@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from "react";
-import type { BoardV11 as Board } from "nextphase-board-rules/document.ts";
+import type { BoardV12 as Board } from "nextphase-board-rules/document.ts";
 import { count } from "nextphase-board-rules/document.ts";
 import { FLAGS, formatted, formattedRange, type Flag, type TextSelection } from "nextphase-board-rules/marks.ts";
-import { objectType, isImage, hasText, hasPoints, usesShapePaint, commonShapeValue, hasRectangle, hasEnds } from "nextphase-board-rules/objects/registry.ts";
+import { isTape, objectType, isImage, hasText, hasPoints, usesShapePaint, commonShapeValue, hasRectangle, hasEnds } from "nextphase-board-rules/objects/registry.ts";
 import { colorEntry, commonStyle } from "nextphase-board-rules/styles.ts";
 
 type Input = {
@@ -19,6 +19,8 @@ export function useSelection({ board, drafts, textSelection }: Input) {
   const connectorOnly = selectedObjects.length > 0 && connectors.length === selectedObjects.length;
   const strokes = selectedObjects.filter(hasPoints);
   const strokeSelection = { objects: strokes, only: strokes.length > 0 && strokes.length === selectedObjects.length, sameKind: strokes.length > 0 && strokes.every((o) => o.kind === strokes[0].kind) };
+  const tapes = selectedObjects.filter(isTape);
+  const tapeSelection = { objects: tapes, only: tapes.length > 0 && tapes.length === selectedObjects.length };
   const textIdeas = ideas.filter(hasText);
   const formattingIdeas = ideas.filter((o) => !isImage(o));
   const richText = formattingIdeas.length > 0 && formattingIdeas.every((o) => objectType(o.type).richText);
@@ -40,7 +42,7 @@ export function useSelection({ board, drafts, textSelection }: Input) {
   ])) as Record<Flag, boolean>;
   const colourLabel = selectionColor ? colorEntry(selectionColor).label : "Mixed";
   return {
-    strokeSelection, ideas, connectors, connectorOnly, shapeSelection, richText, selected, setSelected, selectionKey, selectedId, item, text,
+    tapeSelection, strokeSelection, ideas, connectors, connectorOnly, shapeSelection, richText, selected, setSelected, selectionKey, selectedId, item, text,
     selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats,
   };
 }

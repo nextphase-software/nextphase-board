@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useMemo, type RefObject } from "react";
 import Konva from "konva";
-import type { BoardV11 as Board, ItemV11 as Item } from "nextphase-board-rules/document.ts";
+import type { BoardV12 as Board, ItemV12 as Item } from "nextphase-board-rules/document.ts";
 import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT, type ResolvedItem } from "../geometry";
-import { objectType, textBox, hasText, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds, voteTextAnchor, isMindNode } from "nextphase-board-rules/objects/registry.ts";
+import { isTape, objectType, textBox, hasText, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds, voteTextAnchor, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { hiddenIds, nodeBox, nodeLines } from "../mind-map";
 import { groupNumbers, wholeGroups } from "../group";
 import { cornerPoint, type Corner } from "../resize";
@@ -128,7 +128,7 @@ export function useObjectLayouts({
   const bounds = boundingBox(rectanglesSelected.length ? rectanglesSelected : displayedObjects.filter((o) => selected.has(o.id)));
   const selectedGroups = wholeGroups(displayedObjects, selected);
   const numbers = groupNumbers(board.objects);
-  const handlesVisible = rectanglesSelected.length > 0 && !rectanglesSelected.some(isMindNode) && !!bounds && tool === "Select" && !readOnly && (!inline || !!item && !objectType(item.type).richText) && !composing &&
+  const handlesVisible = rectanglesSelected.length > 0 && !rectanglesSelected.some(isMindNode) && !rectanglesSelected.some(isTape) && !!bounds && tool === "Select" && !readOnly && (!inline || !!item && !objectType(item.type).richText) && !composing &&
     (!busy || !!drag.current?.corner);
   const handlePoints = bounds ? CORNERS.map((corner) => ({
     corner, ...cornerPoint(corner, bounds),

@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { RefObject } from "react";
-import type { Board as SavedBoard, BoardV11 as Board } from "nextphase-board-rules/document.ts";
+import type { Board as SavedBoard, BoardV12 as Board } from "nextphase-board-rules/document.ts";
 import type { ResolvedItem as Item } from "../geometry";
 import type { History } from "../history";
 import { placementTool } from "nextphase-board-rules/objects/registry.ts";
 import { editingCommandReason } from "../commands";
 
+import { TIDY_WAIT } from "../tidy-up";
 import { copiedSetReason } from "../connectors";
 
 import type { HostedBoard } from "../team/hosted-board";
 
 type Input = {
   hosted?: HostedBoard;
+  tidy?: { open: boolean };
   readOnly: boolean;
   composing: boolean;
   busy: boolean;
@@ -29,7 +31,7 @@ type Input = {
 
 export function useCommandReasons({
   readOnly, composing, busy, tool, invalidObjectText, invalid, textSession, model, hosted,
-  history, selected, visibleMessage, snapshots, displayedObjects,
+  history, selected, visibleMessage, snapshots, displayedObjects, tidy,
 }: Input) {
   const commandReason = editingCommandReason({ readOnly, composing, pointerGesture: busy, invalidObjectText });
   const session = textSession.current;
@@ -38,7 +40,7 @@ export function useCommandReasons({
       JSON.stringify(model.current.objects.find((o) => o.id === session.id));
   const undoReason = commandReason || (hosted ? hosted.undoReason : !history.past.length && !sessionChanged ? "Nothing to undo." : "");
   const redoReason = commandReason || (hosted ? hosted.redoReason : sessionChanged || !history.future.length ? "Nothing to redo." : "");
-  const selectionReason = commandReason || (!selected.size ? "Select an object to duplicate or delete." : "");
+  const selectionReason = (tidy?.open ? TIDY_WAIT : "") || commandReason || (!selected.size ? "Select an object to duplicate or delete." : "");
   const duplicateReason = selectionReason || copiedSetReason(model.current.objects, selected);
   const clipboardState = { readOnly, composing, pointerGesture: busy, invalidObjectText };
   const showNotice = !!(visibleMessage || invalid || busy || readOnly ||

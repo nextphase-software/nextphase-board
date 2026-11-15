@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { ItemV11 as Item } from "nextphase-board-rules/document.ts";
+import type { ItemV12 as Item } from "nextphase-board-rules/document.ts";
 import { hasText } from "nextphase-board-rules/objects/registry.ts";
 import { remap, segments } from "nextphase-board-rules/marks.ts";
 

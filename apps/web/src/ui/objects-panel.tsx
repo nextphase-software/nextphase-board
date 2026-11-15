@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject, ReactNode } from "react";
-import type { BoardV11 as Board, ItemV11 as Item } from "nextphase-board-rules/document.ts";
+import type { BoardV12 as Board, ItemV12 as Item } from "nextphase-board-rules/document.ts";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "nextphase-board-rules/styles.ts";
 import { objectLabel } from "../sections";
 import { ADD_OPTIONS, isContainer, sectionIdea, hasRectangle, hasEnds, isMindNode } from "nextphase-board-rules/objects/registry.ts";
@@ -14,6 +14,9 @@ import type { View } from "../view";
 import { FOLLOW_REASON } from "../connectors";
 import { ArrangeControls } from "./arrange-controls";
 import { ShapeFields, GrowButton, type ShapeControlProps } from "./shape-controls";
+import { TapeFields, type TapeSelection, type TapeCommands } from "./tape-controls";
+import type { TidyUI } from "./tidy-up-bar";
+import { TIDY_WAIT } from "../tidy-up";
 import { StrokeFields, type StrokeControlProps } from "./stroke-controls";
 import { ConnectorFields } from "./connector-fields";
 import type { ConnectorCommands } from "./connector-menu";
@@ -22,8 +25,9 @@ import { FormatPreview } from "./format-preview";
 import { DescriptionField, type DescriptionControl } from "./image-controls";
 
 type Props = {
+  tapeSelection: TapeSelection; tidy: TidyUI;
   description: DescriptionControl;
-  strokeSelection: StrokeControlProps["selection"]; strokeCommands: StrokeControlProps["commands"];
+  strokeSelection: StrokeControlProps["selection"]; strokeCommands: StrokeControlProps["commands"] & TapeCommands;
   connectorCommands: ConnectorCommands;
   duplicateReason: string;
   shapeSelection: ShapeControlProps["selection"];
@@ -67,13 +71,14 @@ type Props = {
 };
 
 export function ObjectsPanel({
-  description, strokeSelection, strokeCommands, connectorCommands, duplicateReason, shapeSelection, shapeCommands, growAvailable, board, richText, setSection, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
+  tapeSelection, tidy, description, strokeSelection, strokeCommands, connectorCommands, duplicateReason, shapeSelection, shapeCommands, growAvailable, board, richText, setSection, busy, composing, setPanel, objectsButton, selector, selected, finishTextSession, select,
   numbers, drafts, nativeEditor, item, text, selectionColor, selectionSize, selectionAlign, selectionReason,
   selectionFormats, toggleFormat, changeStyle, command, readOnly, move, bounds, resizeBy, arrange, arrangementReason,
   objectClipboard, clipboardState, clipboardCommand, create, view
 }: Props) {
   const ideas = board.objects.filter((o) => selected.has(o.id) && sectionIdea(o));
-  const geometryReason = !selected.size || readOnly || composing || busy ? selectionReason : board.objects.some((o) => selected.has(o.id) && hasRectangle(o)) ? "" : FOLLOW_REASON;
+  const geometryReason = tidy.open ? TIDY_WAIT : !selected.size || readOnly || composing || busy ? selectionReason : board.objects.some((o) => selected.has(o.id) && hasRectangle(o)) ? "" : FOLLOW_REASON;
+  const sizeReason = geometryReason || (tapeSelection.objects.length ? "Washi tape can't be resized." : "");
   const sections = board.objects.filter(isContainer);
   const sharedSection = ideas.length && ideas.every((o) => o.section === ideas[0].section) ? ideas[0].section ?? "" : "mixed";
   // Hidden mind nodes are not listed; a node has no position or size fields.
@@ -117,6 +122,7 @@ export function ObjectsPanel({
       {selected.size > 1 ? <p>{selected.size} objects selected</p> : description.image ? <DescriptionField control={description} /> : nativeEditor}
       {selected.size === 1 && item && hasEnds(item) && <ConnectorFields board={board} object={item} numbers={numbers} drafts={drafts} commands={connectorCommands} reason={selectionReason} />}
       {richText && selected.size === 1 && item && <FormatPreview item={item} text={text} />}
+      <TapeFields selection={tapeSelection} commands={strokeCommands} reason={selectionReason} />
       <StrokeFields selection={strokeSelection} commands={strokeCommands} reason={selectionReason} />
       <ShapeFields selection={shapeSelection} commands={shapeCommands} reason={selectionReason} />
       {selected.size > 0 && <div className="object-styles">
@@ -187,7 +193,7 @@ export function ObjectsPanel({
           <button
             key={name}
             aria-label={(selected.size > 1 ? "Move objects " : "Move object ") + name}
-            disabled={!!geometryReason} title={geometryReason === FOLLOW_REASON ? geometryReason : undefined} aria-describedby={geometryReason === FOLLOW_REASON ? "geometry-reason" : undefined}
+            disabled={!!geometryReason} title={geometryReason || undefined} aria-describedby={geometryReason === FOLLOW_REASON ? "geometry-reason" : undefined}
             onClick={() => move(Number(x), Number(y))}
           >
             {s}
@@ -203,7 +209,7 @@ export function ObjectsPanel({
           ["Wider", 10, 0], ["Narrower", -10, 0], ["Taller", 0, 10], ["Shorter", 0, -10],
         ].map(([name, x, y]) => <button key={name}
           aria-label={(selected.size > 1 ? "Make objects " : "Make object ") + String(name).toLowerCase()}
-          disabled={!!geometryReason} title={geometryReason === FOLLOW_REASON ? geometryReason : undefined} aria-describedby={geometryReason === FOLLOW_REASON ? "geometry-reason" : undefined}
+          disabled={!!sizeReason} title={sizeReason || undefined} aria-describedby={geometryReason === FOLLOW_REASON ? "geometry-reason" : undefined}
           onClick={() => resizeBy(Number(x), Number(y))}>{name}</button>)}
       </div>
       <GrowButton available={growAvailable} grow={shapeCommands.grow} /></>}
@@ -213,7 +219,7 @@ export function ObjectsPanel({
       </div>}
       <div className="object-commands" role="group" aria-label="Clipboard">
         {(["Copy", "Cut", "Paste"] as const).map((name) => {
-          const reason = clipboardReason(name, selected, objectClipboard, clipboardState, board.objects);
+          const reason = tidy.open ? TIDY_WAIT : clipboardReason(name, selected, objectClipboard, clipboardState, board.objects);
           const description = "clipboard-" + name.toLowerCase() + "-reason";
           return <span key={name}>
             <button disabled={!!reason} title={reason || name}

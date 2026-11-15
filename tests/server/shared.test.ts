@@ -5,7 +5,7 @@ import * as Y from "yjs";
 import { makeDriver } from "board-test-driver";
 import type { Context, Driver, Peer } from "./driver-types.ts";
 import { BoardSession, type Transport, type PresenceInput } from "../../packages/board-sync/src/session.ts";
-import { canonical, add, type BoardV11 } from "../../packages/board-rules/src/document.ts";
+import { canonical, add, type BoardV12 } from "../../packages/board-rules/src/document.ts";
 import { defaultConnectorStyle } from "../../packages/board-rules/src/objects/connector.ts";
 
 const context = inject<Context & { docker: boolean }>("board");
@@ -83,17 +83,17 @@ async function saved(client: Client, id: string) {
   assert.equal(client.session.requests.get(id)?.state, "saved", JSON.stringify(client.session.requests.get(id)));
   return client.peer.messages.find((m) => m.kind === "saved" && m.requestId === id)!;
 }
-async function edit(client: Client, change: (board: BoardV11) => BoardV11) {
+async function edit(client: Client, change: (board: BoardV12) => BoardV12) {
   const id = client.session.edit(change(client.session.board)); await saved(client, id); return id;
 }
-const patch = (b: BoardV11, value: object, index = 0): BoardV11 => ({ ...b, objects: b.objects.map((o, i) => i === index ? { ...o, ...value } : o) });
-function remove(b: BoardV11, ids: string[]): BoardV11 {
+const patch = (b: BoardV12, value: object, index = 0): BoardV12 => ({ ...b, objects: b.objects.map((o, i) => i === index ? { ...o, ...value } : o) });
+function remove(b: BoardV12, ids: string[]): BoardV12 {
   const set = new Set(ids);
   return { ...b, objects: b.objects.filter((o) => !set.has(o.id)).map((o, order) => ({ ...o, order,
     section: o.section && set.has(o.section) ? null : o.section })),
     retiredGenerations: [...b.retiredGenerations, ...b.objects.filter((o) => set.has(o.id)).map((o) => o.generation)].sort() };
 }
-function link(b: BoardV11, from = b.objects[0].id, to = b.objects[1].id): BoardV11 {
+function link(b: BoardV12, from = b.objects[0].id, to = b.objects[1].id): BoardV12 {
   return { ...b, objects: [...b.objects, { id: crypto.randomUUID(), generation: crypto.randomUUID(), type: "connector", text: "", marks: [],
     order: b.objects.length, group: null, section: null, color: "neutral", textSize: "medium", align: "center", ...defaultConnectorStyle(),
     from: { object: from, anchor: "auto" }, to: { object: to, anchor: "auto" } }] };
@@ -101,7 +101,7 @@ function link(b: BoardV11, from = b.objects[0].id, to = b.objects[1].id): BoardV
 async function equal(people: readonly Client[]) {
   const json = await exported();
   await until(() => people.map((p) => canonical(p.session.board)), (values) => values.every((value: string) => value === json));
-  return JSON.parse(json) as BoardV11;
+  return JSON.parse(json) as BoardV12;
 }
 async function seed(a: Client, text = "abcd", count = 1) {
   await edit(a, (b) => {
@@ -109,7 +109,7 @@ async function seed(a: Client, text = "abcd", count = 1) {
     return patch(b, { text });
   });
 }
-async function concurrent(a: Client, b: Client, changes: [(b: BoardV11) => BoardV11, (b: BoardV11) => BoardV11], reverse: boolean) {
+async function concurrent(a: Client, b: Client, changes: [(b: BoardV12) => BoardV12, (b: BoardV12) => BoardV12], reverse: boolean) {
   a.holdIn(); b.holdIn(); a.holdOut(); b.holdOut();
   const ids = [a.session.edit(changes[0](a.session.board)), b.session.edit(changes[1](b.session.board))];
   const order = reverse ? [b, a] : [a, b], replies: any[] = [];
@@ -276,10 +276,10 @@ check(103, "concurrent text keeps both insertions in every save order", async ()
 check(104, "separate objects and property units keep both edits", async () => {
   const [a, b, c] = await all(); await seed(a, "abcd", 2); await equal([a, b, c]);
   for (const reverse of [false, true]) for (const changes of [
-    [(b: BoardV11) => patch(b, { x: reverse ? 20 : 10 }), (b: BoardV11) => patch(b, { text: reverse ? "right" : "left" })],
-    [(b: BoardV11) => patch(b, { color: reverse ? "blue" : "yellow" }), (b: BoardV11) => patch(b, { x: reverse ? 30 : 40 })],
-    [(b: BoardV11) => patch(b, { text: reverse ? "one" : "two" }), (b: BoardV11) => patch(b, { text: reverse ? "three" : "four" }, 1)]
-  ] as [(b: BoardV11) => BoardV11, (b: BoardV11) => BoardV11][]) {
+    [(b: BoardV12) => patch(b, { x: reverse ? 20 : 10 }), (b: BoardV12) => patch(b, { text: reverse ? "right" : "left" })],
+    [(b: BoardV12) => patch(b, { color: reverse ? "blue" : "yellow" }), (b: BoardV12) => patch(b, { x: reverse ? 30 : 40 })],
+    [(b: BoardV12) => patch(b, { text: reverse ? "one" : "two" }), (b: BoardV12) => patch(b, { text: reverse ? "three" : "four" }, 1)]
+  ] as [(b: BoardV12) => BoardV12, (b: BoardV12) => BoardV12][]) {
     const start = a.session.board, expected = changes[1](changes[0](start));
     await concurrent(a, b, changes, reverse); assert.equal(canonical(await equal([a, b, c])), canonical(expected));
   }
@@ -318,7 +318,7 @@ check(107, "repairs are saved with the room update only when changed", async () 
     if (scenario === "section") await edit(a, (b) => add(b, "section", 0, 0));
     if (scenario === "cascade") await edit(a, (b) => link(b));
     await equal([a, b, c]); const start = a.session.board, n = start.objects[0].id, section = start.objects.at(-1)!.id;
-    let changes: [(b: BoardV11) => BoardV11, (b: BoardV11) => BoardV11];
+    let changes: [(b: BoardV12) => BoardV12, (b: BoardV12) => BoardV12];
     if (scenario === "order") changes = [(b) => add(b, "sticky", 1, 1), (b) => add(b, "sticky", 2, 2)];
     else if (scenario === "marks") changes = [(b) => patch(b, { text: "ab" }), (b) => patch(b, { marks: [{ start: 3, end: 5, bold: true }] })];
     else if (scenario === "connector") changes = [(b) => remove(b, [n]), (b) => link(b)];
@@ -858,7 +858,7 @@ check(133, "board comment limits bound the backup and reject mixed envelope shap
 // 0006-W1: portable board creation uses the same fixture on both runners.
 const workspaceRows = async () => (await helper("rows", { table: "boards", filters: { workspace_id: f.workspace } }))
   .sort((a: any, b: any) => a.id.localeCompare(b.id));
-const identifierRows = (board: BoardV11) => board.objects.map((object) =>
+const identifierRows = (board: BoardV12) => board.objects.map((object) =>
   ({ object_id: object.id, generation: object.generation, first_revision: 0 }))
   .sort((a, b) => a.object_id.localeCompare(b.object_id));
 const orderedIdentifiers = async (board: string) => (await driver.rows(board, "identifiers"))

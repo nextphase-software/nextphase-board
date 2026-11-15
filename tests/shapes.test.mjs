@@ -36,7 +36,7 @@ function exactUndo(before, after) {
 
 test("v6 shape defaults, per-type key sets and canonical nested key order", () => {
   let b = withShape();
-  assert.equal(b.schemaVersion, 11);
+  assert.equal(b.schemaVersion, 12);
   assert.deepEqual(b.objects[0], { ...b.objects[0], shape: "square", fill: { mode: "fill", color: "white" },
     border: { style: "solid", color: "dark-gray" }, color: "neutral", textSize: "small", align: "center", width: 180, height: 180, text: "" });
   b = add(add(add(b, "sticky", 500, 0), "text", 800, 0), "section", 0, 500);
@@ -60,7 +60,7 @@ test("v6 validates both kinds, all modes/styles, all 21 names and lowercase cust
       assert.doesNotThrow(() => canonical({ ...b, objects: [{ ...b.objects[0], shape: kind.kind,
         fill: { mode: mode.value, color }, border: { style: style.value, color } }] }));
   const invalid = [
-    (o) => o.shape = "triangle", (o) => o.color = "blue",
+    (o) => o.shape = "hexagon", (o) => o.color = "blue",
     (o) => o.fill.mode = "opaque", (o) => o.border.style = "dotted",
     ...["#ABCDEF", "#fff", "navy", "#abcdeg", "blue ", null, {}, 2].flatMap((color) => [
       (o) => o.fill.color = color, (o) => o.border.color = color,
@@ -167,7 +167,8 @@ test("fit height is minimal, respects 2000 and bottom edge and controls Grow ava
     const { layout, height } = textLayout(o);
     assert(height > o.height);
     assert(shapeTextLayout({ ...o, height }, layout, measure).fits);
-    assert(!shapeTextLayout({ ...o, height: height - .000001 }, layout, measure).fits);
+    assert(!shapeTextLayout({ ...o, height: height - (kind.textBox ? 1 : .000001) }, layout, measure).fits);
+    if (kind.textBox) assert(Number.isInteger(height));
     assert(canGrow(true, true, false, o.height, height));
     assert(!canGrow(true, true, true, height, height));
     const long = textLayout({ ...o, text: "a\n".repeat(400) }); assert.equal(long.height, 2000);

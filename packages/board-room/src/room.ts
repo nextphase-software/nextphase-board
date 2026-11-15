@@ -7,7 +7,7 @@ import { RoomLifecycle, type Lifecycle, type LifecycleRequest } from "./lifecycl
 import * as Y from "yjs";
 import { Adapter } from "nextphase-board-sync/document-adapter.ts";
 import { readBoard } from "nextphase-board-sync/codec.ts";
-import { canonical, type BoardV11 } from "nextphase-board-rules/document.ts";
+import { canonical, type BoardV12 } from "nextphase-board-rules/document.ts";
 import { History, validateHistoryBackup } from "./history.ts";
 import { HISTORY_INTERVAL } from "nextphase-board-sync/history.ts";
 import { Copies } from "./copies.ts";
@@ -36,7 +36,7 @@ export class Room {
   voting: WorkshopVoting;
   spotlight: Spotlight;
   doc = new Y.Doc();
-  board!: BoardV11;
+  board!: BoardV12;
   initialized = false;
   generation = 0;
   private copies?: Copies;
@@ -70,13 +70,13 @@ export class Room {
     this.tail = result.catch(() => {});
     return result;
   }
-  create(document: BoardV11) {
+  create(document: BoardV12) {
     return this.ordered(async () => {
       if (meta(this.env.storage, "storage_version")) throw new RoomError(409, "room_exists");
       await this.load(document);
     });
   }
-  async load(document?: BoardV11) {
+  async load(document?: BoardV12) {
     await this.lifecycle.active();
     this.closeLegacy();
     initialize(this.env.storage);
@@ -91,7 +91,7 @@ export class Room {
       if (!details) throw new RoomError(404, "not_found");
       if (!page) throw new RoomError(503, "service_unavailable");
       const adapter = new Adapter();
-      const board: BoardV11 = document ?? { schemaVersion: 11, boardId: this.boardId, title: details.title, objects: [], retiredGenerations: [] };
+      const board: BoardV12 = document ?? { schemaVersion: 12, boardId: this.boardId, title: details.title, objects: [], retiredGenerations: [] };
       adapter.set(board);
       try {
         const prepared = await this.history.prepare(board);
@@ -121,7 +121,7 @@ export class Room {
     this.doc.destroy();
     this.doc = loadDocument(storage);
     this.board = readBoard(this.doc);
-    if (this.board.schemaVersion !== 11) this.upgradeStored();
+    if ([10, 11].includes(this.board.schemaVersion)) this.upgradeStored();
     this.voting.validate();
     this.initialized = true;
     try {
@@ -144,12 +144,12 @@ export class Room {
     this.saved();
     this.background(() => this.deliverNotices());
   }
-  // A stored version 10 board is served as version 11 (no object changes). This
+  // A stored version 10 or 11 board is served as version 12 (no object changes). This
   // is not a person's edit: no edits row, receipt or revision. The snapshot at
-  // the current revision keeps it, so a reload serves version 11 again.
+  // the current revision keeps it, so a reload serves version 12 again.
   private upgradeStored() {
     const storage = this.env.storage;
-    this.doc.getMap("board").set("schemaVersion", 11);
+    this.doc.getMap("board").set("schemaVersion", 12);
     this.board = readBoard(this.doc);
     storage.transaction(() => snapshot(storage, this.doc, this.board, meta(storage, "revision")));
   }

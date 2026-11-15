@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
-import { clamp, count, type BoardV11 as Board, type ItemV11 as Item } from "nextphase-board-rules/document.ts";
+import { clamp, count, type BoardV12 as Board, type ItemV12 as Item } from "nextphase-board-rules/document.ts";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, colorEntry, type Style } from "nextphase-board-rules/styles.ts";
 import { objectType, hasText, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { children, type MapCommand } from "../mind-map";
@@ -11,14 +11,17 @@ import { ShapeControls, type ShapeControlProps, type ShapePopup } from "./shape-
 import type { ConnectorMenuProps } from "./connector-menu";
 import { ConnectorControls } from "./connector-controls";
 import { StrokeControls, type StrokeControlProps } from "./stroke-controls";
+import { TapeControls, type TapeSelection, type TapeCommands } from "./tape-controls";
+import type { TidyUI } from "./tidy-up-bar";
 import { ArrangeControls } from "./arrange-controls";
 
 import { ImageControls, type DescriptionControl } from "./image-controls";
 
 type Props = {
+  tapeSelection: TapeSelection; tidy: TidyUI;
   board: Board;
   imageCount: number; imagesOnly: boolean; description: DescriptionControl;
-  strokeSelection: StrokeControlProps["selection"]; strokeCommands: StrokeControlProps["commands"];
+  strokeSelection: StrokeControlProps["selection"]; strokeCommands: StrokeControlProps["commands"] & TapeCommands;
   connectorObjects: ConnectorMenuProps["objects"]; connectorCommands: ConnectorMenuProps["commands"]; connectorPopup: ConnectorMenuProps["popup"];
   connectorOnly: boolean;
   connectorCount: number;
@@ -72,7 +75,7 @@ type Props = {
 };
 
 export function ContextBar({
-  board, imageCount, imagesOnly, description, strokeSelection, strokeCommands, connectorObjects, connectorCommands, connectorPopup, connectorOnly, connectorCount, duplicateReason, shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
+  tapeSelection, tidy, board, imageCount, imagesOnly, description, strokeSelection, strokeCommands, connectorObjects, connectorCommands, connectorPopup, connectorOnly, connectorCount, duplicateReason, shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
   inline, richText, finishTextSession, setInline, scene, edit, text, colourControl, colourButton,
   selectionReason, colourLabel, swatchOpen, setArrangeFor, setSwatchFor, selectionKey,
   selectionColor, swatches, contextWidth, size, closeSwatches, changeStyle, selectionSize,
@@ -81,6 +84,7 @@ export function ContextBar({
 }: Props) {
   // A node's bar: no text size, alignment, formatting or Arrange; a non-root
   // node with children adds Collapse or Expand.
+  const tidyReason = selectionReason || tidy.reason({readOnly,composing,pointerGesture:busy,invalidObjectText:false});
   const nodes = board.objects.filter((o) => selected.has(o.id) && isMindNode(o));
   const branch = item && isMindNode(item) && item.parent !== null && children(board.objects, item.id).length ? item : undefined;
   return (
@@ -95,10 +99,10 @@ export function ContextBar({
         visibility: contextFits ? "visible" : "hidden",
       }}
     >
-      {strokeSelection.only ? <StrokeControls selection={strokeSelection} commands={strokeCommands} reason={selectionReason} remove={() => command("Delete")} /> : connectorOnly ? <ConnectorControls objects={connectorObjects} commands={connectorCommands} popup={connectorPopup} count={selected.size} empty={!text} reason={selectionReason} edit={edit} remove={() => command("Delete")} /> : <>
+      {tapeSelection.only ? <><TapeControls selection={tapeSelection} commands={strokeCommands} reason={selectionReason} />{(["Duplicate","Delete"] as const).map(name=><button key={name} className="icon-button" aria-label={name} disabled={!!(name==="Duplicate"?duplicateReason:selectionReason)} onClick={()=>command(name)}><Icon name={name} /><span className="tooltip">{name}</span></button>)}</> : strokeSelection.only ? <StrokeControls selection={strokeSelection} commands={strokeCommands} reason={selectionReason} remove={() => command("Delete")} /> : connectorOnly ? <ConnectorControls objects={connectorObjects} commands={connectorCommands} popup={connectorPopup} count={selected.size} empty={!text} reason={selectionReason} edit={edit} remove={() => command("Delete")} /> : <>
       {imagesOnly ? <ImageControls count={imageCount} control={description} /> : <>
       <ShapeControls part="kind" selection={shapeSelection} commands={shapeCommands} reason={selectionReason} popup={shapePopup} />
-      {(!shapeSelection.objects.length || connectorCount > 0 || strokeSelection.objects.length > 0) && <span>{item ? objectType(item.type).label : selected.size + " objects"}</span>}
+      {(!shapeSelection.objects.length || connectorCount > 0 || strokeSelection.objects.length > 0 || tapeSelection.objects.length > 0) && <span>{item ? objectType(item.type).label : selected.size + " objects"}</span>}
       <span className="divider" aria-hidden="true" />
       {item && hasText(item) && <>
       <button
@@ -218,6 +222,8 @@ export function ContextBar({
           <ArrangeControls prefix="menu-arrange" choose={(name) => { if (name === "Connect") { closeArrange(); arrange(name); } else { arrange(name); closeArrange(); } }} arrangementReason={arrangementReason} />
         </div>}
       </span>}
+      {!imagesOnly && selected.size >= 2 && <><button className="icon-button" aria-label="Tidy up" title={tidyReason || 'Tidy up'} disabled={!!tidyReason}
+        onClick={()=>tidy.start({readOnly,composing,pointerGesture:busy,invalidObjectText:false})}><Icon name="Tidy up" /><span className="tooltip">Tidy up · {/Mac|iPhone|iPad/.test(navigator.platform)?'⌥⇧T':'Alt+Shift+T'}</span></button><span className="divider" aria-hidden="true" /></>}
       {(["Duplicate", "Delete"] as const).map((name) => (
         <button key={name} className="icon-button" aria-label={name}
           aria-describedby={name === "Duplicate" && duplicateReason !== selectionReason ? "duplicate-reason" : "selection-reason"} disabled={!!(name === "Duplicate" ? duplicateReason : selectionReason)}

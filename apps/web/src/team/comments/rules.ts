@@ -2,7 +2,7 @@
 export * from "nextphase-board-sync/comments.ts";
 export * from "nextphase-board-sync/mentions.ts";
 import { nameObject, type CommentThread, type CommentRequest } from "nextphase-board-sync/comments.ts";
-import type { BoardV11 } from "nextphase-board-rules/document.ts";
+import type { BoardV12 } from "nextphase-board-rules/document.ts";
 
 export function commentInputBlocked(surface: string | null, history: { open: boolean; previewing: boolean; locked: boolean }) {
   return surface === "people" || surface === "timer" || surface === "share" || history.open || history.previewing || history.locked;
@@ -36,18 +36,18 @@ export function replyCount(count: number, resolved = false) {
 }
 export const lengthWords = (count: number) => `${count.toLocaleString("en-US")} / 4,000`;
 export const deleteBody = (count: number) => `This deletes the comment${count ? ` and its ${count} ${count === 1 ? "reply" : "replies"}` : ""} for everyone. You can't undo this.`;
-export function objectName(thread: CommentThread, board: BoardV11) {
+export function objectName(thread: CommentThread, board: BoardV12) {
   const object = !thread.anchor.detached && board.objects.find((object) => object.id === thread.anchor.objectId);
   return object ? nameObject(object) : thread.anchor;
 }
-export function onWords(thread: CommentThread, board: BoardV11) {
+export function onWords(thread: CommentThread, board: BoardV12) {
   const name = objectName(thread, board).objectLabel;
   return thread.anchor.detached ? `Detached: “${name}” was deleted` : thread.anchor.objectId ? `On “${name}”` : "On the board";
 }
 export function detachedWords(thread: CommentThread) {
   return `Detached. The ${thread.anchor.objectType} “${thread.anchor.objectLabel}” was deleted; this thread stays where it was.`;
 }
-export function threadName(thread: CommentThread, board: BoardV11) {
+export function threadName(thread: CommentThread, board: BoardV12) {
   const count = thread.comments.length - 1;
   return `Comment thread by ${thread.label} on ${thread.anchor.objectId ? `“${objectName(thread, board).objectLabel}”` : "the board"}` +
     (count > 0 ? `, ${replyCount(count)}` : "") + (thread.anchor.detached ? ", detached" : "") + (thread.resolved ? ", resolved" : "");

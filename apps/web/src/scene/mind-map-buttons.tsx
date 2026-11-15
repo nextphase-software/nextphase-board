@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { ReactElement } from "react";
-import type { BoardV11 as Board } from "nextphase-board-rules/document.ts";
+import type { BoardV12 as Board } from "nextphase-board-rules/document.ts";
 import { isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import type { ResolvedItem } from "../geometry";
 import { descendants, outerSides, MAP_WORDS, type MapCommand } from "../mind-map";

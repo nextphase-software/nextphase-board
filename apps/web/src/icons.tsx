@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { SHAPE_KINDS } from "nextphase-board-rules/objects/registry.ts";
 // Original glyphs for the Board shell; no external artwork inputs.
 const paths = {
   Select: "M4 3 16 11 10 12 7 17Z",
@@ -34,10 +35,14 @@ const paths = {
   strike: "M15 5c-1-2-9-3-9 1 0 2 2 3 4 4M5 15c1 3 10 3 10-1 0-2-2-3-5-4M3 10h14",
   Delete: "M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6",
 };
-export function Icon({ name }: { name: keyof typeof paths }) {
+export function Icon({ name }: { name: keyof typeof paths | typeof SHAPE_KINDS[number]['tool'] | 'Tidy up' | 'Washi tape' }) {
+  if (name === 'Washi tape') return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M3 9.5 4.2 8 3 6.5 20 3l1 4.5-1.2 1.5L21 10.5 4 14z" /><path d="M7 7.5l1.6 5.4M12 6.5l1.6 5.4M17 5.5l1.2 5" strokeWidth="1.2" /><path d="M5 19h14" strokeWidth="2.4" strokeLinecap="round" /></svg>;
+  const kind = SHAPE_KINDS.find(k => k.name === name && !k.key), outline = kind?.outline;
+  const polygon = Array.isArray(outline) ? outline.map(([x,y],i) => `${i?'L':'M'}${1+x*18} ${1+y*18}`).join(' ')+'Z' : undefined;
   return <svg width="20" height="20" viewBox="0 0 20 20" fill="none"
     stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"
     strokeLinejoin="round" aria-hidden="true" focusable="false">
-    <path d={paths[name]} />
+    {name === 'Tidy up' ? [[2.5,2.5],[11.5,2.5],[2.5,11.5],[11.5,11.5]].map(([x,y],i) => <rect key={i} x={x} y={y} width={6} height={6} rx={1} />)
+      : kind ? polygon ? <path d={polygon} /> : <rect x={1} y={1} width={18} height={18} rx={18*.18} /> : <path d={paths[name as keyof typeof paths]} />}
   </svg>;
 }

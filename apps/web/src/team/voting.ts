@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { HostedBoard, VoteProjection, VoteFrame, VoteCommand } from './hosted-board';
-import type { ItemV11 } from 'nextphase-board-rules/document.ts';
+import type { ItemV12 } from 'nextphase-board-rules/document.ts';
 import { ownBallot, remainingWords, targetMatches, validQuestion, validBudget, voteKey, eligibleVote } from './voting-rules.ts';
 type Health='connecting'|'ready'|'checking'|'disconnected';
 type CommandInput={action:'start';prompt:string;budget:number}|{action:'vote'|'unvote';objectId:string;objectGeneration:string;expectedBallotVersion:number}|{action:'reveal'|'clear'};
@@ -38,7 +38,7 @@ export class BoardVoting {
   cancelConfirm(){this.confirmation=null;this.emit();}
   confirmCommand(){const c=this.confirmation,s=this.projection?.session;if(!c||!s||c.sessionId!==s.sessionId||c.sessionVersion!==s.sessionVersion){this.cancelConfirm();return;}this.command({action:c.action});}
   start(){if(!this.host.history.previewing&&this.projection?.session.status==='idle'&&validQuestion(this.question)&&validBudget(this.budget))this.command({action:'start',prompt:this.question,budget:this.budget});}
-  toggleTarget(o?:ItemV11,remove?:boolean){
+  toggleTarget(o?:ItemV12,remove?:boolean){
     const own=ownBallot(this.projection);if(!this.canInput||!o||!own||!eligibleVote(o)||!this.projection!.session.targets.some(t=>targetMatches(t,o)))return;
     const voted=own.targets.some(t=>targetMatches(t,o));if(remove===true&&!voted||remove===false&&(voted||!own.remaining))return;
     this.command({action:remove===undefined?voted?'unvote':'vote':remove?'unvote':'vote',objectId:o.id,objectGeneration:o.generation,expectedBallotVersion:own.ballotVersion});
@@ -104,12 +104,12 @@ export class BoardVoting {
     if(e.key==='Enter'){e.preventDefault();e.stopPropagation();if(voteKey({...e,isComposing:e.nativeEvent.isComposing})){const ids=[...selected];const id=ids.length===1?ids[0]:undefined;this.toggleTarget(this.host.snapshot.board?.objects.find(o=>o.id===id));}return true;}
     return e.key!==' ';
   }
-  pointerDown(e:{clientX:number;clientY:number;pointerId:number;isPrimary:boolean;altKey:boolean;ctrlKey:boolean;metaKey:boolean;shiftKey:boolean},o?:ItemV11){
+  pointerDown(e:{clientX:number;clientY:number;pointerId:number;isPrimary:boolean;altKey:boolean;ctrlKey:boolean;metaKey:boolean;shiftKey:boolean},o?:ItemV12){
     if(!this.mode)return false;this.press=undefined;
     if(this.canInput&&e.isPrimary&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&o)this.press={id:o.id,x:e.clientX,y:e.clientY,pointer:e.pointerId};return true;
   }
-  pointerMove(e:{clientX:number;clientY:number},o?:ItemV11){if(!this.mode)return false;if(this.press&&Math.hypot(e.clientX-this.press.x,e.clientY-this.press.y)>=3)this.press=undefined;const id=o?.id??'';if(id!==this.hover){this.hover=id;this.emit();}return true;}
-  pointerUp(e:{clientX:number;clientY:number;pointerId:number},o?:ItemV11){if(!this.mode)return false;const p=this.press;this.press=undefined;if(p&&p.pointer===e.pointerId&&p.id===o?.id&&Math.hypot(e.clientX-p.x,e.clientY-p.y)<3)this.toggleTarget(o);return true;}
+  pointerMove(e:{clientX:number;clientY:number},o?:ItemV12){if(!this.mode)return false;if(this.press&&Math.hypot(e.clientX-this.press.x,e.clientY-this.press.y)>=3)this.press=undefined;const id=o?.id??'';if(id!==this.hover){this.hover=id;this.emit();}return true;}
+  pointerUp(e:{clientX:number;clientY:number;pointerId:number},o?:ItemV12){if(!this.mode)return false;const p=this.press;this.press=undefined;if(p&&p.pointer===e.pointerId&&p.id===o?.id&&Math.hypot(e.clientX-p.x,e.clientY-p.y)<3)this.toggleTarget(o);return true;}
   cancelPointer(){this.press=undefined;this.hover='';this.emit();}
   clear(){this.disposed=true;this.clearTimers();if(typeof document!=='undefined')document.removeEventListener('visibilitychange',this.foreground);this.projection=undefined;this.health='connecting';this.mode=false;this.setup=false;this.question='';this.budget=3;this.selected='';this.hover='';this.confirmation=null;this.announcement='';this.error='';this.onEnter=undefined;this.onNavigate=undefined;this.sequence=0;this.pending=undefined;this.read=undefined;this.loss=false;this.admitted=false;this.press=undefined;this.seed();this.emit();}
 }

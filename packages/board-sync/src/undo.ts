@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
-import { canonical, freshIdentifier, validate, type BoardV11, type ItemV11 } from "nextphase-board-rules/document.ts";
+import { canonical, freshIdentifier, validate, type BoardV12, type ItemV12 } from "nextphase-board-rules/document.ts";
 import { checkTransition } from "nextphase-board-rules/transition.ts";
 import { hasEnds, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { readBoard } from "./codec.ts";
 
 type Unit = { value: unknown; identity: string };
-export type State = { board: BoardV11; units: Map<string, Map<string, Unit>> };
+export type State = { board: BoardV12; units: Map<string, Map<string, Unit>> };
 type Entry = { id: string; key: string; before: unknown; after: unknown; guard: string; live: boolean };
 type Step = Entry[];
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -53,11 +53,11 @@ function stepBetween(before: State, after: State): Step {
   }
   return step;
 }
-function applyUnit(object: ItemV11, key: string, value: unknown): ItemV11 {
+function applyUnit(object: ItemV12, key: string, value: unknown): ItemV12 {
   return ["geometry", "style", "ends", "connectorStyle"].includes(key)
     ? { ...object, ...value as object } : { ...object, [key]: value };
 }
-function remapObject(object: ItemV11, ids: Map<string, { id: string; generation: string }>): ItemV11 {
+function remapObject(object: ItemV12, ids: Map<string, { id: string; generation: string }>): ItemV12 {
   return { ...object, ...ids.get(object.id),
     ...(hasEnds(object) ? { from: { ...object.from, object: ids.get(object.from.object)?.id ?? object.from.object },
       to: { ...object.to, object: ids.get(object.to.object)?.id ?? object.to.object } } : {}),
@@ -107,7 +107,7 @@ export class SharedUndo {
     // The add of a mind node carries its first text session's group, so the text
     // and the layout written when that session ends join this step.
     const addsNode = step.every((entry) => entry.key !== "object" || !entry.before) &&
-      step.some((entry) => entry.key === "object" && !entry.before && isMindNode(entry.after as ItemV11));
+      step.some((entry) => entry.key === "object" && !entry.before && isMindNode(entry.after as ItemV12));
     this.group = !direction && (unitOnly || addsNode) && group ? group : undefined;
     if (direction === "undo") this.future.push(step);
     else {
@@ -115,7 +115,7 @@ export class SharedUndo {
       if (!direction) this.future = [];
     }
   }
-  take(state: State, direction: "undo" | "redo"): BoardV11 | string {
+  take(state: State, direction: "undo" | "redo"): BoardV12 | string {
     this.group = undefined;
     const step = (direction === "undo" ? this.past : this.future).pop();
     if (!step) return "nothing_to_undo";
@@ -141,7 +141,7 @@ export class SharedUndo {
         if (object) board.retiredGenerations.push(object.generation);
         board.objects = board.objects.filter((o) => o.id !== entry.id);
       } else if (entry.before && !entry.after) {
-        const object = remapObject(entry.before as ItemV11, restored);
+        const object = remapObject(entry.before as ItemV12, restored);
         const live = new Set([...board.objects.map((o) => o.id), ...[...restored.values()].map((o) => o.id)]);
         if (hasEnds(object) && (!live.has(object.from.object) || !live.has(object.to.object))) continue;
         if (object.section && !live.has(object.section)) object.section = null;
@@ -158,8 +158,8 @@ export class SharedUndo {
     for (const older of [...this.past, ...this.future]) for (const entry of older) {
       const replacement = restored.get(entry.id);
       if (entry.key === "object") {
-        if (entry.before) entry.before = remapObject(entry.before as ItemV11, restored);
-        if (entry.after) entry.after = remapObject(entry.after as ItemV11, restored);
+        if (entry.before) entry.before = remapObject(entry.before as ItemV12, restored);
+        if (entry.after) entry.after = remapObject(entry.after as ItemV12, restored);
       } else if (entry.key === "section" || entry.key === "parent") {
         entry.before = restored.get(entry.before as string)?.id ?? entry.before;
         entry.after = restored.get(entry.after as string)?.id ?? entry.after;

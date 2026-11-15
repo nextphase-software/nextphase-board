@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type RefObject, type Dispatch, type SetStateAction } from "react";
-import type { Board, BoardV11 } from "nextphase-board-rules/document.ts";
+import type { Board, BoardV12 } from "nextphase-board-rules/document.ts";
 import { isImage } from "nextphase-board-rules/objects/registry.ts";
 import { boardPictures, readPictures, storePicture, tabPictures } from "../image-assets.ts";
 import { addImages, decodePicture, describeImage, descriptionDraft, IMAGE_ACCEPT, IMAGE_REASONS, importReason, platformPaste, prepareImage, refusalNotice, type PreparedImage } from "../images.ts";
@@ -9,7 +9,7 @@ import type { LocalStore } from "../storage.ts";
 import type { View } from "../view.ts";
 
 type Input = {
-  board: BoardV11; model: RefObject<BoardV11>; selected: Set<string>;
+  board: BoardV12; model: RefObject<BoardV12>; selected: Set<string>;
   readOnly: boolean; busy: boolean; composing: boolean; invalidObjectText: boolean;
   pending: RefObject<{ busy: boolean; composing: boolean; invalid: boolean }>;
   commit: (board: Board, recordObject?: boolean) => void; finishTextSession: () => void;
@@ -54,7 +54,7 @@ export function useImages(input: Input) {
     draft.current = { boardId: i.board.boardId, id: o.id, generation: o.generation, value: valueDraft, composing, pending: draft.current?.pending ?? false };
     redraw((n) => n + 1);
   }
-  async function ensureDecoded(board: BoardV11) {
+  async function ensureDecoded(board: BoardV12) {
     const s = latest.current.getStore();
     if (s?.db) await readPictures(s.db, boardPictures(board));
     await Promise.all([...boardPictures(board)].map(async (hash) => {

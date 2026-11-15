@@ -544,8 +544,9 @@ small {
 .shapes-panel { left: 12px; top: 70px; width: 264px; padding: 12px; }
 .shapes-panel h3 { font-size: 13px; margin: 12px 0; }
 .shapes-panel p { color: #79737f; font-size: 12px; }
-.shape-tiles { display: flex; gap: 8px; }
-.shape-tiles button { display: grid; justify-items: center; gap: 8px; flex: 1; }
+.shape-tiles { display: grid; grid-template-columns: repeat(4, 52px); gap: 8px; }
+.shape-tiles button { display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; padding: 0; min-width: 0; }
+.shape-tiles button svg { width: 24px; height: 24px; }
 .shape-control { display: inline-flex; }
 .shape-menu, .shape-paint-panel {
   position: absolute; left: 0; top: 48px; background: #1f1f22; color: white;
@@ -1512,3 +1513,28 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
 .inline.node-editor:focus-within { outline: none; }
 .inline.node-editor textarea { overflow: hidden; color: inherit; font-weight: inherit; }
 .inline.node-editor textarea::placeholder { color: #79737f; opacity: 1; }
+
+/* Drawing and layout controls. */
+#shape-kind-popup { grid-template-columns: 1fr 1fr; width: 360px; gap: 2px; }
+.tape-swatch { display: inline-block; width: 22px; height: 22px; border: 1px solid rgba(0,0,0,.15); border-radius: 5px; flex-shrink: 0; }
+.context .tape-label, .context .tidy-label { color: white; font-size: 13px; font-weight: 600; padding: 0 8px; white-space: nowrap; }
+.tape-control summary { padding: 0 6px; }
+.tidy-grid { position: absolute; margin: -1px; border: 1.5px solid #518de0; pointer-events: none; box-sizing: border-box; }
+.tidy-handle { position: absolute; z-index: 2; touch-action: none; }
+.tidy-handle.vertical { width: 20px; height: 28px; margin: -14px 0 0 -10px; cursor: ew-resize; }
+.tidy-handle.horizontal { width: 28px; height: 20px; margin: -10px 0 0 -14px; cursor: ns-resize; }
+.tidy-handle-line { position: absolute; background: #7051cf; pointer-events: none; }
+.vertical .tidy-handle-line { width: 2px; height: 28px; left: 9px; top: 0; }
+.horizontal .tidy-handle-line { height: 2px; width: 28px; top: 9px; left: 0; }
+.dragging.vertical .tidy-handle-line { width: 3px; left: 8.5px; }
+.dragging.horizontal .tidy-handle-line { height: 3px; top: 8.5px; }
+.tidy-handle-circle { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 11px; height: 11px; box-sizing: border-box; border: 2px solid #7051cf; border-radius: 50%; background: white; pointer-events: none; }
+.dragging .tidy-handle-circle { width: 14px; height: 14px; background: #7051cf; }
+.tidy-spacing-label { position: absolute; left: 50%; top: calc(50% + 14px); transform: translateX(-50%); background: #7051cf; color: white; font-size: 12px; font-weight: 400; line-height: 1.35; border-radius: 4px; padding: 4px 8px; pointer-events: none; }
+.tidy-bar .tidy-field { display: inline-flex; align-items: center; gap: 6px; color: #d9d6de; font-size: 13px; padding: 0 6px; white-space: nowrap; }
+.tidy-bar .tidy-field input { height: 28px; width: 42px; min-width: 34px; border: 1px solid #57525f; border-radius: 6px; color: white; font-size: 13px; text-align: center; padding: 0 6px; background: none; }
+.context.tidy-bar .tidy-step { width: 24px; min-width: 24px; height: 28px; min-height: 28px; padding: 0; color: white; background: none; border: 0; font-size: 16px; }
+.context.tidy-bar .tidy-cancel { color: white; background: none; border: 0; font-size: 13px; font-weight: 600; height: 32px; min-height: 32px; padding: 0 10px; border-radius: 6px; }
+.context.tidy-bar .tidy-apply { color: white; background: #7051cf; border: 0; font-size: 13px; font-weight: 600; height: 30px; min-height: 30px; padding: 0 14px; border-radius: 6px; margin-left: 4px; }
+.context.tidy-bar .tidy-apply:hover { color: white; background: #6142be; }
+.context.tidy-bar .tidy-step:hover:not(:disabled), .context.tidy-bar .tidy-cancel:hover { background: #57525f; color: white; }

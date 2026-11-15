@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { BoardV11 } from 'nextphase-board-rules/document.ts';
+import type { BoardV12 } from 'nextphase-board-rules/document.ts';
 import { api, ApiError } from './api';
 import { versionHeading, type Version, type Head, type SaveVersion, type RestoreVersion } from './history-rules';
 import type { HostedBoard } from './hosted-board';
@@ -8,7 +8,7 @@ export type HistoryDialog = 'save' | 'name' | 'confirm' | 'stale' | 'restoring' 
 export class BoardHistory {
   open = false;
   previewing = false;
-  document?: BoardV11;
+  document?: BoardV12;
   versions: Version[] = [];
   selected?: Version;
   naming?: Version;
@@ -80,7 +80,7 @@ export class BoardHistory {
     this.previewing = true; this.panEpoch++; this.host.stopFollowing(); this.document = undefined;
     this.selected = version; this.state = 'preview-loading'; this.emit(true);
     try {
-      const result = await api<{ version: Version; document: BoardV11 }>(this.path(version.id));
+      const result = await api<{ version: Version; document: BoardV12 }>(this.path(version.id));
       if (read !== this.selectionEpoch || life !== this.life || !this.previewing) return;
       this.document = result.document; this.selected = result.version; this.state = 'ready'; this.emit(true);
     } catch (error) {

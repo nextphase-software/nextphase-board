@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { Board as SavedBoard, BoardV11 as Board, ItemV11 as Item } from "nextphase-board-rules/document.ts";
+import type { Board as SavedBoard, BoardV12 as Board, ItemV12 as Item } from "nextphase-board-rules/document.ts";
 import { count } from "nextphase-board-rules/document.ts";
 import { catalog } from "../activities/catalog";
 import { activityPreview, insertActivity, readActivity, type Activity, type Preview } from "../activities";
@@ -11,12 +11,13 @@ import { textUnits, type Style } from "nextphase-board-rules/styles.ts";
 import type { View } from "../view";
 import { arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "../arrange";
 import { assignSection, commandObjectLabel, orderInBands, wrapReason, wrapSelection } from "../sections";
-import { type ConnectorStyle, type End, objectType, isImage, hasRectangle, hasText, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, isMindNode, type ShapeKeys, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
+import { isTape, type TapePattern, type ConnectorStyle, type End, objectType, isImage, hasRectangle, hasText, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, isMindNode, type ShapeKeys, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
 import { addChild, addSibling, collapse, descendants, hiddenIds, settle, withHiddenDescendants, MAP_WORDS, type MapCommand, type MeasureNode } from "../mind-map";
 import { editingCommandReason } from "../commands";
 import { groupObjects, groupReason, ungroupObjects } from "../group";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "../clipboard";
 
+import { TIDY_WAIT } from "../tidy-up";
 import { changeStrokeWeight, changeStrokeColor, changeOrdinaryColor } from "../strokes";
 import { copiedSet, copiedSetReason, cascadeCount, connectReason, createConnector, changeConnectorStyle, reconnect } from "../connectors";
 
@@ -127,6 +128,7 @@ export function useEditingCommands({
     } catch { failed(); }
   }
   function clipboardCommand(name: ClipboardCommand) {
+    if (selectionReason === TIDY_WAIT) { setMessage(selectionReason); return; }
     const reason = clipboardReason(name, selected, objectClipboard, clipboardState, model.current.objects);
     if (reason) { setMessage(reason); return; }
     try {
@@ -187,8 +189,8 @@ export function useEditingCommands({
   }
   function command(name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut" | MapCommand, id?: string) {
     if (MAP_COMMANDS.includes(name)) { mapCommand(name as MapCommand, id); return; }
-    if (commandReason) {
-      setMessage(commandReason);
+    if (commandReason || name !== "Undo" && name !== "Redo" && selectionReason === TIDY_WAIT) {
+      setMessage(commandReason || selectionReason);
       return;
     }
     if ((name === "Duplicate" || name === "Cut") && copiedSetReason(model.current.objects, selected)) {
@@ -259,6 +261,7 @@ export function useEditingCommands({
     }
   }
   function arrangementReason(name: ArrangeCommand) {
+    if (selectionReason === TIDY_WAIT) return selectionReason;
     if (name === "Connect") return editingCommandReason(editingState) ||
       (model.current.objects.some((o) => selected.has(o.id) && isMindNode(o)) ? "Mind map nodes can't be connected." : "") ||
       connectReason(model.current, selected, editingState);
@@ -392,7 +395,11 @@ export function useEditingCommands({
       finishTextSession(); setInline(false); commit(reconnect(model.current, id, end, target), true);
     },
   };
-  const strokeCommands = { color: strokeColor, weight: strokeWeight };
+  const strokeCommands = { pattern: (pattern: TapePattern) => {
+    if (selectionReason) return;
+    const objects=model.current.objects.map(o=>isTape(o)&&selected.has(o.id)&&o.pattern!==pattern?{...o,pattern}:o);
+    finishTextSession();setInline(false);commit({...model.current,objects},true);
+  }, color: strokeColor, weight: strokeWeight };
   const shapeCommands = { changeShape, changeFill: changeShapeFill, changeBorder: changeShapeBorder, grow };
   return { connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
 }

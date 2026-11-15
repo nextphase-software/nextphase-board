@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { Ellipse, Group, Rect, Text } from "react-konva";
+import { Ellipse, Group, Rect, Text, Line } from "react-konva";
 import type { ItemV6 as Item } from "nextphase-board-rules/document.ts";
 import { objectType, textBox, kindInfo } from "nextphase-board-rules/objects/registry.ts";
 import { textUnits } from "nextphase-board-rules/styles.ts";
@@ -15,11 +15,12 @@ export function ShapeBody({ o, layout, selected, inline, view }: {
     dash: o.border?.style === "dashed" ? [14, 9] : undefined };
   const fill = { fill: record.fill(o), opacity: o.fill?.mode === "transparent" ? .45 : 1 };
   const ellipse = { x: o.x + o.width / 2, y: o.y + o.height / 2, radiusX: o.width / 2, radiusY: o.height / 2 };
-  const rect = { x: o.x, y: o.y, width: o.width, height: o.height, cornerRadius: 6 };
+  const rect = { x: o.x, y: o.y, width: o.width, height: o.height, cornerRadius: kindInfo(o).kind === "rounded-rectangle" ? Math.min(o.width,o.height)*.18 : 6 };
+  const outline = kindInfo(o).outline, polygon = Array.isArray(outline) ? outline.flatMap(([x,y]) => [o.x+x*o.width,o.y+y*o.height]) : null;
   const lines = layout.runs ?? [], lineHeight = textUnits(o.textSize) * 1.45;
   return <Group>
-    {round ? <Ellipse {...ellipse} {...fill} /> : <Rect {...rect} {...fill} />}
-    {round ? <Ellipse {...ellipse} {...body} /> : <Rect {...rect} {...body} />}
+    {polygon ? <Line points={polygon} closed lineJoin="round" {...fill} /> : round ? <Ellipse {...ellipse} {...fill} /> : <Rect {...rect} {...fill} />}
+    {polygon ? <Line points={polygon} closed lineJoin="round" {...body} /> : round ? <Ellipse {...ellipse} {...body} /> : <Rect {...rect} {...body} />}
     {!(inline && selected.has(o.id)) && lines.map((line, i) => line.pieces.map((p, j) => <Text key={i + ":" + j}
       fontFamily="system-ui" fontSize={textUnits(o.textSize)} lineHeight={1.45}
       fontStyle={p.style.italic ? p.style.bold ? "italic bold" : "italic" : p.style.bold ? "bold" : "normal"}

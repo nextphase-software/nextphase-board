@@ -39,7 +39,7 @@ async function grown() {
 test("MM-U1 the mindNode record holds its keys, values and defaults", async () => {
   const { OBJECT_TYPES, objectType, objectKeys, ADD_OPTIONS, isMindNode, eligibleIdea, sectionIdea, eligibleVote, labelPrefix, fontSize, textBox, placementTool } = await registry();
   const record = objectType("mindNode");
-  assert.equal(OBJECT_TYPES.at(-1), record); assert.equal(record.validFrom, 11);
+  assert.equal(OBJECT_TYPES.at(-2), record); assert.equal(record.validFrom, 11);
   assert.equal(record.tool, "Mind map"); assert.equal(record.label, "Mind map node"); assert.equal(placementTool("Mind map"), record);
   assert.deepEqual(record.extraKeys, ["parent", "side", "rank", "collapsed"]);
   assert.deepEqual(record.defaults(), { parent: null, side: null, rank: 0, collapsed: false });
@@ -62,15 +62,15 @@ test("MM-U1 the mindNode record holds its keys, values and defaults", async () =
 
 test("MM-U2 schema 11: new boards, reading 1 to 10, newer versions and canonical keys", async () => {
   const { empty, upgrade, validate, canonical, add } = await rules();
-  assert.equal(empty().schemaVersion, 11);
-  for (let version = 1; version <= 10; version++) {
+  assert.equal(empty().schemaVersion, 12);
+  for (let version = 1; version <= 11; version++) {
     const board = { ...empty(), schemaVersion: version, title: "Old" };
     assert.equal(validate(board).schemaVersion, version);
-    assert.equal(upgrade(board).schemaVersion, 11);
+    assert.equal(upgrade(board).schemaVersion, 12);
   }
   const ten = add({ ...empty(), title: "Ten" }, "sticky", 0, 0), old = { ...ten, schemaVersion: 10 };
   assert.deepEqual(upgrade(old).objects, old.objects);
-  assert.throws(() => validate({ ...empty(), title: "New", schemaVersion: 12 }));
+  assert.throws(() => validate({ ...empty(), title: "New", schemaVersion: 13 }));
   const { board } = await starter();
   const parsed = JSON.parse(canonical(board));
   assert.deepEqual(Object.keys(parsed.objects[0]), ["id", "generation", "type", "text", "color", "textSize", "align", "group", "marks", "section",

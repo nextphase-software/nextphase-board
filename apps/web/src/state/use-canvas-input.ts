@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { add, clamp, type Board as SavedBoard, type BoardV11 as Board } from "nextphase-board-rules/document.ts";
+import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { add, clamp, type Board as SavedBoard, type BoardV12 as Board, type TapeItem } from "nextphase-board-rules/document.ts";
 import type { ResolvedItem as Item } from "../geometry";
 import { expandSelection, pressSelection, toggleGroup } from "../group";
 import { nearestHandle, type Corner } from "../resize";
 import type { View } from "../view";
 import { drawRectangle, dropped, placeObject, withMembers } from "../sections";
-import { isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, isMindNode, type ShapePaint, type ConnectorStyle } from "nextphase-board-rules/objects/registry.ts";
+import { isTape, type TapePattern, isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, isMindNode, type ShapePaint, type ConnectorStyle } from "nextphase-board-rules/objects/registry.ts";
 import type { Drag, NodeDrop, ResizeStart } from "../gesture";
 import { branchIds, dropTarget, MAP_WORDS } from "../mind-map";
 
@@ -14,13 +14,16 @@ import { connectionDots, pressedDot, connectionTarget, pressedEnd, reconnectTarg
 import { hitObject, selectInBox, createConnector, reconnect } from "../connectors";
 import { deleteObject } from "../history";
 import { drawingPoints, strokeGeometry, makeStroke, erasedStrokes } from "../strokes";
+import { makeTape, tapeGeometry, tapeEnds, moveTapeEnd } from "../tape";
+import type { TidyActions } from "../tidy-up";
 import { editingCommandReason } from "../commands";
 
 import type { BoardVoting } from "../team/voting";
 
 type Input = {
   voting?: BoardVoting;
-  drawing: { style: DrawingStyle };
+  tidy?: TidyActions;
+  drawing: { style: DrawingStyle; pattern?: TapePattern };
   connectorStyle: RefObject<ConnectorStyle>;
   shapeSession: { paint: RefObject<ShapePaint> };
   model: RefObject<Board>;
@@ -64,17 +67,19 @@ type Input = {
 };
 
 export function useCanvasInput({
-  voting, drawing, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+  voting, drawing, tidy, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
   setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
   scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
   selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
   handlesVisible, handlePoints, objectLayouts, displayedObjects, edit, textEditing, invalidObjectText,
 }: Input) {
-  const canShowDots = tool === "Select" && !readOnly && !inline && !composing && !textEditing && !busy && !spacePanRef.current && !drag.current;
+  const tapeEnd = useRef<{object:TapeItem;end:number;pointer:number}|null>(null);
+  tidy?.measure(displayedObjects);
+  const canShowDots = !tidy?.open && tool === "Select" && !readOnly && !inline && !composing && !textEditing && !busy && !spacePanRef.current && !drag.current;
   const dots = canShowDots ? connectionDots(displayedObjects, selected, view.z) : [];
   const dotsVisible = dots.length > 0;
   const activeDrawing = drag.current?.drawing;
-  const preview = activeDrawing && !isEraser(activeDrawing.tool) && (drag.current?.crossed || inkInfo(drawingStyleFor(activeDrawing.tool, drawing.style)).round)
+  const preview = activeDrawing?.tool === "Washi tape" ? {pattern:drawing.pattern ?? "stripes",...tapeGeometry(activeDrawing.positions[0],activeDrawing.positions.at(-1)!)} : activeDrawing && !isEraser(activeDrawing.tool) && (drag.current?.crossed || inkInfo(drawingStyleFor(activeDrawing.tool, drawing.style)).round)
     ? { ...drawingStyleFor(activeDrawing.tool, drawing.style), ...strokeGeometry(drawingPoints(activeDrawing.positions), drawingStyleFor(activeDrawing.tool, drawing.style)) }
     : drag.current?.mapDrag && drag.current.crossed ? { mapDrag: drag.current.mapDrag } : null;
   const drawingCursor = isEraser(tool) ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Ccircle cx='7' cy='7' r='6' fill='white' fill-opacity='.4' stroke='%235f5b66'/%3E%3C/svg%3E") 7 7, crosshair` : undefined;
@@ -103,6 +108,7 @@ export function useCanvasInput({
   }
   function cancel() {
     const d = drag.current;
+    tapeEnd.current = null;
     if (d?.pan) setView(d.view);
     if (d?.box) select(d.previous ?? []);
     setSelectionBox(null);
@@ -136,7 +142,11 @@ export function useCanvasInput({
   function sceneKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget || composing) return;
     if(voting?.key(e,selected))return;
-    if (e.key === "Escape" && drag.current?.drawing) { e.preventDefault(); e.stopPropagation(); cancel(); return; }
+    if (tidy?.open && (e.key === "Escape" || e.key === "Enter")) { e.preventDefault(); e.stopPropagation(); e.key === "Escape" ? tidy.cancel(true) : tidy.apply(); return; }
+    if (e.code === "KeyT" && e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && !inline && !textEditing && !e.nativeEvent.isComposing) {
+      e.preventDefault(); e.stopPropagation(); tidy?.start({readOnly,composing,pointerGesture:busy,invalidObjectText}); return;
+    }
+    if (e.key === "Escape" && (drag.current?.drawing || tapeEnd.current)) { e.preventDefault(); e.stopPropagation(); cancel(); return; }
     const drawTool = drawingKey(e.key, e.shiftKey);
     if (drawTool && !readOnly && !inline && !textEditing && !busy && !drag.current && !e.nativeEvent.isComposing && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault(); e.stopPropagation(); setTool(drawTool); return;
@@ -176,6 +186,7 @@ export function useCanvasInput({
         !(e.target instanceof Element && e.target.closest(".resize-handle,.connection-dot")) || composing || inline && !model.current.objects.some((o) => selected.has(o.id) && isContainer(o))
     ) return;
     if (e.button !== 0 || drag.current) return;
+    if (tidy?.open) { tidy.cancel(); e.preventDefault(); return; }
     if (spacePanRef.current) {
       if (!e.isPrimary) return;
       drag.current = {
@@ -195,6 +206,13 @@ export function useCanvasInput({
       drag.current = { id: "", x: p.x, y: p.y, cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false,
         pointerId: e.pointerId, drawing: { positions: [p], tool } };
       setBusy(true); scene.current?.focus(); e.currentTarget.setPointerCapture(e.pointerId); e.preventDefault(); return;
+    }
+    const selectedTape = canShowDots && selected.size === 1 ? model.current.objects.filter(isTape).find(o=>selected.has(o.id)) : undefined;
+    const endIndex = selectedTape ? tapeEnds(selectedTape).findIndex(end=>Math.abs(end.x-p.x)<=10/view.z&&Math.abs(end.y-p.y)<=10/view.z) : -1;
+    if (selectedTape && endIndex>=0 && e.isPrimary && !invalidObjectText) {
+      tapeEnd.current={object:selectedTape,end:endIndex,pointer:e.pointerId};
+      drag.current={id:selectedTape.id,x:p.x,y:p.y,cx:e.clientX,cy:e.clientY,view:{...view},pan:false,pointerId:e.pointerId};
+      setBusy(true);scene.current?.focus();e.currentTarget.setPointerCapture(e.pointerId);e.preventDefault();return;
     }
     const selectedConnector = canShowDots && selected.size === 1 ? displayedObjects.find((o) => selected.has(o.id) && hasEnds(o)) : undefined;
     const end = selectedConnector?.connectorLayout && e.isPrimary ? pressedEnd(selectedConnector.connectorLayout, p, view.z) : undefined;
@@ -283,6 +301,13 @@ export function useCanvasInput({
     const d = drag.current;
     if(!d&&voting?.pointerMove(e,hitObject(displayedObjects,point(e),view.z)))return;
     if (!d || d.connection?.reconnect && e.pointerId !== d.pointerId) return;
+    if (tapeEnd.current) {
+      const end=tapeEnd.current;if(e.pointerId!==end.pointer)return;
+      const live=model.current.objects.find(o=>o.id===end.object.id);
+      if(JSON.stringify(live)!==JSON.stringify(end.object)){cancel();return;}
+      const moved=moveTapeEnd(end.object,end.end,point(e));
+      setBoard({...model.current,objects:model.current.objects.map(o=>o.id===moved.id?moved:o)});return;
+    }
     if (d.drawing) {
       d.drawing.positions.push(point(e));
       d.crossed ||= Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3;
@@ -343,8 +368,17 @@ export function useCanvasInput({
     if(!drag.current&&voting?.pointerUp(e,hitObject(displayedObjects,point(e),view.z))){releaseCapture(e.pointerId);return;}
     const d = drag.current;
     if (d?.connection?.reconnect && e.pointerId !== d.pointerId) return;
+    if(tapeEnd.current&&e.pointerId!==tapeEnd.current.pointer)return;
+    const tapeDrag=tapeEnd.current;tapeEnd.current=null;
     drag.current = null;
     setBusy(false);
+    if(tapeDrag) {
+      if(!editingCommandReason({readOnly,composing,pointerGesture:false,invalidObjectText})&&JSON.stringify(model.current.objects.find(o=>o.id===tapeDrag.object.id))===JSON.stringify(tapeDrag.object)) {
+        const moved=moveTapeEnd(tapeDrag.object,tapeDrag.end,point(e));
+        commit({...model.current,objects:model.current.objects.map(o=>o.id===moved.id?moved:o)},true);
+      }
+      setBoard({...model.current});releaseCapture(d?.pointerId);return;
+    }
     if (!d) return;
     const delta = Math.hypot(e.clientX - d.cx, e.clientY - d.cy);
     if (d.drawing) {
@@ -353,6 +387,8 @@ export function useCanvasInput({
         if (isEraser(d.drawing.tool)) {
           const touched = erasedStrokes(model.current.objects, positions, d.view.z);
           if (touched.length) commit(deleteObject(model.current, { past: [], future: [] }, touched).board, true);
+        } else if (d.drawing.tool === "Washi tape") {
+          commit(placeObject(model.current,makeTape(model.current,positions[0],positions.at(-1)!,drawing.pattern??"stripes",!(d.crossed||delta>=3))),true);
         } else {
           const object = makeStroke(model.current, positions, drawingStyleFor(d.drawing.tool, drawing.style), !!d.crossed || delta >= 3, e.shiftKey);
           if (object) commit(placeObject(model.current, object), true);
@@ -441,7 +477,7 @@ export function useCanvasInput({
     releaseCapture(d.pointerId);
   }
   function doubleClick(e: React.MouseEvent<HTMLDivElement>) {
-    if(voting?.mode)return;
+    if(voting?.mode||tidy?.open)return;
     if (spacePanRef.current || composing || busy || isDrawingTool(tool) || tool === "Comment") return;
     const p = point(e);
     const hit = hitObject(displayedObjects, p, view.z);

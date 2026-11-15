@@ -39,7 +39,7 @@ function versionBoard(version) {
     return o;
   }) };
 }
-for (let version = 1; version <= 11; version++) test(`version ${version} file round-trip preserves exact payload and identities`, async () => {
+for (let version = 1; version <= 12; version++) test(`version ${version} file round-trip preserves exact payload and identities`, async () => {
   const board = versionBoard(version), before = structuredClone(board), payload = canonical(board);
   const raw = await writeBoardFile(board), parsed = JSON.parse(raw);
   assert.deepEqual(Object.keys(parsed), ["format", "fileVersion", "payload", "sha256"]);
@@ -52,7 +52,7 @@ for (let version = 1; version <= 11; version++) test(`version ${version} file ro
   assert.equal(JSON.parse(JSON.parse(await writeBoardFile(shown, board)).payload).document, payload);
   const edited = { ...shown, title: "Edited unsaved title" };
   assert.equal(JSON.parse(JSON.parse(await writeBoardFile(edited)).payload).document, canonical(edited));
-  assert.equal(JSON.parse(JSON.parse(JSON.parse(await writeBoardFile(edited)).payload).document).schemaVersion, 11);
+  assert.equal(JSON.parse(JSON.parse(JSON.parse(await writeBoardFile(edited)).payload).document).schemaVersion, 12);
 });
 
 test("ordered file checks refuse each malformed input with its exact first reason", async () => {
@@ -75,7 +75,7 @@ test("ordered file checks refuse each malformed input with its exact first reaso
     [await envelope(payload, { sha256: e.sha256.toUpperCase() }), "it is damaged"],
     [await envelope(payload, { sha256: "0".repeat(64) }), "it is damaged"],
     [await envelope("not JSON"), "it is not a valid board"],
-    [await envelope(JSON.stringify({ schemaVersion: 12 })), "it was made by a newer version of Board"],
+    [await envelope(JSON.stringify({ schemaVersion: 13 })), "it was made by a newer version of Board"],
     [await envelope(JSON.stringify({ schemaVersion: 7 })), "it is not a valid board"],
     [await envelope(payload.replace('"title":', '"title" :')), "it is not a valid board"],
     [await envelope(JSON.stringify({ ...versionBoard(1), objects: versionBoard(2).objects })), "it is not a valid board"],
@@ -135,7 +135,7 @@ test("v2 ordered bundle/document checks precede picture checks and reject malfor
     [{...bundle,document:3},"it is damaged"],
     [JSON.stringify(bundle,null,2),"it is damaged"],
     [{document:"bad",assets:null},"it is not a valid board"],
-    [{document:JSON.stringify({schemaVersion:12}),assets:null},"it was made by a newer version of Board"],
+    [{document:JSON.stringify({schemaVersion:13}),assets:null},"it was made by a newer version of Board"],
     [{...bundle,document:bundle.document+" "},"it is not a valid board"],
   ];
   for(const [bundle,reason] of cases) await assert.rejects(readBoardBundle(file(await v2(bundle))),{message:reason});

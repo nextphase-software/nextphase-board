@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, type ClipboardEvent, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { BoardV11 } from "nextphase-board-rules/document.ts";
+import type { BoardV12 } from "nextphase-board-rules/document.ts";
 import type { HostedBoard } from "../team/hosted-board";
 
-type Input = { hosted?: HostedBoard; model: RefObject<BoardV11>; load: (board: BoardV11) => void;
-  setBoard: Dispatch<SetStateAction<BoardV11>>; setReadOnly: Dispatch<SetStateAction<boolean>>;
+type Input = { hosted?: HostedBoard; model: RefObject<BoardV12>; load: (board: BoardV12) => void;
+  setBoard: Dispatch<SetStateAction<BoardV12>>; setReadOnly: Dispatch<SetStateAction<boolean>>;
   setTitle: Dispatch<SetStateAction<string>>;
   setDrafts: Dispatch<SetStateAction<Record<string, string>>>;
   setTool: Dispatch<SetStateAction<string>>; setInline: Dispatch<SetStateAction<boolean>>;

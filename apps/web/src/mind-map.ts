@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { add, type Board as AnyBoard, type BoardV11 as Board, type Item } from "nextphase-board-rules/document.ts";
+import { add, type Board as AnyBoard, type BoardV12 as Board, type Item } from "nextphase-board-rules/document.ts";
 import { OBJECT_TYPES, isMindNode, type MindNodeKeys, type Rectangle } from "nextphase-board-rules/objects/registry.ts";
 import { TEXT_LAYOUT } from "./geometry.ts";
 import { layoutRuns, type RunLine } from "./text-runs.ts";

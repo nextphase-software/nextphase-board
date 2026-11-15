@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction, SyntheticEvent } from "react";
-import { count, type ItemV11 as Item, validText } from "nextphase-board-rules/document.ts";
+import { count, type ItemV12 as Item, validText } from "nextphase-board-rules/document.ts";
 import { objectType, hasText, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { codePointOffset, type Flag, type TextSelection } from "nextphase-board-rules/marks.ts";
 

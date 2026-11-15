@@ -651,3 +651,13 @@ document version from 10 to 11.
 Implementation validation is limited to V1–V8 in the brief. S402–S406, the
 inherited server suites, the M9 browser scenario, A–J and the accepted
 regression scenarios require the later server-only and check runs.
+
+## 0009-W3 drawing and diagram layout
+
+`tests/tape.test.mjs`, `tests/shape-kinds.test.mjs` and `tests/tidy-up.test.mjs`
+cover schema 12, tape geometry and exclusions, all fourteen shape kinds and the
+pure layout rules. `tests/modules.test.mjs` guards the module inventory, effect
+counts and the eleven permitted App composition substitutions.
+`tests/server/drawing-layout.test.ts` adds S407–S410 to both server runners for
+load upgrades, refused edits, history restoration and board imports. Those server
+suites and D9 browser checks run separately from implementation validation.

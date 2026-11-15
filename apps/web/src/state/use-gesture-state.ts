@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { Drag } from "../gesture";
-import { defaultDrawingStyle, isDrawingTool, inkForTool, INK_KINDS, type InkWeight } from "nextphase-board-rules/objects/registry.ts";
+import { defaultDrawingStyle, isDrawingTool, inkForTool, INK_KINDS, TAPE_PATTERNS, type TapePattern, type InkWeight } from "nextphase-board-rules/objects/registry.ts";
 
 export function useGestureState(clearSelection: () => void, finishTextSession: () => void, closeEditor: () => void) {
   const [selectionBox, setSelectionBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null),
     [tool, assignTool] = useState("Select"), [lastDrawingTool, setLastDrawingTool] = useState<string>(INK_KINDS[0].tool),
     [drawingStyle, setDrawingStyle] = useState(defaultDrawingStyle),
+    [pattern, setPattern] = useState<TapePattern>(TAPE_PATTERNS[0].value),
     [busy, setBusy] = useState(false),
     [spacePan, setSpacePan] = useState(false);
   const toolRef = useRef(tool);
@@ -26,7 +27,7 @@ export function useGestureState(clearSelection: () => void, finishTextSession: (
     const kind = inkForTool(tool)?.kind;
     if (kind) setDrawingStyle((style) => ({ ...style, [kind]: { ...style[kind], ...change } }));
   }
-  const drawing = { lastDrawingTool, style: drawingStyle, change: changeDrawingStyle };
+  const drawing = { pattern, changePattern: (value: TapePattern) => { setPattern(value); scene.current?.focus(); }, lastDrawingTool, style: drawingStyle, change: changeDrawingStyle };
   return {
     selectionBox, setSelectionBox, tool, setTool, busy, setBusy, spacePan, setSpacePan,
     scene, spacePanRef, drag, drawing, selectionStarted,

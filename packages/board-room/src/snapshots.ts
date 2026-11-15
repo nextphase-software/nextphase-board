@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
 import { canonical } from "nextphase-board-rules/document.ts";
-import type { BoardV11 } from "nextphase-board-rules/document.ts";
+import type { BoardV12 } from "nextphase-board-rules/document.ts";
 import { bytes } from "./protocol.ts";
 import type { Storage } from "./storage.ts";
 const CHUNK = 1048576;
-export function snapshot(storage: Storage, doc: Y.Doc, board: BoardV11, revision: number) {
+export function snapshot(storage: Storage, doc: Y.Doc, board: BoardV12, revision: number) {
   for (const [kind, value] of [["json", bytes(canonical(board))], ["yjs", Y.encodeStateAsUpdate(doc)]] as const) {
     storage.exec("DELETE FROM snapshot_chunks WHERE snapshot_revision = ? AND kind = ?", revision, kind);
     for (let offset = 0, index = 0; offset < value.length; offset += CHUNK, index++) {

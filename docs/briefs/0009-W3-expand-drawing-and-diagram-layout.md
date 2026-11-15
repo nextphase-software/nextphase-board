@@ -326,3 +326,222 @@ implement this contract. No unresolved product decision is delegated to implemen
 ## Implementation record
 
 (Appended by the implementer.)
+
+### 2026-11-14 — implementation handoff
+
+- Brief: **0009-W3 v1**; document v17, interaction v41 and web modules v39.
+- Branch: `codex/0009-W3-expand-drawing-and-diagram-layout`.
+- Committed prerequisite base: `5afd4fa9d204f281851817f8d2db5548935fe333`.
+- Behaviour baseline: `5397b75d231f5b541909075c96e2fe7446cd22ad`.
+- Validated source/test revision: **`6a5c2ecd48eb7aa31f5fc8ab29353a5b9f458a20`**. Commands below ran on the
+  same source bytes before the source commit; V8 inspected the committed range.
+- Scope: tape, fourteen shape kinds, schema 12, Tidy up preview/Apply/Cancel,
+  and the declared unit/server tests. Source/tests are committed separately from
+  this append-only record. No merge or push was performed.
+- Dependencies added: **none**. No new font, image file, service, import exception,
+  saved layout state, room layout or service table.
+
+| Check | Commands / inspection | Result and counts |
+| --- | --- | --- |
+| V1 | Byte comparison of `git show 5afd4fa9d204f281851817f8d2db5548935fe333:<path>` with each candidate manifest, root lock, dependency lock v5, inventory v5 and runtime notices v3 | **PASS**: 10 files identical; 0 added dependencies |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` on the candidate and a clean archive of behaviour baseline `5397b75` | **PASS**: both exit 0, 118 packages each, Node 26.13.0 / npm 11.20.0. The baseline install is implementation evidence; fresh independent acceptance remains separate |
+| V3 | `npm run typecheck` | **PASS**: exit 0 across all 5 workspace members |
+| V4 | `npm test` | **PASS**: exit 0; **1,179 passed, 0 failed, 0 skipped**. Includes 10 tape, 5 shape-kind and 10 Tidy up checks (25 focused checks), plus the module guards |
+| V5 | Team-off `npm run build`; `npm run audit:licenses` | **PASS**: 1 application build, 1 audit; complete notices verified against runtime notices v3 |
+| V6 | `npm run build:fixtures`; team-on `npm run build`; `npm run audit:licenses` | **PASS**: 1 fixture build, 1 application build, 1 audit |
+| V7 | `npm run build:server`; `npm run audit:licenses`; Wrangler dry run below | **PASS**: Node and Worker bundles built, 1 audit, 1 dry run; no deployment |
+| V8 | All non-rename hunks inspected; each rename-only file compared byte-for-byte after only the two type-name substitutions; `git diff --name-status 5afd4fa9d204f281851817f8d2db5548935fe333..6a5c2ecd48eb7aa31f5fc8ab29353a5b9f458a20` and matching `git diff --check` | **PASS**: 111 source/test files (12 new, 99 modified); 39 exact rename-only files, 60 other modified files; 0 whitespace errors; App remains 264 lines; module counts 15/10/15/29/23; Tidy up has 2 passive effects and all other effect counts are unchanged |
+
+The web build commands used these explicit synthetic settings (once with `off`,
+once with `on`):
+
+```sh
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+WRANGLER_LOG_PATH=.local/0009-W3/wrangler-log WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir .local/0009-W3/wrangler -c apps/server/wrangler.json
+```
+
+The new units exercise actual tape gestures/end drags and local Undo, adapter
+round trips, the contract's polygon/text-box/clipping values, deterministic grid
+positions and shared member offsets. The actual Tidy up state owner is also
+exercised without a browser: preview commits nothing; Apply calls `commit` once;
+Cancel, tool/selection changes and narrowing discard it; hosted changes to
+placed objects cancel with the declared toast while unrelated changes remain.
+These are implementation checks, not independent browser or server acceptance.
+
+#### App substitutions (web modules v39)
+
+1. Append `useTidyUp` to the `useObjectLayouts` import line, and append
+   `TidyUpLayer` / `TidyUpBar` to the existing overlays import line.
+2. Add `tapeSelection` to `useSelection`'s destructuring.
+3. Append `useTidyUp` immediately after `useSelection` on the same line,
+   passing existing `board`, `selected`, `commit`, `tool`, `setMessage`, hosted
+   board, canvas ref and read-only state.
+4. Pass `tidy.board` and `tidy.selected` to `useObjectLayouts`.
+5. Pass `tidy` on the `useCanvasInput` argument line holding `drawing`.
+6. Pass `tidy.board` and `tidy.selected` to `BoardDrawing`.
+7. Append `TidyUpLayer` and `TidyUpBar` after `MindMapButtons`, using existing
+   `pos`, `view`, `size` and `layout` values.
+8. Add `!tidy.open` to the ContextBar rendering condition.
+9. Pass `tapeSelection` and `tidy` on ContextBar's first props line.
+10. Pass `tapeSelection` and `tidy` on ObjectsPanel's first props line.
+11. Pass `tidy` on the `useCommandReasons` line holding `displayedObjects`.
+
+The rewritten composition guard derives the entire App from `5397b75` using
+only these substitutions and verifies identical line count.
+
+#### Unrun checks and escalation
+
+- **V9–V13 unrun**: D9-S1–D9-S26, independent negative controls, Node and
+  workerd server suites (including S407–S410), A–J, the accepted browser
+  regression scenarios and fixture-page browser assertions. No browser or
+  Supabase CLI was started. These require the later server-only/check runs.
+- The 9 approved design PNGs and their source/capture files were read before
+  screen implementation. Browser-engine pattern rendering, focus and visual
+  conformance still require independent browser evidence.
+- **Escalation: grid capacity.** Interaction v41 requires the prescribed grid
+  to lie inside the board, but valid large objects can produce a grid wider
+  or taller than its 2,000,000-unit extent. V1 supplies no refusal or alternate
+  placement rule. This was reported to the maintainer; no new refusal wording
+  or alternate layout was introduced without a contract decision. Oversized
+  grids remain a review item; no capacity acceptance is claimed for that case.
+- Graph discovery was unavailable under the execution policy, so source
+  discovery used the repository file-search fallback.
+- The source commit's privacy hooks both reported **PUBLIC BOUNDARY: PASS**.
+  Git also reported a denied `packed-refs.lock` housekeeping write under the
+  sandbox; the commit exited 0 and the branch ref was verified at `6a5c2ecd48eb7aa31f5fc8ab29353a5b9f458a20`.
+  Wrangler's initial global log write was similarly denied; its final dry run
+  used the writable log path above and exited 0. The baseline's initial
+  non-pinned install invocation was discarded and rerun with pinned tools.
+- No unrelated evidence file was staged or changed. No hooks were bypassed.
+
+#### Files changed in the validated source/test commit
+
+New files (12):
+
+```text
+apps/web/src/scene/tape-body.tsx
+apps/web/src/scene/tidy-up-layer.tsx
+apps/web/src/state/use-tidy-up.ts
+apps/web/src/tape.ts
+apps/web/src/tidy-up.ts
+apps/web/src/ui/tape-controls.tsx
+apps/web/src/ui/tidy-up-bar.tsx
+packages/board-rules/src/objects/tape.ts
+tests/server/drawing-layout.test.ts
+tests/shape-kinds.test.mjs
+tests/tape.test.mjs
+tests/tidy-up.test.mjs
+```
+
+Changed implementation, tests and configuration (60):
+
+```text
+apps/server/src/routes/boards.ts
+apps/server/src/templates.ts
+apps/web/src/App.tsx
+apps/web/src/board-file.ts
+apps/web/src/connectors.ts
+apps/web/src/icons.tsx
+apps/web/src/scene/board-drawing.tsx
+apps/web/src/scene/shape-body.tsx
+apps/web/src/sections.ts
+apps/web/src/state/use-canvas-input.ts
+apps/web/src/state/use-command-reasons.ts
+apps/web/src/state/use-editing-commands.ts
+apps/web/src/state/use-geometry-edits.ts
+apps/web/src/state/use-gesture-state.ts
+apps/web/src/state/use-object-layouts.ts
+apps/web/src/state/use-selection.ts
+apps/web/src/storage.ts
+apps/web/src/team/templates-rules.ts
+apps/web/src/ui/context-bar.tsx
+apps/web/src/ui/drawing-tools.tsx
+apps/web/src/ui/objects-panel.tsx
+apps/web/src/ui/shapes-panel.tsx
+apps/web/style.css
+packages/board-room/src/edits.ts
+packages/board-room/src/history.ts
+packages/board-room/src/room.ts
+packages/board-rules/src/document.ts
+packages/board-rules/src/objects/registry.ts
+packages/board-rules/src/objects/shape.ts
+packages/board-rules/src/objects/stroke.ts
+packages/board-sync/src/codec.ts
+packages/board-sync/src/comments.ts
+tests/README.md
+tests/board-catalog.test.mjs
+tests/board-file.test.mjs
+tests/board-history.test.mjs
+tests/board-lifecycle.test.mjs
+tests/connector-styles.test.mjs
+tests/connectors.test.mjs
+tests/document.test.mjs
+tests/images.test.mjs
+tests/import-fixture.mjs
+tests/mentions.test.mjs
+tests/mind-map.test.mjs
+tests/modules.test.mjs
+tests/objects.test.mjs
+tests/server/history.test.ts
+tests/server/lifecycle.test.ts
+tests/server/mind-maps.test.ts
+tests/shapes.test.mjs
+tests/shared-editing.test.mjs
+tests/storage.test.mjs
+tests/strokes.test.mjs
+tests/team-import.test.mjs
+tests/team-templates.test.mjs
+tests/workshop-reactions.test.mjs
+tests/workshop-spotlight.test.mjs
+tests/workshop-voting.test.mjs
+vitest.node.config.ts
+vitest.workerd.config.ts
+```
+
+Exact `BoardV11` / `ItemV11` rename-only files (39):
+
+```text
+apps/server/src/runtime.ts
+apps/web/src/activities.ts
+apps/web/src/clipboard.ts
+apps/web/src/geometry.ts
+apps/web/src/group.ts
+apps/web/src/images.ts
+apps/web/src/mind-map.ts
+apps/web/src/scene/image-body.tsx
+apps/web/src/scene/mind-map-buttons.tsx
+apps/web/src/scene/mind-map-layer.tsx
+apps/web/src/state/use-board-document.ts
+apps/web/src/state/use-hosted-board.ts
+apps/web/src/state/use-images.ts
+apps/web/src/state/use-page-keys.ts
+apps/web/src/state/use-storage-session.ts
+apps/web/src/state/use-validity.ts
+apps/web/src/strokes.ts
+apps/web/src/team/comments/layer.tsx
+apps/web/src/team/comments/panel.tsx
+apps/web/src/team/comments/rules.ts
+apps/web/src/team/history.ts
+apps/web/src/team/hosted-board.ts
+apps/web/src/team/import.ts
+apps/web/src/team/timer-panel.tsx
+apps/web/src/team/voting-card.tsx
+apps/web/src/team/voting-rules.ts
+apps/web/src/team/voting.ts
+apps/web/src/ui/board-panel.tsx
+apps/web/src/ui/connector-fields.tsx
+apps/web/src/ui/content-field.tsx
+apps/web/src/ui/format-preview.tsx
+apps/web/src/ui/shape-controls.tsx
+packages/board-room/src/comments.ts
+packages/board-room/src/edit-session.ts
+packages/board-room/src/repair.ts
+packages/board-room/src/snapshots.ts
+packages/board-sync/src/session.ts
+packages/board-sync/src/undo.ts
+tests/server/shared.test.ts
+```
+
+The record-only commit changes this brief alone. Its final branch tip is reported
+separately in the handoff so the validated source SHA stays unambiguous.

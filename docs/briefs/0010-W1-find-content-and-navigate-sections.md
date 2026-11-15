@@ -291,3 +291,142 @@ product decision is delegated to implementation.
 ## Implementation record
 
 (Appended by the implementer.)
+
+### 2026-11-15 — implementation handoff (v1)
+
+- Branch: `codex/0010-W1-find-content-and-navigate-sections`.
+- Prerequisite base: `9dd3c7d7519dcea9891dec0c62b6fb171156cc2b` (committed brief and contracts).
+- Behaviour baseline: `4f53e7f3ed03ab35bd4b3c489a75efcf8e09e5c0`.
+- Validated source/test revision: `7ba53a270ffd51b94d14657fde68b5436569f493`
+  (`feat(web): find board content and navigate sections`). This record is a separate documentation
+  commit; its final tip is reported separately in the implementation handoff.
+- Node `26.13.0`, npm `11.20.0`; dependencies added: **none**. No package, server, room,
+  document, dependency manifest, lock, inventory or runtime-notices change.
+- Ready for the fresh independent check/review run. No browser acceptance, merge, publication or
+  subsequent milestone is claimed or authorized by this handoff.
+
+| Check | Commands / inspection | Implementation result |
+| --- | --- | --- |
+| V1 | Byte-compare each prerequisite-base file with the candidate: all six `package.json` manifests, `package-lock.json`, dependency locks v1–v5, dependency inventories v1–v5 and runtime notices v1–v3 | PASS: **20/20** files identical; no new dependency |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` | PASS on candidate: exit 0, **118** packages installed. Independent-baseline install is unrun here and remains for the fresh check run |
+| V3 | `npm run typecheck` | PASS: exit 0 across all **five** workspace members |
+| V4 | `npm test` | PASS: **1,205/1,205** tests, **0** failed/cancelled/skipped/todo. Includes **14** named find checks, **4** new view checks, exact App composition and the new one-effect guard |
+| V5 | Team-off environment below, `npm run build`; `npm run audit:licenses` | PASS: application build and audit both exit 0; distributed notices verified against runtime notices v3 |
+| V6 | `npm run build:fixtures`; team-on environment below, `npm run build`; `npm run audit:licenses` | PASS: fixture build, application build and audit all exit 0 |
+| V7 | `npm run build:server`; `npm run audit:licenses`; `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` | PASS: Node and Worker server builds, audit and dry run all exit 0; upload estimate 1,376.29 KiB / gzip 283.05 KiB; no deploy |
+| V8 | Read all changed/new source and test hunks; `git diff --name-status 9dd3c7d7519dcea9891dec0c62b6fb171156cc2b..7ba53a270ffd51b94d14657fde68b5436569f493`; `git diff --check` over that same range | PASS: **21** allowed source/test/guide files, no whitespace errors; this append-only record is the sole additional file in the record commit |
+
+Both web builds used these synthetic public development values, with `BOARD_TEAM_FEATURES=off` for
+V5 and `BOARD_TEAM_FEATURES=on` for V6:
+
+```sh
+BOARD_SUPABASE_URL=http://127.0.0.1:55321
+BOARD_SUPABASE_ANON_KEY=synthetic
+BOARD_SERVER_URL=http://127.0.0.1:8796
+```
+
+`tests/find.test.mjs` covers all searchable displayed types and collapsed-node exclusion, trim/NFC/case
+matching and one result per object, reading-order bands, displayed/section/connector/union boxes,
+query-first and wrapping navigation, keeping/removing/restoring the current result and navigating from
+its removed place, all counter/removed-line states, fading and section labels. Its production-hook
+scheduler checks global opening, composition/preview guards, focus and query reuse, board changes,
+measured view changes, closing/selection and no document mutation. Production bar/ring handlers,
+the four hosted guard-only diffs and physical shifted-digit canvas conditions are checked without
+starting a browser. New feature imports are inside named checks. The module inventory is
+**15 package files / 10 object types / 16 scene parts / 30 screen parts / 24 state hooks**;
+`use-find.ts` has exactly **one** effect; other effect counts are unchanged.
+
+The first full unit attempt found a new comments-guard regression in `P1-U63`: a VM exercising the
+existing comment handler has `target.closest` but no global `Element`. The guard now uses the handler's
+existing target after the existing blocked-input return. The focused regression passed **1/1**, and
+all **1,205** checks passed on the final source. No historical assertion was weakened or baseline
+finding repaired. The only older expectation changes are the brief's zoom/step/follow dispositions
+and the module inventory/composition replacement.
+
+Final V4–V7 receipts were timed in UTC on 2026-11-15:
+
+| Operation | Start | End |
+| --- | --- | --- |
+| Full unit suite | 21:27:18.193 | 21:27:25.902 |
+| Team-off build + audit | 21:27:25.902 | 21:27:26.302 |
+| Fixtures | 21:27:26.302 | 21:27:26.540 |
+| Team-on build + audit | 21:27:26.540 | 21:27:26.925 |
+| Server build + audit | 21:27:26.926 | 21:27:27.289 |
+| Wrangler dry run | 21:27:27.290 | 21:27:28.025 |
+
+`pmset -g batt` reported AC power, 100% charged. `pmset -g log` was captured through 21:27:30.879 UTC;
+there were **zero** sleep/wake events overlapping the final validation interval. No individual command
+was a long run requiring an awake rerun.
+
+#### The nine App.tsx substitutions
+
+No App line was added or removed: **264 lines** before and after. The composition test derives the
+candidate byte-for-byte from behaviour-baseline App.tsx, asserts each original anchor occurs once,
+and applies exactly these substitutions:
+
+1. Append the `useFind` import on the `useObjectLayouts` / `useTidyUp` import line.
+2. Append the `FindRings` and `FindBar` imports on the existing `Overlays`–`TidyUpBar` import line.
+3. Append `useFind` after `pos`, passing only existing values: `board.boardId`, `displayedObjects`,
+   `selected`, `select`, `view`, `setView`, `size`, `scene`, `composing`, `busy`, `tidy`,
+   `finishTextSession` and `setInline`.
+4. Add `find` to the existing `useCanvasInput` argument line containing `tidy`.
+5. Add `backgroundImage: view.z < .5 ? "none" : undefined` on the `backgroundSize` line.
+6. Add `faded={find.faded}` to the existing `BoardDrawing` props line.
+7. Append `FindRings` after `TidyUpLayer`, passing `find`, `pos` and `view.z`.
+8. Prepend `{find.open && <FindBar find={find} />}` on the line opening `ZoomControls`.
+9. Add `find={find}` to the existing `NavigationPanel` props line.
+
+The three permitted new glyphs are search, chevron-up and close. The Next button rotates the
+chevron-up glyph 180 degrees to produce the specified down chevron without changing the pre-existing
+chevron glyph. `ui/zoom-controls.tsx` required no change. The guide's Find and navigate row is copied
+exactly from this brief, immediately after Pan and zoom; that existing row changes only 50–200% to
+10–200%.
+
+#### Changed-file inventory
+
+New (five):
+
+- `apps/web/src/find.ts`
+- `apps/web/src/state/use-find.ts`
+- `apps/web/src/ui/find-bar.tsx`
+- `apps/web/src/scene/find-rings.tsx`
+- `tests/find.test.mjs`
+
+Changed (sixteen, plus this record):
+
+- `apps/web/src/view.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/state/use-canvas-input.ts`
+- `apps/web/src/scene/board-drawing.tsx`
+- `apps/web/src/ui/navigation-panel.tsx`
+- `apps/web/src/icons.tsx`
+- `apps/web/style.css`
+- `apps/web/src/team/reactions-layer.tsx`
+- `apps/web/src/team/comments/layer.tsx`
+- `apps/web/src/team/spotlight-layer.tsx`
+- `apps/web/src/state/use-presence.ts`
+- `tests/view.test.mjs`
+- `tests/web-presence.test.mjs`
+- `tests/modules.test.mjs`
+- `tests/README.md`
+- `docs/guides/try-board.md`
+- `docs/briefs/0010-W1-find-content-and-navigate-sections.md` (this append-only record only)
+
+#### Unrun checks, boundaries and escalations
+
+- **V9–V11 unrun:** all F1-S1–F1-S17 browser rows, their captures, hosted F1-S15, independent
+  baseline installs/negative controls and A–J comparisons remain for a fresh check run. No browser
+  or Supabase CLI was started in this sandbox. Safari choices remain for Review.
+- No server-only run or server suites, no other browser/workshop scenario, no load/performance or
+  native IME campaign. The brief excludes them from this implementation run.
+- No dependency, stored value, document edit, new service or import exception was introduced by Find
+  or the fits. Closing uses existing selection; all moves use existing own-view changes. The
+  ordinary text edit finished by opening Find still uses the existing edit path. Live persistence,
+  collaboration and rendered-pixel acceptance remain explicitly unproven until the browser checks.
+- The requested unrelated `0007-W2-vote-and-reveal-workshop-results-evidence.md` was not touched.
+- Knowledge-graph discovery was attempted but blocked by the environment's approval policy; direct
+  source reads and targeted searches were used instead. No approval bypass or agent launcher ran.
+- Public-boundary Git hooks passed. Git emitted a sandbox denial creating `packed-refs.lock` during
+  maintenance; the source commit completed successfully, its branch SHA was verified, and the
+  worktree was clean before this record. No hook was bypassed. No product/contract escalation remains.
+- Nothing was pushed, merged or published. The internal planning repository remained read-only.

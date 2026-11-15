@@ -545,3 +545,89 @@ tests/server/shared.test.ts
 
 The record-only commit changes this brief alone. Its final branch tip is reported
 separately in the handoff so the validated source SHA stays unambiguous.
+
+### Fix round 1 — 2026-11-14
+
+- Addresses independent review v1 (**NEEDS WORK**) of record tip
+  `b0da5266b36843f07140b4a649388bc70cfd37ab`, findings **F1–F4 only**.
+- Branch: `codex/0009-W3-expand-drawing-and-diagram-layout`.
+- Validated source/test/contract revision:
+  **`f0d8e4a81a4d9910a45e9b47832dbfe00c879307`**. V3–V7 ran on exactly
+  the committed source bytes. V8 verified the committed range from prerequisite
+  `5afd4fa9d204f281851817f8d2db5548935fe333`; the inspected patch equals
+  that committed patch byte-for-byte.
+- Dependencies added: **none**. No new source module, test file, service or
+  import exception. This section is appended in a separate record-only commit;
+  the final branch tip is reported separately. No push or merge.
+
+| Finding | Change and evidence | Focused check |
+| --- | --- | --- |
+| F1 — D9-S20 | `apps/web/style.css:1523`: only `.scene > .tidy-handle` takes pointer presses, with specificity above `.scene > div`. Grid outline and dragging label remain pointer-free. | TU-U11 checks the override selector and pointer-free grid/label declarations. Browser hit testing remains unrun here. |
+| F2 — D9-S19 | `apps/web/src/App.tsx:180` appends only `TidyUpLayer`; line 221 renders `TidyUpBar` beside ContextBar, outside the scene. Its existing `context` class supplies ContextBar's stacking above palette/zoom. | The rewritten composition guard in `tests/modules.test.mjs:589` derives App from the baseline with exactly the amended eleven substitutions, no added line, 264 lines. |
+| F3 — V12 | `apps/web/src/ui/objects-panel.tsx:196`: move buttons have no title outside a preview; during a preview their title is `Apply or cancel Tidy up first.`. | TU-U12 renders the actual Objects panel and checks all four disabled move buttons, with and without a preview. |
+| F4 — grid capacity | `apps/web/src/tidy-up.ts:61` exposes grid fit against 2,000,000 units per axis; existing clamping pins an oversized dimension to the board's left/top edge. `state/use-tidy-up.ts:39` refuses Apply; `ui/tidy-up-bar.tsx:26` disables Apply with `The grid doesn't fit on the board.` until the grid fits. | TU-U13 uses valid large strokes: width and height overflow, each recovering through columns or spacing (4 cases). It checks the rendered button, refused Apply and the actual canvas Enter handler, zero commits/messages, unchanged input, then one valid commit after recovery. |
+
+The only contract edits are the authorized amendments to interaction v41
+(handle presses, bar placement and grid capacity) and web modules v39
+(substitutions 7–8 and the bar's existing position inputs), plus one amendment
+line at the top of each. No other contract text was changed. These amendments
+resolve the prior grid-capacity escalation; no further product decision is
+requested in this round.
+
+App substitutions **7 and 8** supersede their descriptions in the first record:
+
+7. Only `TidyUpLayer` follows `MindMapButtons` on line 180, using existing `tidy`,
+   `pos` and `view`.
+8. Line 221 begins `{tidy.open && <TidyUpBar … />}{selected.size > 0 && !tidy.open && (`;
+   the bar receives existing `tidy`, `pos`, `view`, `size` and `layout`.
+
+Substitutions 1–6 and 9–11 are unchanged. The composition guard remains a
+single rewritten guard, and Tidy up still owns exactly two passive effects.
+
+| Check | Commands / inspection | Result and counts |
+| --- | --- | --- |
+| Focused regression | Command below, before and after the fixes | Before: 4 failed at the expected findings. After: **4 passed, 0 failed, 0 skipped** (three new units and the updated composition guard). |
+| V3 | `npm run typecheck` | **PASS**, exit 0 across all **5** workspace members. |
+| V4 | `npm test` | **PASS**, exit 0; **1,182 passed, 0 failed, 0 skipped**. Includes **13** Tidy up, **10** tape and **5** shape-kind checks, plus module guards. |
+| V5 | Team-off `npm run build`; `npm run audit:licenses` | **PASS**: **1** web build and **1** audit; complete distributed notices verified. |
+| V6 | `npm run build:fixtures`; team-on `npm run build`; `npm run audit:licenses` | **PASS**: **1** fixture build, **1** web build and **1** audit. |
+| V7 | `npm run build:server`; `npm run audit:licenses`; Wrangler command below | **PASS**: Node and Worker bundles, **1** audit and **1** dry run; no deployment. |
+| V8 | Every hunk of `git diff --no-ext-diff --unified=2 5afd4fa9d204f281851817f8d2db5548935fe333..f0d8e4a81a4d9910a45e9b47832dbfe00c879307`; matching `git diff --name-status` and `git diff --check` | **PASS**: **330 hunks**, **114 files** (12 new, 102 modified), including **39** byte-verified type-rename-only files (96 hunks) and **75** remaining files (234 hunks), comprising milestone deliverables, the original append-only record and the 2 authorized contracts. This round changes **10** files / **17** hunks; **0** whitespace errors. |
+
+Exact focused/build settings and dry-run command:
+
+```sh
+node --test --test-reporter=tap --test-name-pattern='TU-U1[123]|0009-W3 App composition' tests/tidy-up.test.mjs tests/modules.test.mjs
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+WRANGLER_LOG_PATH=.local/0009-W3/fix-1/wrangler-log WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir .local/0009-W3/fix-1/wrangler -c apps/server/wrangler.json
+```
+
+Unrun in this fix round: **V1–V2** (no dependency/install changes; not requested
+again), **V9–V13**, Node/workerd server suites including S407–S410, D9 browser
+scenarios including D9-S19/S20, A–J checkpoints and fixture-page browser checks.
+No browser or Supabase CLI was started, as required by the sandbox handoff.
+The CSS/composition/markup checks above do not replace independent browser proof.
+
+The source commit's two privacy hooks reported **PUBLIC BOUNDARY: PASS**.
+Git reported a sandbox-denied `packed-refs.lock` housekeeping write; the commit
+exited 0 and the branch ref was verified at the validated source SHA above.
+No hook was bypassed, no unrelated evidence file was changed, and the internal
+repository remained read-only.
+
+Files changed in the fix source/test/contract commit (10):
+
+```text
+apps/web/src/App.tsx
+apps/web/src/state/use-tidy-up.ts
+apps/web/src/tidy-up.ts
+apps/web/src/ui/objects-panel.tsx
+apps/web/src/ui/tidy-up-bar.tsx
+apps/web/style.css
+docs/architecture/0001-interaction-v41.md
+docs/architecture/0001-web-modules-v39.md
+tests/modules.test.mjs
+tests/tidy-up.test.mjs
+```
+
+The separate record commit changes only this brief, appending this section.

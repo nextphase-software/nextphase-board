@@ -37,6 +37,7 @@ export function useContextBar({
   function setArrangeFor(value: React.SetStateAction<string>) {
     setConnectorFor({ key: "", name: "" }); setArrange(value); setShapeFor({ key: "", name: "" }); if (value) setColour("");
   }
+  // A preview can remount the bar without changing the selection.
   useLayoutEffect(() => {
     const bar = contextBar.current;
     if (!bar) return;
@@ -45,7 +46,7 @@ export function useContextBar({
     observer.observe(bar);
     measure();
     return () => observer.disconnect();
-  }, [selectionKey]);
+  }, [selectionKey, selectionReason]);
   const { contextLeft, contextTop, contextFits } = contextBarPosition({
     bounds, pos, view, size, contextWidth, layout, inline, item, itemHeight, dotsVisible, editorBox,
   });

@@ -41,8 +41,9 @@ export function useTidyUp({board,selected,commit,tool,setMessage,hosted,scene,re
     setSession(null);setDrag(null);commit(applyTidy(board,grid),true);focus();
     setMessage(`Tidied ${grid.items.length} objects into ${grid.columns} columns.`);
   }
-  const changeColumns=(value:number)=>{if(session&&Number.isInteger(value)&&value>=1&&value<=session.items.length)setSession({...session,columns:value});};
-  const changeSpacing=(value:number)=>{if(session&&Number.isInteger(value)&&value>=0&&value<=400)setSession({...session,spacing:value});};
+  // Focusing the canvas on close can blur a field with an older render's handler.
+  const changeColumns=(value:number)=>{if(Number.isInteger(value)&&value>=1)setSession(current=>current&&value<=current.items.length?{...current,columns:value}:current);};
+  const changeSpacing=(value:number)=>{if(Number.isInteger(value)&&value>=0&&value<=400)setSession(current=>current?{...current,spacing:value}:current);};
   const barRef=(element:HTMLElement|null)=>{
     if(!element)return;
     const measure=()=>setWidth(element.getBoundingClientRect().width);

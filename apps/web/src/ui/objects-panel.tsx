@@ -209,7 +209,7 @@ export function ObjectsPanel({
           ["Wider", 10, 0], ["Narrower", -10, 0], ["Taller", 0, 10], ["Shorter", 0, -10],
         ].map(([name, x, y]) => <button key={name}
           aria-label={(selected.size > 1 ? "Make objects " : "Make object ") + String(name).toLowerCase()}
-          disabled={!!sizeReason} title={sizeReason || undefined} aria-describedby={geometryReason === FOLLOW_REASON ? "geometry-reason" : undefined}
+          disabled={!!sizeReason} title={tidy.open ? TIDY_WAIT : tapeSelection.objects.length ? "Washi tape can't be resized." : undefined} aria-describedby={geometryReason === FOLLOW_REASON ? "geometry-reason" : undefined}
           onClick={() => resizeBy(Number(x), Number(y))}>{name}</button>)}
       </div>
       <GrowButton available={growAvailable} grow={shapeCommands.grow} /></>}

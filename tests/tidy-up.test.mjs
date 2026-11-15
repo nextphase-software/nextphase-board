@@ -43,18 +43,31 @@ test('TU-U7 availability refuses mind nodes, fewer than three items and editing 
 });
 // The actual state owner runs against a small hook scheduler; no DOM renderer or
 // browser is started. Effects and event handlers are the production functions.
-async function stateHarness(board, hosted) {
+async function stateHarness(board, hosted, withContext=false) {
  const {build}=await import('esbuild');
  const runtime=`let slots=[],cursor=0,pending=[],changed=false;
  export const begin=()=>{cursor=0;pending=[];changed=false;};export const dirty=()=>changed;export const flush=()=>pending.splice(0).forEach(fn=>fn());
  export function useState(initial){const i=cursor++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return[slots[i],next=>{const value=typeof next==='function'?next(slots[i]):next;if(!Object.is(value,slots[i])){slots[i]=value;changed=true;}}];}
  export function useRef(initial){const i=cursor++;return slots[i]??(slots[i]={current:initial});}
- export function useEffect(fn,deps){const i=cursor++,old=slots[i];if(!old||deps.some((x,j)=>!Object.is(x,old.deps[j]))){pending.push(()=>{old?.cleanup?.();slots[i]={deps,cleanup:fn()};});}}`;
- const result=await build({stdin:{contents:'export {useTidyUp} from "./state/use-tidy-up.ts";export {begin,flush,dirty} from "test-react";',resolveDir:new URL('../apps/web/src/',import.meta.url).pathname,loader:'ts'},bundle:true,write:false,format:'esm',platform:'node',plugins:[{name:'hook-scheduler',setup(b){b.onResolve({filter:/^(react|test-react)$/},()=>({path:'runtime',namespace:'scheduler'}));b.onLoad({filter:/.*/,namespace:'scheduler'},()=>({contents:runtime,loader:'js'}));}}]});
+ export function useEffect(fn,deps){const i=cursor++,old=slots[i];if(!old||deps.some((x,j)=>!Object.is(x,old.deps[j]))){pending.push(()=>{old?.cleanup?.();slots[i]={deps,cleanup:fn()};});}}
+ export const useLayoutEffect=useEffect;`;
+ const result=await build({stdin:{contents:'export {useTidyUp} from "./state/use-tidy-up.ts";export {useContextBar} from "./state/use-context-bar.ts";export {begin,flush,dirty} from "test-react";',resolveDir:new URL('../apps/web/src/',import.meta.url).pathname,loader:'ts'},bundle:true,write:false,format:'esm',platform:'node',plugins:[{name:'hook-scheduler',setup(b){b.onResolve({filter:/^(react|test-react)$/},()=>({path:'runtime',namespace:'scheduler'}));b.onLoad({filter:/.*/,namespace:'scheduler'},()=>({contents:runtime,loader:'js'}));}}]});
  const m=await import('data:text/javascript;base64,'+Buffer.from(result.outputFiles[0].text).toString('base64')+'#'+crypto.randomUUID());
  const listeners=new Map(),oldWindow=globalThis.window;globalThis.window={innerWidth:1280,addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)};
  const events={commits:[],messages:[],focus:0},props={board,selected:ids(board),tool:'Select',hosted,scene:{current:{focus(){events.focus++;}}},commit:(next,record)=>events.commits.push({next,record}),setMessage:value=>events.messages.push(value)};
- const h={props,events,listeners,refresh(){for(let i=0;i<8;i++){m.begin();h.tidy=m.useTidyUp(props);m.flush();if(!m.dirty())return h.tidy;}assert.fail('Hook did not settle');},close(){globalThis.window=oldWindow;}};h.refresh();return h;
+ const oldObserver=globalThis.ResizeObserver,observers=new Set(),node={mounted:false,getBoundingClientRect(){return {width:this.mounted?640:0};}};
+ if(withContext)globalThis.ResizeObserver=class{constructor(measure){this.measure=measure;}observe(target){this.target=target;observers.add(this);}disconnect(){observers.delete(this);}};
+ const h={props,events,listeners,refresh(){for(let i=0;i<8;i++){
+ m.begin();h.tidy=m.useTidyUp(props);let removed=false;
+ if(withContext){
+ h.context=m.useContextBar({selectionKey:JSON.stringify([...props.selected].sort()),selected:props.selected,selectionReason:h.tidy.open?'Apply or cancel Tidy up first.':'',bounds:{x:0,y:100,width:768,height:504},pos:o=>({left:o.x,top:o.y}),view:{x:0,y:0,z:1},size:{w:window.innerWidth,h:800},layout:{notice:80,panel:130},inline:false,item:undefined,itemHeight:0});
+ const mounted=props.selected.size>0&&!h.tidy.open;removed=node.mounted&&!mounted;node.mounted=mounted;h.context.contextBar.current=mounted?node:null;
+ }
+ m.flush();
+ // A still-observed removed element reports width 0 after the layout phase.
+ if(removed)for(const observer of observers)if(observer.target===node)observer.measure();
+ if(!m.dirty())return h.tidy;
+ }assert.fail('Hook did not settle');},close(){globalThis.window=oldWindow;if(withContext)globalThis.ResizeObserver=oldObserver;}};h.refresh();return h;
 }
 const editable={readOnly:false,composing:false,pointerGesture:false,invalidObjectText:false};
 test('TU-U8 actual preview edits nothing, measures displayed height and applies one real edit',async()=>{
@@ -117,5 +130,48 @@ test('TU-U13 oversized width or height pins to the board edge and refuses Apply/
  if(change==='spacing')h.tidy.changeSpacing(0);else h.tidy.changeColumns(axis==='x'?1:3);h.refresh();assert(h.tidy.grid.fits);assert.doesNotMatch(applyButton(),/\b(?:disabled|title)=/);
  const preview=h.tidy.board;h.tidy.apply();h.refresh();assert(!h.tidy.open);assert.deepEqual(h.events.commits,[{next:preview,record:true}]);assert.doesNotThrow(()=>validate(preview));
  }finally{h.close();}
+ }
+});
+test('TU-U14 only the Tidy up bar stacks above the floating palette and zoom bar',()=>{
+ const css=readFileSync(new URL('../apps/web/style.css',import.meta.url),'utf8');
+ const z=selector=>Number(css.match(new RegExp('(?:^|})\\s*'+selector.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*\\{[^}]*z-index:\\s*(\\d+)'))?.[1]);
+ assert.equal(z('.context'),1);assert.equal(z('.floating'),3);assert(z('.context.tidy-bar')>z('.floating'));
+});
+const barPosition={pos:o=>({left:o.x,top:o.y}),view:{x:0,y:0,z:1},size:{w:1280,h:800},layout:{notice:80,panel:130}};
+const descendants=node=>Array.isArray(node)?node.flatMap(descendants):node&&typeof node==='object'?[node,...descendants(node.props?.children)]:[];
+async function canvasInput(tidy){const {useCanvasInput,render}=await screens();let input;render(()=>{input=useCanvasInput({tidy,tool:'Select',selected:new Set(),drag:{current:null},spacePanRef:{current:false},view:{x:0,y:0,z:1},displayedObjects:[],trackPointer(){}});return null;});return input;}
+test('TU-U15 normal context bar measures its remount after Apply and every Cancel route',async()=>{
+ const {TidyUpBar}=await screens();
+ for(const route of ['apply','button','canvasEscape','barEscape','canvasPress','tool','selection','resize','incoming']){
+ const h=await stateHarness(await six(),undefined,true);try{
+ assert(h.context.contextFits);assert.equal(h.context.contextWidth,640);h.tidy.start(editable);h.refresh();assert(h.tidy.open);
+ if(route==='apply')h.tidy.apply();if(route==='button')h.tidy.cancel(true);
+ if(route==='barEscape')TidyUpBar({tidy:h.tidy,...barPosition}).props.onKeyDown({key:'Escape',preventDefault(){},stopPropagation(){}});
+ if(route==='canvasEscape'||route==='canvasPress'){const input=await canvasInput(h.tidy),target={};const e={target,currentTarget:target,key:'Escape',button:0,preventDefault(){},stopPropagation(){}};if(route==='canvasEscape')input.sceneKeyDown(e);else input.pointerDown(e);}
+ if(route==='tool')h.props.tool='Sticky';if(route==='selection')h.props.selected=new Set([...h.props.selected].slice(0,3));
+ if(route==='resize'){window.innerWidth=375;h.listeners.get('resize')();}
+ if(route==='incoming')h.props.board={...h.props.board,objects:h.props.board.objects.map((o,i)=>i===0?{...o,x:o.x+1}:o)};
+ h.refresh();assert(!h.tidy.open,route);assert.equal(h.context.contextWidth,640,route);if(route==='resize'){window.innerWidth=1280;h.refresh();}assert(h.context.contextFits,route);assert.equal(h.events.commits.length,route==='apply'?1:0);
+ }finally{h.close();}
+ }
+});
+test('TU-U16 Escape from every Tidy up control survives focus-triggered field blur',async()=>{
+ const {TidyUpBar}=await screens();
+ for(const name of ['Fewer columns','Columns','More columns','Spacing','Cancel','Apply']){
+ const h=await stateHarness(await six());try{
+ h.tidy.start(editable);h.refresh();const bar=TidyUpBar({tidy:h.tidy,...barPosition}),control=descendants(bar).find(n=>(n.type==='input'||n.type==='button')&&(n.props['aria-label']??n.props.children)===name);assert(control,name);
+ const field={value:name==='Columns'?'2':'40'},focus=h.events.focus;let active=true,prevented=false,stopped=false;
+ h.props.scene.current.focus=()=>{h.events.focus++;if(active){active=false;control.props.onBlur?.({currentTarget:field});}};
+ const e={key:'Escape',preventDefault(){prevented=true;},stopPropagation(){stopped=true;}};control.props.onKeyDown?.(e);if(!stopped)bar.props.onKeyDown(e);h.refresh();
+ assert(prevented&&stopped,name);assert.equal(h.events.focus,focus+1,name);assert.deepEqual(h.events.messages,['Tidy up cancelled.'],name);assert.equal(h.events.commits.length,0);assert.equal(h.tidy.open,false,name);
+ }finally{h.close();}
+ }
+});
+test('TU-U17 size-button titles appear only for tapes or an open Tidy up preview',async()=>{
+ const {ObjectsPanel,render}=await screens(),{empty}=await load('packages/board-rules/src/document.ts'),{makeTape}=await load('apps/web/src/tape.ts'),board={...empty(),title:'Layout'},tape=makeTape(board,{x:0,y:0},{x:160,y:0},'stripes');
+ for(const holdsTape of [false,true])for(const open of [false,true]){
+ const html=render(ObjectsPanel,{board:holdsTape?{...board,objects:[tape]}:board,selected:holdsTape?new Set([tape.id]):new Set(),description:{},tapeSelection:{objects:holdsTape?[tape]:[]},strokeSelection:{objects:[]},shapeSelection:{objects:[]},shapeCommands:{},numbers:new Map(),drafts:{},selectionReason:'Select an object to duplicate or delete.',duplicateReason:'Select an object to duplicate or delete.',clipboardState:editable,objectClipboard:null,view:{x:0,y:0,z:1},tidy:{open},arrangementReason:()=>''});
+ const buttons=[...html.matchAll(/<button[^>]*aria-label="Make object (?:wider|narrower|taller|shorter)"[^>]*>/g)].map(m=>m[0]);assert.equal(buttons.length,4);
+ for(const button of buttons){assert.match(button,/disabled=""/);if(open)assert.match(button,/title="Apply or cancel Tidy up first\."/);else if(holdsTape)assert.match(button,/title="Washi tape can&#x27;t be resized\."/);else assert.doesNotMatch(button,/\btitle=/);}
  }
 });

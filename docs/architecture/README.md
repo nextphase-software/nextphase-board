@@ -547,3 +547,23 @@ allowed files and checks. Storage v3, board file v4, hosted persistence v10,
 hosted storage v11, sync v13, board lifecycle v5, API v12, team templates v1 and
 the activity catalogue v1 change only their document version, as document v16
 states. fileVersion2/room layout7/backup envelope1/17 service tables remain.
+
+For 0009-W3 v1, use these three successor contracts in place of their earlier
+versions, including inherited cross-references:
+
+- [0001 document v17](0001-document-v17.md): the `tape` type and its rules, the
+  fourteen shape kinds, schema 12, version references in other contracts, the
+  hosted room's load upgrade from 10 or 11, and the adapter.
+- [0001 interaction v41](0001-interaction-v41.md): single source of the Washi tape
+  tool and look, the new shapes' outlines, text boxes, connectors and menus, and
+  Tidy up's order, grid, preview, Apply, Cancel, words and keys.
+- [0001 web modules v39](0001-web-modules-v39.md): eight new modules, the counts
+  (15 package files, 10 object types, 15 scene parts, 29 screen parts, 23 state
+  hooks), the App.tsx line substitutions, the seams and the `BoardV12`/`ItemV12`
+  rename.
+
+[The W3 brief](../briefs/0009-W3-expand-drawing-and-diagram-layout.md) defines
+allowed files and checks. Storage v3, board file v4, hosted persistence v10,
+hosted storage v11, sync v13, board lifecycle v5, API v12, team templates v1 and
+the activity catalogue v1 change only their document version, as document v17
+states. fileVersion2/room layout7/backup envelope1/17 service tables remain.

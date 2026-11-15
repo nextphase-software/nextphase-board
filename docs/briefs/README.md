@@ -417,3 +417,10 @@ siblings, an automatic layout after every change, reparenting and detaching by d
 collapsible branches and one Undo per step, on local and hosted boards. Three successor contracts
 define the `mindNode` type (document version 11), the look and behaviour, and the modules; the hosted
 room upgrades version 10 boards on load. No dependency change; implementation has not started.
+
+[0009-W3 v1 — Expand drawing and diagram layout](0009-W3-expand-drawing-and-diagram-layout.md)
+(draft) adds a Washi tape drawing tool with six original patterns, twelve more shapes with their own
+outlines and text areas, and Tidy up: a grid preview of three or more selected objects with editable
+columns and spacing, applied as one Undo step or cancelled, on local and hosted boards. Three
+successor contracts define the `tape` type and the shape kinds (document version 12), the look and
+behaviour, and the modules. No dependency change; implementation has not started.

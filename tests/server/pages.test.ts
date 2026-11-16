@@ -77,8 +77,11 @@ async function seedStored(board: any) {
   const json=new TextEncoder().encode(rules.canonical(board)),yjs=storedBoardUpdate(board);
   const head=(await versions()).head;
   const writes:any[]=[{sql:'DELETE FROM snapshot_chunks'},{sql:'DELETE FROM edits'}];
-  for(const [kind,data]of [['json',json],['yjs',yjs]] as const)for(let at=0,index=0;at<data.length;at+=1048576,index++)
-    writes.push({sql:`INSERT INTO snapshot_chunks VALUES (?, ?, ?, ${hex(data.slice(at,at+1048576))})`,bindings:[head.revision,kind,index]});
+  // Hex doubles the SQL text; 32 KiB rows stay below workerd's statement limit.
+  // Stored readers concatenate ordered chunks and allow rows smaller than 1 MiB.
+  const chunkBytes=32768;
+  for(const [kind,data]of [['json',json],['yjs',yjs]] as const)for(let at=0,index=0;at<data.length;at+=chunkBytes,index++)
+    writes.push({sql:`INSERT INTO snapshot_chunks VALUES (?, ?, ?, ${hex(data.slice(at,at+chunkBytes))})`,bindings:[head.revision,kind,index]});
   for(const o of board.objects)writes.push({sql:'INSERT OR IGNORE INTO identifiers VALUES (?, ?, 0)',bindings:[o.id,o.generation]});
   writes.push({sql:"UPDATE meta SET value = ? WHERE key = 'history_capture_sha256'",bindings:[await sha256(json)]},
     {sql:"UPDATE meta SET value = ? WHERE key = 'history_capture_bytes'",bindings:[json.length]});

@@ -232,31 +232,3 @@ test('F1-U14 canvas fit keys require physical shifted digits, canvas focus and i
   state.drag.current={};make(state)(event({}));state.drag.current=null;
   state.tidy.open=true;make(state)(event({}));assert.deepEqual(calls,[]);
 });
-
-test('0010-W2 F2 rings show only the open page while counters, page lines and stepping search every page', async () => {
-  await rules();const h=await findHarness();
-  try {
-    const objects=[['a','agenda','welcome budget',0],['b','agenda','budget',200],['i','ideas','budget',400],['r','retro','budget',600]]
-      .map(([id,page,text,x])=>({...object(id,'sticky',text,x),page}));
-    h.props.board={schemaVersion:13,boardId:'board-a',title:'Find pages',retiredGenerations:[],objects,
-      pages:[{id:'agenda',name:'Agenda'},{id:'ideas',name:'Ideas'},{id:'retro',name:'Retro'}]};
-    const before=JSON.stringify(h.props.board);
-    h.props.allDisplayedObjects=objects;
-    h.props.pages={id:'retro',openingReason:'',openPage(id){this.id=id;h.props.displayedObjects=objects.filter(o=>o.page===id);}};
-    h.props.pages.openPage('retro');h.refresh();h.key();h.find.changeQuery('welcome');h.refresh();
-    const rings=()=>h.m.FindRings({find:h.find,page:h.props.pages.id,pos:o=>({left:o.x,top:o.y}),zoom:1})?.props.children??[];
-    assert.equal(h.find.counter,'– of 1');assert.deepEqual(rings(),[]);
-    h.find.step(1);h.refresh();assert.equal(h.props.pages.id,'agenda');assert.equal(h.find.pageLine,'On page “Agenda”');
-    assert.deepEqual(rings().map(r=>r.key),['a']);assert.equal(rings()[0].props.className,'find-ring current');
-    h.find.changeQuery('budget');h.refresh();assert.equal(h.find.counter,'1 of 4');
-    assert.deepEqual(rings().map(r=>r.key),['a','b']);assert.equal(rings()[1].props.className,'find-ring');
-    h.find.step(1);h.refresh();h.find.step(1);h.refresh();assert.equal(h.props.pages.id,'ideas');
-    assert.equal(h.find.counter,'3 of 4');assert.equal(h.find.pageLine,'On page “Ideas”');assert.deepEqual(rings().map(r=>r.key),['i']);
-    h.props.pages.openPage('retro');h.refresh();assert.deepEqual(rings().map(r=>r.key),['r']);assert.equal(rings()[0].props.className,'find-ring');
-    assert.equal(h.find.counter,'3 of 4');assert.equal(h.find.pageLine,'On page “Ideas”');
-    h.find.step(-1);h.refresh();assert.equal(h.props.pages.id,'agenda');assert.equal(h.find.counter,'2 of 4');
-    assert.deepEqual(rings().map(r=>r.key),['a','b']);assert.equal(rings()[1].props.className,'find-ring current');
-    h.find.close();h.refresh();assert.equal(h.m.FindRings({find:h.find,page:'agenda',pos:o=>({left:o.x,top:o.y}),zoom:1}),null);
-    assert.equal(JSON.stringify(h.props.board),before);
-  }finally{h.cleanup();}
-});

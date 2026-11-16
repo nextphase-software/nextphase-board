@@ -351,3 +351,33 @@ test('0010-W2 F1 page control states outrank shared hover without changing share
   const move='.context .move-page-button.page-active'+enabled;
   wins(move,shared,'accent-soft','accent');wins(move,'.context button:hover:not(:disabled)','accent-soft','accent');
 });
+
+test('0010-W2 F2 rings show only the open page while counters, page lines and stepping search every page', async () => {
+  const s=await subjects(),{findCounter}=await load('apps/web/src/find.ts'),{build}=await import('esbuild');
+  const built=await build({stdin:{contents:'export {FindRings} from "./scene/find-rings.tsx";',resolveDir:new URL('../apps/web/src/',import.meta.url).pathname,loader:'tsx'},
+    bundle:true,write:false,format:'esm',platform:'node',jsx:'automatic'});
+  const {FindRings}=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64'));
+  let board={...s.empty(),title:'Find pages'};board=s.renamePage(board,board.boardId,'Agenda');
+  const agenda=board.boardId;
+  for(const [text,x]of [['welcome budget',0],['budget',300]]){board=s.add(board,'sticky',x,0,agenda);board.objects.at(-1).text=text;}
+  const second=s.addPage(board);board=s.renamePage(second.board,second.page.id,'Ideas');board=s.add(board,'sticky',0,0,second.page.id);board.objects.at(-1).text='budget';
+  const third=s.addPage(board);board=s.renamePage(third.board,third.page.id,'Retro');board=s.add(board,'sticky',0,0,third.page.id);board.objects.at(-1).text='budget';
+  const before=s.canonical(board),[a,b,i,r]=board.objects.map(o=>o.id);let open=third.page.id;
+  const find={open:true,query:'welcome',results:s.pageFindResults(board,drawn(board),'welcome'),cursor:{current:null,removed:null}};
+  find.cursor=s.firstPageResult(find.results,open);
+  const rings=()=>FindRings({find,page:open,pos:o=>({left:o.x,top:o.y}),zoom:1})?.props.children??[];
+  const counter=()=>findCounter(find.query,find.results,find.cursor);
+  const step=direction=>{find.cursor=s.stepPageResult(board,find.results,find.cursor,open,direction);open=find.cursor.current.page;};
+  assert.equal(counter(),'– of 1');assert.deepEqual(rings(),[]);
+  step(1);assert.equal(open,agenda);assert.equal(s.resultPageLine(board,find.cursor),'On page “Agenda”');
+  assert.deepEqual(rings().map(r=>r.key),[a]);assert.equal(rings()[0].props.className,'find-ring current');
+  find.query='budget';find.results=s.pageFindResults(board,drawn(board),find.query);find.cursor=s.firstPageResult(find.results,open);
+  assert.equal(counter(),'1 of 4');assert.deepEqual(rings().map(r=>r.key),[a,b]);assert.equal(rings()[1].props.className,'find-ring');
+  step(1);step(1);assert.equal(open,second.page.id);assert.equal(counter(),'3 of 4');
+  assert.equal(s.resultPageLine(board,find.cursor),'On page “Ideas”');assert.deepEqual(rings().map(r=>r.key),[i]);
+  open=third.page.id;assert.deepEqual(rings().map(r=>r.key),[r]);assert.equal(rings()[0].props.className,'find-ring');
+  assert.equal(counter(),'3 of 4');assert.equal(s.resultPageLine(board,find.cursor),'On page “Ideas”');
+  step(-1);assert.equal(open,agenda);assert.equal(counter(),'2 of 4');assert.deepEqual(rings().map(r=>r.key),[a,b]);assert.equal(rings()[1].props.className,'find-ring current');
+  find.open=false;assert.equal(FindRings({find,page:open,pos:o=>({left:o.x,top:o.y}),zoom:1}),null);
+  assert.equal(s.canonical(board),before);
+});

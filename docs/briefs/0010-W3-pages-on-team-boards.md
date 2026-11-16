@@ -737,3 +737,71 @@ Supabase CLI/schema/stack setup, V9 and S417–S424 on both server runners
 (`npm run test:server:node`, `npm run test:server:workerd`), and V10–V13, including N2,
 runtime design comparison, independent negative checks and A–J/browser checks. Browsers and
 Supabase CLI cannot start here. V3–V8 are now clear; independent server/browser acceptance remains.
+
+
+### Server fix round — 0010-W3 v1
+
+Maintainer-authorized server diagnosis and test fixes, outside the review cap. Branch:
+`codex/0010-W3-pages-on-team-boards`. Prior record tip / round base:
+`daad0de6391cc57bfebdbd58e674cc92a6af95da`. Validated source/test revision:
+**`0bc7dac8eba4b30b8ca3c7f5a73b8fc01c304143`**. The source/test and append-only record commits are separate;
+the final record tip is reported in the handoff. No product source, dependency, schema,
+runner, S93 timing assertion or timing threshold changed. No merge, push or deployment.
+
+#### Failure causes, fixes and limits
+
+| Failure | Proven cause or investigation result | Fix / focused evidence |
+| --- | --- | --- |
+| Node S421 | The test selected another connection's legitimate `present` frame. `seed()` leaves an editor connection on the first page; vote start relays every connection's retained presence, including that placeholder. The sender's page remains correct. Filtering only by person would also be insufficient because the seed and sender are the same person's separate connections | S421 now filters initial, stale-page and redacted frames by `a.joined.self.connection`. P3-U23 reproduces three connections, including two for one person: the first relayed frame belongs to the seed on the first page; the sender retains Ideas. A stale-page frame consumes its budget without changing retained presence, relaying or refusing; real vote-start redaction clears cursor, selection and view while retaining the sender's page. Fresh input during the vote also keeps that page. Product presence v5 is unchanged |
+| Node S424; workerd S423/S424 | S421 freezes the runner clock at `Date.now()+2000` and never resets it. Later `removal-fixture` calls mint fresh sign-in tokens using real time. Once real time overtakes the frozen value, their `iat` is in the server's future, so the existing Auth check correctly returns `token_malformed`. The tokens are fresh per fixture, rather than module-load tokens; this is neither expiry nor a wrong-runner issuer/key | The page suite resets `fixedNow` to `null` and `offset` to 0 before each fixture and in an `afterEach` finally block. P3-U24 loads the actual page-suite helper callbacks, uses the real JWT signer and Auth verifier, and deterministically reproduces the same future-iat rejection. It failed with `token_malformed` before the helper fix, then passed for two successive fixtures and cleanup resets. No authentication product change |
+| workerd S93 | **No product cause found; timing remains unproven here.** The supplied Node run passed S93 at 1/10/50 boards (57.49 / 102.27 / 466.96 ms). The workerd run failed the two-second assertion; 27,864 ms is the whole scenario duration, including setup, and the failure does not identify the board count or print its per-count timing. The termination warnings occur at shutdown for other test files; they do not establish a cause for S93 | Seven removal/delivery/support files and five relevant Room methods are byte-for-byte unchanged from e442c8a (listed below). P3-U25 exercises actual access delivery and close callbacks for warm and reconstructed version-8 rooms: each closes the removed peer with 4403, clears presence, and during delivery performs zero page conversions, snapshot replacements, vote resets or backups. Access-source calls are 2 warm / 3 reconstructed. No S93 or product fix was made; workerd timing still requires the server-only rerun |
+
+Baseline-equality inspection covered these seven whole files:
+`packages/board-room/src/access.ts`, `spotlight.ts`, `copies.ts`,
+`apps/server/src/delivery.ts`, `apps/server/src/routes/access.ts`,
+`tests/server/removal.test.ts` and `tests/server/peer.ts`.
+The five unchanged Room methods are `close`, `closeAll`, `refresh`, `changed` and `closed`.
+The version-7 conversion is guarded by the stored version and finishes at 8; P3-U15 also
+continues to prove conversion happens once. Fresh/current version-8 delivery does not enter it.
+The added `initialize()` table-info read is bounded and issues no ALTER on a current room;
+no evidence ties it to the workerd timing failure. Ordinary last-close history/snapshot behavior
+remains the baseline behavior; the no-snapshot observation above refers to access delivery.
+These room-level checks do not measure Durable Object/WebSocket transport or Supabase latency.
+
+#### Commands and results
+
+| Check | Command / inspection | Result |
+| --- | --- | --- |
+| Focused reproduction | `node --test --test-reporter=tap --test-name-pattern='P3-U2[345]' tests/team-pages.test.mjs` before the helper fix | Expected failure: 3 tests, 2 pass, 1 fail; P3-U24 reports `token_malformed`; P3-U23 and P3-U25 pass with the product unchanged |
+| Focused verification | Same command after the fix | **PASS**: exit 0; 3/3 tests, 0 fail, 0 skipped |
+| V3 | `npm run typecheck` | **PASS**: exit 0 across all five workspace members |
+| V4 | Full `npm test` | **PASS**: exit 0; 1,276 tests, 1,276 pass, 0 fail, 0 skipped; P3-U01–P3-U25 all pass |
+| V8 | Round hunks inspected; `git diff --name-status daad0de6391cc57bfebdbd58e674cc92a6af95da..0bc7dac8eba4b30b8ca3c7f5a73b8fc01c304143`; `git diff --check daad0de6391cc57bfebdbd58e674cc92a6af95da..0bc7dac8eba4b30b8ca3c7f5a73b8fc01c304143`; cumulative inventory and whitespace inspected with the same two commands over `a46a6a1..0bc7dac8eba4b30b8ca3c7f5a73b8fc01c304143` | **PASS**: this round changes only the two authorized test files below, with no new file; 104 insertions / 7 deletions. Earlier milestone inventory is unchanged. This record is appended separately |
+
+Final focused/V3/V4 validation ran from **2026-11-16T20:37:49.204725+00:00** to **2026-11-16T20:37:59.908940+00:00** UTC;
+the full unit run was **2026-11-16T20:37:50.497602+00:00** to **2026-11-16T20:37:59.908940+00:00** UTC.
+No stack, browser, Supabase CLI or server suite was started. The source commit's pre-commit
+and commit-message public-boundary hooks both passed. Git printed the existing non-fatal
+`packed-refs.lock` sandbox maintenance error; the new source ref and clean worktree were verified.
+Added dependencies: none. No new scope escalation; S93 remains an unresolved server acceptance item.
+
+#### Round changed-file and line-range inventory
+
+Ranges are relative to `daad0de6391cc57bfebdbd58e674cc92a6af95da`.
+
+| File | Before | After | Change |
+| --- | --- | --- | --- |
+| `tests/server/team-pages.test.ts` | 13; 71; 137–138; 140; 142 | 13–16; 74; 140–141; 143; 145 | Reset suite clock before fixture and after cleanup; select presence by sender connection |
+| `tests/team-pages.test.mjs` | 115; insertion after 211 | 115; 212–305 | Permit the fixture's same-person second connection; add P3-U23/U24/U25 |
+| `docs/briefs/0010-W3-pages-on-team-boards.md` | Insertion after 739 | 740–807 | Append this server-fix record only |
+
+#### Remaining independent validation
+
+Both full server suites remain **unrun in this sandbox**:
+`npm run test:server:node` and `npm run test:server:workerd` on the validated source above
+with a fresh stack. They must recheck S421, S423 and S424, the unchanged S93 two-second
+1/10/50-board check, and worker shutdown. The supplied preceding server run on daad0de
+was Node **418 pass / 2 fail / 0 skipped**, workerd **413 pass / 3 fail / 2 skipped**;
+those are not results for this fix. S411–S420 and S422 passed on both in that run.
+V1/V2 and V5–V7 were not repeated this round. Browser acceptance, V10–V13 and the other
+previously unrun independent checks remain unrun; browsers and Supabase CLI cannot start here.

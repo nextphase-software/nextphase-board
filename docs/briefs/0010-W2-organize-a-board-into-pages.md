@@ -324,3 +324,370 @@ product decision is delegated to implementation.
 ## Implementation record
 
 (Appended by the implementer.)
+
+
+### 0010-W2 v1 implementation — 2026-11-16
+
+- Branch: `codex/0010-W2-organize-a-board-into-pages`.
+- Prerequisite base: `fa0ebf7c1424aecc116ff78c9bd6e3e8aaa96fd2`.
+- Behaviour baseline: `076f82edb1dff6687e9c127edb6ce414870e05d2`.
+- Validated source/test revision: `58f040433ba939891154929b4dec07d619728a96`
+  (`fix(web): preserve page menu return focus`), following feature commit `4e381ea`
+  (`feat(web): organize local boards into pages`). This append is a separate documentation commit;
+  the final branch tip is reported separately in the handoff. No merge or push.
+- Node `26.13.0`, npm `11.20.0`. Added dependencies: **none**; no version or licence changes.
+- Implemented document v18/schema 13, local page operations and their whole-board history,
+  per-page rendering/selection/placement/views, remembered page, cross-page find and the new controls.
+  Hosted edits, imports, creates and history restores retain the single-page constraint.
+- The approved design references and all eight approved screens were read before screen changes;
+  interaction v43 supplies the implemented values. No font or image asset was added.
+
+#### Authoritative V1–V8 results
+
+Every row below is against the validated source/test revision above; these are implementation checks,
+not independent acceptance. Synthetic build settings, for both web builds:
+
+```sh
+BOARD_SUPABASE_URL=http://127.0.0.1:55321
+BOARD_SUPABASE_ANON_KEY=synthetic
+BOARD_SERVER_URL=http://127.0.0.1:8796
+```
+
+| Row | Commands / inspection | Result and counts |
+| --- | --- | --- |
+| PASS: V1 | Byte-compare each tracked package manifest, root lock, versioned dependency lock/inventory and runtime notice against `fa0ebf7` using `git show` | 20/20 files identical; 0 added dependencies |
+| PASS: V2 | `npm ci --ignore-scripts --no-audit --no-fund` in the clean candidate and an independent archive of `076f82e` | 2/2 installs exit 0; each installs 118 packages; the baseline runs no tests or builds |
+| PASS: V3 | `npm run typecheck` | Exit 0 across all 5 workspace members |
+| PASS: V4 | `npm test` | 1,242 tests: 1,242 pass, 0 fail, 0 skipped; includes 35 named `P2-U01`–`P2-U35` page checks and the module guards |
+| PASS: V5 | `BOARD_TEAM_FEATURES=off npm run build` with the synthetic settings above; `npm run audit:licenses`; `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v1.txt` | 3/3 commands exit 0; one local web build; notices byte-identical |
+| PASS: V6 | `npm run build:fixtures`; `BOARD_TEAM_FEATURES=on npm run build` with the same settings; `npm run audit:licenses`; `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt` | 4/4 commands exit 0; 7 fixture output files and one team web build; notices byte-identical |
+| PASS: V7 | `npm run build:server`; `npm run audit:licenses`; `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` | 3/3 commands exit 0; Node and Worker bundles; Wrangler 4.156.0 dry run exits without deploying (1,379.76 KiB, gzip 283.95 KiB) |
+| PASS: V8 | Inspect all source/test/documentation hunks; `git diff --name-status fa0ebf7..58f0404`; `git diff --check fa0ebf7..58f0404` | 85 files: 6 new and 79 modified, all within the deliverables/dispositions; diff check exit 0. This record adds only the brief append |
+
+The authoritative V3–V7 command interval was **2026-11-16 06:30:30.432–06:30:42.244 UTC**.
+`pmset -g batt` reported AC power and 100% charge; `caffeinate -dimsu` held keep-awake from
+06:07:06 UTC through validation. `pmset -g log` inspection through 06:30:56 UTC found **0 actual
+Sleep/Wake/DarkWake transitions** in that interval (assertion messages containing “Wake Lock” are not
+sleep/wake events). No validation run overlapped sleep.
+
+Focused development iterations preceded this final full run. The final focused page/module run passed;
+intermediate fixture-version and harness-input failures were corrected within the stated dispositions.
+There are no remaining unit or build failures from the authorized run.
+
+#### Coverage and exclusions
+
+The 35 page checks cover page/name/identity limits and every one-page reference rule; canonical key
+orders for all nine persisted object types; upgrades from 7, 11 and 12; maximum legacy payload size;
+codec/adapter recreation and unchanged atomic `pages`; names, reorder, duplicate/remapping, delete,
+moved-set closure and connector removal; exact notice words; history pages and step page; all twelve
+creation/edit isolation paths including interleaved other-page objects; cross-page find; current/newer
+storage and files; production page/geometry/editing/keyboard/find/Tidy up handlers; view memory and
+local-storage errors; and the room's refusal of page changes. All commits keep whole boards. Read-only
+projections feed drawing, selection and list/placement reads.
+
+- **Unrun V9:** `npm run test:server:node` and `npm run test:server:workerd`, including the six new
+  S411–S416 checks. Both include lists contain `tests/server/pages.test.ts`. No Supabase CLI or stack
+  was started; the separately owned server-only run must execute these checks.
+- **Unrun V10–V13:** N1-S1–N1-S19, design captures/comparison, independent baseline named-failure
+  checks, and A–J visual comparison. No browser was started. No Chrome/Safari, native IME,
+  performance/load, accessibility or unrelated scenario campaign ran.
+- Module guards pass with 15 rules files, 10 object-type modules, 16 scene parts, 32 screen parts and
+  25 state hooks. `use-pages.ts` has **2 passive effects**; every other effect count is unchanged.
+- No presence, comments, voting, timer, reactions or spotlight source changed. Their authorized
+  fixture changes only make current hosted documents explicitly version 13 where needed.
+- The try-and-test guide changes by exactly the brief's Pages row, immediately after Find and navigate.
+  The named unrelated evidence document was not touched or staged.
+
+#### Clarifications and environment limitations
+
+- Document v18 explicitly permits a page id equal to a retired generation (including `boardId`),
+  whereas V4's parenthetical list mentions that case among rejection cases. The explicit document
+  rule governs: the focused check accepts retired-only collisions and rejects collisions with active
+  object ids/generations. This discrepancy was reported before dependent implementation.
+- Graph discovery and the required index attempt both returned an approval-required error under the
+  sandbox's never-approve policy. Local source reads were used after those attempts; no exception,
+  new tool or dependency was introduced.
+- Both source commit hooks reported `PUBLIC BOUNDARY: PASS` twice. Git then reported a sandbox-denied
+  packed-refs maintenance lock; the commit itself exited 0, and its branch ref, source SHA and clean
+  status were verified. No hook was bypassed.
+
+#### Additional allowed web seams and current type names
+
+| File beyond the individually named web paths | Reason |
+| --- | --- |
+| `apps/web/src/gesture.ts` | Type-only: preserve the current object page through captured resize rectangles. |
+| `apps/web/src/state/use-object-layouts.ts` | Read the open page for display, bounds and group numbers; retain all measured displayed objects for cross-page find. |
+| `apps/web/src/state/use-page-keys.ts` | Select all reads only the open page; editing commands retain the whole model. |
+
+The document exports `BoardV13`/`ItemV13` and retains `BoardV12`/`ItemV12` as current-type aliases so
+unchanged shared consumers keep compiling. Existing files with explicit current-type renames in this
+patch (renames have no independent behaviour change):
+
+- `apps/server/src/routes/boards.ts`
+- `apps/server/src/templates.ts`
+- `apps/web/src/activities.ts`
+- `apps/web/src/clipboard.ts`
+- `apps/web/src/connectors.ts`
+- `apps/web/src/images.ts`
+- `apps/web/src/mind-map.ts`
+- `apps/web/src/sections.ts`
+- `apps/web/src/state/use-board-document.ts`
+- `apps/web/src/state/use-canvas-input.ts`
+- `apps/web/src/state/use-editing-commands.ts`
+- `apps/web/src/state/use-find.ts`
+- `apps/web/src/state/use-geometry-edits.ts`
+- `apps/web/src/state/use-images.ts`
+- `apps/web/src/state/use-object-layouts.ts`
+- `apps/web/src/state/use-page-keys.ts`
+- `apps/web/src/state/use-tidy-up.ts`
+- `apps/web/src/strokes.ts`
+- `apps/web/src/tape.ts`
+- `apps/web/src/team/templates-rules.ts`
+- `apps/web/src/ui/context-bar.tsx`
+- `packages/board-room/src/edits.ts`
+- `packages/board-room/src/history.ts`
+- `packages/board-room/src/room.ts`
+- `packages/board-sync/src/codec.ts`
+
+#### Exact App.tsx substitutions
+
+Exactly **19 existing-line substitutions**, with **0 added lines** and **264 lines** before/after.
+`tests/modules.test.mjs` reconstructs the expected App from `076f82e`, asserts each before string
+occurs exactly once and checks exact text and line-count equality. Each entry below gives the base
+line and literal before/after strings (JSON escaping only):
+
+```json
+[
+  {
+    "baseLine": 21,
+    "before": "import { useObjectLayouts } from \"./state/use-object-layouts\"; import { useTidyUp } from \"./state/use-tidy-up\"; import { useFind } from \"./state/use-find\";",
+    "after": "import { useObjectLayouts } from \"./state/use-object-layouts\"; import { useTidyUp } from \"./state/use-tidy-up\"; import { useFind } from \"./state/use-find\"; import { usePages } from \"./state/use-pages\";"
+  },
+  {
+    "baseLine": 24,
+    "before": "import { Overlays } from \"./scene/overlays\"; import { ConnectionDots } from \"./scene/connection-dots\"; import { MindMapButtons } from \"./scene/mind-map-buttons\"; import { TidyUpLayer } from \"./scene/tidy-up-layer\"; import { TidyUpBar } from \"./ui/tidy-up-bar\"; import { FindRings } from \"./scene/find-rings\"; import { FindBar } from \"./ui/find-bar\";",
+    "after": "import { Overlays } from \"./scene/overlays\"; import { ConnectionDots } from \"./scene/connection-dots\"; import { MindMapButtons } from \"./scene/mind-map-buttons\"; import { TidyUpLayer } from \"./scene/tidy-up-layer\"; import { TidyUpBar } from \"./ui/tidy-up-bar\"; import { FindRings } from \"./scene/find-rings\"; import { FindBar } from \"./ui/find-bar\"; import { PagesPanel } from \"./ui/pages-panel\"; import { MoveToPage } from \"./ui/move-to-page\";"
+  },
+  {
+    "baseLine": 51,
+    "before": "    connectorStyle, shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,",
+    "after": "    stepPage, connectorStyle, shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,"
+  },
+  {
+    "baseLine": 54,
+    "before": "  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent });",
+    "after": "  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent }); const pages = usePages({ board, model, stepPage, hosted: !!team?.hosted, commit, finishTextSession, select, setMessage, getView: () => view, setView: value => setView(value), getObjects: () => allDisplayedObjects, openingReason: () => busy || composing || tidy.open ? \"Finish the current action first.\" : \"\", editingReason: () => commandReason || (tidy.open ? \"Apply or cancel Tidy up first.\" : \"\") });"
+  },
+  {
+    "baseLine": 58,
+    "before": "  } = useSelection({ board, drafts, textSelection }); const tidy = useTidyUp({ board, selected, commit, tool, setMessage, hosted: team?.hosted, scene, readOnly });",
+    "after": "  } = useSelection({ board: pages.canvas(), drafts, textSelection }); const tidy = useTidyUp({ board, objects: pages.objects(), selected, commit, tool, setMessage, hosted: team?.hosted, scene, readOnly });"
+  },
+  {
+    "baseLine": 62,
+    "before": "  const images = useImages({ board, model, selected, readOnly: readOnly || !!team?.hosted, busy: gestureBusy, composing, invalidObjectText, pending,",
+    "after": "  const images = useImages({ page: pages.id, board, model, selected, readOnly: readOnly || !!team?.hosted, busy: gestureBusy, composing, invalidObjectText, pending,"
+  },
+  {
+    "baseLine": 66,
+    "before": "    editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,",
+    "after": "    editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, allDisplayedObjects, bounds, selectedGroups, numbers,"
+  },
+  {
+    "baseLine": 69,
+    "before": "    board: tidy.board, selected: tidy.selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,",
+    "after": "    board: tidy.board, objects: pages.objects(tidy.board), selected: tidy.selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,"
+  },
+  {
+    "baseLine": 85,
+    "before": "  const pos = (o: { x: number; y: number }) => screenPoint(o, view, size); const find = useFind({ boardId: board.boardId, displayedObjects, selected, select, view, setView, size, scene, composing, busy, tidy, finishTextSession, setInline });",
+    "after": "  const pos = (o: { x: number; y: number }) => screenPoint(o, view, size); const find = useFind({ board, pages, allDisplayedObjects, boardId: board.boardId, displayedObjects, selected, select, view, setView, size, scene, composing, busy, tidy, finishTextSession, setInline });"
+  },
+  {
+    "baseLine": 96,
+    "before": "    shapeSession, model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,",
+    "after": "    page: pages.id, shapeSession, model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,"
+  },
+  {
+    "baseLine": 104,
+    "before": "    voting: team?.hosted?.voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,",
+    "after": "    page: pages.id, voting: team?.hosted?.voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,"
+  },
+  {
+    "baseLine": 126,
+    "before": "    tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,",
+    "after": "    pages, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,"
+  },
+  {
+    "baseLine": 132,
+    "before": "    voting: team?.hosted?.voting, chooseImages: images.chooseImages,",
+    "after": "    page: pages.id, voting: team?.hosted?.voting, chooseImages: images.chooseImages,"
+  },
+  {
+    "baseLine": 173,
+    "before": "          faded={find.faded} bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={tidy.board} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}",
+    "after": "          faded={find.faded} bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={pages.canvas(tidy.board)} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}"
+  },
+  {
+    "baseLine": 180,
+    "before": "        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={board} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} pos={pos} zoom={view.z} />",
+    "after": "        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={pages.canvas()} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} pos={pos} zoom={view.z} />"
+  },
+  {
+    "baseLine": 184,
+    "before": "      <ImageNames board={board} /><FileBar team={team}",
+    "after": "      <ImageNames board={pages.canvas()} /><PagesPanel pages={pages} /><FileBar team={team} pages={pages}"
+  },
+  {
+    "baseLine": 196,
+    "before": "      {!team?.hosted && <Notice",
+    "after": "      {!team?.hosted && <Notice pages={pages}"
+  },
+  {
+    "baseLine": 211,
+    "before": "          duplicateReason={duplicateReason} board={board} busy={busy} composing={composing} setPanel={setPanel}",
+    "after": "          duplicateReason={duplicateReason} board={pages.canvas()} busy={busy} composing={composing} setPanel={setPanel}"
+  },
+  {
+    "baseLine": 223,
+    "before": "          tapeSelection={tapeSelection} tidy={tidy} board={board} description={images.description} imageCount={images.count} imagesOnly={images.only} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}",
+    "after": "          tapeSelection={tapeSelection} tidy={tidy} board={pages.canvas()} moveToPage={<MoveToPage pages={pages} selected={selected} reason={duplicateReason} />} description={images.description} imageCount={images.count} imagesOnly={images.only} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}"
+  }
+]
+```
+
+#### Shared-path changed line ranges
+
+Ranges below are exact zero-context diff hunk ranges, **prerequisite-base lines → validated-source
+lines**; `+0`/`-0` ranges denote insertions/deletions. They authorize only version-13/default-page,
+legacy downgrade, current/newer-version, canonical-key/snapshot expectations and module inventory/App
+guards. No historical acceptance campaign was added or run.
+
+| Test / fixture file | Base ranges → source ranges |
+| --- | --- |
+| `tests/README.md` | `-669,0 → +670,2` |
+| `tests/board-catalog.test.mjs` | `-8 → +8`, `-235 → +235`, `-322 → +322` |
+| `tests/board-file.test.mjs` | `-1,0 → +2`, `-32 → +33`, `-42 → +43`, `-55 → +56`, `-78 → +79`, `-138 → +139` |
+| `tests/board-history.test.mjs` | `-176 → +176` |
+| `tests/clipboard.test.mjs` | `-34 → +34`, `-78 → +78`, `-80 → +80` |
+| `tests/connector-styles.test.mjs` | `-1,0 → +2`, `-30 → +31`, `-44 → +45`, `-46 → +47`, `-48 → +49`, `-83 → +84`, `-87 → +88`, `-477 → +478`, `-538 → +539` |
+| `tests/connectors.test.mjs` | `-1,0 → +2`, `-36,2 → +37,2`, `-39,2 → +40,2`, `-71 → +72`, `-94 → +95` |
+| `tests/document.test.mjs` | `-1,0 → +2`, `-15,5 → +16,5`, `-42 → +43`, `-116 → +117`, `-131 → +132`, `-134 → +135`, `-143 → +144`, `-245 → +246`, `-264 → +265`, `-292 → +293`, `-359 → +360`, `-369 → +370`, `-374 → +375` |
+| `tests/images.test.mjs` | `-1,0 → +2`, `-26,2 → +27,2`, `-53 → +54`, `-55 → +56` |
+| `tests/import-fixture.mjs` | `-4,0 → +5,3`, `-14 → +17`, `-18 → +21`, `-26 → +29`, `-31 → +34`, `-34,0 → +38`, `-42 → +46,2`, `-47 → +52`, `-52 → +57,2` |
+| `tests/mind-map.test.mjs` | `-1,0 → +2`, `-59 → +60`, `-65 → +66`, `-67 → +68`, `-69 → +70`, `-71,3 → +72,3`, `-76 → +77` |
+| `tests/modules.test.mjs` | `-119 → +119`, `-138,0 → +139`, `-141,0 → +143`, `-241 → +243`, `-256,0 → +259`, `-591,3 → +594,3`, `-596,2 → +599,2`, `-600,2 → +603,2`, `-604,2 → +607,2`, `-608,2 → +611,2`, `-612,2 → +615,2`, `-616,2 → +619,2`, `-620,2 → +623,2`, `-624,2 → +627,2`, `-628,2 → +631,42`, `-632 → +674,0`, `-641,0 → +684,5` |
+| `tests/server/drawing-layout.test.ts` | `-5,0 → +6`, `-82,2 → +83,2`, `-96,2 → +97,2`, `-102 → +103`, `-123 → +124`, `-133 → +134`, `-137 → +138`, `-144 → +145` |
+| `tests/server/history.test.ts` | `-8 → +8`, `-43,3 → +43,3`, `-55 → +55`, `-140 → +140` |
+| `tests/server/lifecycle.test.ts` | `-7 → +7`, `-56 → +56`, `-166 → +166` |
+| `tests/server/mind-maps.test.ts` | `-5,0 → +6`, `-86,2 → +87,2`, `-105 → +106`, `-107 → +108`, `-114 → +115`, `-122 → +123`, `-175 → +176`, `-189 → +190`, `-213 → +214` |
+| `tests/server/shared.test.ts` | `-8 → +8`, `-86 → +86`, `-89,2 → +89,2`, `-96,2 → +96,2`, `-104 → +104`, `-112 → +112`, `-279,4 → +279,4`, `-321 → +321`, `-861 → +861` |
+| `tests/server/suite.test.ts` | `-482 → +482` |
+| `tests/shape-kinds.test.mjs` | `-1,0 → +2`, `-14 → +15` |
+| `tests/shapes.test.mjs` | `-39 → +39`, `-44 → +44` |
+| `tests/shared-editing.test.mjs` | `-35 → +35`, `-77 → +77`, `-80 → +80`, `-82 → +82` |
+| `tests/storage.test.mjs` | `-1,0 → +2`, `-4 → +5`, `-68 → +69`, `-76 → +77`, `-91 → +92`, `-104 → +105`, `-115 → +116`, `-125 → +126`, `-131 → +132`, `-139,2 → +140,2` |
+| `tests/strokes.test.mjs` | `-1,0 → +2`, `-31,3 → +32,3`, `-89 → +90`, `-95 → +96`, `-204 → +205` |
+| `tests/tape.test.mjs` | `-23,2 → +23,2` |
+| `tests/team-import.test.mjs` | `-5 → +5`, `-43 → +43`, `-62 → +62`, `-64 → +64` |
+| `tests/team-templates.test.mjs` | `-48 → +48` |
+| `tests/tidy-up.test.mjs` | `-121 → +121` |
+| `tests/transition.test.mjs` | `-20 → +20,2` |
+| `tests/workshop-reactions.test.mjs` | `-18 → +18` |
+| `tests/workshop-spotlight.test.mjs` | `-18 → +18` |
+| `tests/workshop-voting.test.mjs` | `-18 → +18` |
+
+The two Vitest configuration changes only add the new server test to `include`; no runner settings
+change. `tests/find.test.mjs` stays byte-identical to the prerequisite base.
+
+#### Complete validated-source file inventory
+
+`A` = new, `M` = modified. The separate record commit changes only this brief's Implementation record.
+
+```text
+M	apps/server/src/routes/boards.ts
+M	apps/server/src/templates.ts
+M	apps/web/src/App.tsx
+M	apps/web/src/activities.ts
+M	apps/web/src/board-file.ts
+M	apps/web/src/clipboard.ts
+M	apps/web/src/connectors.ts
+M	apps/web/src/find.ts
+M	apps/web/src/gesture.ts
+M	apps/web/src/history.ts
+M	apps/web/src/icons.tsx
+M	apps/web/src/images.ts
+M	apps/web/src/mind-map.ts
+A	apps/web/src/pages.ts
+M	apps/web/src/sections.ts
+M	apps/web/src/state/use-board-document.ts
+M	apps/web/src/state/use-canvas-input.ts
+M	apps/web/src/state/use-editing-commands.ts
+M	apps/web/src/state/use-find.ts
+M	apps/web/src/state/use-geometry-edits.ts
+M	apps/web/src/state/use-images.ts
+M	apps/web/src/state/use-object-layouts.ts
+M	apps/web/src/state/use-page-keys.ts
+A	apps/web/src/state/use-pages.ts
+M	apps/web/src/state/use-tidy-up.ts
+M	apps/web/src/storage.ts
+M	apps/web/src/strokes.ts
+M	apps/web/src/tape.ts
+M	apps/web/src/team/templates-rules.ts
+M	apps/web/src/ui/connector-controls.tsx
+M	apps/web/src/ui/context-bar.tsx
+M	apps/web/src/ui/file-bar.tsx
+M	apps/web/src/ui/find-bar.tsx
+A	apps/web/src/ui/move-to-page.tsx
+M	apps/web/src/ui/navigation-panel.tsx
+M	apps/web/src/ui/notice.tsx
+A	apps/web/src/ui/pages-panel.tsx
+M	apps/web/src/ui/stroke-controls.tsx
+M	apps/web/style.css
+M	docs/guides/try-board.md
+M	packages/board-room/src/edits.ts
+M	packages/board-room/src/history.ts
+M	packages/board-room/src/room.ts
+M	packages/board-rules/src/document.ts
+M	packages/board-rules/src/objects/image.ts
+M	packages/board-rules/src/objects/registry.ts
+M	packages/board-rules/src/objects/stroke.ts
+M	packages/board-rules/src/objects/tape.ts
+M	packages/board-sync/src/codec.ts
+M	packages/board-sync/src/document-adapter.ts
+M	tests/README.md
+M	tests/board-catalog.test.mjs
+M	tests/board-file.test.mjs
+M	tests/board-history.test.mjs
+M	tests/clipboard.test.mjs
+M	tests/connector-styles.test.mjs
+M	tests/connectors.test.mjs
+M	tests/document.test.mjs
+M	tests/images.test.mjs
+M	tests/import-fixture.mjs
+M	tests/mind-map.test.mjs
+M	tests/modules.test.mjs
+A	tests/pages.test.mjs
+M	tests/server/drawing-layout.test.ts
+M	tests/server/history.test.ts
+M	tests/server/lifecycle.test.ts
+M	tests/server/mind-maps.test.ts
+A	tests/server/pages.test.ts
+M	tests/server/shared.test.ts
+M	tests/server/suite.test.ts
+M	tests/shape-kinds.test.mjs
+M	tests/shapes.test.mjs
+M	tests/shared-editing.test.mjs
+M	tests/storage.test.mjs
+M	tests/strokes.test.mjs
+M	tests/tape.test.mjs
+M	tests/team-import.test.mjs
+M	tests/team-templates.test.mjs
+M	tests/tidy-up.test.mjs
+M	tests/transition.test.mjs
+M	tests/workshop-reactions.test.mjs
+M	tests/workshop-spotlight.test.mjs
+M	tests/workshop-voting.test.mjs
+M	vitest.node.config.ts
+M	vitest.workerd.config.ts
+```

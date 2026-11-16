@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { validate, validText, type BoardV13 } from "nextphase-board-rules/document.ts";
-import { isImage } from "nextphase-board-rules/objects/registry.ts";
+import { hasEnds, hasRectangle, isImage } from "nextphase-board-rules/objects/registry.ts";
 import { buildSnapshot, type Snapshot } from "../clipboard.ts";
+import { connectorLayout } from "../connectors.ts";
 
 export type Template = {
   id: string; name: string; description: string; creatorLabel: string; sourceTitle: string;
@@ -26,8 +27,15 @@ export function templateBoard(objects: unknown): BoardV13 {
   return board;
 }
 export function templateSnapshot(board: BoardV13, selected: ReadonlySet<string>, drawn: Parameters<typeof buildSnapshot>[2], page = board.pages[0].id) {
+  // Page captures have no canvas measurements. Resolve connector boxes from
+  // saved geometry; the clipboard placement box is not part of template storage.
+  const rectangles = new Map(board.objects.filter(hasRectangle).map(o => [o.id, o]));
+  const missing = board.objects.filter(hasEnds).filter(o => !drawn.some(d => d.id === o.id)).map(o => {
+    const bounds = connectorLayout(o, rectangles, text => [...text].length * 10).bounds;
+    return { ...o, ...bounds, displayHeight: bounds.height };
+  });
   return { title: board.title, ...(board.pages.length > 1 ? { pageName: board.pages.find(p => p.id === page)?.name } : {}), selected: selected.size > 0,
-    snapshot: buildSnapshot(board, selected.size ? selected : new Set(board.objects.filter(o => o.page === page).map(o => o.id)), drawn) };
+    snapshot: buildSnapshot(board, selected.size ? selected : new Set(board.objects.filter(o => o.page === page).map(o => o.id)), [...missing, ...drawn]) };
 }
 export const saveLabel = (selected: boolean, multiple = false) => selected ? "Save selection as template" : multiple ? "Save page as template" : "Save board as template";
 export const limitReason = (workspace: string) => `${workspace} has 25 templates, the most it can keep. Delete one to save another.`;

@@ -141,18 +141,19 @@ check(16,'session reports own, remote connection and reload origins, and sends p
     now=1000;for(const [id,t]of [...tasks])if(t.at<=now){tasks.delete(id);t.fn();}assert.equal(sent.filter(m=>m.kind==='presence').length,11);assert.equal(sent.at(-1).page,b.boardId);
   }finally{session.close();seed.destroy();}
 });
-async function pagesHarness(board) {
+async function pagesHarness(board, { remembered, hosted = true } = {}) {
   const {build}=await import('esbuild'),rules=await load('apps/web/src/team/page-presence.ts');
   const runtime=`let slots=[],cursor=0,tasks=[],dirty=false;export const begin=()=>{cursor=0;tasks=[];dirty=false;};export const flush=()=>tasks.forEach(f=>f());export const changed=()=>dirty;export const dispose=()=>slots.forEach(s=>s?.cleanup?.());
 export function useRef(v){const i=cursor++;return slots[i]??(slots[i]={current:v});}export function useState(v){const i=cursor++;if(!(i in slots))slots[i]=typeof v==='function'?v():v;return[slots[i],f=>{const n=typeof f==='function'?f(slots[i]):f;if(n!==slots[i]){slots[i]=n;dirty=true;}}];}export function useEffect(fn,deps){const i=cursor++,old=slots[i];if(!old||!deps||deps.some((d,j)=>d!==old.deps[j]))tasks.push(()=>{old?.cleanup?.();slots[i]={deps,cleanup:fn()};});}`;
   const built=await build({stdin:{contents:'export {usePages} from "./apps/web/src/state/use-pages.ts";export * from "test-react";',resolveDir:new URL('../',import.meta.url).pathname},bundle:true,write:false,format:'esm',platform:'node',plugins:[{name:'hooks',setup(b){b.onResolve({filter:/^(react|test-react)$/},()=>({path:'runtime',namespace:'hooks'}));b.onLoad({filter:/.*/,namespace:'hooks'},()=>({contents:runtime}));}}]});
   const m=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64'));
   const keys=['document','window','localStorage'],old=keys.map(k=>Object.getOwnPropertyDescriptor(globalThis,k)),values=new Map();
+  if(remembered)values.set('nextphase-board/page/v1/'+remembered.board,remembered.page);
   globalThis.window={innerWidth:1440,innerHeight:900};globalThis.document={activeElement:null,querySelector:()=>null,addEventListener(){},removeEventListener(){}};globalThis.localStorage={getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)};
   const h={board,canEdit:true,model:{current:board},messages:[],commits:[],view:{x:0,y:0,z:1},stops:0,follows:0};
   const team={presence:{self:{person:'own'},others:[{person:'ben',connection:'ben',label:'ben'}]},subscribePresence:()=>()=>{},stopFollowing:()=>h.stops++,pageChanged(){},pagePeople:()=>({shown:[],overflow:0,name:''}),votePageReason:()=>'',removedPage:(...args)=>rules.removedPage(...args,team.presence.others)};
-  h.refresh=()=>{for(let n=0;n<10;n++){m.begin();h.pages=m.usePages({board:h.board,model:h.model,stepPage:{current:undefined},hosted:true,canEdit:h.canEdit,team,commit:(next,...args)=>{h.commits.push(args);h.model.current=next;h.board=next;},finishTextSession(){},select(){},setMessage:x=>h.messages.push(x),getView:()=>h.view,setView:(v,following)=>{h.view=v;if(following)h.follows++;},getObjects:()=>h.board.objects,openingReason:()=>'',editingReason:()=>''});m.flush();if(!m.changed())return;}throw Error('Unsettled page hook');};
-  h.close=()=>{m.dispose();keys.forEach((k,i)=>{if(old[i])Object.defineProperty(globalThis,k,old[i]);else delete globalThis[k];});};h.team=team;h.refresh();return h;
+  h.refresh=()=>{for(let n=0;n<10;n++){m.begin();h.pages=m.usePages({board:h.board,model:h.model,stepPage:{current:undefined},hosted,canEdit:h.canEdit,team:hosted?team:undefined,commit:(next,...args)=>{h.commits.push(args);h.model.current=next;h.board=next;},finishTextSession(){},select(){},setMessage:x=>h.messages.push(x),getView:()=>h.view,setView:(v,following)=>{h.view=v;if(following)h.follows++;},getObjects:()=>h.board.objects,openingReason:()=>'',editingReason:()=>''});m.flush();if(!m.changed())return;}throw Error('Unsettled page hook');};
+  h.close=()=>{m.dispose();keys.forEach((k,i)=>{if(old[i])Object.defineProperty(globalThis,k,old[i]);else delete globalThis[k];});};h.team=team;h.values=values;h.refresh();return h;
 }
 check(17,'hosted page owner hides every viewer step, remembers open pages and forwards only moved page ids',async()=>{
   const {b}=await fixture(),h=await pagesHarness(b);
@@ -302,4 +303,125 @@ check(25,'version-8 access delivery closes warm and reconstructed rooms without 
     } finally { f.close(); }
   }
   t.diagnostic(JSON.stringify(measurements));
+});
+async function reviewHarness() {
+  const {build}=await import('esbuild'),{mkdtemp,writeFile,rm}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{pathToFileURL}=await import('node:url');
+  const runtime=`const frames=new Map();let cells,cursor,jobs=[],dirty=false,requester;
+export const begin=name=>{if(!frames.has(name))frames.set(name,[]);cells=frames.get(name);cursor=0;jobs=[];dirty=false;};
+export const changed=()=>dirty;export const flush=()=>{const pending=jobs;jobs=[];pending.forEach(f=>f());};
+export const dispose=()=>{for(const frame of frames.values())for(const cell of frame)cell?.cleanup?.();};
+export function useRef(value){const i=cursor++;return cells[i]??(cells[i]={current:value});}
+export function useState(value){const cell=useRef(typeof value==='function'?value():value);return[cell.current,next=>{const v=typeof next==='function'?next(cell.current):next;if(v!==cell.current){cell.current=v;dirty=true;}}];}
+export function useEffect(fn,deps){const cell=useRef();if(!cell.current||!deps||deps.some((d,i)=>d!==cell.current[i]))jobs.push(()=>{cell.cleanup?.();cell.current=deps;cell.cleanup=fn();});}
+export const useLayoutEffect=useEffect;export const useId=()=>useRef('id-'+cursor).current;
+export const Fragment=Symbol('fragment');export const jsx=(type,props)=>({type,props});export const jsxs=jsx;
+export const createPortal=node=>node;export const configure=fn=>{requester=fn;};export const request=(...args)=>requester(...args);
+export class ApiError extends Error{}export const api=(...args)=>request(...args);`;
+  const contents=`export {TemplatesSection} from './apps/web/src/team/templates-section.tsx';
+export {Notice} from './apps/web/src/ui/notice.tsx';export {useMessages} from './apps/web/src/state/use-messages.ts';
+export {usePages} from './apps/web/src/state/use-pages.ts';export {usePanelLayout} from './apps/web/src/state/use-panel-layout.ts';export * from 'test-react';`;
+  const built=await build({stdin:{contents,resolveDir:new URL('../',import.meta.url).pathname},bundle:true,write:false,format:'esm',platform:'node',jsx:'automatic',
+    plugins:[{name:'review-components',setup(b){
+      b.onResolve({filter:/^(react|react\/jsx-runtime|react-dom|test-react)$/},()=>({path:'runtime',namespace:'review'}));
+      b.onResolve({filter:/^\.\/templates\.ts$/},args=>args.importer.endsWith('/templates-section.tsx')?{path:'templates',namespace:'review'}:undefined);
+      b.onResolve({filter:/^\.\/api\.ts$/},args=>args.importer.endsWith('/templates.ts')?{path:'runtime',namespace:'review'}:undefined);
+      b.onResolve({filter:/^original-templates$/},()=>({path:new URL('../apps/web/src/team/templates.ts',import.meta.url).pathname}));
+      b.onLoad({filter:/.*/,namespace:'review'},args=>({contents:args.path==='runtime'?runtime:`import {Templates as Original} from 'original-templates';import {request} from 'test-react';
+export class Templates extends Original {constructor(...args){super(...args,request);this.visible=true;this.canSave=true;this.status='ready';}async open(){}}`}));
+    }}]});
+  const folder=await mkdtemp(tmpdir()+'/board-pages-review-'),file=folder+'/components.mjs';await writeFile(file,built.outputFiles[0].text);
+  const m=await import(pathToFileURL(file).href);
+  return {...m,render(name,component,props){m.begin(name);return component(props);},async close(){m.dispose();await rm(folder,{recursive:true,force:true});}};
+}
+function elements(node) {
+  if(Array.isArray(node))return node.flatMap(elements);
+  if(!node||typeof node!=='object')return [];
+  return [node,...elements(node.props?.children)];
+}
+const words=node=>Array.isArray(node)?node.map(words).join(''):node&&typeof node==='object'?words(node.props?.children):node==null||typeof node==='boolean'?'':String(node);
+const noticeProps=pages=>({pages,hosted:true,showNotice:false,visibleMessage:'',invalidFields:[],busy:false,tool:'Select',readOnly:false,snapshots:[],
+  reopen(){},composing:false,adopt(){},setReadOnly(){},setMessage(){}});
+check(26,'F1 page template with a connector opens its dialog, previews and saves only that page without page fields',async()=>{
+  const {s}=await fixture(),{createConnector}=await load('apps/web/src/connectors.ts');
+  let b={...s.empty(),title:'Template source'};b=s.add(b,'section',0,0);for(let n=0;n<3;n++)b=s.add(b,'sticky',n*300,20);
+  b=createConnector(b,b.objects[1].id,b.objects[2].id).board;b=s.renamePage(b,b.boardId,'Agenda');b=s.addPage(b).board;b=s.add(b,'sticky',0,0,b.pages[1].id);
+  const h=await reviewHarness(),oldRaf=globalThis.requestAnimationFrame;globalThis.requestAnimationFrame=()=>0;let stored;
+  try {
+    h.configure(async(_path,method,body)=>{
+      if(method==='POST')stored={id:crypto.randomUUID(),...body,creatorLabel:'ana',sourceTitle:b.title,objectCount:body.objects.length,
+        createdAt:'2026-11-16T12:00:00.000Z',updatedAt:'2026-11-16T12:00:00.000Z',canManage:true};
+      if(method==='POST'){const {sourceBoard,...value}=stored;return value;}
+      return {templates:[],limit:25,canSave:true};
+    });
+    const props={hosted:{snapshot:{workspaceId:crypto.randomUUID(),workspace:'Example team',board:b},boardId:b.boardId,page:b.boardId,toast(){}},
+      commands:{selected:false,objectCount:b.objects.length,commandReason:'',snapshot(){assert.fail('page source must be scoped before capture');}},disabled:false};
+    let tree=h.render('section',h.TemplatesSection,props);
+    const save=elements(tree).find(n=>n.props?.className==='team-template-save');assert.equal(words(save),'Save page as template');
+    assert.equal(save.props.tip,'Nothing is selected, so all 5 objects on this page are saved');save.props.onClick();
+    tree=h.render('section',h.TemplatesSection,props);const dialog=elements(tree).find(n=>n.type.name==='TemplateDialog');assert(dialog);
+    let form=h.render('dialog',dialog.type,dialog.props);assert.equal(form.type,'dialog');
+    assert(words(form).includes('All 5 objects on “Agenda” of Template source'));
+    const preview=elements(form).find(n=>n.type.name==='PreviewImage'),svg=h.render('preview',preview.type,preview.props);
+    assert.equal(elements(svg).filter(n=>n.type==='rect').length,4);assert.equal(elements(svg).filter(n=>n.type==='line').length,1);
+    elements(form).find(n=>n.type==='input').props.onChange({target:{value:'Agenda template'}});
+    form=h.render('dialog',dialog.type,dialog.props);assert.equal(elements(form).find(n=>n.props?.type==='submit').props.disabled,false);
+    elements(form).find(n=>n.type==='form').props.onSubmit({preventDefault(){}});await new Promise(r=>setImmediate(r));
+    assert.equal(stored.objectCount,5);assert.deepEqual(stored.objects.map(o=>o.id),b.objects.filter(o=>o.page===b.boardId).map(o=>o.id));
+    assert(stored.objects.every(o=>!('page'in o)&&!('order'in o)&&!('generation'in o)));s.validate((await load('apps/web/src/team/templates-rules.ts')).templateBoard(stored.objects));
+  } finally { globalThis.requestAnimationFrame=oldRaf;await h.close(); }
+});
+check(27,'F2 first hosted arrival honors a remembered page after either placeholder and subsequent reload uses the live page',async()=>{
+  const {s,b}=await fixture(),page=b.pages[1].id,key='nextphase-board/page/v1/'+b.boardId;
+  for(const placeholder of [s.empty(),{...b,pages:[b.pages[0]],objects:[]}]) {
+    const h=await pagesHarness(placeholder,{remembered:{board:b.boardId,page}});
+    try {
+      h.model.current=b;h.pages.changed(placeholder,b,{origin:'reload'});h.board=b;h.refresh();
+      assert.equal(h.pages.id,page);assert.equal(h.values.get(key),page);
+      h.pages.openPage(b.pages[2].id);h.refresh();const next=s.deletePage(b,b.pages[2].id,b.pages[2].id).board;
+      h.model.current=next;h.pages.changed(b,next,{origin:'reload'});h.board=next;h.refresh();assert.equal(h.pages.id,page);
+      assert(!h.messages.some(message=>message.includes('deleted page')));
+    } finally { h.close(); }
+  }
+  for(const hosted of [false,true]) {
+    const h=await pagesHarness(b,{hosted,remembered:{board:b.boardId,page}});
+    try { assert.equal(h.pages.id,page); } finally { h.close(); }
+  }
+});
+check(28,'F3 hosted notices obey showNotice and retain Move to page navigation and page messages',async()=>{
+  const h=await reviewHarness(),{b}=await fixture(),opened=[],page=b.pages[1];
+  try {
+    const message='Moved 1 object to “Ideas”.',pages={list:b.pages,go:{id:page.id,text:message},openingReason:'',openPage:id=>opened.push(id)};
+    const props={...noticeProps(pages),visibleMessage:message};
+    assert.equal(h.Notice(props).props.hidden,true);
+    let tree=h.Notice({...props,showNotice:true});const go=elements(tree).find(n=>n.type==='button'&&words(n)==='Go to Ideas');assert(go);go.props.onClick();assert.deepEqual(opened,[page.id]);
+    tree=h.Notice({...props,showNotice:true,pages:{...pages,openingReason:'Busy'}});assert.equal(elements(tree).find(n=>n.type==='button').props.disabled,true);
+    for(const text of ['Following ben to “Ideas”.','ben deleted page “Retro”. You are now on “Ideas”.']) {
+      tree=h.Notice({...props,showNotice:true,visibleMessage:text});assert.equal(tree.props.hidden,false);assert(words(tree).includes(text));
+    }
+  } finally { await h.close(); }
+});
+check(29,'F4 hosted startup leaves board-details layout at its baseline position before and during a solo spotlight',async()=>{
+  const h=await reviewHarness(),{b}=await fixture(),keys=['document','window','localStorage','ResizeObserver'],old=keys.map(k=>Object.getOwnPropertyDescriptor(globalThis,k));
+  const bars={getBoundingClientRect:()=>({bottom:60})};let committedNotice=null;
+  globalThis.document={activeElement:null,addEventListener(){},removeEventListener(){},querySelector:selector=>selector==='.notice'?committedNotice:selector==='.file'||selector==='.actions'?bars:null};
+  globalThis.window={innerWidth:1280,innerHeight:800,addEventListener(){},removeEventListener(){}};
+  globalThis.localStorage={getItem:()=>null,setItem(){}};globalThis.ResizeObserver=class{observe(){}disconnect(){}};
+  const input={board:b,model:{current:b},stepPage:{current:undefined},hosted:true,canEdit:false,commit(){},finishTextSession(){},select(){},
+    getView:()=>({x:0,y:0,z:1}),setView(){},getObjects:()=>b.objects,openingReason:()=>'',editingReason:()=>''};
+  const frame=()=>{
+    const messages=h.useMessages(),pages=h.usePages({...input,setMessage:messages.setMessage}),layout=h.usePanelLayout({current:{getBoundingClientRect:()=>({top:0})}});
+    return {messages,pages,layout,notice:messages.visibleMessage?h.Notice({...noticeProps(pages),visibleMessage:messages.visibleMessage,showNotice:true}):null};
+  };
+  const refresh=()=>{for(let n=0;n<10;n++){
+    const state=h.render('chrome',frame);if(h.changed())continue;
+    committedNotice=state.notice?{hidden:!!state.notice.props.hidden,getBoundingClientRect:()=>({height:40})}:null;
+    h.flush();if(!h.changed())return state;
+  }throw Error('Unsettled chrome');};
+  try {
+    let state=refresh();assert.deepEqual(state.layout,{notice:68,panel:68},'hosted startup must not displace board details into the spotlight');assert.equal(state.messages.visibleMessage,'');assert.equal(state.notice,null);
+    state.messages.setMessage('Read-only: editing commands are unavailable.');state=refresh();
+    assert.deepEqual(state.layout,{notice:68,panel:68},'same captured layout inputs as the pre-milestone hosted screen');
+    const {spotlightGeometry}=await load('apps/web/src/team/spotlight-rules.ts');
+    assert.deepEqual(spotlightGeometry(1280,800,[60,118],[]),{top:130,maxWidth:400,width:'max-content',maxHeight:658});
+  } finally { await h.close();keys.forEach((k,i)=>{if(old[i])Object.defineProperty(globalThis,k,old[i]);else delete globalThis[k];}); }
 });

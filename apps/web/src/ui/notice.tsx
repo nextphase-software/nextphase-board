@@ -22,9 +22,8 @@ type Props = {
 
 export function Notice({
   showNotice, visibleMessage, invalidFields, busy, tool, readOnly, snapshots, reopen, composing,
-  adopt, setReadOnly, setMessage, pages, hosted
+  adopt, setReadOnly, setMessage, pages
 }: Props) {
-  if (hosted) return visibleMessage ? <aside className="notice" role="status">{visibleMessage}</aside> : null;
   return (
     <aside className="notice" role="status" hidden={!showNotice}>
       {visibleMessage}

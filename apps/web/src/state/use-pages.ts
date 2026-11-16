@@ -37,6 +37,9 @@ export function usePages(input: Input) {
   if (!same) { views.current.clear(); setState({ ...state, boardId: board.boardId, id, open: false, menu: '', editing: '', drag: null, moveOpen: false, go: null }); }
   const currentPage = useRef(id); currentPage.current = id;
   const preview = useRef<{ active: boolean; page?: string }>({ active: false });
+  const arrival = useRef({ board: '', opening: input.hosted });
+  // Clear the local-only startup message before hosted chrome is measured.
+  if (arrival.current.opening) { arrival.current.opening = false; setMessage(''); }
   const canEdit = input.canEdit !== false;
   if (input.team) { input.team.page = id; input.team.pageNotice = setMessage; input.team.openPage = (next, following = false) => openPage(next, false, next, following); }
   const editReason = () => !canEdit ? 'View only' : input.editingReason();
@@ -154,12 +157,14 @@ export function usePages(input: Input) {
     let target: string | undefined;
     if (previewing && !preview.current.active) { preview.current = { active: true, page: current }; target = next.pages.some(p => p.id === current) ? current : next.pages[0].id; }
     else if (!previewing && preview.current.active) { target = next.pages.some(p => p.id === preview.current.page) ? preview.current.page : next.pages[0].id; preview.current.active = false; }
+    else if (input.hosted && change.origin === 'reload' && arrival.current.board !== next.boardId) target = remembered(next);
     else if (change.origin !== 'own') {
       const removed = input.team?.removedPage(before, next, current, change);
       if (removed) { target = removed.page; if (removed.notice) setMessage(removed.notice); }
     }
     if (target && target !== current) openPage(target, true, target, true);
     if (change.origin === 'own' && input.team?.historyPage) afterHistory(before, next, input.team.historyPage);
+    arrival.current.board = next.boardId;
   }
   return { id, local: true, canEdit, changed, people: (page: string) => input.team?.pagePeople(page) ?? { shown: [], overflow: 0, name: '' },
     voteReason: (page: string) => input.team?.votePageReason(page) ?? '', list: board.pages, open: same && state.open, menu: canEdit ? state.menu : '', editing: canEdit ? state.editing : '',

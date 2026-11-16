@@ -318,3 +318,36 @@ check(35, 'closing menus preserves their explicit return focus instead of focusi
     h.pages.closeMenu();h.refresh();assert.equal(focus.at(-1),'other options');h.pages.toggleMove();h.refresh();assert.equal(focus.at(-1),'move item');h.pages.closeMove();h.refresh();assert.equal(focus.at(-1),'move button');
   }finally{h.close();}
 });
+
+test('0010-W2 F1 page control states outrank shared hover without changing shared button CSS', async () => {
+  const {readFile}=await import('node:fs/promises'),{execFileSync}=await import('node:child_process');
+  const css=await readFile(new URL('../apps/web/style.css',import.meta.url),'utf8');
+  const base=execFileSync('git',['show','2a1ad32:apps/web/style.css'],{encoding:'utf8'});
+  assert.equal(css.split('/* Pages:')[0],base.split('/* Pages:')[0]);
+  const rules=[...css.replace(/\/\*[\s\S]*?\*\//g,'').matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .flatMap(([,selectors,body],order)=>selectors.split(',').map(selector=>({selector:selector.trim(),body,order})));
+  const rule=selector=>{const found=rules.find(r=>r.selector===selector);assert(found,`Missing state selector: ${selector}`);return found;};
+  // These selectors use only classes, attributes, type selectors and simple :not/:has.
+  const specificity=selector=>{
+    const simple=selector.replace(/:(?:not|has)\(([^()]*)\)/g,'$1'),parts=/\.[\w-]+|\[[^\]]+\]|:[\w-]+/g;
+    return (simple.match(parts)??[]).length*100+(simple.replace(parts,'').match(/[a-z][\w-]*/gi)??[]).length;
+  };
+  function wins(selector,over,fill,colour) {
+    const state=rule(selector),other=rule(over);
+    assert(specificity(selector)>specificity(over)||specificity(selector)===specificity(over)&&state.order>other.order,`${selector} must outrank ${over}`);
+    assert(state.body.includes(`background: var(--np-${fill})`));
+    if(colour)assert(state.body.includes(`color: var(--np-${colour})`));
+  }
+  for(const [token,value]of [['sunken','#eef1f5'],['line','#d9dfe7'],['accent-soft','#dceafb'],['accent','#1665d8']])assert(css.includes(`--np-${token}: ${value};`));
+  const enabled=':not(:disabled):not([aria-disabled=true])',shared='button:hover:not(:disabled):not([aria-disabled=true])';
+  const hover='.pages-button:hover'+enabled,open='.pages-button.page-active'+enabled;
+  const iconHover='.pages-panel .page-icon:hover'+enabled,pressed='.pages-panel .page-icon:active'+enabled;
+  const options='.pages-panel .page-row.menu-open .page-options'+enabled;
+  wins(hover,shared,'sunken');wins(open,shared,'accent-soft','accent');wins(open,hover,'accent-soft','accent');
+  wins(iconHover,shared,'sunken');wins(pressed,shared,'line');wins(pressed,iconHover,'line');
+  wins(options,iconHover,'line');wins(options,pressed,'line');
+  wins('.pages-panel .page-row.menu-open','.page-row.current','sunken');
+  wins('.pages-panel .page-row.menu-open','.page-row:not(.current):hover','sunken');
+  const move='.context .move-page-button.page-active'+enabled;
+  wins(move,shared,'accent-soft','accent');wins(move,'.context button:hover:not(:disabled)','accent-soft','accent');
+});

@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, type ClipboardEvent, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { BoardV12 } from "nextphase-board-rules/document.ts";
+import type { BoardV13 } from "nextphase-board-rules/document.ts";
 import type { HostedBoard } from "../team/hosted-board";
 
-type Input = { hosted?: HostedBoard; model: RefObject<BoardV12>; load: (board: BoardV12) => void;
-  setBoard: Dispatch<SetStateAction<BoardV12>>; setReadOnly: Dispatch<SetStateAction<boolean>>;
+type Input = { hosted?: HostedBoard; model: RefObject<BoardV13>; load: (board: BoardV13) => void;
+  setBoard: Dispatch<SetStateAction<BoardV13>>; setReadOnly: Dispatch<SetStateAction<boolean>>;
   setTitle: Dispatch<SetStateAction<string>>;
   setDrafts: Dispatch<SetStateAction<Record<string, string>>>;
   setTool: Dispatch<SetStateAction<string>>; setInline: Dispatch<SetStateAction<boolean>>;
+  onChange?: (before: BoardV13, after: BoardV13, change: HostedBoard["change"], preview: boolean) => void;
   select: (value: string) => void; paste: () => void; composing: boolean };
-export function useHostedBoard({ hosted, model, load, setBoard, setTitle, setReadOnly, setDrafts, setTool, setInline, select, paste, composing }: Input) {
+export function useHostedBoard({ hosted, model, load, setBoard, setTitle, setReadOnly, setDrafts, setTool, setInline, select, paste, composing, onChange = () => {} }: Input) {
+  if (hosted) hosted.onPageChange = onChange;
   useEffect(() => {
     if (!hosted) return;
     let generation = "", panEpoch = -1;
@@ -18,12 +20,14 @@ export function useHostedBoard({ hosted, model, load, setBoard, setTitle, setRea
         load({ ...model.current, title:"Untitled", objects:[], retiredGenerations:[] });
         setTitle(""); setDrafts({}); select(""); setTool("Select"); setInline(false); setReadOnly(true); return;
       }
+      const before = model.current;
       const board = hosted.paintBoard, nextGeneration = `${hosted.snapshot.generation}:${hosted.history.paintEpoch}`;
       if (board && generation !== nextGeneration) { load(board); select(""); generation = nextGeneration; }
       else if (board && JSON.stringify(board) !== JSON.stringify(model.current)) {
         if (board.title !== model.current.title) setTitle(board.title);
         model.current = board; setBoard(board); setDrafts({});
       }
+      if (board && board !== before) { hosted.onPageChange?.(before, board, hosted.change, hosted.history.previewing); hosted.historyPage = undefined; }
       setReadOnly(!hosted.canEdit);
       if (panEpoch !== hosted.history.panEpoch && hosted.history.panEpoch > 0) { setTool("Pan"); setInline(false); panEpoch = hosted.history.panEpoch; }
       if (!hosted.canEdit && !hosted.history.previewing && !hosted.history.locked && !hosted.panReturning) { setTool((tool) => tool === "Comment" || hosted.history.panEpoch > 0 && tool === "Pan" ? tool : "Select"); setInline(false); }

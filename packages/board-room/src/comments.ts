@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { requireActive } from "./lifecycle.ts";
-import type { BoardV12 } from "nextphase-board-rules/document.ts";
+import type { BoardV13 } from "nextphase-board-rules/document.ts";
 import { hasRectangle } from "nextphase-board-rules/objects/registry.ts";
 import { anchorPoint, detachAnchor, nameObject, textProblem, type Anchor, type AnchorInput,
   type Comment, type CommentOperation, type Thread } from "nextphase-board-sync/comments.ts";
@@ -23,10 +23,14 @@ function operationShape(value: unknown): value is CommentOperation {
     (typeof value.text !== "string" || textProblem(value.text) === "bad_message")) return false;
   return !["start", "move"].includes(String(action)) || record(value.anchor);
 }
-function threadRow(row: Row): Thread {
-  return { id: String(row.id), person: String(row.person), label: String(row.label), anchor: JSON.parse(String(row.anchor)),
+function threadRow(row: Row, board: BoardV13): Thread {
+  return { id: String(row.id), person: String(row.person), label: String(row.label), anchor: storedAnchor(row, board),
     resolved: !!row.resolved, createdAt: Number(row.created_at), updatedAt: Number(row.updated_at),
     sequence: Number(row.sequence), firstComment: String(row.first_comment) };
+}
+export function storedAnchor(row: Row, board: BoardV13): Anchor {
+  const anchor = JSON.parse(String(row.anchor));
+  return anchor.page ? anchor : { ...anchor, page: board.pages[0].id, pageName: board.pages[0].name };
 }
 export function commentRow(row: Row): Comment {
   return { id: String(row.id), threadId: String(row.thread_id), person: String(row.person), label: String(row.label),
@@ -37,8 +41,8 @@ export class Comments {
   mentions: Mentions;
   private env: RoomEnvironment;
   private access: Access;
-  private host: { board: BoardV12; boardId: string; generation: number };
-  constructor(env: RoomEnvironment, access: Access, host: { board: BoardV12; boardId: string; generation: number }) {
+  private host: { board: BoardV13; boardId: string; generation: number };
+  constructor(env: RoomEnvironment, access: Access, host: { board: BoardV13; boardId: string; generation: number }) {
     this.mentions = new Mentions(env, host);
     this.env = env; this.access = access; this.host = host;
   }
@@ -46,7 +50,7 @@ export class Comments {
     const storage = this.env.storage;
     send(connection, { kind: "comments_snapshot", reset: true, sequence: meta(storage, "comment_sequence") });
     for (const row of storage.all("SELECT * FROM threads ORDER BY sequence")) {
-      send(connection, { kind: "comment_changed", threadId: row.id, thread: threadRow(row) });
+      send(connection, { kind: "comment_changed", threadId: row.id, thread: threadRow(row, this.host.board) });
     }
     for (const row of storage.all("SELECT * FROM comments ORDER BY sequence")) {
       send(connection, { kind: "comment_changed", threadId: row.thread_id, commentId: row.id, comment: commentRow(row) });
@@ -109,10 +113,12 @@ export class Comments {
         input.objectId !== null && !id(input.objectId)) { refuse("bad_anchor"); return; }
       const object = this.host.board.objects.find((object) => object.id === input.objectId);
       if (input.objectId !== null && (!object || !hasRectangle(object))) { refuse("anchor_deleted"); return; }
-      const old = stored && threadRow(stored).anchor;
-      if (old?.detached) anchor = { ...old, x: input.x, y: input.y };
+      const page = this.host.board.pages.find(p => p.id === input.page);
+      if (!id(input.page) || !page || object && object.page !== input.page) { refuse("bad_anchor"); return; }
+      const old = stored && threadRow(stored, this.host.board).anchor;
+      if (old?.detached) anchor = { ...old, x: input.x, y: input.y, page: input.page, pageName: page.name };
       else {
-        anchor = { objectId: input.objectId, u: object ? input.u : 0, v: object ? input.v : 0,
+        anchor = { page: input.page, pageName: page.name, objectId: input.objectId, u: object ? input.u : 0, v: object ? input.v : 0,
           x: input.x, y: input.y, detached: false, ...(object ? nameObject(object) : { objectLabel: "", objectType: "" }) };
         Object.assign(anchor, anchorPoint(anchor, this.host.board));
       }
@@ -162,7 +168,7 @@ export class Comments {
       storage.exec("DELETE FROM comment_counts WHERE hour < ?", hour);
       storage.exec("INSERT INTO comment_counts VALUES (?, ?, ?, ?) ON CONFLICT(person_id, hour, kind) DO UPDATE SET count = excluded.count", value.id, hour, kind, count + 1);
       const thread = storage.all("SELECT * FROM threads WHERE id = ?", op.threadId)[0];
-      changed = { kind: "comment_changed", sequence, by: value.label, threadId: op.threadId, thread: thread ? threadRow(thread) : null };
+      changed = { kind: "comment_changed", sequence, by: value.label, threadId: op.threadId, thread: thread ? threadRow(thread, this.host.board) : null };
       if (thread && "commentId" in op) {
         const row = storage.all("SELECT * FROM comments WHERE id = ?", op.commentId)[0];
         Object.assign(changed, { commentId: op.commentId, comment: row ? commentRow(row) : null });
@@ -174,13 +180,14 @@ export class Comments {
   }
 }
 // Called inside the edit's own transaction; only deletions need wire frames.
-export function keepAnchors(env: RoomEnvironment, before: BoardV12, after: BoardV12) {
+export function keepAnchors(env: RoomEnvironment, before: BoardV13, after: BoardV13) {
   const detached: Thread[] = [];
   for (const row of env.storage.all("SELECT * FROM threads ORDER BY sequence")) {
-    const thread = threadRow(row), next = detachAnchor(thread.anchor, before, after);
-    if (JSON.stringify(next) === JSON.stringify(thread.anchor)) continue;
+    const thread = threadRow(row, before), next = detachAnchor(thread.anchor, before, after);
+    const deletedPage = before.pages.some(p => p.id === thread.anchor.page) && !after.pages.some(p => p.id === thread.anchor.page);
+    if (!deletedPage && JSON.stringify(next) === JSON.stringify(thread.anchor)) continue;
     env.storage.exec("UPDATE threads SET anchor = ? WHERE id = ?", JSON.stringify(next), thread.id);
-    if (!thread.anchor.detached && next.detached) detached.push({ ...thread, anchor: next });
+    if (deletedPage || !thread.anchor.detached && next.detached) detached.push({ ...thread, anchor: next });
   }
   return detached;
 }

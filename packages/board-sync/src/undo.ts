@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
-import { canonical, freshIdentifier, validate, type BoardV12, type ItemV12 } from "nextphase-board-rules/document.ts";
+import { canonical, freshIdentifier, validate, type BoardV13, type ItemV13 } from "nextphase-board-rules/document.ts";
 import { checkTransition } from "nextphase-board-rules/transition.ts";
 import { hasEnds, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { readBoard } from "./codec.ts";
 
 type Unit = { value: unknown; identity: string };
-export type State = { board: BoardV12; units: Map<string, Map<string, Unit>> };
+export type State = { board: BoardV13; units: Map<string, Map<string, Unit>> };
 type Entry = { id: string; key: string; before: unknown; after: unknown; guard: string; live: boolean };
-type Step = Entry[];
+type Step = Entry[] & { page?: string };
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const identity = (item: Y.Item | null | undefined) => item ? `${item.id.client}:${item.id.clock}` : "absent";
 
@@ -23,6 +23,10 @@ export function capture(doc: Y.Doc): State {
   const units = new Map<string, Map<string, Unit>>();
   const board = doc.getMap("board");
   units.set("", new Map([["title", { value: board.get("title"), identity: identity(board._map.get("title")) }]]));
+  const pages = board.get("pageMap") as Y.Map<Y.Map<unknown>>;
+  for (const [id, map] of pages) {
+    units.set(`page:${id}`, new Map([...map].map(([key, value]) => [key, { value, identity: identity(map._map.get(key)) }])));
+  }
   for (const [id, map] of doc.getMap<Y.Map<unknown>>("objects")) {
     const values = new Map<string, Unit>();
     for (const [key, value] of map) {
@@ -43,8 +47,8 @@ function stepBetween(before: State, after: State): Step {
   for (const id of ids) {
     const old = before.units.get(id), next = after.units.get(id);
     if (!old || !next) {
-      step.push({ id, key: "object", before: before.board.objects.find((o) => o.id === id) ?? null,
-        after: after.board.objects.find((o) => o.id === id) ?? null, guard: objectGuard(after, id), live: true });
+      step.push({ id, key: "object", before: id.startsWith("page:") ? old ? Object.fromEntries([...old].map(([key, unit]) => [key, unit.value])) : null : before.board.objects.find((o) => o.id === id) ?? null,
+        after: id.startsWith("page:") ? next ? Object.fromEntries([...next].map(([key, unit]) => [key, unit.value])) : null : after.board.objects.find((o) => o.id === id) ?? null, guard: objectGuard(after, id), live: true });
       continue;
     }
     for (const [key, unit] of next) if (!equal(old.get(key)?.value, unit.value)) {
@@ -53,11 +57,11 @@ function stepBetween(before: State, after: State): Step {
   }
   return step;
 }
-function applyUnit(object: ItemV12, key: string, value: unknown): ItemV12 {
+function applyUnit(object: ItemV13, key: string, value: unknown): ItemV13 {
   return ["geometry", "style", "ends", "connectorStyle"].includes(key)
     ? { ...object, ...value as object } : { ...object, [key]: value };
 }
-function remapObject(object: ItemV12, ids: Map<string, { id: string; generation: string }>): ItemV12 {
+function remapObject(object: ItemV13, ids: Map<string, { id: string; generation: string }>): ItemV13 {
   return { ...object, ...ids.get(object.id),
     ...(hasEnds(object) ? { from: { ...object.from, object: ids.get(object.from.object)?.id ?? object.from.object },
       to: { ...object.to, object: ids.get(object.to.object)?.id ?? object.to.object } } : {}),
@@ -73,6 +77,8 @@ export class SharedUndo {
   past: Step[] = [];
   future: Step[] = [];
   private group?: string;
+  page?: string;
+  pageOrders = new Map<string, string>();
   clear() { this.past = []; this.future = []; this.group = undefined; }
   observe(before: State, after: State, own: boolean) {
     for (const step of [...this.past, ...this.future]) for (const entry of step) {
@@ -88,9 +94,9 @@ export class SharedUndo {
       }
     }
   }
-  record(before: State, after: State, direction?: "undo" | "redo", group?: string) {
+  record(before: State, after: State, direction?: "undo" | "redo", group?: string, page?: string) {
     this.observe(before, after, true);
-    const step = stepBetween(before, after);
+    const step = stepBetween(before, after); step.page = page;
     if (!step.length) return;
     const previous = this.past.at(-1);
     const unitOnly = !step.some((entry) => entry.key === "object");
@@ -107,7 +113,7 @@ export class SharedUndo {
     // The add of a mind node carries its first text session's group, so the text
     // and the layout written when that session ends join this step.
     const addsNode = step.every((entry) => entry.key !== "object" || !entry.before) &&
-      step.some((entry) => entry.key === "object" && !entry.before && isMindNode(entry.after as ItemV12));
+      step.some((entry) => entry.key === "object" && !entry.id.startsWith("page:") && !entry.before && isMindNode(entry.after as ItemV13));
     this.group = !direction && (unitOnly || addsNode) && group ? group : undefined;
     if (direction === "undo") this.future.push(step);
     else {
@@ -115,24 +121,35 @@ export class SharedUndo {
       if (!direction) this.future = [];
     }
   }
-  take(state: State, direction: "undo" | "redo"): BoardV12 | string {
-    this.group = undefined;
+  take(state: State, direction: "undo" | "redo"): BoardV13 | string {
+    this.group = undefined; this.pageOrders.clear(); this.page = undefined;
     const step = (direction === "undo" ? this.past : this.future).pop();
     if (!step) return "nothing_to_undo";
+    this.page = step.page;
     const eligible = step.filter((entry) => entry.live && (entry.key === "object"
       ? entry.guard === objectGuard(state, entry.id)
       : entry.guard === state.units.get(entry.id)?.get(entry.key)?.identity));
     if (!eligible.length) return "changed_by_others";
-    let board = { ...state.board, objects: [...state.board.objects], retiredGenerations: [...state.board.retiredGenerations] };
+    let board = { ...state.board, pages: [...state.board.pages], objects: [...state.board.objects], retiredGenerations: [...state.board.retiredGenerations] };
     const restored = new Map<string, { id: string; generation: string }>();
     const reserved: string[] = [];
-    for (const entry of eligible) if (entry.key === "object" && entry.before && !entry.after) {
+    for (const entry of eligible) if (entry.key === "object" && !entry.id.startsWith("page:") && entry.before && !entry.after) {
       const id = freshIdentifier(board, reserved); reserved.push(id);
       const generation = freshIdentifier(board, reserved); reserved.push(generation);
       restored.set(entry.id, { id, generation });
     }
+    const pageValues = new Map(state.board.pages.map(p => [p.id, { name: p.name, order: state.units.get(`page:${p.id}`)!.get("order")!.value as string }]));
     for (const entry of eligible) {
-      if (entry.key !== "object") {
+      if (entry.id.startsWith("page:")) {
+        const id = entry.id.slice(5);
+        if (entry.key === "object") {
+          if (entry.before) { pageValues.set(id, { ...entry.before as { name: string; order: string } }); this.pageOrders.set(id, pageValues.get(id)!.order); }
+          else pageValues.delete(id);
+        } else {
+          const value = pageValues.get(id);
+          if (value) { Object.assign(value, { [entry.key]: entry.before }); if (entry.key === "order") this.pageOrders.set(id, value.order); }
+        }
+      } else if (entry.key !== "object") {
         if (entry.id === "") board.title = entry.before as string;
         else board.objects = board.objects.map((object) => object.id === entry.id
           ? applyUnit(object, entry.key, entry.key === "parent" ? remapId(entry.before, restored) : entry.before) : object);
@@ -141,7 +158,7 @@ export class SharedUndo {
         if (object) board.retiredGenerations.push(object.generation);
         board.objects = board.objects.filter((o) => o.id !== entry.id);
       } else if (entry.before && !entry.after) {
-        const object = remapObject(entry.before as ItemV12, restored);
+        const object = remapObject(entry.before as ItemV13, restored);
         const live = new Set([...board.objects.map((o) => o.id), ...[...restored.values()].map((o) => o.id)]);
         if (hasEnds(object) && (!live.has(object.from.object) || !live.has(object.to.object))) continue;
         if (object.section && !live.has(object.section)) object.section = null;
@@ -149,6 +166,7 @@ export class SharedUndo {
         board.objects.splice(Math.min(object.order, board.objects.length), 0, object);
       }
     }
+    board.pages = [...pageValues].sort(([a, x], [b, y]) => x.order < y.order ? -1 : x.order > y.order ? 1 : a < b ? -1 : a > b ? 1 : 0).map(([id, p]) => ({ id, name: p.name }));
     board = { ...board, objects: board.objects.map((object, order) => ({ ...object, order })),
       retiredGenerations: [...new Set(board.retiredGenerations)].sort() };
     try { validate(board); canonical(board); checkTransition(state.board, board); }
@@ -157,9 +175,9 @@ export class SharedUndo {
     // Only successful restoration retargets the connection's older steps.
     for (const older of [...this.past, ...this.future]) for (const entry of older) {
       const replacement = restored.get(entry.id);
-      if (entry.key === "object") {
-        if (entry.before) entry.before = remapObject(entry.before as ItemV12, restored);
-        if (entry.after) entry.after = remapObject(entry.after as ItemV12, restored);
+      if (entry.key === "object" && !entry.id.startsWith("page:")) {
+        if (entry.before) entry.before = remapObject(entry.before as ItemV13, restored);
+        if (entry.after) entry.after = remapObject(entry.after as ItemV13, restored);
       } else if (entry.key === "section" || entry.key === "parent") {
         entry.before = restored.get(entry.before as string)?.id ?? entry.before;
         entry.after = restored.get(entry.after as string)?.id ?? entry.after;

@@ -14,9 +14,10 @@ async function ok(path:string,name='owner',method='GET',body?:unknown,status=200
 async function until(fn:()=>any,predicate=(v:any)=>!!v,ms=10000){const end=Date.now()+ms;let value;do{value=await fn();if(predicate(value))return value;await new Promise(r=>setTimeout(r,10));}while(Date.now()<end);assert.fail('Condition timed out '+JSON.stringify(value));}
 const check=(id:number,name:string,run:()=>Promise<void>)=>test.skipIf(id===168&&runner!=='node')(`S${id} ${name}`,async()=>{try{f=await helper('removal-fixture');await run();pass++;console.log(`PASS: S${id} ${name}`);}catch(e){fail++;console.log(`FAIL: S${id} ${name}`);throw e;}});
 async function roster(name='owner'){return(await ok(`/boards/${f.a}/participants`,name)).candidates;}
-async function peer(name='editor',board=f.a){const t=await ok(`/boards/${board}/join-tickets`,name,'POST',undefined,201);const p=await driver.connect(`/boards/${board}/join?ticket=${t.ticket}`);peers.push(p);const joined=await p.next('joined');await until(()=>p.messages.some(m=>m.kind==='comments_snapshot'&&m.done));return {p,joined,name};}
-const start=(text='Plain',mentions:any[]=[])=>({action:'start',threadId:crypto.randomUUID(),commentId:crypto.randomUUID(),anchor:{objectId:null,u:0,v:0,x:0,y:0},text,mentions});
+async function peer(name='editor',board=f.a){const t=await ok(`/boards/${board}/join-tickets`,name,'POST',undefined,201);const p=await driver.connect(`/boards/${board}/join?ticket=${t.ticket}`);peers.push(p);const joined=await p.next('joined');await until(()=>p.messages.some(m=>m.kind==='comments_snapshot'&&m.done));return {p,joined,name,board};}
+const start=(text='Plain',mentions:any[]=[])=>({action:'start',threadId:crypto.randomUUID(),commentId:crypto.randomUUID(),anchor:{page:f.a,objectId:null,u:0,v:0,x:0,y:0},text,mentions});
 async function action(c:Awaited<ReturnType<typeof peer>>,operation:any,reason?:string,id=crypto.randomUUID()){
+ if(operation.anchor)operation={...operation,anchor:{...operation.anchor,page:c.board}};
  const offset=c.p.messages.length;const message={kind:'comment',epoch:c.joined.epoch,restoreGeneration:c.joined.restoreGeneration,requestId:id,operation};c.p.send(message);
  const answer=await until(()=>c.p.messages.slice(offset).find(m=>m.requestId===id&&['comment_saved','comment_refused'].includes(m.kind)));
  assert.equal(answer.kind,reason?'comment_refused':'comment_saved',JSON.stringify(answer));if(reason)assert.equal(answer.reason,reason);return {id,message,answer};
@@ -179,7 +180,7 @@ check(159,'current initialization rollback and current backup validation precede
   assert(!(await helper('proxy')).some((r:any)=>r.name==='clear_board_mentions'));
  }
  const meta=await rows('meta');await assert.rejects(driver.control({board:f.a,failInitialization:true}),/initialization rollback/);assert.deepEqual(await rows('meta'),meta);
- await driver.wake(f.a);const reopened=await peer();assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,7);
+ await driver.wake(f.a);const reopened=await peer();assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,8);
  assert.equal((await operator('restore',envelope)).status,200);await peer();assert.deepEqual(JSON.parse(String((await rows('comments'))[0].mentions)),m.mentions);assert.equal((await rows('mention_targets')).length,0);assert.equal((await notices()).length,0);
 });
 check(160,'inventory measures every current store and identifies lifetime-growing history separately',async()=>{

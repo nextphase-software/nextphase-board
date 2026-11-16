@@ -92,7 +92,7 @@ export class EditSession {
     this.host.board = result.board;
     send(connection, { kind: "saved", requestId, revision, ...(result.changed ? { update: base64(result.update) } : {}) });
     for (const other of this.env.connections()) if (other.attachment().connectionId !== connection.attachment().connectionId) {
-      send(other, { kind: "update", revision, update: base64(result.update) });
+      send(other, { kind: "update", revision, update: base64(result.update), connection: connection.attachment().connectionId });
     }
     for (const thread of detached) for (const peer of this.env.connections()) {
       send(peer, { kind: "comment_changed", threadId: thread.id, thread });

@@ -102,21 +102,22 @@ check(412,'stored 11 and 12 including maximum payload upgrade without an edit re
     await driver.wake(f.a);assert.equal((await exported()).schemaVersion,13);
   }
 });
-check(413,'page additions renames reids and object page changes refuse while ordinary edits save',async()=>{
-  const {rules}=await modules();let c=await join();
-  assert.equal((await answer(c,await send(c,b=>rules.add(b,'sticky',0,0,b.pages[0].id)))).kind,'saved');await c.p.close();
-  const before=await exported();
-  for(const mutate of [(b:any)=>({...b,pages:[...b.pages,{id:crypto.randomUUID(),name:'Extra'}]}),
-    (b:any)=>({...b,pages:[{...b.pages[0],name:'Renamed'}]}),
-    (b:any)=>{const id=crypto.randomUUID();return {...b,pages:[{id,name:'Page 1'}],objects:b.objects.map((o:any)=>({...o,page:id}))};},
-    (b:any)=>({...b,objects:b.objects.map((o:any)=>({...o,page:crypto.randomUUID()}))})]){
-    c=await join();const result=await answer(c,await send(c,mutate));assert.equal(result.kind,'refused');assert.equal(result.reason,'invalid_document');assert.deepEqual(await exported(),before);await c.p.close();
+check(413,'page additions renames reorder deletes and existing object page changes save; missing page refuses',async()=>{
+  const {rules,pages}=await modules();
+  for(const mutate of [(b:any)=>pages.addPage(b).board,(b:any)=>pages.renamePage(b,b.pages[0].id,'Renamed'),
+    (b:any)=>pages.movePage(b,b.pages[1].id,0),(b:any)=>pages.moveToPage(b,new Set([b.objects[0].id]),b.pages[1].id).board,
+    (b:any)=>pages.deletePage(b,b.pages[1].id,b.pages[0].id).board]){
+    const c=await join(),board=await exported();let base=board;if(base.pages.length<2)base=pages.addPage(base).board;if(!base.objects.length)base=rules.add(base,'sticky',0,0,base.pages[0].id);
+    assert.equal((await answer(c,await send(c,()=>base))).kind,'saved');assert.equal((await answer(c,await send(c,mutate))).kind,'saved');await c.p.close();
   }
+  const c=await join();if(!(await exported()).objects.length)assert.equal((await answer(c,await send(c,b=>rules.add(b,'sticky',0,0,b.pages[0].id)))).kind,'saved');
+  assert.equal((await answer(c,await send(c,b=>({...b,objects:b.objects.map(o=>({...o,page:crypto.randomUUID()}))})))).reason,'invalid_document');
 });
-check(414,'create/import accept current single-page documents and reject two pages and version 12',async()=>{
-  const {rules,pages}=await modules(),{withoutPages}=await import('../import-fixture.mjs');const b={...rules.empty(),title:'Import'};
-  const accepted=await ok(`/workspaces/${f.workspace}/boards`,'owner','POST',{title:b.title,document:b},201);assert.equal((await exported(accepted.id)).pages.length,1);
-  for(const document of [pages.addPage(b).board,{...withoutPages(b),schemaVersion:12}]){
+check(414,'create/import accept two pages and refuse 51 pages, missing object pages and version 12',async()=>{
+  const {rules,pages}=await modules(),{withoutPages}=await import('../import-fixture.mjs');const b={...rules.empty(),title:'Import'},two=pages.addPage(b).board;
+  for(const document of [b,two]){const accepted=await ok(`/workspaces/${f.workspace}/boards`,'owner','POST',{title:b.title,document},201);assert.deepEqual((await exported(accepted.id)).pages,document.pages);}
+  for(const document of [{...b,pages:Array.from({length:51},()=>({id:crypto.randomUUID(),name:'P'}))},
+    {...rules.add(b,'sticky',0,0),objects:rules.add(b,'sticky',0,0).objects.map(o=>({...o,page:crypto.randomUUID()}))},{...withoutPages(b),schemaVersion:12}]){
     const response=await req(`/workspaces/${f.workspace}/boards`,'owner','POST',{title:b.title,document});assert.equal(response.status,400);assert.deepEqual(await response.json(),{error:{reason:'invalid_document'}});
   }
 });

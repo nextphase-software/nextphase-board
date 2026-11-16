@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { hasText, hasEnds, isContainer, type Rectangle } from 'nextphase-board-rules/objects/registry.ts';
+import type { Presence } from './team/presence.ts';
 import type { ResolvedItem } from './geometry.ts';
 import { readingOrder } from './tidy-up.ts';
 
@@ -95,6 +96,8 @@ export type FindActions = {
 
 // Structural UI seam; page state and every mutation live in use-pages.
 export type Pages = {
+  canEdit: boolean; voteReason: (page: string) => string;
+  people: (page: string) => { shown: Presence[]; overflow: number; name: string };
   id: string; local: boolean; list: import('nextphase-board-rules/document.ts').Page[];
   open: boolean; menu: string; editing: string; name: string; moveOpen: boolean;
   drag: { id: string; y: number; active: boolean; gap: number } | null;

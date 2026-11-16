@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { BoardV12 } from "nextphase-board-rules/document.ts";
+import type { BoardV13 } from "nextphase-board-rules/document.ts";
 import { hasEnds, hasRectangle } from "nextphase-board-rules/objects/registry.ts";
 import type { ResolvedItem } from "../../geometry";
 import { hitObject } from "../../connectors";
@@ -9,12 +9,13 @@ import type { HostedBoard } from "../hosted-board";
 import { notificationNavigation } from "../notification-navigation";
 import { api } from "../api";
 import { CommentCard, CommentField, type Draft } from "./card";
+import { threadPage, threadOnPage } from "../page-presence";
 import { CommentsPanel } from "./panel";
 import { CommentIcon } from "./icons";
 import { anchorAt, anchorPoint, authorColour, commentInputBlocked, drawingOrder, placeBox, refusalWords, threadName, visibleThreads,
   words, type Anchor, type CommentOperation, type CommentThread, type Point } from "./rules";
 
-type Props = { hosted: HostedBoard; board: BoardV12; objects: ResolvedItem[]; view: View; size: { w: number; h: number };
+type Props = { page: string; openPage: (page: string) => View | undefined; hosted: HostedBoard; board: BoardV13; objects: ResolvedItem[]; view: View; size: { w: number; h: number };
   tool: string; setTool: Dispatch<SetStateAction<string>>; setView: Dispatch<SetStateAction<View>>;
   scene: RefObject<HTMLDivElement | null>; select: (value: string) => void; setInline: Dispatch<SetStateAction<boolean>> };
 export function CommentsLayer(props: Props) {
@@ -22,7 +23,7 @@ export function CommentsLayer(props: Props) {
   // draft map cannot leave a reply/edit/composer or picker alive behind the dialog.
   return props.hosted.comments.ended ? null : <ActiveCommentsLayer {...props} />;
 }
-function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool, setView, scene, select, setInline }: Props) {
+function ActiveCommentsLayer({ hosted, board, page, openPage, objects, view, size, tool, setTool, setView, scene, select, setInline }: Props) {
   const [, redraw] = useState(0), [hidden, setHidden] = useState(false);
   const [showResolved, setResolved] = useState(false), [onlyYours, setYours] = useState(false);
   const [composer, setComposer] = useState<Anchor | null>(null), [draft, setDraft] = useState<Draft>({ text: "" });
@@ -50,6 +51,7 @@ function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool
   useEffect(() => {
     if (!ready || !landing) return;
     const thread=threads?.get(landing.threadId); if (!thread) return;
+    const target = threadPage(thread, board); if (target !== page && board.pages.some(p => p.id === target)) openPage(target);
     setTool("Comment"); setHidden(false); setOpened(thread); setComposer(null);
     const p=anchorPoint(thread.anchor,board), s=screenPoint(p,view,size);
     setView({...view, x:p.x+(window.innerWidth>=768?140/view.z:0), y:p.y});
@@ -90,7 +92,7 @@ function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool
     return { x: view.x + (event.clientX - rect.left - size.w / 2) / view.z,
       y: view.y + (event.clientY - rect.top - size.h / 2) / view.z };
   }
-  function anchor(point: Point) { return anchorAt(board, point, !!hasConnector(point)); }
+  function anchor(point: Point) { return anchorAt({ ...board, objects: board.objects.filter(o => o.page === page) }, point, !!hasConnector(point), page); }
   function hasConnector(point: Point) { const hit = hitObject(objects, point, view.z); return hit && hasEnds(hit); }
   function closeCard() {
     const id = opened?.id; setOpened(null);
@@ -106,6 +108,8 @@ function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool
     requestAnimationFrame(() => (id && pins.current.get(id) || scene.current)?.focus());
   }
   function open(thread: CommentThread, centre = false) {
+    const target = threadPage(thread, board);
+    if (target !== page && board.pages.some(p => p.id === target) && !openPage(target)) return;
     hosted.showSurface("comments");
     if (opened && opened.id !== thread.id) hosted.commentDrafts.delete(opened.id);
     delete notificationNavigation.target;
@@ -161,7 +165,7 @@ function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool
       window.removeEventListener("keydown", keys, true); window.removeEventListener("keyup", up, true);
       canvas.removeEventListener("pointerdown", down, true); canvas.removeEventListener("pointermove", move); canvas.removeEventListener("pointerleave", leave);
     };
-  }, [board, view, size, mode, composer, opened, objects]);
+  }, [board, view, size, mode, composer, opened, objects, page]);
   function pinPoint(thread: CommentThread) {
     if (moves[thread.id]) return moves[thread.id];
     const missing = !thread.anchor.detached && thread.anchor.objectId && !board.objects.some((object) => object.id === thread.anchor.objectId);
@@ -187,7 +191,8 @@ function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool
   });
   const rect = scene.current?.getBoundingClientRect();
   const area = { w: size.w, h: Math.min(size.h, window.innerHeight - (rect?.top ?? 0)) };
-  const cardThread = current ?? opened;
+  const candidate = current ?? opened;
+  const cardThread = candidate && (!board.pages.some(p => p.id === threadPage(candidate, board)) || threadOnPage(candidate, board, page)) ? candidate : null;
   const surfaceHidden = hosted.surface === "timer" || hosted.surface === "share" || hosted.surface === "people";
   if (hosted.history.open || hosted.history.previewing) return null;
   return <>
@@ -198,7 +203,7 @@ function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool
         const p = screenPoint(object, view, size);
         return <div key={id} className="comment-attach-outline" style={{ left: p.left - 2, top: p.top - 2, width: object.width * view.z + 4, height: object.height * view.z + 4 }} />;
       })}
-      {!hidden && ordered.map((thread) => {
+      {!hidden && ordered.filter(thread => threadOnPage(thread, board, page)).map((thread) => {
         const p = screenPoint(pinPoint(thread), view, size), own = thread.person === hosted.comments.person;
         const detached = thread.anchor.detached || !!thread.anchor.objectId && !board.objects.some((object) => object.id === thread.anchor.objectId);
         return <button key={thread.id} ref={(node) => { if (node) pins.current.set(thread.id, node); else pins.current.delete(thread.id); }}
@@ -234,12 +239,12 @@ function ActiveCommentsLayer({ hosted, board, objects, view, size, tool, setTool
           {detached && <span className="comment-badge"><CommentIcon name="unlink" /></span>}
         </button>;
       })}
-      {composer && <div className="comment-pin new" aria-hidden="true" style={{ left: screenPoint(composer, view, size).left, top: screenPoint(composer, view, size).top - 32 }}>
+      {composer && composer.page === page && <div className="comment-pin new" aria-hidden="true" style={{ left: screenPoint(composer, view, size).left, top: screenPoint(composer, view, size).top - 32 }}>
         <span className="comment-initial">{hosted.comments.label[0]?.toUpperCase()}</span></div>}
     </div>
-    {mode && !surfaceHidden && <CommentsPanel threads={visible} board={board} current={opened?.id} showResolved={showResolved} onlyYours={onlyYours}
+    {mode && !surfaceHidden && <CommentsPanel threads={visible} board={board} page={page} current={opened?.id} showResolved={showResolved} onlyYours={onlyYours}
       landing={landing?.threadId} sort={sort} setSort={setSort} unread={hosted.unreadMentions} setResolved={setResolved} setYours={setYours} open={(thread) => open(thread, true)} close={() => { setTool("Select"); scene.current?.focus(); }} />}
-    {composer && mode && !surfaceHidden && <div ref={composerBox} className="comment-composer" role="dialog" aria-label="New comment"
+    {composer && composer.page === page && mode && !surfaceHidden && <div ref={composerBox} className="comment-composer" role="dialog" aria-label="New comment"
       style={placeBox(screenPoint(composer, view, size), area, window.innerWidth, mode, true, composerHeight)}
       onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Escape") { event.preventDefault(); setComposer(null); setDraft({ text: "" }); scene.current?.focus(); } }}>
       <CommentField hosted={hosted} draft={draft} change={setDraft} label="Add a comment" operation={() => ({ action: "start", threadId: crypto.randomUUID(), commentId: crypto.randomUUID(), anchor: composer, text: draft.text })}

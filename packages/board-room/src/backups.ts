@@ -31,7 +31,7 @@ export function decodeBackup(value: unknown, board: string): Envelope {
     !Array.isArray(envelope.tables.meta)) throw new RoomError(400, "bad_request");
   const version = envelope.tables.meta.find((row) => row && row.key === "storage_version")?.value;
   const accepted = names;
-  if (version !== 7 || Object.keys(envelope.tables).sort().join() !== [...accepted].sort().join()) {
+  if (version !== 7 && version !== 8 || Object.keys(envelope.tables).sort().join() !== [...accepted].sort().join()) {
     throw new RoomError(400, "bad_request");
   }
   const decoded = { ...envelope, tables: {} as Record<string, Row[]> };

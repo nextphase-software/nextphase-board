@@ -5,6 +5,7 @@ import type { View } from "../view";
 
 type Input = {
   hosted: HostedBoard;
+  page: string;
   scene: RefObject<HTMLDivElement | null>;
   selected: Set<string>;
   view: View;
@@ -12,21 +13,21 @@ type Input = {
   setFollowView: Dispatch<SetStateAction<View>>;
 };
 
-export function usePresence({ hosted, scene, selected, view, size, setFollowView }: Input) {
+export function usePresence({ hosted, scene, selected, view, size, setFollowView, page }: Input) {
   const snapshot = useSyncExternalStore(hosted.subscribePresence, hosted.getPresence);
   const privacy = useRef(hosted.voting.running);
   const pointer = useRef<{ x: number; y: number } | null>(null);
-  const latest = useRef({ selected, view, size });
-  latest.current = { selected, view, size };
+  const latest = useRef({ selected, view, size, page });
+  latest.current = { selected, view, size, page };
   const selectionKey = [...selected].join(",");
   function send() {
-    const { selected, view, size } = latest.current;
+    const { selected, view, size, page } = latest.current;
     const rect = scene.current?.getBoundingClientRect();
     const cursor = pointer.current && rect ? {
       x: view.x + (pointer.current.x - rect.left - size.w / 2) / view.z,
       y: view.y + (pointer.current.y - rect.top - size.h / 2) / view.z,
     } : null;
-    hosted.sendPresence(cursor, selected, view, size, document.visibilityState === "visible");
+    hosted.sendPresence(cursor, selected, view, size, document.visibilityState === "visible", page);
   }
   useEffect(() => {
     const track = (event: PointerEvent) => {
@@ -66,7 +67,7 @@ export function usePresence({ hosted, scene, selected, view, size, setFollowView
       document.removeEventListener("keydown", keys, true);
     };
   }, [hosted]);
-  useEffect(() => { if(privacy.current!==hosted.voting.running){privacy.current=hosted.voting.running;pointer.current=null;}send(); }, [hosted, snapshot.self?.connection, snapshot.requested, selectionKey, view, size.w, size.h, hosted.voting.running]);
+  useEffect(() => { if(privacy.current!==hosted.voting.running){privacy.current=hosted.voting.running;pointer.current=null;}send(); }, [hosted, snapshot.self?.connection, snapshot.requested, selectionKey, view, size.w, size.h, hosted.voting.running, page]);
   const target=hosted.spotlight.following?hosted.spotlight.target?.connection:snapshot.followed;
   const followed = snapshot.others.find((other) => other.connection === target);
   useEffect(() => {

@@ -5,10 +5,10 @@ import { activityPreview, type Preview, type TemplateCommands } from "../activit
 import type { Snapshot } from "../clipboard.ts";
 import type { HostedBoard } from "./hosted-board.ts";
 import { Templates } from "./templates.ts";
-import { contentBytes, menuIndex, points, saveLabel, saveReason, templateBoard, validDescription, validName, type Template } from "./templates-rules.ts";
+import { contentBytes, menuIndex, points, saveLabel, saveReason, templateBoard, templateSnapshot, validDescription, validName, type Template } from "./templates-rules.ts";
 
 type DialogState = { action: "save" | "edit" | "replace" | "delete"; template?: Template;
-  source?: { title: string; selected: boolean; snapshot: Snapshot | null } };
+  source?: { pageName?: string; title: string; selected: boolean; snapshot: Snapshot | null } };
 function PreviewImage({ preview }: { preview?: Preview }) {
   return <svg viewBox={preview?.viewBox} preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
     {preview?.rectangles.map(({ id, ...rect }) => <rect key={id} {...rect} />)}
@@ -56,21 +56,24 @@ export function TemplatesSection({ hosted, commands, disabled }: { hosted: Hoste
     requestAnimationFrame(() => returnFocus(deleted ? undefined : template));
   };
   if (!controller.visible) return null;
+  const board = hosted.snapshot.board, multiple = (board?.pages.length ?? 0) > 1;
+  const objectCount = board ? board.objects.filter(o => o.page === hosted.page).length : commands.objectCount;
+  const source = () => !commands.selected && board ? templateSnapshot(board, new Set(), [], hosted.page) : commands.snapshot();
   const reason = saveReason(commands.commandReason, controller.canSave, controller.templates.length,
-    controller.workspaceName, commands.objectCount);
-  const tip = reason || (!commands.selected ? `Nothing is selected, so all ${commands.objectCount} objects on this board are saved` : "");
+    controller.workspaceName, objectCount);
+  const tip = reason || (!commands.selected ? `Nothing is selected, so all ${objectCount} objects on this ${multiple ? 'page' : 'board'} are saved` : "");
   const choose = (action: "edit" | "replace" | "delete") => {
     const template = menu!.template;
     if (action === "replace" && !commands.selected) return;
     setMenu(null); controller.error = "";
-    setDialog({ action, template, ...(action === "replace" ? { source: commands.snapshot() } : {}) });
+    setDialog({ action, template, ...(action === "replace" ? { source: source() } : {}) });
   };
   return <div className="team-templates" ref={group}>
     <div className="team-template-head"><h3>{controller.workspaceName}</h3>
       <span className="team-template-count">{controller.templates.length} of 25</span>
       <TipButton nodeRef={save} className="team-template-save" tip={tip} aria-disabled={!!reason}
-        onClick={() => { if (!reason) { controller.error = ""; setDialog({ action: "save", source: commands.snapshot() }); } }}>
-        {saveLabel(commands.selected)}
+        onClick={() => { if (!reason) { controller.error = ""; setDialog({ action: "save", source: source() }); } }}>
+        {saveLabel(commands.selected, multiple)}
       </TipButton>
     </div>
     {controller.status === "loading" ? <p className="team-template-status">Loading team templates…</p>
@@ -171,7 +174,7 @@ function TemplateDialog({ state, controller, close }: { state: DialogState; cont
         <p className="team-template-hint">{points(description)} / 300</p>
         {state.action === "save" && <><div className="template-preview"><PreviewImage preview={preview} /></div>
           <p className="team-template-what">{state.source?.selected ? `${objects?.length ?? 0} selected objects from ${state.source.title}`
-            : `All ${objects?.length ?? 0} objects on ${state.source?.title}`}</p></>}
+            : `All ${objects?.length ?? 0} objects on ${state.source?.pageName ? `“${state.source.pageName}” of ` : ""}${state.source?.title}`}</p></>}
       </> : <p>{state.action === "replace"
         ? `Its content becomes the ${objects?.length ?? 0} selected objects. Its name, description and creator stay. Boards that already used it keep their copies.`
         : `${controller.workspaceName} will no longer see it in Templates. Boards that already used it keep their copies. This can’t be undone.`}</p>}

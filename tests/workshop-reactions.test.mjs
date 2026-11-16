@@ -30,7 +30,7 @@ async function fixture(count=4){
   async function answer(c,m,raw){await room.message(c.c,raw??JSON.stringify(m));return c.frames.findLast(f=>f.requestId===m.requestId);}
   async function send(c,action,extra={}){at+=1001;return answer(c,command(c,action,extra));}
   async function read(c){at+=1001;return answer(c,{kind:'spotlight_read',requestId:randomUUID(),epoch:c.c.attachment().epoch,restoreGeneration:c.c.attachment().restoreGeneration});}
-  async function presence(c,active=false){at+=101;await room.message(c.c,JSON.stringify({kind:'presence',cursor:{x:42,y:22},selection:[],view:{x:10,y:20,width:800,height:600},active}));}
+  async function presence(c,active=false){at+=101;await room.message(c.c,JSON.stringify({kind:'presence',page:id,cursor:{x:42,y:22},selection:[],view:{x:10,y:20,width:800,height:600},active}));}
   async function depart(c,code=1006,reason=''){c.c.close(code);await room.closed(c.c,code,reason);}
   return {storage,env,open,send,read,command,answer,presence,depart,get room(){return room;},get board(){return room.board;},advance:ms=>{at+=ms;},offline:v=>{offline=v;},role:(c,role)=>{people.set(c.person,role);changes.push({personId:c.person,number:++latest});},hold:()=>{let release;held=new Promise(r=>release=r);return()=>release();},life:v=>{life=v;},restart:async()=>{room=new Room(id,env);await room.ordered(()=>room.load());},close:()=>storage.close()};
 }
@@ -41,7 +41,7 @@ const reacted = c => c.frames.filter(m=>m.kind==='reacted');
 const react = (f,c,value=frame(),raw) => f.room.message(c.c,raw??JSON.stringify(value));
 async function controller() {
   const {BoardReactions}=await import('../apps/web/src/team/reactions.ts');
-  const sent=[],tools=[],host={snapshot:{connected:true},history:{locked:false,previewing:false},voting:{running:false},presence:{self:{connection:randomUUID(),label:'ana',colour:'#2563eb'},others:[{connection:randomUUID(),label:'ben',colour:'#dc2626'}]},sendReaction:(...args)=>{sent.push(args);return true;}};
+  const sent=[],tools=[],host={page:'11111111-1111-4111-8111-111111111111',snapshot:{connected:true},history:{locked:false,previewing:false},voting:{running:false},presence:{self:{connection:randomUUID(),page:'11111111-1111-4111-8111-111111111111',label:'ana',colour:'#2563eb'},others:[{connection:randomUUID(),page:'11111111-1111-4111-8111-111111111111',label:'ben',colour:'#dc2626'}]},sendReaction:(...args)=>{sent.push(args);return true;}};
   const r=new BoardReactions(host);r.sync();r.bindTool(t=>tools.push(t));return {r,host,sent,tools};
 }
 unit(1,'fixed ids and names agree between neutral wire and pure client rules',async()=>{
@@ -66,9 +66,9 @@ unit(7,'same-person second connection receives once',withRoom(async f=>{const a=
 unit(8,'invalid attempts count; sixth silently drops and exact oldest boundary expires',withRoom(async f=>{
   const a=await f.open(),b=await f.open();for(let i=0;i<5;i++)await react(f,a,{...frame(),extra:1});const n=a.frames.length;await react(f,a);assert.equal(a.frames.length,n);assert.equal(reacted(b).length,0);assert.equal(a.c.attachment().reactionTimes.length,5);f.advance(1000);await react(f,a);assert.equal(reacted(b).length,1);assert.equal(a.c.attachment().reactionTimes.length,1);
 }));
-unit(9,'presence and reaction budgets remain independent',withRoom(async f=>{const a=await f.open(),b=await f.open();for(let i=0;i<10;i++)await f.room.message(a.c,JSON.stringify({kind:'presence',cursor:{x:1,y:2},view:{x:0,y:0,width:800,height:600},selection:[],active:false}));for(let i=0;i<5;i++)await react(f,a);assert.equal(a.c.attachment().presenceTimes.length,10);assert.equal(reacted(b).length,5);}));
+unit(9,'presence and reaction budgets remain independent',withRoom(async f=>{const a=await f.open(),b=await f.open();for(let i=0;i<10;i++)await f.room.message(a.c,JSON.stringify({kind:'presence',page:f.board.pages[0].id,cursor:{x:1,y:2},view:{x:0,y:0,width:800,height:600},selection:[],active:false}));for(let i=0;i<5;i++)await react(f,a);assert.equal(a.c.attachment().presenceTimes.length,10);assert.equal(reacted(b).length,5);}));
 unit(10,'running vote refuses; revealed and cleared rounds permit again',withRoom(async f=>{const a=await f.open('owner'),b=await f.open('viewer');
-  const vote=async action=>{const t=f.room.voting.snapshot();await f.room.message(a.c,JSON.stringify({kind:'vote_command',requestId:randomUUID(),epoch:a.c.attachment().epoch,restoreGeneration:0,sessionId:t.sessionId,expectedSessionVersion:t.sessionVersion,action,...(action==='start'?{prompt:'Choose',budget:3}:{})}));};
+  const vote=async action=>{const t=f.room.voting.snapshot();await f.room.message(a.c,JSON.stringify({kind:'vote_command',requestId:randomUUID(),epoch:a.c.attachment().epoch,restoreGeneration:0,sessionId:t.sessionId,expectedSessionVersion:t.sessionVersion,action,...(action==='start'?{page:f.board.pages[0].id,prompt:'Choose',budget:3}:{})}));};
   await vote('start');assert(f.room.voting.running());await react(f,b);assert.deepEqual(b.frames.at(-1),{kind:'refused',reason:'reactions_voting'});assert.equal(reacted(a).length,0);await vote('reveal');await react(f,b);assert.equal(reacted(a).length,1);await vote('clear');await react(f,b);assert.equal(reacted(a).length,2);
 }));
 unit(11,'sender and recipient current authority are checked independently',withRoom(async f=>{const a=await f.open(),b=await f.open('viewer'),c=await f.open();f.role(b,null);await react(f,a);assert.equal(reacted(b).length,0);assert.equal(reacted(c).length,1);f.role(a,null);await react(f,a);assert.equal(reacted(c).length,1);}));
@@ -108,7 +108,7 @@ unit(31,'session drops incoming during voting and clears existing bursts before 
   const {BoardSession}=await import('../packages/board-sync/src/session.ts');const a=await f.open(),b=await f.open();let h;const joined={...a.frames.find(m=>m.kind==='joined'),present:[b.c.attachment().presence]},events=[];
   const session=await BoardSession.join({ticket:async()=>'',open:async()=>({send(){},close(){},listen:v=>{h=v;h.message(JSON.stringify(joined));}}),clock:{now:()=>0,after:()=>()=>{}}});
   try{session.subscribeReactions(e=>events.push(e));const reaction={...frame(),kind:'reacted',connection:b.c.attachment().connectionId};h.message(JSON.stringify(reaction));assert.equal(events.length,1);
-    const t=f.room.voting.snapshot();await f.room.message(a.c,JSON.stringify({kind:'vote_command',requestId:randomUUID(),epoch:a.c.attachment().epoch,restoreGeneration:0,sessionId:t.sessionId,expectedSessionVersion:t.sessionVersion,action:'start',prompt:'Choose',budget:3}));
+    const t=f.room.voting.snapshot();await f.room.message(a.c,JSON.stringify({kind:'vote_command',requestId:randomUUID(),epoch:a.c.attachment().epoch,restoreGeneration:0,sessionId:t.sessionId,expectedSessionVersion:t.sessionVersion,action:'start',page:f.board.pages[0].id,prompt:'Choose',budget:3}));
     const event=a.frames.findLast(m=>m.voting?.session.status==='running');assert(event);h.message(JSON.stringify(event));assert.equal(events.at(-1).kind,'reactions_clear');const count=events.length;h.message(JSON.stringify(reaction));assert.equal(events.length,count);assert(!session.react('heart',1,2));
   }finally{session.close();}
 }));

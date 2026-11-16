@@ -10,7 +10,7 @@ import { checkTimerFrame, timerSnapshot, timerInteger, type TimerSnapshot, type 
 export { checkTimerFrame, timerSnapshot, timerInteger } from "./timer.ts";
 export type { TimerSnapshot, TimerFrame, TimerAction, TimerCause } from "./timer.ts";
 import * as Y from "yjs";
-import { type BoardV12 } from "nextphase-board-rules/document.ts";
+import { type BoardV13 } from "nextphase-board-rules/document.ts";
 import { Adapter } from "./document-adapter.ts";
 import { readBoard } from "./codec.ts";
 import { capture, SharedUndo } from "./undo.ts";
@@ -18,7 +18,7 @@ import { normalizeText, textProblem, type CommentOperation, type CommentRequest,
 
 export type Role = "owner" | "editor" | "viewer";
 export type PresenceInput = { cursor: { x: number; y: number } | null; selection: string[];
-  view: { x: number; y: number; width: number; height: number }; active: boolean };
+  view: { x: number; y: number; width: number; height: number }; active: boolean; page: string };
 export type Presence = PresenceInput & { connection: string; person: string; label: string; role: Role; colour: string };
 export type Clock = { now(): number; after(ms: number, run: () => void): () => void };
 export type Transport = { send(text: string): void; close(code: number, reason?:string): void;
@@ -44,17 +44,17 @@ export function checkPresence(value: unknown, size: number, wire = false): Prese
   if (size > 1048576) return "message_too_large";
   if (size > 12288) return "presence_too_large";
   if (!record(value)) return "bad_presence";
-  const allowed = wire ? ["kind", "cursor", "selection", "view", "active"] : ["cursor", "selection", "view", "active"];
+  const allowed = wire ? ["kind", "cursor", "selection", "view", "active", "page"] : ["cursor", "selection", "view", "active", "page"];
   if (Object.keys(value).some((key) => !allowed.includes(key))) return wire ? "presence_fields" : "bad_presence";
   if (Array.isArray(value.selection) && value.selection.length > 250) return "presence_selection_limit";
   if (Object.keys(value).length !== allowed.length || wire && value.kind !== "presence" ||
     value.cursor !== null && !coordinates(value.cursor, ["x", "y"]) ||
     !coordinates(value.view, ["x", "y", "width", "height"]) ||
     (value.view as any).width <= 0 || (value.view as any).height <= 0 ||
-    typeof value.active !== "boolean" || !Array.isArray(value.selection) ||
+    typeof value.page !== "string" || !uuid.test(value.page) || typeof value.active !== "boolean" || !Array.isArray(value.selection) ||
     value.selection.some((id) => typeof id !== "string" || !uuid.test(id))) return "bad_presence";
   return { cursor: value.cursor as PresenceInput["cursor"], view: value.view as PresenceInput["view"],
-    active: value.active, selection: [...new Set(value.selection)] };
+    active: value.active, page: value.page, selection: [...new Set(value.selection)] };
 }
 const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 export function encode(bytes: Uint8Array) {
@@ -147,6 +147,8 @@ export class BoardSession<T = unknown> {
   private lastPresence?: PresenceInput;
   private heldPresence?: PresenceInput;
   private lastSent = -Infinity;
+  private presenceTimes: number[] = [];
+  change: { origin: "own" | "remote" | "reload"; connection?: string } = { origin: "reload" };
   private cancelTrailing?: () => void;
   private cancelHeartbeat?: () => void;
   role?: Role;
@@ -167,7 +169,7 @@ export class BoardSession<T = unknown> {
   private timers() {
     this.cancelTrailing?.(); this.cancelHeartbeat?.();
     this.cancelTrailing = undefined; this.cancelHeartbeat = undefined;
-    this.heldPresence = undefined; this.lastPresence = undefined; this.lastSent = -Infinity;
+    this.heldPresence = undefined; this.lastPresence = undefined; this.lastSent = -Infinity; this.presenceTimes = [];
   }
   private cancelDeadline(id: string) {
     this.deadlines.get(id)?.();
@@ -310,6 +312,7 @@ export class BoardSession<T = unknown> {
       // Observers of joined must already see Saving, never Saved for work
       // that is about to be resent. A listener can still interrupt this send.
       if (first) this.requests.get(first)!.state = "sent";
+      this.change = { origin: "reload" };
       this.report(message);
       if (this.joined && this.recovering) this.sendRequest(first);
       return;
@@ -323,6 +326,7 @@ export class BoardSession<T = unknown> {
         const before = capture(this.doc);
         Y.applyUpdate(this.doc, decode(message.update));
         this.history.observe(before, capture(this.doc), message.kind === "saved");
+        this.change = message.kind === "update" ? { origin: "remote", connection: message.connection } : { origin: "own" };
       }
       this.revision = Math.max(this.revision, message.revision);
       if (message.kind === "saved") {
@@ -355,6 +359,7 @@ export class BoardSession<T = unknown> {
         this.drop(reason); this.rejoin();
       }
     } else if (message.kind === "resync") {
+      this.change = { origin: "reload" };
       const touched = [...this.requests.values()].filter(outstanding).flatMap((value) => value.touched);
       for (const [id, value] of this.requests) if (value.state === "received") {
         value.state = "dropped"; this.cancelDeadline(id);
@@ -414,15 +419,16 @@ export class BoardSession<T = unknown> {
     return requestId;
   }
   private blocked() { return !this.joined || this.recovering ? "join_required" : this.role === "viewer" ? "role_too_low" : null; }
-  edit(board: BoardV12, group?: string): string {
+  edit(board: BoardV13, group?: string, movedPages?: readonly string[], page?: string): string {
     const blocked = this.blocked(); if (blocked) return blocked;
-    return this.write(board, undefined, group);
+    return this.write(board, undefined, group, movedPages, page);
   }
-  private write(board: BoardV12, direction?: "undo" | "redo", group?: string) {
+  private write(board: BoardV13, direction?: "undo" | "redo", group?: string, movedPages?: readonly string[], page?: string) {
     const previous = this.board;
     const before = capture(this.doc), vector = Y.encodeStateVector(this.doc);
-    this.adapter.set(board);
-    this.history.record(before, capture(this.doc), direction, group);
+    this.adapter.set(board, movedPages, direction ? this.history.pageOrders : undefined);
+    this.change = { origin: "own" };
+    this.history.record(before, capture(this.doc), direction, group, page);
     const touched = board.objects.filter((object) => JSON.stringify(object) !==
       JSON.stringify(previous.objects.find((old) => old.id === object.id)))
       .map(({ id, generation }) => ({ id, generation }));
@@ -461,7 +467,7 @@ export class BoardSession<T = unknown> {
   private inverse(direction: "undo" | "redo") {
     const blocked = this.blocked(); if (blocked) return blocked;
     const board = this.history.take(capture(this.doc), direction);
-    return typeof board === "string" ? board : this.write(board, direction);
+    return typeof board === "string" ? board : this.write(board, direction, undefined, undefined, this.history.page);
   }
   undo() { return this.inverse("undo"); }
   redo() { return this.inverse("redo"); }
@@ -470,16 +476,25 @@ export class BoardSession<T = unknown> {
     const checked = checkPresence(input, sizeOf(JSON.stringify({ kind: "presence", ...input })));
     if (typeof checked === "string") { this.report({ kind: "refused", reason: checked }); return checked; }
     this.heldPresence = checked;
-    const delay = this.lastSent + 100 - this.options.clock.now();
+    const now = this.options.clock.now();
+    this.presenceTimes = this.presenceTimes.filter(at => at > now - 1000);
+    const pageChanged = checked.page !== this.lastPresence?.page;
+    const delay = Math.max(pageChanged ? 0 : this.lastSent + 100 - now,
+      this.presenceTimes.length >= 10 ? this.presenceTimes[0] + 1000 - now : 0);
+    this.cancelTrailing?.(); this.cancelTrailing = undefined;
     if (delay <= 0) this.flushPresence();
-    else if (!this.cancelTrailing) this.cancelTrailing = this.options.clock.after(delay, () => this.flushPresence());
+    else this.cancelTrailing = this.options.clock.after(delay, () => this.flushPresence());
     return null;
   }
   private flushPresence() {
     this.cancelTrailing?.(); this.cancelTrailing = undefined;
     const input = this.heldPresence ?? this.lastPresence;
     if (!this.joined || !input) return;
-    this.heldPresence = undefined; this.lastPresence = input; this.lastSent = this.options.clock.now();
+    const now = this.options.clock.now();
+    this.presenceTimes = this.presenceTimes.filter(at => at > now - 1000);
+    if (this.presenceTimes.length >= 10) { this.cancelTrailing = this.options.clock.after(this.presenceTimes[0] + 1000 - now, () => this.flushPresence()); return; }
+    this.presenceTimes.push(now);
+    this.heldPresence = undefined; this.lastPresence = input; this.lastSent = now;
     if (!this.send(JSON.stringify({ kind: "presence", ...input }))) return;
     this.cancelHeartbeat?.();
     this.cancelHeartbeat = this.options.clock.after(15000, () => this.flushPresence());

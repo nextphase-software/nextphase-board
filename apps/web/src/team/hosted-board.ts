@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { followNotice, pagePeople, removedPage, votingPageReason, type ChangeOrigin } from "./page-presence";
 import { BoardReactions } from "./reactions";
 import { BoardSpotlight } from "./spotlight";
 import { BoardVoting } from "./voting";
@@ -6,7 +7,7 @@ import { BoardTimer } from "./timer";
 import { BoardLifecycle, lifecycleNavigation } from "./lifecycle";
 import { BoardHistory, historyNavigation } from "./history";
 import { BoardSession, type Transport, type Role, type SessionEvent, type TimerSnapshot, type TimerFrame, type TimerAction, type VoteProjection, type VoteFrame, type VoteCommand, type SpotlightCommand, type SpotlightFrame, type ReactionId } from "nextphase-board-sync/session.ts";
-import type { BoardV12 } from "nextphase-board-rules/document.ts";
+import type { BoardV13 } from "nextphase-board-rules/document.ts";
 import type { CommentOperation } from "./comments/rules";
 import { api, ApiError } from "./api";
 import { auth, type AuthSession } from "./auth";
@@ -25,7 +26,7 @@ export type { SpotlightProjection, SpotlightSession, SpotlightOwn, SpotlightActi
 type Attempt = { outcome: Outcome | null; joined: boolean; cancelled: boolean; timer: ReturnType<typeof setTimeout>;
   socket?: WebSocket; acceptance: boolean };
 export type HostedSnapshot = {
-  board?: BoardV12; role?: Role; connected: boolean; workspace: string; workspaceId: string;
+  board?: BoardV13; role?: Role; connected: boolean; workspace: string; workspaceId: string;
   workspaceOwner?: boolean; outcome: Outcome | null; toast: string; toastId: number; generation: number;
 };
 export type PresenceSnapshot = {
@@ -69,7 +70,7 @@ export class HostedBoard {
   trashReturned = false;
   panReturning = false;
   private restoredGeneration?: number;
-  historyChanged() { this.spotlight.preview();this.voting.preview(); this.publish(); }
+  historyChanged() { this.change = { origin: "reload" }; this.spotlight.preview();this.voting.preview(); this.publish(); }
   historyDenied() { this.confirmUnavailable(); }
   get paintBoard() {
     const live = this.snapshot.board;
@@ -139,13 +140,17 @@ export class HostedBoard {
     if (this.snapshot.connected && !this.stopped && !this.ended) { this.session?.setPresence(input);this.spotlight.localPresenceSent(); }
   }
   sendPresence(cursor: PresenceInput["cursor"], selection: Iterable<string>, view: View,
-    size: { w: number; h: number }, active: boolean) {
-    this.setPresence(presenceToSend(cursor, selection, view, size, active));
+    size: { w: number; h: number }, active: boolean, page = this.page) {
+    this.setPresence(presenceToSend(cursor, selection, view, size, active, page));
   }
   followView(size: { w: number; h: number }) {
     if(this.voting.running)return undefined;
     const target=this.spotlight.motion?this.spotlight.target?.connection:this.presence.followed;
     const followed = this.presence.others.find((other) => other.connection === target);
+    if (followed?.page && followed.page !== this.page) {
+      if (!this.snapshot.board?.pages.some(p => p.id === followed.page) || !this.openPage?.(followed.page, true)) return undefined;
+      this.pageNotice?.(followNotice(followed.label, this.snapshot.board.pages.find(p => p.id === followed.page)!.name));
+    }
     return followed ? fitFollow(followed.view, size) : undefined;
   }
   follow(person: string) {
@@ -182,6 +187,16 @@ export class HostedBoard {
   snapshot: HostedSnapshot = { connected: false, workspace: "Workspace", workspaceId: "",
     outcome: null, toast: "", toastId: 0, generation: 0 };
   boardId = "";
+  page = "";
+  pageNotice?: (text: string) => void;
+  openPage?: (id: string, following?: boolean) => View | undefined;
+  onPageChange?: (before: BoardV13, after: BoardV13, change: ChangeOrigin, preview: boolean) => void;
+  historyPage?: string;
+  pageChanged() { this.publishPresence({}); this.voting.pageChanged(); }
+  pagePeople(page: string) { return pagePeople(this.presence.self, this.presence.others, page); }
+  votePageReason(page: string) { return votingPageReason(this.voting.projection?.session, page); }
+  removedPage(before: BoardV13, after: BoardV13, page: string, change: ChangeOrigin) { return removedPage(before, after, page, change, this.presence.others); }
+  change: { origin: "own" | "remote" | "reload"; connection?: string } = { origin: "reload" };
   constructor(link: TeamLink, local: () => void) {
     this.link = link;
     this.lifecycle.subscribe(() => this.publish());
@@ -217,6 +232,7 @@ export class HostedBoard {
     }
     this.snapshot = { ...this.snapshot, ...change,
       toastId: this.snapshot.toastId + (change.toast === undefined ? 0 : 1) };
+    if (change.board && this.session) this.change = this.session.change;
     this.reactions.sync();
     for (const listener of this.listeners) listener();
     this.publishComments();
@@ -416,13 +432,13 @@ export class HostedBoard {
       this.recoveringIds = [];
     } else this.publish({ board: session.board });
   }
-  edit(board: BoardV12, group?: string) {
+  edit(board: BoardV13, group?: string, movedPages?: readonly string[], page?: string) {
     if (!this.canEdit || !this.session || JSON.stringify(board) === JSON.stringify(this.session.board)) return false;
-    return this.deliberate(() => this.session!.edit(board, group));
+    return this.deliberate(() => this.session!.edit(board, group, movedPages, page));
   }
   inverse(direction: "undo" | "redo") {
     if (!this.canEdit || !this.session) return;
-    const result = this.deliberate(() => this.session![direction]());
+    const result = this.deliberate(() => { const result = this.session![direction](); this.historyPage = this.session!.requests.has(result) ? this.session!.history.page : undefined; return result; });
     if (typeof result === "string") this.toast(result === "nothing_to_undo"
       ? direction === "undo" ? "Nothing to undo." : "Nothing to redo."
       : ["changed_by_others", "undo_invalid"].includes(result)

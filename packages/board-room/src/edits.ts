@@ -32,12 +32,13 @@ export function evaluate(doc: Y.Doc, before: BoardV13, update: Uint8Array, stora
     let changed = promote(doc, candidate, update);
     let after: BoardV13;
     try { after = readBoard(candidate); } catch { return { kind: "refused", reason: "invalid_update" }; }
+    if (after.objects.some(o => !after.pages?.some(p => p.id === o.page))) return { kind: "refused", reason: "invalid_document" };
     const repaired = repair(candidate, before, after);
     changed ||= repaired.changed;
     if (repaired.changed) after = readBoard(candidate);
     try {
       validate(after);
-      if (after.schemaVersion !== 13 || after.pages.length !== 1 || JSON.stringify(after.pages) !== JSON.stringify(before.pages)) throw Error();
+      if (after.schemaVersion !== 13) throw Error();
     } catch { return { kind: "refused", reason: "invalid_document" }; }
     try { canonical(after); } catch { return { kind: "refused", reason: "document_too_large" }; }
     try { checkTransition(before, after); } catch { return { kind: "refused", reason: "invalid_transition" }; }

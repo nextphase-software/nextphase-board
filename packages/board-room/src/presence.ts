@@ -5,8 +5,8 @@ import { bytes, RoomError, send, type Attachment, type Connection } from "./prot
 
 import { validSpotlightAttachment } from "./spotlight.ts";
 export const colours = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2", "#db2777", "#4f46e5"];
-export const placeholder = (): PresenceInput => ({ cursor: null, selection: [],
-  view: { x: 0, y: 0, width: 1, height: 1 }, active: false });
+export const placeholder = (page: string): PresenceInput => ({ cursor: null, selection: [],
+  view: { x: 0, y: 0, width: 1, height: 1 }, active: false, page });
 export function currentAttachment(value: Attachment) {
   const bounded=(v:unknown)=>v===undefined||Array.isArray(v)&&v.length<=5&&v.every(n=>Number.isSafeInteger(n)&&n>=0);
   if(!validSpotlightAttachment(value)||bytes(JSON.stringify(value)).length>16384||![value.timerTimes,value.timerReadTimes,value.voteTimes,value.voteReadTimes,value.reactionTimes].every(bounded))return false;
@@ -29,6 +29,8 @@ export class Presences {
   recipient?: (from:Connection,to:Connection)=>Promise<boolean>;
   expired?: (c:Connection)=>void;
   visible?: (id:string)=>boolean;
+  currentPage?: (id:string)=>boolean;
+  firstPage: () => string = () => this.board;
   private holds = new Map<string, { until: number; ordinal: number }>();
   private hidden:()=>boolean;
   constructor(env: RoomEnvironment, board: string, hidden:()=>boolean=()=>false) { this.env = env; this.board = board; this.hidden=hidden; }
@@ -52,7 +54,7 @@ export class Presences {
     const connectionId = this.env.randomId();
     this.holds.set(connectionId, { until: this.env.now() + 5000, ordinal });
     const key = (await this.env.hash(bytes(`presence:${this.board}:${person.id}`))).slice(0, 32);
-    const presence: Presence = { ...placeholder(), connection: connectionId, person: key,
+    const presence: Presence = { ...placeholder(this.firstPage()), connection: connectionId, person: key,
       label: person.label!, role, colour: colours[ordinal % colours.length] };
     return { id: person.id, expiresAt: person.expiresAt, label: person.label, role, epoch, connectionId,
       ordinal, presence, presenceAt: this.env.now(), presenceTimes: [], presenceReal: false };
@@ -66,20 +68,20 @@ export class Presences {
       connection.attach({ ...value, presence: null });
       connection.close(1013); return false;
     }
-    connection.attach({ ...value, presenceAt: this.env.now() });
+    connection.attach({ ...value, presence: value.presence?.page ? value.presence : null, presenceAt: this.env.now() });
     return true;
   }
   list(except: string) {
     if(this.hidden())this.clearSpatial(false);
     return this.env.connections().filter((peer) => peer.attachment().connectionId !== except)
       .filter(peer=>this.visible?.(peer.attachment().connectionId)!==false)
-      .map((peer) => peer.attachment().presence).filter((value): value is Presence => !!value);
+      .map((peer) => peer.attachment().presence).filter((value): value is Presence => !!value?.page);
   }
   async relay(connection: Connection, accepted=false) {
     if(this.gate&&!await this.gate(connection,accepted))return;
     if(this.hidden())this.clearSpatial(false);
     const presence = connection.attachment().presence;
-    if (!presence) return;
+    if (!presence?.page) return;
     for (const peer of this.env.connections()) if (peer.attachment().connectionId !== presence.connection) {
       if(!this.recipient||await this.recipient(connection,peer))send(peer, { kind: "present", ...presence });
     }
@@ -92,6 +94,7 @@ export class Presences {
     connection.attach({ ...value, presenceTimes: times });
     const result = checkPresence(message, size, true);
     if (typeof result === "string") { send(connection, { kind: "refused", reason: result }); return; }
+    if (this.currentPage?.(result.page) === false) return;
     // Stamps survive expiry as attachment fields; the key can be derived again
     // from the retained board/person IDs without keeping the email.
     return this.accept(connection, result, now);

@@ -60,7 +60,7 @@ check(3, 'versions 7, 11 and 12 upgrade deterministically without mutation or an
   }
   const older={...withoutPages(current),schemaVersion:12,retiredGenerations:[current.boardId]};s.validate(s.upgrade(older));
 });
-check(4, 'every type places page immediately after type and adapter pages is one unchanged atomic value', async () => {
+check(4, 'every type places page immediately after type and adapter pageMap rename changes only one name', async () => {
   const s=await subjects(), {richBoard}=await load('tests/import-fixture.mjs'), {makeTape}=await load('apps/web/src/tape.ts'),
     {starterMap}=await load('apps/web/src/mind-map.ts'), {addImages}=await load('apps/web/src/images.ts'), {Adapter}=await load('packages/board-sync/src/document-adapter.ts'), {readBoard}=await load('packages/board-sync/src/codec.ts');
   let b=richBoard(); b={...b,objects:[...b.objects,makeTape(b,{x:0,y:0},{x:100,y:0},'stripes',false,b.boardId)]};
@@ -71,8 +71,8 @@ check(4, 'every type places page immediately after type and adapter pages is one
   assert.equal(new Set(payload.objects.map(o=>o.type)).size,9);
   for(const o of payload.objects) assert.equal(Object.keys(o)[Object.keys(o).indexOf('type')+1],'page');
   const a=new Adapter();a.set(b);const events=[];a.doc.getMap('board').observe(e=>events.push([...e.keysChanged]));
-  const stored=a.doc.getMap('board').get('pages');a.set(structuredClone(b));assert.equal(a.doc.getMap('board').get('pages'),stored);assert.deepEqual(events,[]);
-  b=s.renamePage(b,second.page.id,'Ideas');a.set(b);assert.deepEqual(events,[['pages']]);assert.equal(s.canonical(readBoard(a.doc)),s.canonical(b));
+  const stored=a.doc.getMap('board').get('pageMap');stored.observeDeep(es=>events.push(...es.map(e=>[...e.keysChanged])));a.set(structuredClone(b));assert.equal(a.doc.getMap('board').get('pageMap'),stored);assert.deepEqual(events,[]);
+  b=s.renamePage(b,second.page.id,'Ideas');a.set(b);assert.deepEqual(events,[['name']]);assert.equal(s.canonical(readBoard(a.doc)),s.canonical(b));
   const recreated=new Adapter();recreated.set(readBoard(a.doc));assert.equal(s.canonical(readBoard(recreated.doc)),s.canonical(b));a.destroy();recreated.destroy();
 });
 check(5, 'maximum-size version 12 payload upgrades and all limit checks ignore only page metadata', async () => {
@@ -291,14 +291,14 @@ check(32, 'drag threshold/cancel, invalid rename, remembered reload and hosted c
     h.pages.beginDrag(second,156);h.refresh();h.pages.dragTo(90);h.refresh();h.pages.endDrag();h.refresh();assert.equal(h.doc.board.pages[0].id,second);assert.equal(h.pages.id,first);
     h.pages.rename(second);h.refresh();h.pages.changeName('x\ty');h.refresh();h.pages.finishName(true);h.refresh();assert.equal(h.doc.history.past.length,1);
     h.pages.openPage(second);h.refresh();const other={...s.empty(),title:'Other'};h.doc.load(other);h.refresh();h.doc.load(board);h.refresh();assert.equal(h.pages.id,second);
-    h.hosted=true;h.refresh();assert.equal(h.pages.local,false);assert.equal(h.pages.open,false);
+    h.hosted=true;h.refresh();assert.equal(h.pages.local,true);assert.equal(h.pages.open,false);
   }finally{h.close();}
 });
-check(33, 'room evaluation refuses every pages change with invalid_document and permits an ordinary edit', async () => {
+check(33, 'room evaluation accepts pages changes and refuses only missing-page objects and permits an ordinary edit', async () => {
   const {s,board,first}=await fixture(),{Adapter}=await load('packages/board-sync/src/document-adapter.ts'),{readBoard}=await load('packages/board-sync/src/codec.ts'),{evaluate}=await load('packages/board-room/src/edits.ts'),{NodeStorage}=await load('apps/server/src/node-storage.ts'),{initialize}=await load('packages/board-room/src/storage.ts'),Y=await import('yjs');
   const single=s.deletePage(board,board.pages[1].id,first).board,seed=new Adapter();seed.set(single);const storage=new NodeStorage(':memory:');initialize(storage);
-  try{for(const mutation of [b=>s.addPage(b).board,b=>s.renamePage(b,first,'Renamed'),b=>{const id=crypto.randomUUID();return {...b,pages:[{id,name:'Other'}],objects:b.objects.map(o=>({...o,page:id}))};},b=>({...b,objects:b.objects.map(o=>({...o,page:crypto.randomUUID()}))})]){
-    const client=new Adapter();Y.applyUpdate(client.doc,Y.encodeStateAsUpdate(seed.doc));const vector=Y.encodeStateVector(client.doc);client.set(mutation(readBoard(client.doc)));const result=evaluate(seed.doc,single,Y.encodeStateAsUpdate(client.doc,vector),storage);assert.deepEqual(result,{kind:'refused',reason:'invalid_document'});client.destroy();
+  try{for(const [index,mutation] of [b=>s.addPage(b).board,b=>s.renamePage(b,first,'Renamed'),b=>{const id=crypto.randomUUID();return {...b,pages:[{id,name:'Other'}],objects:b.objects.map(o=>({...o,page:id}))};},b=>({...b,objects:b.objects.map(o=>({...o,page:crypto.randomUUID()}))})].entries()){
+    const client=new Adapter();Y.applyUpdate(client.doc,Y.encodeStateAsUpdate(seed.doc));const vector=Y.encodeStateVector(client.doc);client.set(mutation(readBoard(client.doc)));const result=evaluate(seed.doc,single,Y.encodeStateAsUpdate(client.doc,vector),storage);if(result.kind==='complete')result.doc.destroy();else assert.deepEqual(result,{kind:'refused',reason:'invalid_document'});assert.equal(result.kind,index===3?'refused':'complete');client.destroy();
   }
   const client=new Adapter();Y.applyUpdate(client.doc,Y.encodeStateAsUpdate(seed.doc));const vector=Y.encodeStateVector(client.doc);client.set({...single,title:'Edited'});const result=evaluate(seed.doc,single,Y.encodeStateAsUpdate(client.doc,vector),storage);assert.equal(result.kind,'complete');result.doc.destroy();client.destroy();
   }finally{seed.destroy();storage.close();}

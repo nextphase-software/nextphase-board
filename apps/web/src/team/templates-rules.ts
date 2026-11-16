@@ -25,11 +25,11 @@ export function templateBoard(objects: unknown): BoardV13 {
   if (contentBytes(objects) > TEMPLATE_BYTES) throw Error("This is too large for a template. Select fewer objects.");
   return board;
 }
-export function templateSnapshot(board: BoardV13, selected: ReadonlySet<string>, drawn: Parameters<typeof buildSnapshot>[2]) {
-  return { title: board.title, selected: selected.size > 0,
-    snapshot: buildSnapshot(board, selected.size ? selected : new Set(board.objects.map(o => o.id)), drawn) };
+export function templateSnapshot(board: BoardV13, selected: ReadonlySet<string>, drawn: Parameters<typeof buildSnapshot>[2], page = board.pages[0].id) {
+  return { title: board.title, ...(board.pages.length > 1 ? { pageName: board.pages.find(p => p.id === page)?.name } : {}), selected: selected.size > 0,
+    snapshot: buildSnapshot(board, selected.size ? selected : new Set(board.objects.filter(o => o.page === page).map(o => o.id)), drawn) };
 }
-export const saveLabel = (selected: boolean) => selected ? "Save selection as template" : "Save board as template";
+export const saveLabel = (selected: boolean, multiple = false) => selected ? "Save selection as template" : multiple ? "Save page as template" : "Save board as template";
 export const limitReason = (workspace: string) => `${workspace} has 25 templates, the most it can keep. Delete one to save another.`;
 export function saveReason(commandReason: string, canSave: boolean, count: number, workspace: string, objects: number): string {
   return commandReason || (!canSave ? "Only workspace owners and editors can save templates" : count >= TEMPLATE_LIMIT

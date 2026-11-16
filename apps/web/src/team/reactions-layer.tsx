@@ -92,7 +92,7 @@ export function ReactionTool({ hosted, tool, setTool, scene }: {
     </div>, document.body)}
   </>;
 }
-export function ReactionsLayer({ hosted, scene, view, size }: { hosted: HostedBoard; scene: RefObject<HTMLDivElement | null>; view: View; size: { w: number; h: number } }) {
+export function ReactionsLayer({ hosted, scene, view, size, page }: { hosted: HostedBoard; page: string; scene: RefObject<HTMLDivElement | null>; view: View; size: { w: number; h: number } }) {
   const r = hosted.reactions;
   useSyncExternalStore(r.subscribe, r.getSnapshot);
   const [now, setNow] = useState(Date.now), [reduced, setReduced] = useState(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -127,7 +127,7 @@ export function ReactionsLayer({ hosted, scene, view, size }: { hosted: HostedBo
   }, [hosted, view, size.w, size.h]);
   const rect = scene.current?.getBoundingClientRect(), self = hosted.presence.self;
   return <>
-    {r.bursts.flatMap(b => {
+    {r.bursts.filter(b => b.page === page && (!b.connection || b.connection === hosted.presence.self?.connection || hosted.presence.others.some(p => p.connection === b.connection && p.page === page))).flatMap(b => {
       const origin = screenPoint(b, view, size);
       if (origin.left < 0 || origin.left > size.w || origin.top < 0 || origin.top > size.h) return [];
       return <div key={b.id} className="reaction-burst" aria-hidden="true">{burstCopies({ x: origin.left, y: origin.top }, Math.max(now, b.started) - b.started, reduced).map((copy, i) =>

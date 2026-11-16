@@ -36,7 +36,7 @@ async function write(c:Awaited<ReturnType<typeof join>>,title:string,id=crypto.r
 async function restore(id:string,request?:any){const head=(await list()).head;return ok(path(id)+'/restore','owner','POST',request??{requestId:crypto.randomUUID(),expectedRevision:head.revision,expectedGeneration:head.generation});}
 const check=(id:number,name:string,run:()=>Promise<void>)=>test(`S${id} ${name}`,async()=>{try{f=await helper('removal-fixture');await run();pass++;console.log(`PASS: S${id} ${name}`);}catch(e){fail++;console.log(`FAIL: S${id} ${name}`);throw e;}});
 async function sourceSnapshot(){const result:any={};for(const table of ['threads','comments','comment_ids','comment_counts','mention_targets','mention_pending'])result[table]=await rows(table);return result;}
-function start(text='Current discussion',mentions:any[]=[]){return {action:'start',threadId:crypto.randomUUID(),commentId:crypto.randomUUID(),text,mentions,anchor:{objectId:null,x:12,y:34,u:0,v:0}};}
+function start(text='Current discussion',mentions:any[]=[]){return {action:'start',threadId:crypto.randomUUID(),commentId:crypto.randomUUID(),text,mentions,anchor:{page:f.a,objectId:null,x:12,y:34,u:0,v:0}};}
 async function comment(c:Awaited<ReturnType<typeof join>>,operation:any,id=crypto.randomUUID(),generation=c.joined.restoreGeneration){c.p.send({kind:'comment',epoch:c.joined.epoch,requestId:id,operation,restoreGeneration:generation});return until(()=>c.p.messages.find(m=>m.requestId===id&&['comment_saved','comment_refused'].includes(m.kind)));}
 async function sql(items:any[]){await driver.control({board:f.a,roomSQL:items});}
 async function freshTokens(){for(const person of Object.values(f.people) as any[])person.token=await helper('token',{person,options:{now:Date.now(),exp:Math.floor(Date.now()/1000)+4000000}});}
@@ -50,7 +50,7 @@ function maximalBoard(): BoardV13 {
 }
 
 check(169,'atomic initial/imported capture and idempotent current-layout restart',async()=>{
-  let value=await list();assert.equal(value.versions.length,1);assert.equal(value.versions[0].reason,'initial');assert.equal(value.versions[0].revision,0);assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,7);
+  let value=await list();assert.equal(value.versions.length,1);assert.equal(value.versions[0].reason,'initial');assert.equal(value.versions[0].revision,0);assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,8);
   await driver.wake(f.a);assert.deepEqual((await list()).versions,value.versions);
   const document={...empty(),title:'Import'};
   const imported=await ok(`/workspaces/${f.workspace}/boards`,'owner','POST',{title:'Import',document},201);

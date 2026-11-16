@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 
 function connection(id, person = id, patch = {}) {
   return { connection: id, person, label: id, role: "editor", colour: "#8c3caa",
-    cursor: null, selection: [], view: { x: 0, y: 0, width: 1280, height: 800 }, active: true, ...patch };
+    page: "11111111-1111-4111-8111-111111111111", cursor: null, selection: [], view: { x: 0, y: 0, width: 1280, height: 800 }, active: true, ...patch };
 }
 
 test("presence groups your person first and retains every connection in learnt order", async () => {
@@ -61,8 +61,8 @@ test("presence sends the first 250 selected IDs in their own order", async () =>
 
 test("outgoing presence converts the scene to a board rectangle and preserves visibility", async () => {
   const { presenceToSend } = await import("../apps/web/src/team/presence.ts");
-  assert.deepEqual(presenceToSend(null, [], { x: 100, y: -50, z: 2 }, { w: 1280, h: 800 }, false), {
-    cursor: null, selection: [], view: { x: -220, y: -250, width: 640, height: 400 }, active: false,
+  assert.deepEqual(presenceToSend(null, [], { x: 100, y: -50, z: 2 }, { w: 1280, h: 800 }, false, "11111111-1111-4111-8111-111111111111"), {
+    page: "11111111-1111-4111-8111-111111111111", cursor: null, selection: [], view: { x: -220, y: -250, width: 640, height: 400 }, active: false,
   });
 });
 

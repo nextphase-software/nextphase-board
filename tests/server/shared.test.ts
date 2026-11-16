@@ -14,7 +14,7 @@ type Fixture = { workspace: string; a: string; b: string; people: Context["peopl
 type Client = Awaited<ReturnType<typeof join>>;
 let driver: Driver, f: Fixture, pass = 0, fail = 0;
 const clients: Client[] = [], measures: Record<string, unknown> = {};
-const presence = (): PresenceInput => ({ cursor: { x: 10, y: 20 }, selection: [], view: { x: 0, y: 0, width: 100, height: 100 }, active: true });
+const presence = (): PresenceInput => ({ page: f.a, cursor: { x: 10, y: 20 }, selection: [], view: { x: 0, y: 0, width: 100, height: 100 }, active: true });
 const clock = { now: Date.now, after(ms: number, run: () => void) { const timer = setTimeout(run, ms); return () => clearTimeout(timer); } };
 beforeAll(async () => { if (runner !== "docker") driver = await makeDriver(context); });
 afterEach(async () => {
@@ -544,7 +544,7 @@ type DiscussionClient = { session: BoardSession; peer: Peer; peers: Peer[]; out:
 async function discussionJoin(name = "editor"): Promise<DiscussionClient> { return join(name); }
 async function discussionAll(): Promise<readonly [DiscussionClient, DiscussionClient, DiscussionClient]> { return all(); }
 type CommentOperation = import("../../packages/board-sync/src/comments.ts").CommentOperation;
-const boardAnchor = (x = 20, y = 30) => ({ objectId: null, u: 0, v: 0, x, y });
+const boardAnchor = (x = 20, y = 30) => ({ page: f.a, objectId: null, u: 0, v: 0, x, y });
 const startComment = (text = "Pick the launch date"): Extract<CommentOperation, { action: "start" }> => ({
   action: "start", threadId: crypto.randomUUID(), commentId: crypto.randomUUID(), anchor: boardAnchor(), text,
 });
@@ -600,14 +600,14 @@ async function longCommentTokens() {
 }
 check(121, "current layout 7 creation is idempotent across restart with edits and receipts kept", async () => {
   const a = await discussionJoin(); await commentsReady(a); await seed(a);
-  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 7);
+  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 8);
   const before = await exported(), edits = await driver.rows(f.a, "edits"), receipts = await driver.rows(f.a, "receipts");
   const envelope = await backupComments();
   await a.peer.close();
   for (let attempt = 0; attempt < 2; attempt++) {
     await driver.wake(f.a);
     const reopened = await discussionJoin(); await commentsReady(reopened);
-    assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 7);
+    assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 8);
     assert.equal(await exported(), before); assert.deepEqual(await driver.rows(f.a, "edits"), edits);
     assert.deepEqual(await driver.rows(f.a, "receipts"), receipts);
     assert((await driver.rows(f.a, "receipts")).every((row) => row.kind === "edit"));
@@ -617,7 +617,7 @@ check(121, "current layout 7 creation is idempotent across restart with edits an
   assert.deepEqual(await driver.rows(f.a, "meta"), once);
   await restoreComments(envelope); const restored = await discussionJoin(); await commentsReady(restored);
   assert.equal(await exported(), before); assert.equal(restored.session.threads.size, 0);
-  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 7);
+  assert.equal((await driver.rows(f.a, "meta")).find((row) => row.key === "storage_version").value, 8);
 });
 check(122, "every comment action broadcasts once before its answer and leaves board edits alone", async () => {
   const [a, b, c] = await discussionAll(); await Promise.all([a, b, c].map(commentsReady)); await seed(a); await equal([a, b, c]);
@@ -726,7 +726,7 @@ check(127, "snapshots are contiguous ordered durable and restored with counts an
 });
 check(128, "anchors move in edit transactions and deletion detaches once without undo reattachment", async () => {
   const [a, b, c] = await discussionAll(); await seed(b); await equal([a, b, c]);
-  const object = b.session.board.objects[0], start = { ...startComment(), anchor: { objectId: object.id, u: .25, v: .75, x: 0, y: 0 } };
+  const object = b.session.board.objects[0], start = { ...startComment(), anchor: { page: f.a, objectId: object.id, u: .25, v: .75, x: 0, y: 0 } };
   await commentResult(a, start); await commentsEqual([a, b, c]);
   const counts = [a, b, c].map((client) => client.peer.messages.filter((message) => message.kind === "comment_changed").length);
   await edit(b, (board) => patch(board, { x: 50, y: 60, width: 400, height: 200, text: "New label" })); await equal([a, b, c]);
@@ -741,7 +741,7 @@ check(128, "anchors move in edit transactions and deletion detaches once without
     assert(client.peer.messages.indexOf(frames[0]) > editFrame);
   }
   await saved(b, b.session.undo()); await equal([a, b, c]); assert.notEqual(b.session.board.objects[0].id, object.id);
-  await commentResult(a, { action: "move", threadId: start.threadId, anchor: { objectId: b.session.board.objects[0].id, u: .5, v: .5, x: 700, y: 800 } });
+  await commentResult(a, { action: "move", threadId: start.threadId, anchor: { page: f.a, objectId: b.session.board.objects[0].id, u: .5, v: .5, x: 700, y: 800 } });
   assert.equal(JSON.parse((await driver.rows(f.a, "threads"))[0].anchor).detached, true);
   await commentResult(a, { action: "reopen", threadId: start.threadId });
   await rawComment(a, { ...startComment(), anchor: start.anchor }, "anchor_deleted");
@@ -755,7 +755,7 @@ check(128, "anchors move in edit transactions and deletion detaches once without
       await edit(b, (board) => patch(board, { section: sectionId }, board.objects.findIndex((object) => object.id === added.id)));
       await equal([a, b, c]);
     }
-    const attached = { ...startComment(), anchor: { objectId: added.id, u: .5, v: .5, x: 0, y: 0 } }; await commentResult(a, attached);
+    const attached = { ...startComment(), anchor: { page: f.a, objectId: added.id, u: .5, v: .5, x: 0, y: 0 } }; await commentResult(a, attached);
     if (section) await edit(b, (board) => remove(board, [sectionId, added.id])); else await saved(b, b.session.undo());
     await until(() => a.session.threads.get(attached.threadId)?.anchor.detached, Boolean);
   }
@@ -894,7 +894,7 @@ check(134, "import creates an independent rich board at revision zero with durab
   const rows = await orderedIdentifiers(details.id); assert.deepEqual(rows, identifierRows(expected));
   const metadata = await driver.rows(details.id, "meta");
   const values = Object.fromEntries(metadata.map((row) => [row.key, row.value]));
-  assert.equal(values.storage_version, 7); assert.equal(values.revision, 0); assert.equal(values.board_id, details.id);
+  assert.equal(values.storage_version, 8); assert.equal(values.revision, 0); assert.equal(values.board_id, details.id);
   client.session.close(); for (const peer of client.peers) await peer.close();
   await driver.wake(details.id);
   const reopened = await join("editor", details.id);

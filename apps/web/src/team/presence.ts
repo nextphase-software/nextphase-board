@@ -6,6 +6,7 @@ export type PresenceInput = {
   selection: string[];
   view: { x: number; y: number; width: number; height: number };
   active: boolean;
+  page: string;
 };
 export type Presence = PresenceInput & {
   connection: string; person: string; label: string;
@@ -46,7 +47,7 @@ export function cutSelection(selection: Iterable<string>): string[] {
 
 const coordinate = (value: number) => Math.max(-1e6, Math.min(1e6, value));
 export function presenceToSend(
-  cursor: PresenceInput["cursor"], selection: Iterable<string>, view: View, size: Size, active: boolean,
+  cursor: PresenceInput["cursor"], selection: Iterable<string>, view: View, size: Size, active: boolean, page: string,
 ): PresenceInput {
   return {
     cursor: cursor ? { x: coordinate(cursor.x), y: coordinate(cursor.y) } : null,
@@ -57,7 +58,7 @@ export function presenceToSend(
       width: Math.min(1e6, size.w / view.z),
       height: Math.min(1e6, size.h / view.z),
     },
-    active,
+    active, page,
   };
 }
 

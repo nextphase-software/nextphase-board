@@ -5,7 +5,7 @@ import { MentionEditor, MentionText } from "./mention-editor";
 import { TeamDialog } from "../dialog";
 import { CommentIcon } from "./icons";
 import { authorColour, deleteBody, detachedWords, lengthWords, normalizeText, refusalWords, requestNote,
-  textLength, textProblem, timeWords, words, type CommentOperation, type CommentThread, type MentionDraft } from "./rules";
+  onWords, textLength, textProblem, timeWords, words, type CommentOperation, type CommentThread, type MentionDraft } from "./rules";
 
 export type Draft = MentionDraft & { request?: string; note?: string };
 export function CommentField({ hosted, draft, change, operation, saved, cancel, label = "Reply", edit = false, locked = false, autoFocus = true }: {
@@ -137,7 +137,7 @@ export function CommentCard({ hosted, thread, exists, deletedBy, resolvedBy, sty
         operation={() => ({ action: "edit", threadId: thread.id, commentId: editing.id, text: editing.draft.text })}
         saved={() => {}} label="Unposted edit" edit locked /></div>}
     </> : <>
-      {thread.anchor.detached && <div className="comment-detached-line">{!landing && <CommentIcon name="unlink" />}{detachedWords(thread)}</div>}
+      {(thread.anchor.detached || !hosted.snapshot.board?.pages.some(p => p.id === thread.anchor.page)) && <div className="comment-detached-line">{!landing && <CommentIcon name="unlink" />}{hosted.snapshot.board && !hosted.snapshot.board.pages.some(p => p.id === thread.anchor.page) ? onWords(thread, hosted.snapshot.board, hosted.page) : detachedWords(thread)}</div>}
       {thread.comments.map((comment) => <div className={"comment-row"+(target===comment.id?" w2-target":"")} data-comment={comment.id} key={comment.id}>
         <span className="comment-avatar" style={{ background: authorColour(comment.person) }}>{comment.label[0]?.toUpperCase()}</span>
         <span className="comment-who"><span className="comment-name">{comment.label}</span><span className="comment-time">{timeWords(comment.createdAt)}{comment.editedAt !== null ? " · edited" : ""}</span></span>

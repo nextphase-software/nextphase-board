@@ -19,7 +19,7 @@ export function boards(app: ServerApp, runtime: Runtime) {
     if (imported) {
       try {
         const board = validate(value.document);
-        if (board.schemaVersion !== 13 || board.pages?.length !== 1) throw Error();
+        if (board.schemaVersion !== 13) throw Error();
         document = board as BoardV13;
       } catch { throw new RoomError(400, "invalid_document"); }
       try {

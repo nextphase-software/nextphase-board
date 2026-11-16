@@ -7,10 +7,10 @@ import { meta, type Storage, type Row } from './storage.ts';
 import { bytes, MESSAGE_LIMIT, rank, RoomError, send, type Connection } from './protocol.ts';
 import { closeCode } from './access.ts';
 import type { Room } from './room.ts';
-export const voteColumns=['singleton','status','session_id','session_version','prompt','budget','targets','totals'];
+export const voteColumns=['singleton','status','session_id','session_version','prompt','budget','targets','page','totals'];
 export const ballotColumns=['person_id','session_id','version','colour','targets'];
 export function sessionOf(row:Row):VoteSession {
-  return {status:row.status as VoteSession['status'],sessionId:row.session_id as string|null,sessionVersion:row.session_version as number,prompt:row.prompt as string,budget:row.budget as number,targets:JSON.parse(String(row.targets)),totals:row.totals===null?null:JSON.parse(String(row.totals))};
+  return {status:row.status as VoteSession['status'],sessionId:row.session_id as string|null,sessionVersion:row.session_version as number,prompt:row.prompt as string,budget:row.budget as number,targets:JSON.parse(String(row.targets)),page:row.page as string|null,totals:row.totals===null?null:JSON.parse(String(row.totals))};
 }
 export function votingRow(s:Storage):Row {
   const rows=s.all('SELECT * FROM workshop_vote'),row=rows[0];
@@ -24,9 +24,9 @@ export function ballotOf(row:Row,session:VoteSession):VoteOwn {
   return own;
 }
 export function writeVoting(s:Storage,t:VoteSession) {
-  const row={singleton:1,status:t.status,session_id:t.sessionId,session_version:t.sessionVersion,prompt:t.prompt,budget:t.budget,targets:JSON.stringify(t.targets),totals:t.totals===null?null:JSON.stringify(t.totals)};
+  const row={singleton:1,status:t.status,session_id:t.sessionId,session_version:t.sessionVersion,prompt:t.prompt,budget:t.budget,targets:JSON.stringify(t.targets),page:t.page,totals:t.totals===null?null:JSON.stringify(t.totals)};
   if(!voteSession(t)||voteBytes(row)>65536)throw Error('Voting bounds');
-  s.exec('INSERT INTO workshop_vote VALUES (1,?,?,?,?,?,?,?) ON CONFLICT(singleton) DO UPDATE SET status=excluded.status,session_id=excluded.session_id,session_version=excluded.session_version,prompt=excluded.prompt,budget=excluded.budget,targets=excluded.targets,totals=excluded.totals',t.status,t.sessionId,t.sessionVersion,t.prompt,t.budget,row.targets,row.totals);
+  s.exec('INSERT INTO workshop_vote (singleton,status,session_id,session_version,prompt,budget,targets,page,totals) VALUES (1,?,?,?,?,?,?,?,?) ON CONFLICT(singleton) DO UPDATE SET status=excluded.status,session_id=excluded.session_id,session_version=excluded.session_version,prompt=excluded.prompt,budget=excluded.budget,targets=excluded.targets,page=excluded.page,totals=excluded.totals',t.status,t.sessionId,t.sessionVersion,t.prompt,t.budget,row.targets,t.page,row.totals);
 }
 export function writeBallot(s:Storage,person:string,t:VoteSession,own:VoteOwn) {
   const row={person_id:person,session_id:t.sessionId,version:own.ballotVersion,colour:own.colour,targets:JSON.stringify(own.targets)};
@@ -75,7 +75,7 @@ export class WorkshopVoting {
   // Stage the entire target/refund update before opening the synchronous transaction.
   reconcileTargets() {
     const t=this.validate();if(t.status!=='running')return false;
-    const targets=t.targets.filter(p=>this.host.board.objects.some(o=>sameTarget(p,[o.id,o.generation])&&eligibleVote(o)));
+    const targets=t.targets.filter(p=>this.host.board.objects.some(o=>sameTarget(p,[o.id,o.generation])&&o.page===t.page&&eligibleVote(o)));
     if(targets.length===t.targets.length)return false;
     const next={...t,targets},rows=this.s.all('SELECT * FROM workshop_vote_ballots');
     const changed=rows.map(row=>{
@@ -135,9 +135,10 @@ export class WorkshopVoting {
     if(command.action==='start') {
       if(t.status!=='idle')return 'vote_state';
       if(t.sessionVersion===Number.MAX_SAFE_INTEGER)return 'vote_bounds';
-      const targets=this.host.board.objects.filter(eligibleVote).sort((a,b)=>a.order-b.order||a.id.localeCompare(b.id)).map((o,i)=>[o.id,o.generation,i] as [string,string,number]);
+      if(!this.host.board.pages.some(p=>p.id===command.page))return 'vote_ineligible';
+      const targets=this.host.board.objects.filter(o=>o.page===command.page&&eligibleVote(o)).sort((a,b)=>a.order-b.order||a.id.localeCompare(b.id)).map((o,i)=>[o.id,o.generation,i] as [string,string,number]);
       if(!targets.length||targets.length>250)return 'vote_ineligible';
-      return {status:'running',sessionId:this.host.env.randomId(),sessionVersion:t.sessionVersion+1,prompt:command.prompt.trim(),budget:command.budget,targets,totals:null};
+      return {status:'running',sessionId:this.host.env.randomId(),sessionVersion:t.sessionVersion+1,prompt:command.prompt.trim(),budget:command.budget,page:command.page,targets,totals:null};
     }
     if(command.action==='clear'||command.action==='reveal') {
       if(t.status!==(command.action==='clear'?'revealed':'running'))return 'vote_state';

@@ -8,7 +8,7 @@ export interface Storage {
 }
 // The same SQL and columns are used by node:sqlite and Durable Object SQLite.
 export const tables: Record<string, string[]> = {
-  workshop_vote: ["singleton","status","session_id","session_version","prompt","budget","targets","totals"],
+  workshop_vote: ["singleton","status","session_id","session_version","prompt","budget","targets","page","totals"],
   workshop_vote_ballots: ["person_id","session_id","version","colour","targets"],
   workshop_timer: ["singleton", "status", "duration_ms", "ends_at_server_ms", "remaining_ms", "version", "timer_id", "last_actor"],
   meta: ["key", "value"],
@@ -56,10 +56,11 @@ export function initialize(storage: Storage) {
     storage.exec('CREATE TABLE IF NOT EXISTS history_requests (person_id TEXT, request_id TEXT, digest TEXT NOT NULL, operation TEXT NOT NULL, result TEXT NOT NULL, PRIMARY KEY(person_id, request_id))');
     storage.exec('CREATE TABLE IF NOT EXISTS history_intent_chunks (person_id TEXT, request_id TEXT, kind TEXT, chunk_index INTEGER, bytes BLOB NOT NULL, PRIMARY KEY(person_id, request_id, kind, chunk_index))');
     storage.exec("CREATE TABLE IF NOT EXISTS workshop_timer (singleton INTEGER PRIMARY KEY CHECK(singleton=1), status TEXT NOT NULL, duration_ms INTEGER NOT NULL, ends_at_server_ms INTEGER, remaining_ms INTEGER, version INTEGER NOT NULL, timer_id TEXT, last_actor TEXT)");
-    storage.exec("CREATE TABLE IF NOT EXISTS workshop_vote (singleton INTEGER PRIMARY KEY CHECK(singleton=1), status TEXT NOT NULL, session_id TEXT, session_version INTEGER NOT NULL, prompt TEXT NOT NULL, budget INTEGER NOT NULL, targets TEXT NOT NULL, totals TEXT)");
+    storage.exec("CREATE TABLE IF NOT EXISTS workshop_vote (singleton INTEGER PRIMARY KEY CHECK(singleton=1), status TEXT NOT NULL, session_id TEXT, session_version INTEGER NOT NULL, prompt TEXT NOT NULL, budget INTEGER NOT NULL, targets TEXT NOT NULL, page TEXT, totals TEXT)");
     storage.exec("CREATE TABLE IF NOT EXISTS workshop_vote_ballots (person_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, version INTEGER NOT NULL, colour TEXT NOT NULL, targets TEXT NOT NULL)");
+    if (!storage.all("PRAGMA table_info(workshop_vote)").some(row => row.name === "page")) storage.exec("ALTER TABLE workshop_vote ADD COLUMN page TEXT");
     const version = meta(storage, "storage_version");
-    if (version !== 0 && version !== 7) throw Error("storage_unsupported");
+    if (version !== 0 && version !== 7 && version !== 8) throw Error("storage_unsupported");
   });
 }
 export function meta(storage: Storage, key: string): number {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { HostedBoard, ReactionEvent, ReactionId } from './hosted-board';
 import { capBursts, clientBudget, reactionDisabled, reactionFrame, validReaction, validReacted, type Point } from './reactions-rules.ts';
-export type Burst = Point & { id: number; reaction: ReactionId; label: string; colour: string; started: number };
+export type Burst = Point & { id: number; reaction: ReactionId; label: string; colour: string; started: number; page: string; connection?: string };
 export class BoardReactions {
   armed?: ReactionId;
   wheel?: { left: number; top: number };
@@ -42,8 +42,8 @@ export class BoardReactions {
     const live = this.bursts.filter(b => now - b.started < (reduced ? 1400 : 1600));
     if (live.length !== this.bursts.length) { this.bursts = live; this.changed(); }
   }
-  private burst(reaction: ReactionId, x: number, y: number, sender: { label: string; colour: string }, now: number) {
-    this.expire(now); this.bursts = capBursts([...this.bursts, { id: ++this.serial, reaction, x, y, label: sender.label, colour: sender.colour, started: now }]); this.changed();
+  private burst(reaction: ReactionId, x: number, y: number, sender: { label: string; colour: string; connection?: string }, now: number) {
+    this.expire(now); this.bursts = capBursts([...this.bursts, { id: ++this.serial, reaction, x, y, label: sender.label, colour: sender.colour, started: now, page: this.host.page, connection: sender.connection }]); this.changed();
   }
   send(x: number, y: number, now = Date.now()) {
     const id = this.armed, self = this.host.presence.self;
@@ -57,7 +57,7 @@ export class BoardReactions {
     if (event.kind === 'reactions_clear') { this.clear(); return; }
     if (this.disabledReason || !validReacted(event)) return;
     const sender = this.host.presence.others.find(p => p.connection === event.connection);
-    if (sender) this.burst(event.reaction, event.x, event.y, sender, now);
+    if (sender && sender.page === this.host.page) this.burst(event.reaction, event.x, event.y, sender, now);
   }
   // Spotlight uses this before its existing leave handlers. Event capture itself
   // remains in the reaction layer, ahead of the canvas editing handlers.

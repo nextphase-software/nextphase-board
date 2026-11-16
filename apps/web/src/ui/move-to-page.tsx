@@ -3,8 +3,8 @@ import type { Pages } from '../find';
 import { Icon } from '../icons';
 import { menuKeys } from './pages-panel';
 export function MoveToPage({ pages, selected, reason }: { pages: Pages; selected: ReadonlySet<string>; reason: string }) {
-  if (!pages.local || pages.list.length < 2) return null;
-  const disabled = reason || (!pages.movedCount(selected) ? 'Select an object to move.' : '');
+  if (!pages.local || !pages.canEdit || pages.list.length < 2) return null;
+  const disabled = pages.voteReason(pages.id) || reason || (!pages.movedCount(selected) ? 'Select an object to move.' : '');
   const anchor = pages.moveButton.current?.getBoundingClientRect();
   return <span className="move-page-control">
     <button ref={pages.moveButton} className={'icon-button move-page-button' + (pages.moveOpen ? ' page-active' : '')} aria-label="Move to page" title={disabled || 'Move to page'} disabled={!!disabled}

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { BoardV12, ItemV12 } from "nextphase-board-rules/document.ts";
+import type { BoardV13, ItemV13 } from "nextphase-board-rules/document.ts";
 import { hasRectangle, isMindNode, labelPrefix, orderBand } from "nextphase-board-rules/objects/registry.ts";
 
 export type Point = { x: number; y: number };
-export type AnchorInput = Point & { objectId: string | null; u: number; v: number };
-export type Anchor = AnchorInput & { detached: boolean; objectLabel: string; objectType: string };
+export type AnchorInput = Point & { objectId: string | null; u: number; v: number; page: string };
+export type Anchor = AnchorInput & { pageName: string; detached: boolean; objectLabel: string; objectType: string };
 export type Mention = { start: number; end: number; person: string; label: string };
 export type Candidate = { person: string; label: string; suffix: string };
 export type Comment = { id: string; threadId: string; person: string; label: string; text: string;
@@ -34,37 +34,40 @@ export function authorColour(person: string) {
   for (const character of person) hash = (Math.imul(hash, 31) + character.codePointAt(0)!) >>> 0;
   return commentColours[hash % 8];
 }
-export function nameObject(object: ItemV12) {
+export function nameObject(object: ItemV13) {
   const objectType = object.type === "tape" ? "washi tape" : object.type === "stroke" ? "drawing" : isMindNode(object) ? labelPrefix(object) : object.type;
   const text = "text" in object ? object.text ?? "" : "";
   const label = text.slice(0, 120).replace(/[\x00-\x1f\x7f-\x9f]/g, " ");
   return { objectType, objectLabel: label.trim() ? label : objectType[0].toUpperCase() + objectType.slice(1) };
 }
-export function drawingOrder(a: ItemV12, b: ItemV12) {
+export function drawingOrder(a: ItemV13, b: ItemV13) {
   return orderBand(a) - orderBand(b) || a.order - b.order;
 }
-export function anchorAt(board: BoardV12, point: Point, onConnector = false): Anchor {
+export function anchorAt(board: BoardV13, point: Point, onConnector = false, page = board.pages[0].id): Anchor {
   const object = !onConnector && [...board.objects].sort(drawingOrder).reverse().find((object) =>
-    hasRectangle(object) && point.x >= object.x && point.x <= object.x + object.width &&
+    object.page === page && hasRectangle(object) && point.x >= object.x && point.x <= object.x + object.width &&
     point.y >= object.y && point.y <= object.y + object.height);
-  if (!object || !hasRectangle(object)) return { ...point, objectId: null, u: 0, v: 0,
+  if (!object || !hasRectangle(object)) return { ...point, page, pageName: board.pages.find(p => p.id === page)?.name ?? "", objectId: null, u: 0, v: 0,
     detached: false, objectLabel: "", objectType: "" };
   const clamp = (value: number) => Math.max(0, Math.min(1, value));
-  return { ...point, objectId: object.id, u: clamp((point.x - object.x) / object.width),
+  return { ...point, page, pageName: board.pages.find(p => p.id === page)?.name ?? "", objectId: object.id, u: clamp((point.x - object.x) / object.width),
     v: clamp((point.y - object.y) / object.height), detached: false, ...nameObject(object) };
 }
-export function anchorPoint(anchor: Anchor, board: BoardV12): Point {
+export function anchorPoint(anchor: Anchor, board: BoardV13): Point {
   const object = !anchor.detached && board.objects.find((object) => object.id === anchor.objectId);
   return object && hasRectangle(object) ? { x: object.x + object.width * anchor.u,
     y: object.y + object.height * anchor.v } : { x: anchor.x, y: anchor.y };
 }
-export function detachAnchor(anchor: Anchor, before: BoardV12, after: BoardV12): Anchor {
-  if (anchor.detached || anchor.objectId === null) return anchor;
-  const object = before.objects.find((object) => object.id === anchor.objectId);
-  if (!after.objects.some((object) => object.id === anchor.objectId)) {
-    return { ...anchor, ...anchorPoint(anchor, before), detached: true, ...(object ? nameObject(object) : {}) };
-  }
-  return { ...anchor, ...anchorPoint(anchor, after) };
+export function detachAnchor(anchor: Anchor, before: BoardV13, after: BoardV13): Anchor {
+  const first = before.pages[0], page = anchor.page ?? first.id;
+  anchor = { ...anchor, page, pageName: before.pages.find(p => p.id === page)?.name ?? anchor.pageName ?? first.name };
+  const live = !anchor.detached && after.objects.find(o => o.id === anchor.objectId);
+  const current = live ? live.page : page;
+  const next = { ...anchor, page: current, pageName: after.pages.find(p => p.id === current)?.name ?? anchor.pageName };
+  if (anchor.detached || anchor.objectId === null) return next;
+  const object = before.objects.find(o => o.id === anchor.objectId);
+  return live ? { ...next, ...anchorPoint(anchor, after) }
+    : { ...next, ...anchorPoint(anchor, before), detached: true, ...(object ? nameObject(object) : {}) };
 }
 export function visibleThreads(threads: Iterable<CommentThread>, person: string, showResolved = false, onlyYours = false) {
   return [...threads].filter((thread) => (showResolved || !thread.resolved) &&

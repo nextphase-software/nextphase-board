@@ -3,7 +3,7 @@ import type { HostedBoard, VoteProjection, VoteFrame, VoteCommand } from './host
 import type { ItemV12 } from 'nextphase-board-rules/document.ts';
 import { ownBallot, remainingWords, targetMatches, validQuestion, validBudget, voteKey, eligibleVote } from './voting-rules.ts';
 type Health='connecting'|'ready'|'checking'|'disconnected';
-type CommandInput={action:'start';prompt:string;budget:number}|{action:'vote'|'unvote';objectId:string;objectGeneration:string;expectedBallotVersion:number}|{action:'reveal'|'clear'};
+type CommandInput={action:'start';prompt:string;budget:number;page:string}|{action:'vote'|'unvote';objectId:string;objectGeneration:string;expectedBallotVersion:number}|{action:'reveal'|'clear'};
 export class BoardVoting {
   projection?:VoteProjection;health:Health='connecting';generation=0;mode=false;setup=false;question='';budget=3;selected='';hover='';
   confirmation:{sessionId:string|null;sessionVersion:number;action:'reveal'|'clear'}|null=null;
@@ -24,7 +24,12 @@ export class BoardVoting {
   get running(){return this.projection?.session.status==='running';}
   get canManage(){return this.host.snapshot.role==='owner'||this.host.snapshot.role==='editor';}
   get ready(){return this.health==='ready'&&!!this.projection&&this.host.snapshot.connected;}
-  get canInput(){return this.ready&&this.canManage&&this.running&&!!ownBallot(this.projection)&&!this.host.history.previewing&&!this.host.history.locked&&!this.host.history.rejoining;}
+  pageChanged(){if(this.projection?.session.page!==this.page){this.mode=false;this.hover='';this.press=undefined;}this.emit();}
+  get page(){return this.host.page;}
+  get pages(){return this.host.snapshot.board?.pages ?? [];}
+  get pageObjects(){return this.host.snapshot.board?.objects.filter(o=>o.page===this.page) ?? [];}
+  goToPage(){const page=this.projection?.session.page;if(page && this.host.openPage?.(page) && this.canInput && !this.mode)this.toggleMode();}
+  get canInput(){return this.projection?.session.page===this.page&&this.ready&&this.canManage&&this.running&&!!ownBallot(this.projection)&&!this.host.history.previewing&&!this.host.history.locked&&!this.host.history.rejoining;}
   get status(){return this.health==='connecting'?'Connecting voting…':this.health==='checking'?'Checking vote…':this.health==='disconnected'?'Voting disconnected. Reconnecting…':'';}
   get uncertain(){return this.health!=='ready';}
   setDraft(question:string,budget=this.budget){this.question=question;this.budget=budget;this.emit();}
@@ -37,7 +42,7 @@ export class BoardVoting {
   confirm(action:'reveal'|'clear'){if(!this.ready||!this.canManage||this.projection?.session.status!==(action==='reveal'?'running':'revealed'))return;const s=this.projection!.session;this.confirmation={sessionId:s.sessionId,sessionVersion:s.sessionVersion,action};this.emit();}
   cancelConfirm(){this.confirmation=null;this.emit();}
   confirmCommand(){const c=this.confirmation,s=this.projection?.session;if(!c||!s||c.sessionId!==s.sessionId||c.sessionVersion!==s.sessionVersion){this.cancelConfirm();return;}this.command({action:c.action});}
-  start(){if(!this.host.history.previewing&&this.projection?.session.status==='idle'&&validQuestion(this.question)&&validBudget(this.budget))this.command({action:'start',prompt:this.question,budget:this.budget});}
+  start(){if(!this.host.history.previewing&&this.projection?.session.status==='idle'&&validQuestion(this.question)&&validBudget(this.budget))this.command({action:'start',prompt:this.question,budget:this.budget,page:this.page} as CommandInput);}
   toggleTarget(o?:ItemV12,remove?:boolean){
     const own=ownBallot(this.projection);if(!this.canInput||!o||!own||!eligibleVote(o)||!this.projection!.session.targets.some(t=>targetMatches(t,o)))return;
     const voted=own.targets.some(t=>targetMatches(t,o));if(remove===true&&!voted||remove===false&&(voted||!own.remaining))return;
@@ -99,17 +104,17 @@ export class BoardVoting {
   accessChanged(){this.clear();this.disposed=false;this.admitted=true;this.loss=true;this.health='disconnected';this.emit();}
   disconnect(){if(this.disposed)return;this.clearTimers();this.health=this.admitted?'disconnected':'connecting';this.pending=undefined;this.read=undefined;this.confirmation=null;this.press=undefined;if(this.admitted&&!this.loss){this.loss=true;this.speak('Voting disconnected. Reconnecting…');}if(this.host.snapshot.connected)this.at('sample',15000,()=>this.sample());this.emit();}
   key(e:{key:string;repeat?:boolean;altKey?:boolean;ctrlKey?:boolean;metaKey?:boolean;shiftKey?:boolean;nativeEvent:{isComposing?:boolean};preventDefault():void;stopPropagation():void},selected:Iterable<string>){
-    if(!this.mode)return false;
+    if(!this.mode||this.projection?.session.page!==this.page)return false;
     if(e.key==='Escape'&&!e.nativeEvent.isComposing){e.preventDefault();e.stopPropagation();this.exit();return true;}
     if(e.key==='Enter'){e.preventDefault();e.stopPropagation();if(voteKey({...e,isComposing:e.nativeEvent.isComposing})){const ids=[...selected];const id=ids.length===1?ids[0]:undefined;this.toggleTarget(this.host.snapshot.board?.objects.find(o=>o.id===id));}return true;}
     return e.key!==' ';
   }
   pointerDown(e:{clientX:number;clientY:number;pointerId:number;isPrimary:boolean;altKey:boolean;ctrlKey:boolean;metaKey:boolean;shiftKey:boolean},o?:ItemV12){
-    if(!this.mode)return false;this.press=undefined;
+    if(!this.mode||this.projection?.session.page!==this.page)return false;this.press=undefined;
     if(this.canInput&&e.isPrimary&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&o)this.press={id:o.id,x:e.clientX,y:e.clientY,pointer:e.pointerId};return true;
   }
-  pointerMove(e:{clientX:number;clientY:number},o?:ItemV12){if(!this.mode)return false;if(this.press&&Math.hypot(e.clientX-this.press.x,e.clientY-this.press.y)>=3)this.press=undefined;const id=o?.id??'';if(id!==this.hover){this.hover=id;this.emit();}return true;}
-  pointerUp(e:{clientX:number;clientY:number;pointerId:number},o?:ItemV12){if(!this.mode)return false;const p=this.press;this.press=undefined;if(p&&p.pointer===e.pointerId&&p.id===o?.id&&Math.hypot(e.clientX-p.x,e.clientY-p.y)<3)this.toggleTarget(o);return true;}
+  pointerMove(e:{clientX:number;clientY:number},o?:ItemV12){if(!this.mode||this.projection?.session.page!==this.page)return false;if(this.press&&Math.hypot(e.clientX-this.press.x,e.clientY-this.press.y)>=3)this.press=undefined;const id=o?.id??'';if(id!==this.hover){this.hover=id;this.emit();}return true;}
+  pointerUp(e:{clientX:number;clientY:number;pointerId:number},o?:ItemV12){if(!this.mode||this.projection?.session.page!==this.page)return false;const p=this.press;this.press=undefined;if(p&&p.pointer===e.pointerId&&p.id===o?.id&&Math.hypot(e.clientX-p.x,e.clientY-p.y)<3)this.toggleTarget(o);return true;}
   cancelPointer(){this.press=undefined;this.hover='';this.emit();}
   clear(){this.disposed=true;this.clearTimers();if(typeof document!=='undefined')document.removeEventListener('visibilitychange',this.foreground);this.projection=undefined;this.health='connecting';this.mode=false;this.setup=false;this.question='';this.budget=3;this.selected='';this.hover='';this.confirmation=null;this.announcement='';this.error='';this.onEnter=undefined;this.onNavigate=undefined;this.sequence=0;this.pending=undefined;this.read=undefined;this.loss=false;this.admitted=false;this.press=undefined;this.seed();this.emit();}
 }

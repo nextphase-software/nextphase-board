@@ -4,6 +4,7 @@ import { placementTool } from "nextphase-board-rules/objects/registry.ts";
 import type { Board as SavedBoard } from "nextphase-board-rules/document.ts";
 
 type Props = {
+  hosted?: boolean;
   pages: import("../find").Pages;
   showNotice: boolean;
   visibleMessage: string;
@@ -21,8 +22,9 @@ type Props = {
 
 export function Notice({
   showNotice, visibleMessage, invalidFields, busy, tool, readOnly, snapshots, reopen, composing,
-  adopt, setReadOnly, setMessage, pages
+  adopt, setReadOnly, setMessage, pages, hosted
 }: Props) {
+  if (hosted) return visibleMessage ? <aside className="notice" role="status">{visibleMessage}</aside> : null;
   return (
     <aside className="notice" role="status" hidden={!showNotice}>
       {visibleMessage}

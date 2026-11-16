@@ -33,3 +33,5 @@ export function hoverWords(p:VoteProjection,o?:ItemV12) {
   const own=ownBallot(p);if(own?.targets.some(t=>targetMatches(t,o)))return 'Remove vote';
   return own?.remaining?'Add vote':'No votes remaining';
 }
+
+export const voteScope = (pages: { id: string; name: string }[], page: string) => pages.length < 2 ? "All eligible objects on this board" : `All eligible objects on this page (“${pages.find(p => p.id === page)?.name ?? ""}”)`;

@@ -669,3 +669,12 @@ load upgrades, refused edits, history restoration and board imports. Those serve
 suites and D9 browser checks run separately from implementation validation.
 
 `tests/pages.test.mjs` covers 0010-W2 document v18, page operations, whole-board isolation, history and cross-page find. `tests/server/pages.test.ts` adds S411–S416 to both server runners; those require the separate local-stack run.
+
+`team-pages.test.mjs` covers 0010-W3 order keys, minimal page-map writes, concurrent
+room merges, hosted Undo, change origins, presence, page filters and words, anchors,
+template scope, viewer controls and the storage-7 upgrade on in-memory SQLite.
+It runs with `npm test` without a browser or Supabase. `tests/server/team-pages.test.ts`
+adds S417–S424 to both server runners for create/import, page edits and permissions,
+concurrency, old-room conversion, presence, comments, voting, history and backups.
+Those stack checks belong to the later server-only run; browser N2 and design,
+baseline-negative and A–J checks belong to the independent check run.

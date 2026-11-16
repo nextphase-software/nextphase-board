@@ -3,6 +3,7 @@ import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from "rea
 import { createPortal } from "react-dom";
 import type { HostedBoard } from "./hosted-board";
 import { avatarPeople, groupPeople } from "./presence";
+import { peoplePageWords } from "./page-presence";
 import { roleWords } from "./roles";
 
 export function People({ hosted }: { hosted: HostedBoard }) {
@@ -99,7 +100,7 @@ export function People({ hosted }: { hosted: HostedBoard }) {
           if (!own) { followed?.person===person?hosted.stopFollowing():hosted.follow(person); setOpen(false); opener.current?.focus(); }
         }}>
         <span className="presence-dot" style={{ background: first.colour }}>{first.label.slice(0, 1).toUpperCase()}</span>
-        <span className="presence-person-label">{first.label}{own ? " (you)" : ""}<small>{roleWords(first.role)}</small></span>
+        <span className="presence-person-label">{first.label}{own ? " (you)" : ""}<small>{own ? roleWords(first.role) : peoplePageWords(roleWords(first.role), first, hosted.page, hosted.snapshot.board?.pages ?? [])}</small></span>
         {!own && <span className="presence-follow-word">{followed?.person===person?"Unfollow":"Follow"}</span>}
       </button>{own&&<><button role="menuitem" tabIndex={-1} className="spotlight-primary" disabled={!!reason} aria-describedby={reason?'spotlight-disabled-reason':undefined} onClick={()=>{spotlight.command(spotlight.presenting?'stop':spotlight.projection?.session.phase==='idle'?'start':'take_over');setOpen(false);opener.current?.focus();}}>{spotlight.presenting?'Stop spotlight':'Spotlight me'}</button>{(reason||followReason)&&<p id="spotlight-disabled-reason" className="spotlight-disabled-reason">{reason||followReason}</p>}</>}</Fragment>)}
       <div role="separator" />

@@ -1,17 +1,32 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
+import { orderWrites, rebalance } from "./order-keys.ts";
 import { markOf, styleOf, upgrade, type Board } from "nextphase-board-rules/document.ts";
 import { connectorStyleOf, extraValues, hasEnds, hasRectangle, hasText, isImage } from "nextphase-board-rules/objects/registry.ts";
 export class Adapter {
   doc = new Y.Doc();
-  set(input: Board) {
+  set(input: Board, movedPages?: readonly string[], pageOrders?: ReadonlyMap<string, string>) {
     const b = upgrade(input);
     this.doc.transact(() => {
       const board = this.doc.getMap("board");
       for (const key of ["schemaVersion", "boardId", "title"] as const) {
         if (board.get(key) !== b[key]) board.set(key, b[key]);
       }
-      if (JSON.stringify(board.get("pages")) !== JSON.stringify(b.pages)) board.set("pages", b.pages.map(p => ({ ...p })));
+      let pages = board.get("pageMap") as Y.Map<Y.Map<unknown>> | undefined;
+      if (!pages) { pages = new Y.Map(); board.set("pageMap", pages); }
+      const livePages = new Set(b.pages.map(p => p.id));
+      for (const id of pages.keys()) if (!livePages.has(id)) pages.delete(id);
+      const stored = new Map([...pages].map(([id, entry]) => [id, entry.get("order") as string]));
+      const desired = new Map(stored);
+      for (const [id, key] of pageOrders ?? []) if (livePages.has(id)) desired.set(id, key);
+      const writes = orderWrites(b.pages.map(p => p.id), desired, movedPages);
+      for (const [id, key] of pageOrders ?? []) if (livePages.has(id)) writes.set(id, key);
+      for (const page of b.pages) {
+        let entry = pages.get(page.id);
+        if (!entry) { entry = new Y.Map(); pages.set(page.id, entry); }
+        if (entry.get("name") !== page.name) entry.set("name", page.name);
+        if (writes.has(page.id) && entry.get("order") !== writes.get(page.id)) entry.set("order", writes.get(page.id));
+      }
       const objects = this.doc.getMap<Y.Map<unknown>>("objects");
       const live = new Set(b.objects.map((o) => o.id));
       for (const id of objects.keys()) if (!live.has(id)) objects.delete(id);
@@ -75,4 +90,13 @@ export class Adapter {
   destroy() {
     this.doc.destroy();
   }
+}
+
+// Only stored-room and storage-7 backup conversion use the legacy reading.
+export function convertPages(doc: Y.Doc, pages: { id: string; name: string }[]) {
+  doc.transact(() => {
+    const board = doc.getMap("board"), pageMap = new Y.Map<Y.Map<unknown>>(), keys = rebalance(pages.map(p => p.id));
+    for (const page of pages) pageMap.set(page.id, new Y.Map<unknown>([["name", page.name], ["order", keys.get(page.id)!]]));
+    board.set("pageMap", pageMap); board.delete("pages");
+  });
 }

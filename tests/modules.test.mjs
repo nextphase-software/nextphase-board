@@ -555,7 +555,7 @@ test("team modules and imports follow web modules v37", () => {
   assert.deepEqual(names, ["api.ts", "auth.ts", "comments/card.tsx", "comments/icons.tsx", "comments/layer.tsx", "comments/mention-editor.tsx",
     "comments/panel.tsx", "comments/rules.ts", "comments/tool.tsx", "config.ts", "dialog.tsx", "history-panel.tsx", "history-rules.ts", "history.ts", "home-card.tsx", "home-import.tsx", "home-lists.ts",
     "home-menu.tsx", "home-rules.ts", "home.tsx", "hosted-board.ts", "import.ts", "lifecycle-rules.ts", "lifecycle.ts", "links.ts",
-    "notices.ts", "notification-navigation.ts", "notifications.tsx", "pages.tsx", "people.tsx", "presence-layer.tsx", "presence.ts", "reactions-layer.tsx", "reactions-rules.ts", "reactions.ts", "roles.ts", "share-dialog.tsx", "sign-in.tsx", "spotlight-layer.tsx", "spotlight-rules.ts", "spotlight.ts", "team-app.tsx", "templates-rules.ts", "templates-section.tsx", "templates.ts", "timer-panel.tsx", "timer-rules.ts", "timer.ts", "trash.tsx", "voting-card.tsx", "voting-overlay.tsx", "voting-rules.ts", "voting.ts", "workshop-panel.tsx"]);
+    "notices.ts", "notification-navigation.ts", "notifications.tsx", "page-presence.ts", "pages.tsx", "people.tsx", "presence-layer.tsx", "presence.ts", "reactions-layer.tsx", "reactions-rules.ts", "reactions.ts", "roles.ts", "share-dialog.tsx", "sign-in.tsx", "spotlight-layer.tsx", "spotlight-rules.ts", "spotlight.ts", "team-app.tsx", "templates-rules.ts", "templates-section.tsx", "templates.ts", "timer-panel.tsx", "timer-rules.ts", "timer.ts", "trash.tsx", "voting-card.tsx", "voting-overlay.tsx", "voting-rules.ts", "voting.ts", "workshop-panel.tsx"]);
   for (const name of names) {
     const content = readFileSync(new URL(name, team), "utf8");
     assert.equal(content.split("\n")[0], "// SPDX-License-Identifier: Apache-2.0", name);
@@ -591,85 +591,29 @@ test("the hosted board hook holds exactly one passive effect", () => {
   assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });
 
-// Web modules v41: exact existing-line substitutions from the behaviour baseline.
-test("0010-W2 App composition changes only its recorded substitutions", () => {
-  const base = execFileSync("git", ["show", "076f82e:apps/web/src/App.tsx"], { encoding: "utf8" });
+// Web modules v42: exact existing-line substitutions from the behaviour baseline.
+test("0010-W3 App composition changes only its recorded substitutions", () => {
+  const base = execFileSync("git", ["show", "e442c8a:apps/web/src/App.tsx"], { encoding: "utf8" });
   const substitutions = [
   [
-    "import { useObjectLayouts } from \"./state/use-object-layouts\"; import { useTidyUp } from \"./state/use-tidy-up\"; import { useFind } from \"./state/use-find\";",
-    "import { useObjectLayouts } from \"./state/use-object-layouts\"; import { useTidyUp } from \"./state/use-tidy-up\"; import { useFind } from \"./state/use-find\"; import { usePages } from \"./state/use-pages\";"
+    "  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent }); const pages = usePages({ board, model, stepPage, hosted: !!team?.hosted, commit, finishTextSession, select, setMessage, getView: () => view, setView: value => setView(value), getObjects: () => allDisplayedObjects, openingReason: () => busy || composing || tidy.open ? \"Finish the current action first.\" : \"\", editingReason: () => commandReason || (tidy.open ? \"Apply or cancel Tidy up first.\" : \"\") });",
+    "  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent }); const pages = usePages({ board, model, stepPage, hosted: !!team?.hosted, team: team?.hosted, canEdit: !team?.hosted || !readOnly, commit, finishTextSession, select, setMessage, getView: () => view, setView: (value, following) => following ? setFollowView(value) : setView(value), getObjects: () => allDisplayedObjects, openingReason: () => busy || composing || tidy.open ? \"Finish the current action first.\" : \"\", editingReason: () => commandReason || (tidy.open ? \"Apply or cancel Tidy up first.\" : \"\") });"
   ],
   [
-    "import { Overlays } from \"./scene/overlays\"; import { ConnectionDots } from \"./scene/connection-dots\"; import { MindMapButtons } from \"./scene/mind-map-buttons\"; import { TidyUpLayer } from \"./scene/tidy-up-layer\"; import { TidyUpBar } from \"./ui/tidy-up-bar\"; import { FindRings } from \"./scene/find-rings\"; import { FindBar } from \"./ui/find-bar\";",
-    "import { Overlays } from \"./scene/overlays\"; import { ConnectionDots } from \"./scene/connection-dots\"; import { MindMapButtons } from \"./scene/mind-map-buttons\"; import { TidyUpLayer } from \"./scene/tidy-up-layer\"; import { TidyUpBar } from \"./ui/tidy-up-bar\"; import { FindRings } from \"./scene/find-rings\"; import { FindBar } from \"./ui/find-bar\"; import { PagesPanel } from \"./ui/pages-panel\"; import { MoveToPage } from \"./ui/move-to-page\";"
+    "  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand(\"Paste\"), composing });",
+    "  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, onChange: pages.changed, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand(\"Paste\"), composing });"
   ],
   [
-    "    connectorStyle, shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,",
-    "    stepPage, connectorStyle, shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,"
+    "      {team?.commentsLayer && team.hosted && <team.commentsLayer hosted={team.hosted} board={board} objects={displayedObjects} view={view} size={size} tool={tool} setTool={setTool} setView={setView} scene={scene} select={select} setInline={setInline} />}{team?.presenceLayer && team.hosted && <team.presenceLayer hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}",
+    "      {team?.commentsLayer && team.hosted && <team.commentsLayer page={pages.id} openPage={pages.openPage} hosted={team.hosted} board={board} objects={displayedObjects} view={view} size={size} tool={tool} setTool={setTool} setView={setView} scene={scene} select={select} setInline={setInline} />}{team?.presenceLayer && team.hosted && <team.presenceLayer page={pages.id} hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}"
   ],
   [
-    "  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent });",
-    "  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent }); const pages = usePages({ board, model, stepPage, hosted: !!team?.hosted, commit, finishTextSession, select, setMessage, getView: () => view, setView: value => setView(value), getObjects: () => allDisplayedObjects, openingReason: () => busy || composing || tidy.open ? \"Finish the current action first.\" : \"\", editingReason: () => commandReason || (tidy.open ? \"Apply or cancel Tidy up first.\" : \"\") });"
+    "      {team?.votingLayer && team.hosted && <team.votingLayer hosted={team.hosted} objects={displayedObjects} view={view} size={size} finishTextSession={finishTextSession} cancel={cancel} setInline={setInline} setTool={setTool} select={select} setView={setView} />}",
+    "      {team?.votingLayer && team.hosted && <team.votingLayer page={pages.id} openPage={pages.openPage} allObjects={allDisplayedObjects} hosted={team.hosted} objects={displayedObjects} view={view} size={size} finishTextSession={finishTextSession} cancel={cancel} setInline={setInline} setTool={setTool} select={select} setView={setView} />}"
   ],
   [
-    "  } = useSelection({ board, drafts, textSelection }); const tidy = useTidyUp({ board, selected, commit, tool, setMessage, hosted: team?.hosted, scene, readOnly });",
-    "  } = useSelection({ board: pages.canvas(), drafts, textSelection }); const tidy = useTidyUp({ board, objects: pages.objects(), selected, commit, tool, setMessage, hosted: team?.hosted, scene, readOnly });"
-  ],
-  [
-    "  const images = useImages({ board, model, selected, readOnly: readOnly || !!team?.hosted, busy: gestureBusy, composing, invalidObjectText, pending,",
-    "  const images = useImages({ page: pages.id, board, model, selected, readOnly: readOnly || !!team?.hosted, busy: gestureBusy, composing, invalidObjectText, pending,"
-  ],
-  [
-    "    editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,",
-    "    editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, allDisplayedObjects, bounds, selectedGroups, numbers,"
-  ],
-  [
-    "    board: tidy.board, selected: tidy.selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,",
-    "    board: tidy.board, objects: pages.objects(tidy.board), selected: tidy.selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,"
-  ],
-  [
-    "  const pos = (o: { x: number; y: number }) => screenPoint(o, view, size); const find = useFind({ boardId: board.boardId, displayedObjects, selected, select, view, setView, size, scene, composing, busy, tidy, finishTextSession, setInline });",
-    "  const pos = (o: { x: number; y: number }) => screenPoint(o, view, size); const find = useFind({ board, pages, allDisplayedObjects, boardId: board.boardId, displayedObjects, selected, select, view, setView, size, scene, composing, busy, tidy, finishTextSession, setInline });"
-  ],
-  [
-    "    shapeSession, model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,",
-    "    page: pages.id, shapeSession, model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,"
-  ],
-  [
-    "    voting: team?.hosted?.voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,",
-    "    page: pages.id, voting: team?.hosted?.voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,"
-  ],
-  [
-    "    tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,",
-    "    pages, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,"
-  ],
-  [
-    "    voting: team?.hosted?.voting, chooseImages: images.chooseImages,",
-    "    page: pages.id, voting: team?.hosted?.voting, chooseImages: images.chooseImages,"
-  ],
-  [
-    "          faded={find.faded} bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={tidy.board} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}",
-    "          faded={find.faded} bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={pages.canvas(tidy.board)} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}"
-  ],
-  [
-    "        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={board} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} pos={pos} zoom={view.z} />",
-    "        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={pages.canvas()} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} page={pages.id} pos={pos} zoom={view.z} />"
-  ],
-  [
-    "      <ImageNames board={board} /><FileBar team={team}",
-    "      <ImageNames board={pages.canvas()} /><PagesPanel pages={pages} /><FileBar team={team} pages={pages}"
-  ],
-  [
-    "      {!team?.hosted && <Notice",
-    "      {!team?.hosted && <Notice pages={pages}"
-  ],
-  [
-    "          duplicateReason={duplicateReason} board={board} busy={busy} composing={composing} setPanel={setPanel}",
-    "          duplicateReason={duplicateReason} board={pages.canvas()} busy={busy} composing={composing} setPanel={setPanel}"
-  ],
-  [
-    "          tapeSelection={tapeSelection} tidy={tidy} board={board} description={images.description} imageCount={images.count} imagesOnly={images.only} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}",
-    "          tapeSelection={tapeSelection} tidy={tidy} board={pages.canvas()} moveToPage={<MoveToPage pages={pages} selected={selected} reason={duplicateReason} />} description={images.description} imageCount={images.count} imagesOnly={images.only} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}"
+    "      {!team?.hosted && <Notice pages={pages}",
+    "      {(!team?.hosted || !!visibleMessage) && <Notice pages={pages} hosted={!!team?.hosted}"
   ]
 ];
   let expected = base;
@@ -695,4 +639,8 @@ test("Tidy up owns at most two passive effects", () => {
   const content=readFileSync(new URL("state/use-tidy-up.ts",source),"utf8");
   assert((content.match(/\buseEffect\s*\(/g)??[]).length<=2);
   assert.doesNotMatch(content,/\buseLayoutEffect\b/);
+});
+
+test("sync package holds exactly the twelve modules of web modules v42", () => {
+  assert.deepEqual(files(new URL("../packages/board-sync/src/", import.meta.url)).sort(), ["codec.ts", "comments.ts", "document-adapter.ts", "history.ts", "mentions.ts", "order-keys.ts", "reactions.ts", "session.ts", "spotlight.ts", "timer.ts", "undo.ts", "voting.ts"]);
 });

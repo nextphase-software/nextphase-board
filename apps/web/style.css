@@ -1623,3 +1623,11 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
 .context:has(.move-page-menu) { z-index: 6; }
 .move-page-control { display: inline-flex; }
 @media (max-width: 767px) { .pages-panel { left: 12px !important; right: 12px; width: auto; } }
+
+/* Hosted pages, interaction v44. The options slot remains even when hidden. */
+.pages-people { display: flex; align-items: center; flex: none; margin-right: 4px; pointer-events: none; }
+.pages-people > span { width: 20px; height: 20px; flex: none; border-radius: 50%; color: #ffffff; font: 600 11px/20px var(--np-font); text-align: center; box-shadow: 0 0 0 2px #ffffff; }
+.pages-people > span + span { margin-left: -4px; }
+.pages-people-overflow { background: #525d6c; }
+.pages-people-view-only { margin-right: 8px; color: #525d6c; font: 500 12px/32px var(--np-font); }
+.vote-card .vote-elsewhere { width: 100%; margin-top: 8px; }

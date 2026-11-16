@@ -29,7 +29,9 @@ export function promote(before: Y.Doc, candidate: Y.Doc, update: Uint8Array): bo
       parent === candidate.getMap("objects") || parent === candidate.getMap("retired")) continue;
     if (parent !== candidate.getMap("board")) {
       const item = parent._item;
-      if (!item || item.deleted || item.parent !== candidate.getMap("objects")) continue;
+      const pages = candidate.getMap("board").get("pageMap");
+      if (!item || item.deleted || item.parent !== candidate.getMap("objects") &&
+        (!(pages instanceof Y.Map) || item.parent !== pages || !["name", "order"].includes(key))) continue;
     }
     const content = struct.content.getContent();
     if (!content.length || struct.content instanceof Y.ContentType) continue;

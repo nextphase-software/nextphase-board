@@ -8,7 +8,7 @@ import { checkPresence } from "../packages/board-sync/src/session.ts";
 import { labelOf } from "../packages/board-room/src/tickets.ts";
 import { initialize, meta, setMeta } from "../packages/board-room/src/storage.ts";
 import { NodeStorage } from "../apps/server/src/node-storage.ts";
-const input = () => ({ cursor: null, selection: [], view: { x: 0, y: 0, width: 1, height: 1 }, active: false });
+const input = () => ({ page: "11111111-1111-4111-8111-111111111111", cursor: null, selection: [], view: { x: 0, y: 0, width: 1, height: 1 }, active: false });
 const bytes = (value) => new TextEncoder().encode(value).length;
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 function fixture() {

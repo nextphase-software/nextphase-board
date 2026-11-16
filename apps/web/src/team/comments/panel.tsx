@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState } from "react";
-import type { BoardV12 } from "nextphase-board-rules/document.ts";
+import type { BoardV13 } from "nextphase-board-rules/document.ts";
 import { MentionText } from "./mention-editor";
 import { CommentIcon } from "./icons";
 import { CommentMenu } from "./card";
 import { authorColour, onWords, replyCount, threadName, timeWords, words, type CommentThread } from "./rules";
-export function CommentsPanel({ threads, board, current, showResolved, onlyYours, setResolved, setYours, open, close, sort, setSort, unread, landing }: {
-  landing?: string; sort: boolean; setSort: (value: boolean) => void; unread: Map<string, Set<string>>;
-  threads: CommentThread[]; board: BoardV12; current?: string; showResolved: boolean; onlyYours: boolean;
+export function CommentsPanel({ threads, board, page, current, showResolved, onlyYours, setResolved, setYours, open, close, sort, setSort, unread, landing }: {
+  page: string; landing?: string; sort: boolean; setSort: (value: boolean) => void; unread: Map<string, Set<string>>;
+  threads: CommentThread[]; board: BoardV13; current?: string; showResolved: boolean; onlyYours: boolean;
   setResolved: (value: boolean) => void; setYours: (value: boolean) => void;
   open: (thread: CommentThread) => void; close: () => void;
 }) {
@@ -28,7 +28,7 @@ export function CommentsPanel({ threads, board, current, showResolved, onlyYours
       <span className="comment-avatar" style={{ background: authorColour(thread.person) }}>{thread.label[0]?.toUpperCase()}</span>
       <span><span className="comment-name">{thread.label}</span> <span className="comment-time">{timeWords(thread.createdAt)}</span></span>
       <span className="comment-text"><MentionText text={thread.comments.find((comment) => comment.id === thread.firstComment)?.text ?? ""} mentions={thread.comments.find((comment) => comment.id === thread.firstComment)?.mentions}/></span>
-      <span className={thread.anchor.detached ? "comment-detached" : "comment-on"}>{thread.anchor.detached && thread.id !== landing && <CommentIcon name="unlink" />}{onWords(thread, board)}</span>
+      <span className={thread.anchor.detached ? "comment-detached" : "comment-on"}>{thread.anchor.detached && thread.id !== landing && <CommentIcon name="unlink" />}{onWords(thread, board, page)}</span>
       {replyCount(thread.comments.length - 1, thread.resolved) && <span className="comment-count">{replyCount(thread.comments.length - 1, thread.resolved)}</span>}
       {!!unread.get(thread.id)?.size && <span className="w2-unread-line"><span className="w2-unread-dot" style={{marginLeft:0,marginRight:6}}/>{unread.get(thread.id)!.size} unread {unread.get(thread.id)!.size===1?'mention':'mentions'}</span>}
     </button>) : <div className="comment-empty">{!onlyYours && <CommentIcon name="bubble" />}<span>{onlyYours ? words.onlyYours : showResolved ? words.noResolved : words.empty}</span></div>}</div>

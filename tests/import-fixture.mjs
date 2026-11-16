@@ -7,17 +7,19 @@ import { Adapter } from "../packages/board-sync/src/document-adapter.ts";
 export function withoutPages({ pages: _pages, ...board }) {
   return { ...board, objects: board.objects.map(({ page: _page, ...object }) => object) };
 }
-export function storedBoardUpdate(board) {
+export function storedBoardUpdate(board, legacyPages = board.schemaVersion < 13) {
+  if (!legacyPages) { const current = new Adapter(); try { current.set(board); return Y.encodeStateAsUpdate(current.doc); } finally { current.destroy(); } }
   const adapter = new Adapter(), doc = new Y.Doc();
   try {
     adapter.set(board);
     // A legacy snapshot never had page keys. Deleting them from a current map
     // leaves tombstones that the exact legacy codec correctly rejects on load.
-    for (const [key, value] of adapter.doc.getMap("board")) if (key !== "pages") {
+    for (const [key, value] of adapter.doc.getMap("board")) if (!["pages", "pageMap"].includes(key)) {
       doc.getMap("board").set(key, key === "schemaVersion" ? board.schemaVersion : structuredClone(value));
     }
+    if (board.schemaVersion === 13) doc.getMap("board").set("pages", board.pages.map(p => ({ ...p })));
     for (const [id, object] of adapter.doc.getMap("objects")) {
-      doc.getMap("objects").set(id, new Y.Map([...object].filter(([key]) => key !== "page")
+      doc.getMap("objects").set(id, new Y.Map([...object].filter(([key]) => board.schemaVersion === 13 || key !== "page")
         .map(([key, value]) => [key, value instanceof Y.Text ? value.clone() : structuredClone(value)])));
     }
     for (const [id, value] of adapter.doc.getMap("retired")) doc.getMap("retired").set(id, value);

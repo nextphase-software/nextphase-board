@@ -51,7 +51,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     stepPage, connectorStyle, shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,
     model, historyRef, textSession, revision, adapter,
     updateHistory, clearHistory, beginTextSession, finishTextSession, beginNameEntry, finishNameEntry, commit, load,
-  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent }); const pages = usePages({ board, model, stepPage, hosted: !!team?.hosted, commit, finishTextSession, select, setMessage, getView: () => view, setView: value => setView(value), getObjects: () => allDisplayedObjects, openingReason: () => busy || composing || tidy.open ? "Finish the current action first." : "", editingReason: () => commandReason || (tidy.open ? "Apply or cancel Tidy up first." : "") });
+  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent }); const pages = usePages({ board, model, stepPage, hosted: !!team?.hosted, team: team?.hosted, canEdit: !team?.hosted || !readOnly, commit, finishTextSession, select, setMessage, getView: () => view, setView: (value, following) => following ? setFollowView(value) : setView(value), getObjects: () => allDisplayedObjects, openingReason: () => busy || composing || tidy.open ? "Finish the current action first." : "", editingReason: () => commandReason || (tidy.open ? "Apply or cancel Tidy up first." : "") });
   const {
     tapeSelection, strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,
     selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats, richText,
@@ -133,7 +133,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
     setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
   });
-  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand("Paste"), composing });
+  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, onChange: pages.changed, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand("Paste"), composing });
   const nativeEditor = <ContentField
     editor={editor} inline={inline} text={text} readOnly={readOnly} busy={busy} item={item}
     selectedId={selectedId} composing={composing} beginTextSession={beginTextSession}
@@ -179,8 +179,8 @@ export function App({ team }: { team?: TeamParts } = {}) {
         <GrowButton available={growAvailable} grow={shapeCommands.grow} style={resolvedItem ? { left: pos(resolvedItem).left + resolvedItem.width * view.z / 2, top: pos(resolvedItem).top + resolvedItem.height * view.z } : undefined} />
         <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={pages.canvas()} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} page={pages.id} pos={pos} zoom={view.z} />
       </div>
-      {team?.commentsLayer && team.hosted && <team.commentsLayer hosted={team.hosted} board={board} objects={displayedObjects} view={view} size={size} tool={tool} setTool={setTool} setView={setView} scene={scene} select={select} setInline={setInline} />}{team?.presenceLayer && team.hosted && <team.presenceLayer hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}
-      {team?.votingLayer && team.hosted && <team.votingLayer hosted={team.hosted} objects={displayedObjects} view={view} size={size} finishTextSession={finishTextSession} cancel={cancel} setInline={setInline} setTool={setTool} select={select} setView={setView} />}
+      {team?.commentsLayer && team.hosted && <team.commentsLayer page={pages.id} openPage={pages.openPage} hosted={team.hosted} board={board} objects={displayedObjects} view={view} size={size} tool={tool} setTool={setTool} setView={setView} scene={scene} select={select} setInline={setInline} />}{team?.presenceLayer && team.hosted && <team.presenceLayer page={pages.id} hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}
+      {team?.votingLayer && team.hosted && <team.votingLayer page={pages.id} openPage={pages.openPage} allObjects={allDisplayedObjects} hosted={team.hosted} objects={displayedObjects} view={view} size={size} finishTextSession={finishTextSession} cancel={cancel} setInline={setInline} setTool={setTool} select={select} setView={setView} />}
       <ImageNames board={pages.canvas()} /><PagesPanel pages={pages} /><FileBar team={team} pages={pages}
         boardButton={boardButton} composing={composing} busy={busy} toggle={toggle} panel={panel}
         title={title} objectsButton={objectsButton} undoReason={undoReason} redoReason={redoReason}
@@ -193,7 +193,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
       <span id="undo-reason" className="sr-only">{undoReason}</span>
       <span id="redo-reason" className="sr-only">{redoReason}</span>
       <span id="selection-reason" className="sr-only">{selectionReason}</span>{duplicateReason !== selectionReason && <span id="duplicate-reason" className="sr-only">{duplicateReason}</span>}
-      {!team?.hosted && <Notice pages={pages}
+      {(!team?.hosted || !!visibleMessage) && <Notice pages={pages} hosted={!!team?.hosted}
         showNotice={showNotice} visibleMessage={visibleMessage} invalidFields={invalidFields}
         busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen}
         composing={composing} adopt={adopt} setReadOnly={setReadOnly} setMessage={setMessage}

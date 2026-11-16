@@ -14,9 +14,9 @@ import { labelOf } from './tickets.ts';
 import { keepAnchors } from './comments.ts';
 import { snapshot } from './snapshots.ts';
 
-// A hosted document has one page; allow its metadata before canonical checks
+// Allow metadata for 50 pages before canonical checks
 // apply the inherited 2 MiB budget without pages/page.
-const STORED_DOCUMENT_LIMIT = 2097152 + 16384;
+const STORED_DOCUMENT_LIMIT = 2162688;
 type Prepared = { data: Uint8Array; sha256: string };
 type Reference = { chunks: number; bytes: number; sha256: string };
 type Intent = { phase: 'intent' | 'reserved' | 'replaced'; selected: Reference; replaced: Reference;
@@ -34,7 +34,6 @@ export function documentBytes(rows: Row[], board: string): { board: BoardV13; da
   let at = 0; for (const row of rows) { data.set(row.bytes as Uint8Array, at); at += (row.bytes as Uint8Array).length; }
   const text = new TextDecoder().decode(data), value = validate(JSON.parse(text));
   if (![10, 11, 12, 13].includes(value.schemaVersion) || value.boardId !== board || value.objects.some(o => o.type === 'image') || canonical(value) !== text) throw Error('bad_document');
-  if (value.schemaVersion === 13 && value.pages?.length !== 1) throw new RoomError(400, 'invalid_document');
   return { board: value as BoardV13, data };
 }
 export class History {
@@ -304,15 +303,15 @@ export async function validateHistoryBackup(env: RoomEnvironment, tables: Record
       const data = new Uint8Array(parts.reduce((n,r)=>n+(r.bytes as Uint8Array).length,0)); let at=0;
       for (const r of parts) {data.set(r.bytes as Uint8Array,at);at+=(r.bytes as Uint8Array).length;}
       const candidate = new Y.Doc();
-      try {Y.applyUpdate(candidate,data); if (canonical(readBoard(candidate))!==canonical(json.board)) throw Error('bad_snapshot');} finally {candidate.destroy();}
+      try {Y.applyUpdate(candidate,data); if (canonical(readBoard(candidate, get('storage_version') === 7))!==canonical(json.board)) throw Error('bad_snapshot');} finally {candidate.destroy();}
       if (revision===snapshots.at(-1)) Y.applyUpdate(doc,data);
     }
     for (const r of [...tables.edits].sort((a,b)=>Number(a.revision)-Number(b.revision))) {
       if (!historyInteger(r.revision) || r.revision>Number(get('revision')) || !(r.update instanceof Uint8Array)) throw Error('bad_edit');
       if (Number(r.revision)>Number(snapshots.at(-1))) Y.applyUpdate(doc,r.update);
     }
-    const head=readBoard(doc); validate(head); canonical(head);
-    if (head.boardId!==board || ![10,11,12,13].includes(head.schemaVersion) || head.schemaVersion===13&&head.pages?.length!==1 || head.objects.some(o=>o.type==='image'||identity.get(o.id)!==o.generation)) throw Error('bad_head');
+    const head=readBoard(doc, get('storage_version') === 7); validate(head); canonical(head);
+    if (head.boardId!==board || ![10,11,12,13].includes(head.schemaVersion) || head.objects.some(o=>o.type==='image'||identity.get(o.id)!==o.generation)) throw Error('bad_head');
   } finally {doc.destroy();}
   if (tables.snapshot_chunks.some(r=>!['json','yjs'].includes(String(r.kind)))) throw Error('bad_snapshot');
   const comments = new Map(tables.comments.map(r=>[r.id,r])), threads = new Map(tables.threads.map(r=>[r.id,r]));

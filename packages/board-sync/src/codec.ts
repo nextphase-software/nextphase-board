@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
+import { compareKeys, validOrderKey } from "./order-keys.ts";
 import type { BoardV13, ItemV13 } from "nextphase-board-rules/document.ts";
 import { hasEnds, hasRectangle, hasText, objectType } from "nextphase-board-rules/objects/registry.ts";
 
@@ -18,12 +19,27 @@ function map(value: unknown, keys: readonly string[]): Y.Map<unknown> {
 
 // Check the complete mapping before projecting it. Silently discarding an
 // unknown field here would allow hidden data to live in an otherwise valid board.
-export function readBoard(doc: Y.Doc): BoardV13 {
+export function readBoard(doc: Y.Doc, legacy = false): BoardV13 {
   if ([...doc.share.keys()].some((key) => !["board", "objects", "retired"].includes(key))) {
     throw Error("invalid_update");
   }
-  const board = map(doc.getMap("board"), ["schemaVersion", "boardId", "title", "pages"]);
+  const board = map(doc.getMap("board"), ["schemaVersion", "boardId", "title", "pageMap", "pages"]);
   const paged = board.get("schemaVersion") === 13;
+  if (!legacy && board.has("pages")) throw Error("invalid_update");
+  let pages: BoardV13["pages"] | undefined;
+  if (paged) {
+    if (legacy && board.has("pages")) pages = board.get("pages") as BoardV13["pages"];
+    else {
+      const pageMap = board.get("pageMap");
+      if (!(pageMap instanceof Y.Map) || [...pageMap._map.keys()].some(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))) throw Error("invalid_update");
+      pages = [...pageMap.entries()].map(([id, value]) => {
+        const entry = map(value, ["name", "order"]);
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id) || entry.size !== 2 ||
+          typeof entry.get("name") !== "string" || !validOrderKey(entry.get("order"))) throw Error("invalid_update");
+        return { id, name: entry.get("name") as string, order: entry.get("order") as string };
+      }).sort((a, b) => compareKeys(a.order, b.order) || compareKeys(a.id, b.id)).map(({ id, name }) => ({ id, name }));
+    }
+  }
   const objects = doc.getMap("objects");
   const retired = doc.getMap("retired");
   if ([...retired.values()].some((value) => value !== true)) throw Error("invalid_update");
@@ -71,7 +87,7 @@ export function readBoard(doc: Y.Doc): BoardV13 {
     schemaVersion: board.get("schemaVersion") as 13,
     boardId: board.get("boardId") as string,
     title: board.get("title") as string,
-    ...(paged ? { pages: board.get("pages") as BoardV13["pages"] } : {}),
+    ...(paged ? { pages } : {}),
     objects: items.sort((a, b) => a.order - b.order),
     retiredGenerations: [...retired.keys()].sort(),
   } as BoardV13;

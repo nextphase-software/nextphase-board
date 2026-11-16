@@ -39,7 +39,7 @@ export function PagesPanel({ pages }: { pages: Pages }) {
   const lineBefore = (id: string) => pages.drag?.active && gaps[pages.drag.gap]?.id === id;
   return <>
     <section ref={pages.panel} className="pages-panel" aria-label="Pages" style={{ left: pages.button.current?.getBoundingClientRect().left ?? 12 }} onKeyDown={rowKeys}>
-      <header><h2>Pages</h2><button className="page-icon" aria-label="Add page" title={pages.addReason || 'Add page'} disabled={!!pages.addReason} onClick={pages.add}><Icon name="page-plus" /></button></header>
+      <header><h2>Pages</h2>{pages.canEdit ? <button className="page-icon" aria-label="Add page" title={pages.addReason || 'Add page'} disabled={!!pages.addReason} onClick={pages.add}><Icon name="page-plus" /></button> : <span className="pages-people-view-only">View only</span>}</header>
       <ul>{pages.list.map(page => <li key={page.id} data-page={page.id} className={'page-row' + (page.id === pages.id ? ' current' : '') + (page.id === pages.menu ? ' menu-open' : '') + (pages.drag?.id === page.id && pages.drag.active ? ' dragging' : '') + (lineBefore(page.id) ? ' drop-before' : '')}>
         {pages.editing === page.id ? <input ref={pages.nameField} aria-label="Page name" value={pages.name} onChange={e => pages.changeName(e.currentTarget.value)}
           onKeyDown={e => {
@@ -49,21 +49,25 @@ export function PagesPanel({ pages }: { pages: Pages }) {
           }} /> : <>
           <button className="page-name" ref={element => { if (element) pages.names.current.set(page.id, element); else pages.names.current.delete(page.id); }}
             aria-current={page.id === pages.id ? 'page' : undefined} disabled={!!pages.openingReason} title={pages.openingReason || page.name}
-            onClick={e => { if (!e.detail) pages.openPage(page.id); else pages.clickPage(page.id); }} onDoubleClick={() => pages.rename(page.id)}
-            onPointerDown={e => { if (e.button === 0) { pages.beginDrag(page.id, e.clientY); e.currentTarget.setPointerCapture(e.pointerId); } }}
+            onClick={e => { if (!e.detail) pages.openPage(page.id); else pages.clickPage(page.id); }} onDoubleClick={() => { if (pages.canEdit) pages.rename(page.id); }}
+            onPointerDown={e => { if (pages.canEdit && e.button === 0) { pages.beginDrag(page.id, e.clientY); e.currentTarget.setPointerCapture(e.pointerId); } }}
             onPointerMove={e => { if (e.currentTarget.hasPointerCapture(e.pointerId)) pages.dragTo(e.clientY); }}
             onPointerUp={e => { if (pages.endDrag()) pages.suppressClick(); if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); }}
             onPointerCancel={() => pages.endDrag(true)} onLostPointerCapture={() => pages.endDrag(true)}>{page.name}</button>
-          <button className="page-icon page-options" ref={element => { if (element) pages.options.current.set(page.id, element); else pages.options.current.delete(page.id); }}
-            aria-label={`Page options for ${page.name}`} title="Page options" aria-expanded={pages.menu === page.id} aria-haspopup="menu" onClick={() => pages.showMenu(page.id)}><Icon name="page-more" /></button>
+          {pages.people(page.id).name && <span className="pages-people" role="img" aria-label={pages.people(page.id).name}>
+            {pages.people(page.id).shown.map(p => <span key={p.person} title={p.label} style={{ background: p.colour }}>{[...p.label][0]?.toUpperCase()}</span>)}
+            {pages.people(page.id).overflow > 0 && <span className="pages-people-overflow">+{pages.people(page.id).overflow}</span>}
+          </span>}
+          {pages.canEdit && <button className="page-icon page-options" ref={element => { if (element) pages.options.current.set(page.id, element); else pages.options.current.delete(page.id); }}
+            aria-label={`Page options for ${page.name}`} title="Page options" aria-expanded={pages.menu === page.id} aria-haspopup="menu" onClick={() => pages.showMenu(page.id)}><Icon name="page-more" /></button>}
         </>}
       </li>)}{pages.drag?.active && pages.drag.gap === gaps.length && <li className="page-drop-end" aria-hidden="true" />}</ul>
     </section>
-    {menuPage && <div ref={pages.pageMenu} role="menu" aria-label="Page options" className="page-menu" style={{ left: Math.max(12, Math.min(anchor?.left ?? 12, window.innerWidth - 232)), top: (anchor?.bottom ?? 68) + 4 }} onKeyDown={e => menuKeys(e, pages.closeMenu)}>
+    {pages.canEdit && menuPage && <div ref={pages.pageMenu} role="menu" aria-label="Page options" className="page-menu" style={{ left: Math.max(12, Math.min(anchor?.left ?? 12, window.innerWidth - 232)), top: (anchor?.bottom ?? 68) + 4 }} onKeyDown={e => menuKeys(e, pages.closeMenu)}>
       {['Rename page','Duplicate page','separator-1','Move up','Move down','separator-2','Delete page'].map(action => {
         if (action.startsWith('separator')) return <div key={action} role="separator" />;
         const reason = pages.editingReason || (action === 'Duplicate page' ? pages.duplicateReason(menuPage.id)
-          : action === 'Delete page' && pages.list.length === 1 ? ONLY_PAGE : action === 'Move up' && at === 0 || action === 'Move down' && at === pages.list.length - 1 ? 'This page is already ' + (at === 0 ? 'first.' : 'last.') : '');
+          : action === 'Delete page' && (pages.voteReason(menuPage.id) || pages.list.length === 1) ? pages.voteReason(menuPage.id) || ONLY_PAGE : action === 'Move up' && at === 0 || action === 'Move down' && at === pages.list.length - 1 ? 'This page is already ' + (at === 0 ? 'first.' : 'last.') : '');
         return <button key={action} role="menuitem" disabled={!!reason} aria-disabled={!!reason} title={reason || undefined} className={action === 'Delete page' ? 'page-danger' : ''} onClick={() => pages.choose(action, menuPage.id)}><span>{action}</span></button>;
       })}
     </div>}

@@ -51,9 +51,9 @@ test('M-U05 current initialization rollback, idempotence and future-layout refus
  try {
   s.exec=(sql,...args)=>{if(sql.includes('CREATE TABLE IF NOT EXISTS mention_pending'))throw Error('initialization rollback');execute(sql,...args);};
   assert.throws(()=>initialize(s),/initialization rollback/);assert.deepEqual(s.all("SELECT name FROM sqlite_master WHERE type='table'"),[]);
-  s.exec=execute;initialize(s);assert.equal(meta(s,'storage_version'),0);setMeta(s,'storage_version',7);
+  s.exec=execute;initialize(s);assert.equal(meta(s,'storage_version'),0);setMeta(s,'storage_version',8);
   const before=s.all('SELECT * FROM sqlite_master ORDER BY name');initialize(s);assert.deepEqual(s.all('SELECT * FROM sqlite_master ORDER BY name'),before);
-  setMeta(s,'storage_version',8);assert.throws(()=>initialize(s),/storage_unsupported/);
+  setMeta(s,'storage_version',9);assert.throws(()=>initialize(s),/storage_unsupported/);
  } finally{s.close();}
 });
 test('M-U06 shared scheduler enumerates all board IDs and retains delivery concurrency and access pass',async()=>{
@@ -73,7 +73,7 @@ async function mentionRoom() {
   connections:()=>peers,schedule:async()=>{},backupLimit:16777216};
  const room=new Room(board,env),ticket=await room.ticket({id:crypto.randomUUID(),email:'ana@example.test',expiresAt:100000});let attachment=await room.join(ticket.ticket);
  const messages=[],peer={attachment:()=>attachment,attach:a=>{attachment=a;},send:s=>messages.push(JSON.parse(s)),close:()=>{}};peers.push(peer);await room.connected(peer);
- async function save(text,mentions){const op={action:'start',threadId:crypto.randomUUID(),commentId:crypto.randomUUID(),anchor:{objectId:null,u:0,v:0,x:0,y:0},text,mentions};await room.message(peer,JSON.stringify({kind:'comment',requestId:crypto.randomUUID(),epoch:attachment.epoch,restoreGeneration:0,operation:op}));assert.equal(messages.at(-1).kind,'comment_saved');return op;}
+ async function save(text,mentions){const op={action:'start',threadId:crypto.randomUUID(),commentId:crypto.randomUUID(),anchor:{page:board,objectId:null,u:0,v:0,x:0,y:0},text,mentions};await room.message(peer,JSON.stringify({kind:'comment',requestId:crypto.randomUUID(),epoch:attachment.epoch,restoreGeneration:0,operation:op}));assert.equal(messages.at(-1).kind,'comment_saved');return op;}
  return {room,storage,env,save,messages};
 }
 test('M-U07 immutable normalized comment retries capture ranges, epoch and restore generation without replay or board Undo',async()=>{

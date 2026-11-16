@@ -27,7 +27,7 @@ test("connectors, empty points and section titles outside saved boxes make board
   const { anchorAt } = await import("../packages/board-sync/src/comments.ts");
   const board = await boardFixture();
   for (const [point, connector] of [[{ x: 10, y: 20 }, true], [{ x: 1000, y: 20 }, false], [{ x: 20, y: -12 }, false]]) {
-    assert.deepEqual(anchorAt(board, point, connector), { ...point, objectId: null, u: 0, v: 0, detached: false, objectLabel: "", objectType: "" });
+    assert.deepEqual(anchorAt(board, point, connector), { ...point, page: board.pages[0].id, pageName: board.pages[0].name, objectId: null, u: 0, v: 0, detached: false, objectLabel: "", objectType: "" });
   }
 });
 test("pins follow saved move and non-uniform resize and ignore display growth", async () => {
@@ -278,9 +278,9 @@ for (const layout of ["created", "uncreated"]) test(`current storage initializat
   const storage = new NodeStorage(":memory:");
   try {
     initialize(storage);
-    if (layout === "created") setMeta(storage, "storage_version", 7);
+    if (layout === "created") setMeta(storage, "storage_version", 8);
     storage.exec("INSERT INTO receipts VALUES ('p', 'r', 'digest', 4, 'edit')");
-    assert.equal(meta(storage, "storage_version"), layout === "uncreated" ? 0 : 7);
+    assert.equal(meta(storage, "storage_version"), layout === "uncreated" ? 0 : 8);
     assert.equal(storage.all("SELECT * FROM receipts")[0].kind, "edit");
     for (const table of ["threads", "comments", "comment_ids", "comment_counts", "mention_targets", "mention_pending"]) assert.deepEqual(storage.all(`SELECT * FROM ${table}`), []);
     const before = storage.all("SELECT * FROM sqlite_master ORDER BY name"); initialize(storage);
@@ -288,7 +288,7 @@ for (const layout of ["created", "uncreated"]) test(`current storage initializat
     assert.equal(storage.all("SELECT * FROM receipts").length, 1);
   } finally { storage.close(); }
 });
-test("a fresh room creates storage version 7 with no threads", async () => {
+test("a fresh room creates storage version 8 with no threads", async () => {
   await import("../packages/board-sync/src/comments.ts");
   const { Room } = await import("../packages/board-room/src/room.ts"), { NodeStorage } = await import("../apps/server/src/node-storage.ts");
   const { meta } = await import("../packages/board-room/src/storage.ts");
@@ -296,7 +296,7 @@ test("a fresh room creates storage version 7 with no threads", async () => {
   try {
     const room = new Room(randomUUID(), { storage, lifecycle: { lifecycle: async () => ({ state: "active", generation: 0 }) }, hash: async value => { const { createHash } = await import("node:crypto"); return createHash("sha256").update(value).digest("hex"); }, randomId: randomUUID, now: () => 0, connections: () => [], schedule: async () => {},
       access: { board: async () => ({ title: "Comments", createdAt: new Date(0).toISOString() }), changes: async () => ({ latest: 0, lowestKept: 1, changes: [] }) }, fence: async () => 0 });
-    await room.load(); assert.equal(meta(storage, "storage_version"), 7); assert.deepEqual(storage.all("SELECT * FROM threads"), []);
+    await room.load(); assert.equal(meta(storage, "storage_version"), 8); assert.deepEqual(storage.all("SELECT * FROM threads"), []);
   } finally { storage.close(); }
 });
 
@@ -321,6 +321,7 @@ async function roomFixture() {
     peers.push(peer); await room.connected(peer); return peer;
   }
   async function send(peer, operation, requestId = randomUUID()) {
+    if (operation.anchor) operation = { ...operation, anchor: { page: boardId, ...operation.anchor } };
     await room.message(peer, JSON.stringify({ kind: "comment", requestId, epoch: peer.attachment().epoch, restoreGeneration: 0, operation }));
     return peer.messages.at(-1);
   }

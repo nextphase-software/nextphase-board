@@ -5,7 +5,7 @@ import { WorkshopVoting, resetVoting } from "./voting.ts";
 import { WorkshopTimer, resetTimer, markExplicitRecovery } from "./timer.ts";
 import { RoomLifecycle, type Lifecycle, type LifecycleRequest } from "./lifecycle.ts";
 import * as Y from "yjs";
-import { Adapter } from "nextphase-board-sync/document-adapter.ts";
+import { Adapter, convertPages } from "nextphase-board-sync/document-adapter.ts";
 import { readBoard } from "nextphase-board-sync/codec.ts";
 import { canonical, upgrade, validate, type BoardV13 } from "nextphase-board-rules/document.ts";
 import { History, validateHistoryBackup } from "./history.ts";
@@ -13,7 +13,7 @@ import { HISTORY_INTERVAL } from "nextphase-board-sync/history.ts";
 import { Copies } from "./copies.ts";
 import { Access, closeCode } from "./access.ts";
 import { backup, decodeBackup, replace } from "./backups.ts";
-import { Comments, commentRow } from "./comments.ts";
+import { Comments, commentRow, storedAnchor } from "./comments.ts";
 import { EditSession } from "./edit-session.ts";
 import type { RoomEnvironment } from "./interfaces.ts";
 import { base64, bytes, MESSAGE_LIMIT, rank, RoomError, send, type Attachment, type Connection, type Person } from "./protocol.ts";
@@ -59,6 +59,8 @@ export class Room {
     this.presence.recipient=(from,to)=>this.spotlight.relayTo(from,to);
     this.presence.expired=c=>this.spotlight.expired(c);
     this.presence.visible=id=>this.spotlight.visible(id);
+    this.presence.currentPage=id=>this.board?.pages.some(p=>p.id===id) ?? false;
+    this.presence.firstPage=()=>this.board.pages[0].id;
     this.comments = new Comments(env, this.access, this);
     if (env.rows && env.background) this.copies = new Copies(env.storage, env.rows, env.now,
       () => this.ordered(() => this.schedule()));
@@ -92,12 +94,12 @@ export class Room {
       if (!page) throw new RoomError(503, "service_unavailable");
       const adapter = new Adapter();
       const board: BoardV13 = document ?? { schemaVersion: 13, boardId: this.boardId, title: details.title, pages: [{ id: this.boardId, name: "Page 1" }], objects: [], retiredGenerations: [] };
-      if (validate(board).schemaVersion !== 13 || board.pages.length !== 1) throw new RoomError(400, "invalid_document");
+      if (validate(board).schemaVersion !== 13) throw new RoomError(400, "invalid_document");
       adapter.set(board);
       try {
         const prepared = await this.history.prepare(board);
         storage.transaction(() => {
-          setMeta(storage, "storage_version", 7);
+          setMeta(storage, "storage_version", 8);
           resetTimer(storage);
           resetVoting(storage);
           storage.exec("INSERT INTO meta VALUES ('board_id', ?)", this.boardId);
@@ -121,8 +123,19 @@ export class Room {
     this.copies?.suspend();
     this.doc.destroy();
     this.doc = loadDocument(storage);
-    this.board = readBoard(this.doc);
-    if ([10, 11, 12].includes(this.board.schemaVersion)) this.upgradeStored();
+    const legacy = meta(storage, "storage_version") === 7;
+    this.board = readBoard(this.doc, legacy);
+    if (legacy) storage.transaction(() => {
+      resetVoting(storage);
+      if ([10, 11, 12].includes(this.board.schemaVersion)) this.upgradeStored();
+      else if (this.doc.getMap("board").has("pages")) convertPages(this.doc, this.board.pages);
+      this.board = readBoard(this.doc); validate(this.board);
+      snapshot(storage, this.doc, this.board, meta(storage, "revision"));
+      setMeta(storage, "storage_version", 8);
+    });
+    if (!legacy && [10, 11, 12].includes(this.board.schemaVersion)) storage.transaction(() => {
+      this.upgradeStored(); snapshot(storage, this.doc, this.board, meta(storage, "revision"));
+    });
     this.voting.validate();
     this.initialized = true;
     try {
@@ -149,15 +162,13 @@ export class Room {
   // is not a person's edit: no edits row, receipt or revision. The snapshot at
   // the current revision keeps it, so a reload serves version 13 again.
   private upgradeStored() {
-    const storage = this.env.storage;
     const next = upgrade(this.board);
     this.doc.transact(() => {
       this.doc.getMap("board").set("schemaVersion", 13);
-      this.doc.getMap("board").set("pages", next.pages);
+      convertPages(this.doc, next.pages);
       for (const value of this.doc.getMap<Y.Map<unknown>>("objects").values()) value.set("page", this.boardId);
     });
     this.board = readBoard(this.doc);
-    storage.transaction(() => snapshot(storage, this.doc, this.board, meta(storage, "revision")));
   }
   private closeLegacy() {
     for (const peer of this.env.connections()) if (!currentAttachment(peer.attachment())) this.close(peer, 1012);
@@ -336,7 +347,7 @@ export class Room {
       const thread = this.env.storage.all("SELECT * FROM threads WHERE id = ?", String(row.thread_id))[0];
       if (!thread) throw new RoomError(404, "not_found");
       return { boardId: this.boardId, title: this.board.title, threadId: row.thread_id,
-        comment: commentRow(row), anchor: JSON.parse(String(thread.anchor)), resolved: !!thread.resolved };
+        comment: commentRow(row), anchor: storedAnchor(thread, this.board), resolved: !!thread.resolved };
     });
   }
   message(connection: Connection, text: string) {

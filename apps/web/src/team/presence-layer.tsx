@@ -12,6 +12,7 @@ import { pillWords } from "./presence";
 
 type Props = {
   hosted: HostedBoard;
+  page: string;
   scene: RefObject<HTMLDivElement | null>;
   selected: Set<string>;
   objects: ResolvedItem[];
@@ -25,7 +26,7 @@ export function PresenceLayer(props: Props) {
   const { self, others, followed, showCursors } = usePresence(props);
   return <>
     <div className="presence-layer" aria-hidden="true">
-      {!hosted.voting.running&&others.filter((other) => other.connection !== self?.connection).map((other) => {
+      {!hosted.voting.running&&others.filter((other) => other.connection !== self?.connection && other.page === props.page).map((other) => {
         const selected = objects.filter((object) => other.selection.includes(object.id));
         const rectangles = selected.filter(hasRectangle);
         const box = boundingBox(rectangles.length ? rectangles : selected);
@@ -43,7 +44,7 @@ export function PresenceLayer(props: Props) {
           </div>}
         </div>;
       })}
-      <ReactionsLayer hosted={hosted} scene={props.scene} view={view} size={size}/>
+      <ReactionsLayer hosted={hosted} scene={props.scene} view={view} size={size} page={props.page}/>
     </div>
     <SpotlightLayer hosted={hosted}/>
   </>;

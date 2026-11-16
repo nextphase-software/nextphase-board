@@ -208,7 +208,7 @@ async function fakeSession(role = "editor") {
 const tick = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 
 test("shared client throttles trailing presence, resends at 15 seconds and refuses locally", async () => {
-  const f = await fakeSession(), input = { cursor: null, selection: [], view: { x: 0, y: 0, width: 1, height: 1 }, active: true };
+  const f = await fakeSession(), input = { page: f.client.board.pages[0].id, cursor: null, selection: [], view: { x: 0, y: 0, width: 1, height: 1 }, active: true };
   const wire = f.wires[0]; f.client.setPresence(input); f.clock.advance(50); f.client.setPresence({ ...input, active: false });
   f.client.setPresence({ ...input, cursor: { x: 2, y: 3 } }); assert.equal(wire.sent.length, 1);
   f.clock.advance(50); assert.equal(wire.sent.length, 2); assert.deepEqual(wire.sent[1].cursor, { x: 2, y: 3 });

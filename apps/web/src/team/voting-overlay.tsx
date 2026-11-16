@@ -4,13 +4,13 @@ import type { HostedBoard } from './hosted-board';
 import type { ResolvedItem } from '../geometry';
 import { screenPoint, type View } from '../view';
 import { markerPosition, ownBallot, rankedResults, remainingWords, targetMatches, hoverWords, voteTextAnchor } from './voting-rules';
-type Props={hosted:HostedBoard;objects:ResolvedItem[];view:View;size:{w:number;h:number};finishTextSession:()=>void;cancel:()=>void;setInline:(v:boolean)=>void;setTool:(v:string)=>void;select:(id:string)=>void;setView:(v:View)=>void};
-export function VotingOverlay({hosted,objects,view,size,finishTextSession,cancel,setInline,setTool,select,setView}:Props) {
+type Props={page:string;openPage:(page:string)=>View|undefined;allObjects:ResolvedItem[];hosted:HostedBoard;objects:ResolvedItem[];view:View;size:{w:number;h:number};finishTextSession:()=>void;cancel:()=>void;setInline:(v:boolean)=>void;setTool:(v:string)=>void;select:(id:string)=>void;setView:(v:View)=>void};
+export function VotingOverlay({hosted,page,openPage,allObjects,objects,view,size,finishTextSession,cancel,setInline,setTool,select,setView}:Props) {
   const v=hosted.voting,[,redraw]=useState(0),[layout,setLayout]=useState({top:72,width:0}),[badgeWidths,setBadgeWidths]=useState<Record<string,number>>({});
   useEffect(()=>{const a=v.subscribe(()=>redraw(n=>n+1)),b=hosted.timer.subscribe(()=>redraw(n=>n+1));return()=>{a();b();};},[v,hosted]);
   useLayoutEffect(()=>{
     v.onEnter=()=>{cancel();finishTextSession();setInline(false);setTool('Select');};
-    v.onNavigate=id=>{const o=objects.find(o=>o.id===id);if(!o)return;select(id);setView({x:o.x+o.width/2,y:o.y+o.displayHeight/2,z:view.z});};
+    v.onNavigate=id=>{const o=allObjects.find(o=>o.id===id);if(!o)return;if(o.page!==page&&!openPage(o.page))return;select(id);setView({x:o.x+o.width/2,y:o.y+o.displayHeight/2,z:view.z});};
     const measure=()=>{
       const context=document.querySelector('.context'),bars=[...document.querySelectorAll('.file,.actions')];
       const box=context&&context.getClientRects().length?context.getBoundingClientRect():undefined;
@@ -30,7 +30,7 @@ export function VotingOverlay({hosted,objects,view,size,finishTextSession,cancel
     const observer=new ResizeObserver(measure);for(const node of document.querySelectorAll('.file,.actions,.context,.w1-panel'))observer.observe(node);
     window.addEventListener('resize',measure);return()=>{observer.disconnect();window.removeEventListener('resize',measure);};
   });
-  if(hosted.history.previewing||!v.projection)return null;
+  if(hosted.history.previewing||!v.projection||v.projection.session.page!==page)return null;
   const p=v.projection,own=ownBallot(p),hover=v.mode?objects.find(o=>o.id===v.hover):undefined;
   const bounds=(o:ResolvedItem)=>({...screenPoint(o,view,size),width:o.width*view.z,height:o.displayHeight*view.z});
   const marker=(o:ResolvedItem,width:number,height:number,dot:boolean)=>{

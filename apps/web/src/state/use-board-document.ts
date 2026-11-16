@@ -70,7 +70,7 @@ export function useBoardDocument({ readOnly, setStatus, hosted, nameSent }: Inpu
   function finishNameEntry() { nameGroup.current = undefined; }
   // The commit lays out, on the document it commits, every map it changes,
   // except the map of a node whose text session is open (interaction v40).
-  function commit(input: SavedBoard, recordObject = false, orderIds?: readonly string[], opens?: string) {
+  function commit(input: SavedBoard, recordObject = false, orderIds?: readonly string[], opens?: string, movedPages?: readonly string[]) {
     const raw = upgrade(input);
     if (readOnly) return;
     let next = settle(model.current, raw, textSession.current?.id);
@@ -86,12 +86,12 @@ export function useBoardDocument({ readOnly, setStatus, hosted, nameSent }: Inpu
       if (historyRef.current.past.at(-1) !== prior) step = historyRef.current.past.at(-1);
     }
     const before = model.current, group = opens && hosted ? crypto.randomUUID() : undefined;
-    if (!apply(next, group ?? nameGroup.current ?? textSession.current?.group)) return;
+    if (!apply(next, group ?? nameGroup.current ?? textSession.current?.group, movedPages)) return;
     if (opens) pendingAdd.current = { id: opens, before, group, step: hosted ? undefined : step };
   }
-  function apply(next: Board, group?: string) {
+  function apply(next: Board, group?: string, movedPages?: readonly string[]) {
     const titleChanged = next.title !== model.current.title;
-    if (hosted && hosted.edit(next, group) !== true) return false;
+    if (hosted && hosted.edit(next, group, movedPages, stepPage.current) !== true) return false;
     if (hosted && titleChanged) nameSent?.(next.title);
     model.current = next;
     adapter.current!.set(next);

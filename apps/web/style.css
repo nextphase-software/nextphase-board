@@ -1594,6 +1594,7 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
 .pages-panel button { border: 0; min-width: 0; min-height: 0; padding: 0; background: transparent; color: var(--np-ink); border-radius: 8px; }
 .pages-panel .page-icon { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; }
 .pages-panel .page-name { display: block; text-align: left; height: 36px; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 500 13px/1.25 var(--np-font); touch-action: none; }
+.pages-panel .page-row button.page-name { background: transparent; }
 .page-row.current { background: var(--np-accent-soft); }
 .page-row.current .page-name { font-weight: 600; }
 .page-row:not(.current):hover { background: var(--np-sunken); }
@@ -1613,9 +1614,9 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
 .page-menu button, .context .page-menu button { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 0; height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; text-align: left; font: inherit; color: var(--np-ink); }
 .page-menu button > span { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .page-menu button:hover:not(:disabled), .page-menu button:focus:not(:disabled), .context .page-menu button:hover:not(:disabled) { background: var(--np-sunken); color: var(--np-ink); }
-.page-menu button:active:not(:disabled) { background: var(--np-line); }
+.page-menu button:active:not(:disabled), .context .page-menu button:active:not(:disabled) { background: var(--np-line); }
 .page-menu button:disabled, .context .page-menu button:disabled { opacity: 1; color: var(--np-muted); background: transparent; }
-.page-menu button.page-danger { color: var(--np-critical); }
+.page-menu button.page-danger:not(:disabled) { color: var(--np-critical); }
 .page-menu [role=separator] { height: 1px; background: var(--np-line); margin: 6px 4px; }
 .page-menu-heading { font: 600 12px/1.4 var(--np-font); color: var(--np-muted); padding: 6px 10px 4px; }
 .page-menu small, .context .page-menu small { font: 500 12px var(--np-font); color: var(--np-muted); white-space: nowrap; }

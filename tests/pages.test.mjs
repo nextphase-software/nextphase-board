@@ -381,3 +381,47 @@ test('0010-W2 F2 rings show only the open page while counters, page lines and st
   find.open=false;assert.equal(FindRings({find,page:open,pos:o=>({left:o.x,top:o.y}),zoom:1}),null);
   assert.equal(s.canonical(board),before);
 });
+
+test('0010-W2 F1b name buttons stay transparent and menu states beat hover without losing focus or disabled looks', async () => {
+  const {readFile}=await import('node:fs/promises'),{execFileSync}=await import('node:child_process');
+  const css=await readFile(new URL('../apps/web/style.css',import.meta.url),'utf8');
+  const base=execFileSync('git',['show','7d5e618:apps/web/style.css'],{encoding:'utf8'});
+  const parse=text=>[...text.replace(/\/\*[\s\S]*?\*\//g,'').matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .flatMap(([,selectors,body],order)=>selectors.split(',').map(selector=>({selector:selector.trim(),body,order})));
+  const rules=parse(css),prior=parse(base),rule=(selector,list=rules)=>list.find(r=>r.selector===selector);
+  const specificity=selector=>{
+    const simple=selector.replace(/:(?:not|has)\(([^()]*)\)/g,'$1'),parts=/\.[\w-]+|\[[^\]]+\]|:[\w-]+/g;
+    return (simple.match(parts)??[]).length*100+(simple.replace(parts,'').match(/[a-z][\w-]*/gi)??[]).length;
+  };
+  const faults=[];
+  function wins(label,selectors,competitors,declaration) {
+    const state=selectors.map(s=>rule(s)).find(Boolean);assert(state,label);assert(state.body.includes(declaration),label);
+    for(const selector of competitors){const other=rule(selector);assert(other,selector);
+      if(!(specificity(state.selector)>specificity(selector)||specificity(state.selector)===specificity(selector)&&state.order>other.order))faults.push(`${label} loses to ${selector}`);
+    }
+  }
+  wins('transparent name in every state',['.pages-panel .page-row button.page-name','.pages-panel button'],
+    ['button:hover:not(:disabled):not([aria-disabled=true])'],'background: transparent;');
+  if(rule('.pages-panel .page-row button.page-name'))assert.equal(rule('.pages-panel .page-row button.page-name').body.trim(),'background: transparent;');
+  wins('pressed Page options item',['.page-menu button:active:not(:disabled)'],
+    ['.page-menu button:hover:not(:disabled)','.page-menu button:focus:not(:disabled)'],'background: var(--np-line);');
+  wins('pressed Move menu item',['.context .page-menu button:active:not(:disabled)','.page-menu button:active:not(:disabled)'],
+    ['.context .page-menu button:hover:not(:disabled)','.page-menu button:focus:not(:disabled)'],'background: var(--np-line);');
+  wins('Delete page colour',['.page-menu button.page-danger:not(:disabled)','.page-menu button.page-danger'],
+    ['.page-menu button:hover:not(:disabled)','.page-menu button:focus:not(:disabled)'],'color: var(--np-critical);');
+  for(const selector of ['.page-menu button:hover:not(:disabled)','.page-menu button:focus:not(:disabled)','.context .page-menu button:hover:not(:disabled)']){
+    assert(rule(selector).body.includes('background: var(--np-sunken);'));
+    const state=rule(selector),shared=rule('button:hover:not(:disabled):not([aria-disabled=true])');
+    assert(specificity(selector)>specificity(shared.selector)||specificity(selector)===specificity(shared.selector)&&state.order>shared.order);
+  }
+  // Keep row-owned fills, Add/options states, font weights, focus and disabled styles exactly as before.
+  for(const selector of ['.pages-panel button','.pages-panel .page-name','.page-row.current','.page-row.current .page-name',
+    '.page-row:not(.current):hover','.page-row:has(.page-name:active)',
+    '.pages-panel .page-icon:hover:not(:disabled):not([aria-disabled=true])','.pages-panel .page-icon:active:not(:disabled):not([aria-disabled=true])',
+    '.pages-panel .page-row.menu-open','.pages-panel .page-row.menu-open .page-options:not(:disabled):not([aria-disabled=true])',
+    '.pages-panel button:focus-visible','.page-menu button:focus-visible','.page-menu button:disabled','.context .page-menu button:disabled']){
+    assert.equal(rule(selector)?.body,rule(selector,prior)?.body,selector);
+  }
+  assert.equal(css.split('/* Pages:')[0],base.split('/* Pages:')[0]);
+  assert.deepEqual(faults,[]);
+});

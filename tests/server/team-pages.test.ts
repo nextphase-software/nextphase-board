@@ -10,7 +10,10 @@ const context = inject<Context>("board"), runner = inject<string>("runner");
 let driver: Driver, f: any, pass = 0, fail = 0;
 const peers: Peer[] = [], docs: Y.Doc[] = [];
 beforeAll(async () => { driver = await makeDriver(context); });
-afterEach(async () => { for (const p of peers.splice(0)) await p.close(); for (const doc of docs.splice(0)) doc.destroy(); });
+afterEach(async () => {
+  try { for (const p of peers.splice(0)) await p.close(); for (const doc of docs.splice(0)) doc.destroy(); }
+  finally { await driver.control({ fixedNow: null, offset: 0 }); }
+});
 afterAll(async () => { await driver.close(); console.log("SUMMARY-TEAM-PAGES " + JSON.stringify({ runner, checks: pass + fail, pass, fail })); });
 const modules = async () => ({
   pages: await import("../../apps/web/src/pages.ts"),
@@ -68,7 +71,7 @@ async function answer(c: Client, id: string) {
   return result!;
 }
 const check = (id: number, name: string, run: () => Promise<void>) => test(`S${id} ${name}`, async () => {
-  try { f = await helper("removal-fixture"); await run(); pass++; console.log(`PASS: S${id} ${name}`); }
+  try { await driver.control({ fixedNow: null, offset: 0 }); f = await helper("removal-fixture"); await run(); pass++; console.log(`PASS: S${id} ${name}`); }
   catch (error) { fail++; console.log(`FAIL: S${id} ${name}`); throw error; }
 });
 async function seed() {
@@ -134,12 +137,12 @@ check(420,'storage-7 old shared map and vote convert once without edit metadata'
   const fresh=await join();assert.equal((await answer(fresh,await send(fresh,x=>x,d=>d.getMap('board').set('pages',b.pages)))).reason,'invalid_update');
 });
 check(421,'six-key presence relay, refusals, stale-page drop and voting redaction keep page',async()=>{
-  const b=await seed(),a=await join(),other=await join('owner'),page=b.pages[1].id;
-  const p={kind:'presence',cursor:{x:1,y:2},selection:[b.objects[1].id],view:{x:0,y:0,width:100,height:100},active:true,page};a.p.send(p);await until(()=>other.p.messages.findLast(m=>m.kind==='present'&&m.page===page));
+  const b=await seed(),a=await join(),other=await join('owner'),page=b.pages[1].id,connection=a.joined.self.connection;
+  const p={kind:'presence',cursor:{x:1,y:2},selection:[b.objects[1].id],view:{x:0,y:0,width:100,height:100},active:true,page};a.p.send(p);await until(()=>other.p.messages.findLast(m=>m.kind==='present'&&m.connection===connection&&m.page===page));
   for(const value of [(()=>{const {page,...missing}=p;return missing;})(),{...p,extra:1},{...p,page:'bad'}]){const n=a.p.messages.length;a.p.send(value);const r=await until(()=>a.p.messages.slice(n).find(m=>m.kind==='refused'));assert.equal(r.reason,'extra'in value?'presence_fields':'bad_presence');}
-  const n=other.p.messages.length;a.p.send({...p,page:crypto.randomUUID()});await driver.control({board:f.a,settled:true});assert.equal(other.p.messages.slice(n).filter(m=>m.kind==='present').length,0);
+  const n=other.p.messages.length;a.p.send({...p,page:crypto.randomUUID()});await driver.control({board:f.a,settled:true});assert.equal(other.p.messages.slice(n).filter(m=>m.kind==='present'&&m.connection===connection).length,0);
   a.p.send({kind:'vote_command',requestId:crypto.randomUUID(),epoch:a.joined.epoch,restoreGeneration:a.joined.restoreGeneration,sessionId:null,expectedSessionVersion:0,action:'start',prompt:'Choose',budget:3,page});await a.p.next('vote_result');
-  await driver.control({fixedNow:Date.now()+2000});const count=other.p.messages.length;a.p.send(p);const redacted=await until(()=>other.p.messages.slice(count).find(m=>m.kind==='present'));assert.equal(redacted.page,page);assert.equal(redacted.cursor,null);assert.deepEqual(redacted.selection,[]);
+  await driver.control({fixedNow:Date.now()+2000});const count=other.p.messages.length;a.p.send(p);const redacted=await until(()=>other.p.messages.slice(count).find(m=>m.kind==='present'&&m.connection===connection));assert.equal(redacted.page,page);assert.equal(redacted.cursor,null);assert.deepEqual(redacted.selection,[]);
 });
 async function comment(c:Client,anchor:any) {
   const requestId=crypto.randomUUID(),op={action:'start',threadId:crypto.randomUUID(),commentId:crypto.randomUUID(),anchor,text:'Synthetic comment'};

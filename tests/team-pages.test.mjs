@@ -112,7 +112,7 @@ async function roomFixture(board) {
   const env={storage,lifecycle:{lifecycle:async()=>({state:'active',generation:0})},access:{board:async()=>({id:board.boardId,title:board.title,createdAt:new Date(now).toISOString()}),role:async()=> 'editor',changes:async()=>({changes:[],latest:0,lowestKept:1})},
     now:()=>now,fence:async()=>generation,raiseFence:async()=>++generation,hash:async v=>createHash('sha256').update(v).digest('hex'),randomId:()=>crypto.randomUUID(),randomTicket:()=>crypto.randomUUID(),connections:()=>connections,schedule:async()=>{},backupLimit:16777216};
   const room=new Room(board.boardId,env);await room.create(board);
-  async function open(){const ticket=await room.ticket({id:crypto.randomUUID(),email:'person@example.test',expiresAt:99999999});let attachment=await room.join(ticket.ticket);const messages=[];
+  async function open(id=crypto.randomUUID()){const ticket=await room.ticket({id,email:'person@example.test',expiresAt:99999999});let attachment=await room.join(ticket.ticket);const messages=[];
     const p={messages,attachment:()=>attachment,attach:v=>{attachment=v;},send:t=>messages.push(JSON.parse(t)),close:()=>{}};connections.push(p);await room.connected(p);return p;}
   return {room,storage,env,open,advance:()=>{now+=1001;},close(){room.doc.destroy();storage.close();}};
 }
@@ -208,4 +208,98 @@ check(22,'Undo of a first-page move writes only its guarded order value',async()
   const {s,b}=await fixture(),a=new s.Adapter();a.set(b);const history=new s.SharedUndo(),before=s.capture(a.doc);a.set(s.movePage(b,b.boardId,1),[b.boardId]);history.record(before,s.capture(a.doc));
   const next=history.take(s.capture(a.doc),'undo'),events=[];a.doc.getMap('board').get('pageMap').observeDeep(es=>events.push(...es.map(e=>[e.path,[...e.keysChanged]])));a.set(next,undefined,history.pageOrders);
   assert.deepEqual(events,[[[b.boardId],['order']]]);assert.deepEqual(s.readBoard(a.doc).pages,b.pages);a.destroy();
+});
+check(23,'vote-start relays distinguish the retained seed connection from the page sender',async()=>{
+  const {b}=await fixture(),f=await roomFixture(b);
+  try {
+    const seed=await f.open(),sender=await f.open(seed.attachment().id),receiver=await f.open(),page=b.pages[1].id;
+    const p={kind:'presence',cursor:{x:1,y:2},selection:[b.objects[1].id],view:{x:0,y:0,width:100,height:100},active:true,page};
+    await f.room.message(sender,JSON.stringify(p));
+    assert.equal(seed.attachment().presence.person,sender.attachment().presence.person);
+    const retained=structuredClone(sender.attachment().presence),before=receiver.messages.length,sent=sender.messages.length,times=sender.attachment().presenceTimes.length;
+    await f.room.message(sender,JSON.stringify({...p,page:crypto.randomUUID()}));
+    assert.deepEqual(sender.attachment().presence,retained);assert.equal(receiver.messages.length,before);
+    assert.equal(sender.messages.length,sent);assert.equal(sender.attachment().presenceTimes.length,times+1);
+    const requestId=crypto.randomUUID();
+    await f.room.message(sender,JSON.stringify({kind:'vote_command',requestId,epoch:sender.attachment().epoch,restoreGeneration:0,
+      sessionId:null,expectedSessionVersion:0,action:'start',prompt:'Choose',budget:3,page}));
+    assert.equal(sender.messages.find(m=>m.requestId===requestId).kind,'vote_result');
+    const frames=receiver.messages.slice(before).filter(m=>m.kind==='present');
+    // The old S421 selector can choose this legitimate first-page placeholder.
+    assert.equal(frames[0].connection,seed.attachment().connectionId);assert.equal(frames[0].page,b.pages[0].id);
+    const redacted=frames.find(m=>m.connection===sender.attachment().connectionId);
+    assert.equal(redacted.page,page);assert.equal(redacted.cursor,null);assert.deepEqual(redacted.selection,[]);
+    assert.deepEqual(redacted.view,{x:0,y:0,width:1,height:1});assert.equal(sender.attachment().presence.page,page);
+    f.advance();const count=receiver.messages.length;await f.room.message(sender,JSON.stringify(p));
+    assert.equal(receiver.messages.slice(count).find(m=>m.kind==='present'&&m.connection===redacted.connection).page,page);
+  } finally { f.close(); }
+});
+check(24,'server page-check helpers reset a frozen clock before fresh fixture tokens and after a check',async()=>{
+  const {build}=await import('esbuild'),{readFile,mkdtemp,writeFile,rm}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{pathToFileURL}=await import('node:url');
+  const runtime=`export const checks=new Map(),before=[],after=[];let driver;
+export const configure=value=>{driver=value;};export const makeDriver=async()=>driver;
+export const test=(name,run)=>checks.set(name,run);export const beforeAll=run=>before.push(run);
+export const afterEach=run=>after.push(run);export const afterAll=()=>{};
+export const inject=name=>name==='board'?{helperUrl:'http://helpers.example.test',origin:'http://board.example.test'}:'node';`;
+  const source=await readFile(new URL('server/team-pages.test.ts',import.meta.url),'utf8');
+  const built=await build({stdin:{contents:source+'\nexport {check,req};export {checks,before,after,configure} from "test-server-runtime";',
+    resolveDir:new URL('server/',import.meta.url).pathname,loader:'ts'},bundle:true,write:false,format:'esm',platform:'node',
+    plugins:[{name:'server-helpers',setup(b){b.onResolve({filter:/^(vitest|board-test-driver|test-server-runtime)$/},()=>({path:'runtime',namespace:'helpers'}));
+      b.onResolve({filter:/^yjs$/},()=>({path:import.meta.resolve('yjs'),external:true}));
+      b.onResolve({filter:/^\.\.?\//},args=>({path:new URL(args.path,new URL('server/',import.meta.url)).href,external:true}));
+      b.onLoad({filter:/.*/,namespace:'helpers'},()=>({contents:runtime}));}}]});
+  const folder=await mkdtemp(tmpdir()+'/board-pages-helpers-'),file=folder+'/helpers.mjs';await writeFile(file,built.outputFiles[0].text);
+  const m=await import(pathToFileURL(file).href);
+  const {generateKeyPair,exportJWK}=await import('jose'),{token}=await load('tests/server/tokens.ts'),{Auth}=await load('apps/server/src/auth.ts');
+  const pair=await generateKeyPair('ES256',{extractable:true}),key={...await exportJWK(pair.privateKey),kid:'page-clock-test'},
+    publicKey={...await exportJWK(pair.publicKey),kid:key.kid},issuer='http://auth.example.test/auth/v1';
+  const person={id:crypto.randomUUID(),email:'person@example.test'},realFetch=globalThis.fetch;
+  let fixedNow=Date.now()-60000,offset=0,fixtureRequests=0;
+  const now=()=>fixedNow??Date.now()+offset,auth=new Auth({supabaseUrl:'http://auth.example.test',issuer,jwks:{keys:[publicKey]}},now);
+  const freshToken=()=>token(key,issuer,person);
+  try {
+    // This is the reported 401: a fresh, valid token has iat after the frozen clock.
+    await assert.rejects(auth.verify(await freshToken()),error=>error.status===401&&error.message==='token_malformed');
+    globalThis.fetch=async url=>{
+      assert.equal(url,'http://helpers.example.test/removal-fixture');fixtureRequests++;
+      return Response.json({people:{owner:{...person,token:await freshToken()}}});
+    };
+    m.configure({control:async value=>{if(value.fixedNow!==undefined)fixedNow=value.fixedNow;if(value.offset!==undefined)offset=value.offset;},
+      request:async(_path,init)=>{await auth.bearer(init.headers.Authorization);return Response.json({ok:true});}});
+    for(const hook of m.before)await hook();
+    m.check(0,'synthetic helper clock regression',async()=>{assert.equal((await m.req('/probe')).status,200);});
+    for(let n=0;n<2;n++) {
+      fixedNow=Date.now()-60000;offset=60000;
+      await m.checks.get('S0 synthetic helper clock regression')();
+      assert.equal(fixedNow,null);assert.equal(offset,0);
+      fixedNow=Date.now()+2000;offset=60000;
+      for(const hook of m.after)await hook();
+      assert.equal(fixedNow,null);assert.equal(offset,0);
+    }
+    assert.equal(fixtureRequests,2);
+  } finally { globalThis.fetch=realFetch;await rm(folder,{recursive:true,force:true}); }
+});
+check(25,'version-8 access delivery closes warm and reconstructed rooms without page conversion or backup work',async t=>{
+  const {b}=await fixture(),measurements=[];
+  for(const cold of [false,true]) {
+    const f=await roomFixture(b);
+    try {
+      const peer=await f.open(),person=peer.attachment().id,codes=[],calls=[],queries=[];
+      peer.close=code=>{codes.push(code);f.env.connections().splice(0,1);};
+      f.env.access.changes=async(_board,after)=>{calls.push('changes');return {changes:after<1?[{number:1,personId:person}]:[],latest:1,lowestKept:1};};
+      f.env.access.role=async()=>{calls.push('role');return null;};
+      f.room.backup=()=>assert.fail('access delivery must not take a backup');
+      const before=f.storage.all('SELECT * FROM snapshot_chunks'),exec=f.storage.exec.bind(f.storage),all=f.storage.all.bind(f.storage);
+      f.storage.exec=(sql,...args)=>{queries.push(sql);return exec(sql,...args);};
+      f.storage.all=(sql,...args)=>{queries.push(sql);return all(sql,...args);};
+      if(cold)f.room.initialized=false;
+      assert.equal(await f.room.changed(),1);assert.deepEqual(codes,[4403]);assert.equal(peer.attachment().presence,null);
+      assert.deepEqual(f.storage.all('SELECT * FROM snapshot_chunks'),before);
+      assert(!queries.some(sql=>/ALTER TABLE|(?:INSERT INTO|DELETE FROM) (?:snapshot_chunks|edits|workshop_vote)/.test(sql)));
+      assert.deepEqual(calls,cold?['changes','role','changes']:['changes','role']);
+      measurements.push({cold,accessCalls:calls.length,conversions:0,backups:0,closes:codes.length});
+      await f.room.closed(peer,4403);
+    } finally { f.close(); }
+  }
+  t.diagnostic(JSON.stringify(measurements));
 });

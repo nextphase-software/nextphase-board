@@ -419,3 +419,256 @@ implementation.
 ## Implementation record
 
 Append-only. The implementer appends its record here in a separate commit after the source commit.
+
+
+### 2026-11-16 — implementation candidate (V1–V8)
+
+- Branch: `codex/0010-W3-pages-on-team-boards`.
+- Committed prerequisite: `a46a6a13d017022454ea92601077b25c148be67a`. Behaviour baseline: `e442c8a157024ff069d66a4924d1c6d810db8b0a`.
+- Validated source/test revision: **`42c2387a6744c52bf1e0e753d5bd7ba470f01d7b`**. This record is committed separately;
+  its branch tip is reported in the handoff, not substituted for the validated source.
+- Result: **not ready for acceptance**. V4 has three failures requiring changes outside this
+  brief's allowed file list. No merge, push, deployment, server-stack or browser run occurred.
+- Added dependencies: **none**. Node 26.13.0 and npm 11.20.0 were used. The four new files have Apache-2.0 SPDX headers.
+
+| Check | Commands / inspection | Result and counts |
+| --- | --- | --- |
+| V1 | Byte comparison with prerequisite; `git diff --exit-code a46a6a1 -- package.json package-lock.json '**/package.json' 'docs/architecture/0001-dependency-*' 'docs/architecture/*runtime-notices*'` | PASS: 20 tracked manifests, locks, inventories and notices unchanged; no dependency |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` in the initially clean candidate and an independent e442c8a archive | PASS: exit 0 in both; 118 packages installed in each |
+| V3 | `npm run typecheck` | PASS: exit 0 across all five workspace members |
+| V4 | `npm test` | FAIL: exit 1; 1,273 tests, 1,270 pass, 3 fail, 0 skipped. P3-U01–P3-U22 all pass. Failures and baseline discrimination below |
+| V5 | Team-off `npm run build`; `npm run audit:licenses`; `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v1.txt` | PASS: all three exit 0 |
+| V6 | `npm run build:fixtures`; team-on `npm run build`; `npm run audit:licenses`; `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt` | PASS: all four exit 0 |
+| V7 | `npm run build:server`; `npm run audit:licenses`; `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` | PASS: all three exit 0; dry run only |
+| V8 | All source/test hunks inspected; `git diff --name-status a46a6a1..42c2387a6744c52bf1e0e753d5bd7ba470f01d7b` and `git diff --check a46a6a1..42c2387a6744c52bf1e0e753d5bd7ba470f01d7b` | PASS for candidate scope and whitespace: 73 files, four new; the only additional file is type-only `apps/web/src/find.ts`. This append-only record adds one documentation file at the separate record tip |
+
+Both web builds used `BOARD_SUPABASE_URL=http://127.0.0.1:55321`,
+`BOARD_SUPABASE_ANON_KEY=synthetic`, `BOARD_SERVER_URL=http://127.0.0.1:8796`, with
+`BOARD_TEAM_FEATURES=off` for V5 and `on` for V6. No real credential was used.
+Final build/typecheck validation ran 2026-11-16 19:34:31–19:34:43 UTC. The final full
+unit run, after the last test-fixture correction, ran **19:36:03–19:36:12 UTC**.
+The host's `pmset -g log` Sleep/Wake inspection showed no sleep overlapping these intervals.
+No long stack or browser run was started.
+
+Additional focused validation: `node --test tests/team-pages.test.mjs` passed its 22 checks;
+`node --test tests/pages.test.mjs` passed 38/38. The earlier focused seam run
+(`node --test tests/board-history.test.mjs tests/modules.test.mjs tests/team-pages.test.mjs`)
+passed 81/81 at that stage. `npx esbuild tests/server/team-pages.test.ts --bundle
+--platform=node --format=esm --external:vitest --external:board-test-driver --outfile=<scratch>`
+exited 0; this is a syntax/bundle check, **not** a server test result.
+
+#### V4 failures and escalations
+
+1. **F1-U13**, `tests/find.test.mjs`: requires the complete bodies of four team files to
+   equal its older baseline, except for the find-bar guard. V42 requires page behavior in
+   three of those files. The guard remains in each file. Updating this historical
+   whole-file assertion is outside the listed test dispositions, so it was escalated and
+   left unchanged pending approval.
+2. **W1-U32 and W1-U33**, `tests/workshop-timer.test.mjs`: both fail `room_locked` because
+   `apps/server/src/worker.ts:42` accepts only storage version 7 during retained recovery.
+   The required storage version is now 8. The needed 7-or-8 check is outside the allowed
+   behavior files; it was escalated and left unchanged pending approval.
+3. **V42 count discrepancy**: the prerequisite sync folder has 11 existing files, rather
+   than the stated ten. Adding `order-keys.ts` makes 12. The new inventory test enumerates
+   those exact 12 files, preserving every existing module. The contract count needs correction.
+
+These are candidate failures, not baseline failures: an independent e442c8a archive ran
+`node --test tests/find.test.mjs` (14/14 pass) and `node --test tests/workshop-timer.test.mjs`
+(41/41 pass). The full baseline suite was not run. The source commit's mandatory pre-commit
+and commit-message public-boundary hooks both passed. Git also printed a non-fatal
+`packed-refs.lock` sandbox maintenance error; the branch ref and clean source commit were verified.
+
+Unrun: V9 and S417–S424 on both server runners (`npm run test:server:node`,
+`npm run test:server:workerd`), Supabase CLI/schema/stack setup, V10's N2-S1–N2-S14,
+V11's runtime design comparison, V12's independent negative checks, V13's A–J comparison,
+earlier team scenarios, local N1 browser scenarios and Safari. Browsers and Supabase CLI
+cannot start in this implementation sandbox; these checks belong to the separate runs.
+All eight approved design images were read before screen implementation; no runtime visual
+match is claimed here. Graph discovery was unavailable because the tool required approval
+under the session's never-approval policy; direct public source reads were used.
+
+#### Composition, state and type seams
+
+App.tsx remains 264 lines, with five existing-line substitutions and no added line.
+The 15 rules files, 10 object types, 16 scene parts, 32 screen parts and 25 state hooks remain;
+all effect-count guards pass, including the two effects in `use-pages.ts`. Team runtime code
+still enters only through the guarded team build: non-team modules have type-only team imports.
+`apps/web/src/find.ts` gains only the structural `Pages` type members for `canEdit`,
+page people and voting reasons, and a type-only Presence import; it has no runtime change.
+The existing document commit seam passes moved page IDs and the step's open page to hosted edits.
+History-preview page preservation is handled by the existing page owner and hosted callback;
+`team/history-panel.tsx` needs no change.
+
+Exact App substitutions from e442c8a:
+
+**e442c8a line 54.** Before:
+
+```tsx
+  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent }); const pages = usePages({ board, model, stepPage, hosted: !!team?.hosted, commit, finishTextSession, select, setMessage, getView: () => view, setView: value => setView(value), getObjects: () => allDisplayedObjects, openingReason: () => busy || composing || tidy.open ? "Finish the current action first." : "", editingReason: () => commandReason || (tidy.open ? "Apply or cancel Tidy up first." : "") });
+```
+
+After:
+
+```tsx
+  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent }); const pages = usePages({ board, model, stepPage, hosted: !!team?.hosted, team: team?.hosted, canEdit: !team?.hosted || !readOnly, commit, finishTextSession, select, setMessage, getView: () => view, setView: (value, following) => following ? setFollowView(value) : setView(value), getObjects: () => allDisplayedObjects, openingReason: () => busy || composing || tidy.open ? "Finish the current action first." : "", editingReason: () => commandReason || (tidy.open ? "Apply or cancel Tidy up first." : "") });
+```
+
+**e442c8a line 136.** Before:
+
+```tsx
+  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand("Paste"), composing });
+```
+
+After:
+
+```tsx
+  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, onChange: pages.changed, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand("Paste"), composing });
+```
+
+**e442c8a line 182.** Before:
+
+```tsx
+      {team?.commentsLayer && team.hosted && <team.commentsLayer hosted={team.hosted} board={board} objects={displayedObjects} view={view} size={size} tool={tool} setTool={setTool} setView={setView} scene={scene} select={select} setInline={setInline} />}{team?.presenceLayer && team.hosted && <team.presenceLayer hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}
+```
+
+After:
+
+```tsx
+      {team?.commentsLayer && team.hosted && <team.commentsLayer page={pages.id} openPage={pages.openPage} hosted={team.hosted} board={board} objects={displayedObjects} view={view} size={size} tool={tool} setTool={setTool} setView={setView} scene={scene} select={select} setInline={setInline} />}{team?.presenceLayer && team.hosted && <team.presenceLayer page={pages.id} hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}
+```
+
+**e442c8a line 183.** Before:
+
+```tsx
+      {team?.votingLayer && team.hosted && <team.votingLayer hosted={team.hosted} objects={displayedObjects} view={view} size={size} finishTextSession={finishTextSession} cancel={cancel} setInline={setInline} setTool={setTool} select={select} setView={setView} />}
+```
+
+After:
+
+```tsx
+      {team?.votingLayer && team.hosted && <team.votingLayer page={pages.id} openPage={pages.openPage} allObjects={allDisplayedObjects} hosted={team.hosted} objects={displayedObjects} view={view} size={size} finishTextSession={finishTextSession} cancel={cancel} setInline={setInline} setTool={setTool} select={select} setView={setView} />}
+```
+
+**e442c8a line 196.** Before:
+
+```tsx
+      {!team?.hosted && <Notice pages={pages}
+```
+
+After:
+
+```tsx
+      {(!team?.hosted || !!visibleMessage) && <Notice pages={pages} hosted={!!team?.hosted}
+```
+
+#### Changed test line ranges
+
+Ranges are from `git diff --unified=0 a46a6a1..42c2387a6744c52bf1e0e753d5bd7ba470f01d7b -- tests/`; zero-length ranges denote insertions/deletions.
+
+| File | Prerequisite ranges | Validated source ranges |
+| --- | --- | --- |
+| `tests/README.md` | 671 (0) | 672–680 |
+| `tests/comments.test.mjs` | 30, 281, 283, 291, 299, 323 (0) | 30, 281, 283, 291, 299, 324 |
+| `tests/import-fixture.mjs` | 10, 16, 18 (0), 20 | 10–11, 17, 20, 22 |
+| `tests/mentions.test.mjs` | 54, 56, 76 | 54, 56, 76 |
+| `tests/modules.test.mjs` | 558, 594–596, 599–600, 603–604, 607–608, 611–612, 615–672, 698 (0) | 558, 594–596, 599–600, 603–604, 607–608, 611–612, 615–616, 643–646 |
+| `tests/pages.test.mjs` | 63, 74–75, 294, 297, 300–301 | 63, 74–75, 294, 297, 300–301 |
+| `tests/presence.test.mjs` | 11 | 11 |
+| `tests/server/history.test.ts` | 39, 53 | 39, 53 |
+| `tests/server/lifecycle.test.ts` | 34 | 34 |
+| `tests/server/mentions.test.ts` | 17–18, 19 (0), 182 | 17–18, 20, 183 |
+| `tests/server/pages.test.ts` | 105–113, 114 (0), 116–119 | 105–111, 113–114, 116–120 |
+| `tests/server/reactions.test.ts` | 42, 50, 96 | 42, 50, 96 |
+| `tests/server/shared.test.ts` | 17, 547, 603, 610, 620, 729, 744, 758, 897 | 17, 547, 603, 610, 620, 729, 744, 758, 897 |
+| `tests/server/spotlight.test.ts` | 42, 58, 185 | 42, 58, 185 |
+| `tests/server/team-pages.test.ts` | 0 (0) | 1–181 |
+| `tests/server/timer.test.ts` | 61, 72 | 61, 72 |
+| `tests/server/voting.test.ts` | 30, 33, 65, 69, 86 | 30, 33, 65, 69, 86 |
+| `tests/shared-editing.test.mjs` | 211 | 211 |
+| `tests/team-import.test.mjs` | 86 | 86 |
+| `tests/team-pages.test.mjs` | 0 (0) | 1–211 |
+| `tests/web-presence.test.mjs` | 7, 64–65 | 7, 64–65 |
+| `tests/workshop-reactions.test.mjs` | 33, 44, 69, 71, 111 | 33, 44, 69, 71, 111 |
+| `tests/workshop-spotlight.test.mjs` | 33, 70, 126 | 33, 70, 126 |
+| `tests/workshop-timer.test.mjs` | 41 | 41 |
+| `tests/workshop-voting.test.mjs` | 29, 37, 49, 69–70, 88, 92, 94, 96, 99–100, 119, 161, 163 | 29, 37, 49, 69–70, 88, 92, 94, 96, 99–100, 119, 161, 163 |
+
+All other historical assertion changes are limited to the brief's pageMap, presence page, anchor page, vote page, storage-version and named page-test dispositions.
+
+#### Files changed in the source commit
+
+```text
+M	apps/server/src/routes/boards.ts
+M	apps/web/src/App.tsx
+M	apps/web/src/find.ts
+M	apps/web/src/state/use-board-document.ts
+M	apps/web/src/state/use-hosted-board.ts
+M	apps/web/src/state/use-pages.ts
+M	apps/web/src/state/use-presence.ts
+M	apps/web/src/team/comments/card.tsx
+M	apps/web/src/team/comments/layer.tsx
+M	apps/web/src/team/comments/panel.tsx
+M	apps/web/src/team/comments/rules.ts
+M	apps/web/src/team/hosted-board.ts
+A	apps/web/src/team/page-presence.ts
+M	apps/web/src/team/people.tsx
+M	apps/web/src/team/presence-layer.tsx
+M	apps/web/src/team/presence.ts
+M	apps/web/src/team/reactions-layer.tsx
+M	apps/web/src/team/reactions.ts
+M	apps/web/src/team/templates-rules.ts
+M	apps/web/src/team/templates-section.tsx
+M	apps/web/src/team/voting-card.tsx
+M	apps/web/src/team/voting-overlay.tsx
+M	apps/web/src/team/voting-rules.ts
+M	apps/web/src/team/voting.ts
+M	apps/web/src/ui/move-to-page.tsx
+M	apps/web/src/ui/notice.tsx
+M	apps/web/src/ui/pages-panel.tsx
+M	apps/web/style.css
+M	docs/guides/try-board.md
+M	packages/board-room/src/backups.ts
+M	packages/board-room/src/comments.ts
+M	packages/board-room/src/conflicts.ts
+M	packages/board-room/src/edit-session.ts
+M	packages/board-room/src/edits.ts
+M	packages/board-room/src/history.ts
+M	packages/board-room/src/presence.ts
+M	packages/board-room/src/room.ts
+M	packages/board-room/src/storage.ts
+M	packages/board-room/src/voting.ts
+M	packages/board-sync/src/codec.ts
+M	packages/board-sync/src/comments.ts
+M	packages/board-sync/src/document-adapter.ts
+A	packages/board-sync/src/order-keys.ts
+M	packages/board-sync/src/session.ts
+M	packages/board-sync/src/undo.ts
+M	packages/board-sync/src/voting.ts
+M	tests/README.md
+M	tests/comments.test.mjs
+M	tests/import-fixture.mjs
+M	tests/mentions.test.mjs
+M	tests/modules.test.mjs
+M	tests/pages.test.mjs
+M	tests/presence.test.mjs
+M	tests/server/history.test.ts
+M	tests/server/lifecycle.test.ts
+M	tests/server/mentions.test.ts
+M	tests/server/pages.test.ts
+M	tests/server/reactions.test.ts
+M	tests/server/shared.test.ts
+M	tests/server/spotlight.test.ts
+A	tests/server/team-pages.test.ts
+M	tests/server/timer.test.ts
+M	tests/server/voting.test.ts
+M	tests/shared-editing.test.mjs
+M	tests/team-import.test.mjs
+A	tests/team-pages.test.mjs
+M	tests/web-presence.test.mjs
+M	tests/workshop-reactions.test.mjs
+M	tests/workshop-spotlight.test.mjs
+M	tests/workshop-timer.test.mjs
+M	tests/workshop-voting.test.mjs
+M	vitest.node.config.ts
+M	vitest.workerd.config.ts
+```

@@ -805,3 +805,78 @@ was Node **418 pass / 2 fail / 0 skipped**, workerd **413 pass / 3 fail / 2 skip
 those are not results for this fix. S411–S420 and S422 passed on both in that run.
 V1/V2 and V5–V7 were not repeated this round. Browser acceptance, V10–V13 and the other
 previously unrun independent checks remain unrun; browsers and Supabase CLI cannot start here.
+
+
+### Review fix round 1 — F1–F4 (0010-W3 v1)
+
+Branch: `codex/0010-W3-pages-on-team-boards`. Reviewed candidate / round base:
+`52e05840f7d3c4e03b239e753c5d237d9f638cff`. New validated source/test revision:
+**`f81befe546dde68307c1b16747b77256223867fa`**. Source/tests and this append-only record are separate
+commits; the final record tip is reported in the handoff. No merge, push or deployment.
+All changes are in the brief's existing allowlist. No new file, dependency or stored key.
+
+#### Findings, causes and fixes
+
+| Finding | Cause established by source and focused regression | Fix and proof |
+| --- | --- | --- |
+| F1 — team template capture | The page-save call intentionally supplies no canvas geometry. `buildSnapshot` can use saved rectangles, but a connector has no saved `x`/`y` box. Its missing display box causes the exact undefined-`x` exception before the dialog is set | `templateSnapshot` fills missing connector boxes using the existing connector layout and saved endpoint geometry, retaining supplied display boxes and the existing Copy normalization. The placement box is not stored in a template. P3-U26 exercises the actual section click, dialog rendering, source line, preview and Save handler/controller: five open-page objects including a connector, four preview rectangles and one line, exact source words, and a five-object request payload with no `page`, `order` or `generation`; the other page is excluded |
+| F2 — remembered hosted page | On the initial hosted handoff, the old model is a placeholder. The page-change callback applies deletion fallback to that placeholder's page and `openPage` writes the first page over the real board's remembered preference before the next render | `usePages` distinguishes the first reload arrival for each hosted board and chooses `remembered(next)` before ordinary deletion fallback. Later reloads retain the live-page/preceding-page rule. P3-U27 fails before the fix for the lost remembered page and passes after it for both a different-id placeholder and a one-page same-id placeholder, subsequent reload deletion, and direct local/hosted remembered-page opening |
+| F3 — hosted notice visibility and navigation | The hosted-only early return bypasses `showNotice` and drops the existing Move-to-page Go button. Hosted startup also retains the local-only opening message | Remove the early return: the existing notice markup, `hidden={!showNotice}` gate and Go control serve both routes. Clear the local startup message once on hosted mount through the existing message setter. Follow and remote-delete messages continue through that setter. P3-U28 proves the false visibility gate, enabled/disabled Go button and its action, and both page notices; P3-U29 also proves the opening message is absent before hosted chrome commits |
+| F4 — candidate-only board-details/spotlight layout | The injected startup notice changes an input to the existing `usePanelLayout` mount effect. That effect captures the notice element once and adds its height plus 8 px to the board-details offset. This creates a persistent candidate-only offset relative to the previously notice-free hosted mount; spotlight geometry and board-details markup are unchanged | Clear the local startup message during the hosted render handoff, before chrome measurement, restoring the baseline captured inputs. P3-U29 uses the real messages/pages/notice/panel-layout code with synthetic measured rectangles: before the fix the panel offset is 116 px rather than 68 px; afterward it is 68 px and stays there when the viewer's later read-only message appears. The existing spotlight geometry remains unchanged. **This proves the layout-input regression and its repair, not a browser pointer hit-test: the exact P1-S45 Close-board-details click still requires the independent browser rerun** |
+
+For F4, whole-file equality against e442c8a was verified for
+`apps/web/src/state/use-panel-layout.ts`, `apps/web/src/team/spotlight-layer.tsx`,
+`apps/web/src/team/spotlight-rules.ts` and `apps/web/src/ui/board-panel.tsx` (4/4 unchanged).
+The single-page presenter case does not enter the new cross-page follow branch.
+No spotlight state, frame, collision formula, stacking or CSS changed in this round.
+App.tsx retains its exact five recorded substitutions and 264 lines. All file counts and
+passive-effect guards remain unchanged, including the two effects in `use-pages.ts`.
+
+#### Focused discrimination and validation
+
+The new tests were written before the product fixes. With the three implementation files
+at the reviewed 52e0584 content, all four checks fail by name: F1 undefined-`x`, F2 wrong
+page, F3 ignored visibility, F4 panel offset 116 instead of 68. No import/setup abort counts
+as a negative. The implementation files were restored after this negative verification;
+no unrelated work was changed and no stash or hook bypass was used.
+
+| Check | Commands / inspection | Result |
+| --- | --- | --- |
+| Focused, before fix | `node --test --test-reporter=tap --test-name-pattern='P3-U2[6789]' tests/team-pages.test.mjs` with reviewed product content | Expected failure: 4 tests, 0 pass, 4 fail, 0 skipped |
+| Focused, after fix | Same command on the validated source | **PASS**: exit 0; 4/4, 0 fail, 0 skipped |
+| V3 | `npm run typecheck` | **PASS**: exit 0 across all five workspace members |
+| V4 | Full `npm test` | **PASS**: exit 0; 1,280 tests, 1,280 pass, 0 fail, 0 skipped; all P3-U01–P3-U29 pass |
+| V5 | Team-off `npm run build`; `npm run audit:licenses`; `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v1.txt` | **PASS**: 3/3 commands exit 0 |
+| V6 | `npm run build:fixtures`; team-on `npm run build`; `npm run audit:licenses`; `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt` | **PASS**: 4/4 commands exit 0 |
+| V7 | `npm run build:server`; `npm run audit:licenses`; `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` | **PASS**: 3/3 commands exit 0; no deploy |
+| V8 | Every round hunk inspected; `git diff --name-status 52e05840f7d3c4e03b239e753c5d237d9f638cff..f81befe546dde68307c1b16747b77256223867fa` and `git diff --check 52e05840f7d3c4e03b239e753c5d237d9f638cff..f81befe546dde68307c1b16747b77256223867fa`; cumulative inventory and whitespace inspected with the same two commands over `a46a6a1..f81befe546dde68307c1b16747b77256223867fa` | **PASS**: four authorized source/test files, no added file; 141 insertions / 7 deletions. This record is appended separately |
+
+Both web builds used synthetic settings: `BOARD_SUPABASE_URL=http://127.0.0.1:55321`,
+`BOARD_SUPABASE_ANON_KEY=synthetic`, `BOARD_SERVER_URL=http://127.0.0.1:8796`, and
+`BOARD_TEAM_FEATURES=off` or `on` respectively. Node 26.13.0 / npm 11.20.0 unchanged.
+All thirteen focused/V3–V7 commands exited 0. They ran from **2026-11-16T22:03:56.526335+00:00** to
+**2026-11-16T22:04:15.921627+00:00** UTC; the full unit run was **2026-11-16T22:03:58.708581+00:00** to **2026-11-16T22:04:13.469468+00:00** UTC.
+The source commit's pre-commit and commit-message public-boundary hooks both passed.
+The existing non-fatal `packed-refs.lock` sandbox maintenance error was printed; the source
+ref and clean worktree were verified. Added dependencies: none. No scope escalation.
+
+#### Round changed-file and line-range inventory
+
+Ranges compare 52e0584 with the source or separate record commit.
+
+| File | Before | After | Change |
+| --- | --- | --- | --- |
+| `apps/web/src/state/use-pages.ts` | Insertions after 39, 156, 162 | 40–42; 160; 167 | Hosted startup message handoff and first-arrival preference restoration |
+| `apps/web/src/team/templates-rules.ts` | 3; insertion after 4; insertion after 28; 30 | 3; 5; 30–36; 38 | Supply missing connector geometry to the normalized page snapshot |
+| `apps/web/src/ui/notice.tsx` | 25; 27 | 25; old 27 deleted | Remove hosted-only rendering branch and use the shared notice path |
+| `tests/team-pages.test.mjs` | 144; insertion after 150; 154–155; insertion after 305 | 144; 151; 155–156; 307–427 | Seed page preferences in the existing hook harness; focused component harness and P3-U26/U27/U28/U29 |
+| `docs/briefs/0010-W3-pages-on-team-boards.md` | Insertion after 807 | 808–882 | This append-only review-fix record |
+
+#### Unrun and handoff
+
+Browsers and Supabase CLI cannot start in this sandbox. On this source, the two full server
+suites and V9–V13 remain unrun here. The independent check run must confirm N2-S11's real
+modal/preview/save, N2-S12's reload, the notice/Go behavior and approved captures, and the
+exact P1-S45 click while a solo viewer presents. Local A–J and baseline-negative browser
+checks likewise require that run. No browser pass or P1-S45 pointer success is claimed from
+the stack-free regressions. V1/V2 were not repeated this round; dependencies are unchanged.

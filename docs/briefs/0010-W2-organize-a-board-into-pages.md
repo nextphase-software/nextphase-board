@@ -885,3 +885,125 @@ after the successful commit; the branch ref and clean state were verified. No ho
 
 `git diff --check 70df729..b17fea9` exits 0. The fix commit changes one helper in one test file;
 the separate record commit changes only this append.
+
+### Review fix round 1 — page control states and find rings — 2026-11-16
+
+- Branch: `codex/0010-W2-organize-a-board-into-pages`.
+- Starting record tip: `2a1ad32aaf7b2a62e71c51328cfdcf2c031015ff`.
+- Validated source/test revision: `4e1c7ae948bf404d166727779f9cbc8fbb45d675`
+  (`test(pages): keep ring regression with cross-page checks`), following product commit
+  `193e192af780f9fb1d47a0f48d464feb5923d43b`
+  (`fix(web): preserve page control states and scope find rings`). This append is a separate record
+  commit; the handoff reports its tip separately. This is review fix round **1 of at most 3**.
+- Read the review and check evidence and inspected all three supplied failure captures. Re-read the
+  approved pages, page-menu and move-menu images and interaction v43 lines 54–58, 80–84, 117–121 and
+  172–178 before changing CSS. The public interaction contract supplies the values; no design change,
+  font/image asset, dependency, version or licence change. No push or merge.
+
+#### Findings and resulting behavior
+
+| Finding | Cause | Fix and focused proof |
+| --- | --- | --- |
+| F1 — product | The shared `button:hover:not(:disabled):not([aria-disabled=true])` rule has specificity (0,3,1), beating the new Pages/open/pressed styles. The context bar also overrides the open Move button's icon colour. | Scope stronger enabled-state selectors to Pages and its list icons, plus the open Move button. Pages closed hover is `#eef1f5`; open Pages and Move keep `#dceafb` / `#1665d8` under hover. Add/options hover is `#eef1f5`, pressed is `#d9dfe7`; a menu-open row stays `#eef1f5` and its options button `#d9dfe7`. Menu-open options outrank both hover and pressed selectors. The CSS regression checks the exact tokens, specificity/source-order precedence and byte-identical shared CSS before the Pages block. No other button selector changes; closed Move hover/focus/disabled and all focus outlines retain their shared rules. |
+| F2 — product | `FindRings` mapped the whole cross-page result array, so a match on another page still drew a ring even with no current match on the open page. | Give the renderer the open page id and filter only its rendering projection. Both current and other rings require `result.page === page`; the full Find state, counters, page line and stepping remain intact. The regression renders the actual component with matches on three pages, proves `– of 1` with no ring on a page without matches, filters off-page current and other matches, checks next/previous, full-result counters/page labels, unchanged board bytes and closed Find. |
+
+Both new named regressions are in `tests/pages.test.mjs`, following the brief's shared-path
+instruction. They were run against an archive of the starting `2a1ad32` product with the final test
+file copied in: **0 pass / 2 fail**, by name (missing stronger CSS state rule; off-page ring present).
+The same final checks on the fix give **2 pass / 0 fail**:
+
+```sh
+node --test --test-reporter=tap --test-name-pattern='0010-W2 F[12]' tests/pages.test.mjs
+```
+
+This is focused before/after proof, not a rerun of V12 on the behavior baseline. The first source
+commit's Find-file regression was moved into the page checks in `4e1c7ae`; `tests/find.test.mjs` is
+byte-identical to the starting tip. No existing one-page Find assertion changed.
+
+#### App substitution (one existing line, no added line)
+
+`apps/web/src/App.tsx` remains **264 lines**. Only line **180** changes in this round, by adding
+`page={pages.id}` to `FindRings`; all other characters on that line remain. The baseline composition
+still consists of the same **19 substituted lines**, with this substitution's final value updated in
+`tests/modules.test.mjs:656`. The module guard reconstructs the complete App from `076f82e` and passes.
+No hook, state owner or effect changed; the 15/10/16/32/25 module counts and two Pages effects remain.
+
+Before, complete line 180:
+
+```tsx
+        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={pages.canvas()} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} pos={pos} zoom={view.z} />
+```
+
+After, complete line 180:
+
+```tsx
+        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={pages.canvas()} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} page={pages.id} pos={pos} zoom={view.z} />
+```
+
+#### Authoritative V3–V6 validation on `4e1c7ae`
+
+Node **26.13.0**, npm **11.20.0**. Both builds use these synthetic settings:
+
+```sh
+BOARD_SUPABASE_URL=http://127.0.0.1:55321
+BOARD_SUPABASE_ANON_KEY=synthetic
+BOARD_SERVER_URL=http://127.0.0.1:8796
+```
+
+| Result | Commands | Counts | UTC start–end, 2026-11-16 |
+| --- | --- | --- | --- |
+| PASS: V3 | `npm run typecheck` | All **5** workspace members; exit 0 | 09:01:46.247–09:01:48.488 |
+| PASS: V4 | `npm test` | **1,249 pass / 0 fail / 0 skip**, including both new named regressions; exit 0 | 09:01:46.247–09:01:54.110 |
+| PASS: V5 | `BOARD_TEAM_FEATURES=off npm run build`; `npm run audit:licenses`; `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v1.txt` | **3/3 commands** exit 0; one local web build, notices byte-identical | 09:01:47.450–09:01:48.411 |
+| PASS: V6 | `npm run build:fixtures`; `BOARD_TEAM_FEATURES=on npm run build`; `npm run audit:licenses`; `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt` | **4/4 commands** exit 0; **7 fixture output files**, one team web build, notices byte-identical | 09:01:52.912–09:01:53.647 |
+
+Earlier verification on `193e192` also passed V3–V6 (1,249/0/0 units), during
+08:58:48.991–08:59:06.439 UTC. The final runs above followed the test-placement commit and are the
+source-revision results for handoff. Both sets of raw logs are retained. AC power / 100% charge and
+`caffeinate -dimsu` were recorded; `pmset -g log` found **0 actual Sleep/Wake/DarkWake transitions**
+across 08:58:48.991–09:01:54.110 UTC. No validation overlapped sleep.
+
+Raw receipt hashes (receipts are outside the repository; no host paths committed):
+
+| Receipt | SHA-256 |
+| --- | --- |
+| `red-final.log` | `1732a04df0d215131c9ed3950a1c4e4434b8a75bea33b47d914e2be6b1a22efc` |
+| `green-final.log` | `bf70bf3c1e9f91bc7f3e2d153470c973c83e62b02c573abe2fbeb45b9a7c83b0` |
+| `V3-final.log` | `6401c42ca0f07cac1d8322415400ae67617315cf6ab2f3b79fc6046e6511c61f` |
+| `V4-final.log` | `99fc7ea72aade5e5e519cda12756f1c6d8ec8f2faf43202adba0d273af67a57b` |
+| `V5-build-final.log` | `f487d01a4726454336e262b2b9527dea58dea559d4c18b471064b309a01dfba6` |
+| `V5-audit-final.log` | `7bf914273592848e5bf1987472a52faf6078fa65d6bcd8f1fc91fe29b8cccae1` |
+| `V5-notices-final.log` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `V6-fixtures-final.log` | `d10037338e529c19d7af2318453d4c4603374a35d994d35be70a785b31c340f4` |
+| `V6-build-final.log` | `f487d01a4726454336e262b2b9527dea58dea559d4c18b471064b309a01dfba6` |
+| `V6-audit-final.log` | `7bf914273592848e5bf1987472a52faf6078fa65d6bcd8f1fc91fe29b8cccae1` |
+| `V6-notices-final.log` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+
+**Unrun:** browsers, new captures/design comparison, the N1 scenario/scoped recheck, both server
+suites, Supabase CLI/stack, and validation rows V1/V2/V7–V13. The local fix diff and path list were
+inspected and whitespace checked. The CSS test proves rule precedence, not browser-computed pixels;
+N1-S1/S4/S8 and the affected design compares require the independent recheck. F2's N1-S10 browser
+result also remains for that recheck. No runtime acceptance or milestone approval is claimed here.
+
+**Escalation:** none. Graph discovery/indexing remained approval-blocked under the sandbox's never
+policy, so source reads supplied the trace. All source-commit privacy hooks passed; optional Git
+packed-refs maintenance was sandbox-denied after successful commits, with refs and clean status
+verified. No hook was bypassed. The internal repository was read-only; unrelated work and the vote
+evidence document were not touched or staged.
+
+#### Complete final changed-path and line-range inventory
+
+Ranges compare `2a1ad32` with `4e1c7ae`; the record append is separate. There are **5 net source/test
+paths**, plus this brief. `tests/find.test.mjs:235–262` was added in `193e192` and removed in `4e1c7ae`;
+its final contents equal `2a1ad32`. Both regressions reside only in the page test file.
+
+| Changed path | Before → after lines | Scope |
+| --- | --- | --- |
+| `apps/web/src/App.tsx` | 180 → 180 | The exact renderer page-prop substitution above, within the existing line. |
+| `apps/web/src/scene/find-rings.tsx` | 4–5 → 4–5; 8 → 8 | Required open-page prop and rendering-only result filter; no state change or new scene part. |
+| `apps/web/style.css` | 1582–1583 → 1582–1583; 1599–1601 → 1599–1603 | Only the named Pages controls/menu-open row and open Move state precedence. Shared styling unchanged. |
+| `tests/modules.test.mjs` | 656 → 656 | Update the existing line-180 substitution's expected final value. |
+| `tests/pages.test.mjs` | after 320 → 321–383 | Two focused regressions: CSS state precedence and actual ring rendering across pages. |
+| `docs/briefs/0010-W2-organize-a-board-into-pages.md` | append after 887 → 888–1009 | This separate Review fix round 1 record; earlier content unchanged. |
+
+`git diff --check 2a1ad32..4e1c7ae` exits 0. All final hunks and `git diff --name-status` were inspected.

@@ -798,3 +798,90 @@ adds only the append below the prior 693 lines.
 | `tests/server/suite.test.ts` | 9 → 9–10; 368–384 deleted (after 368 in candidate); 396 → 380; 403 → 387 | Shared corrected `largeBoard`, explicit payload boundary, physical chunk count. S38/S41 bodies unchanged. |
 | `tests/server/templates.test.ts` | 49 → 49 | Omit `page` from stored-template fixture objects. |
 | `docs/briefs/0010-W2-organize-a-board-into-pages.md` | append after 693 → 694–800 | This separate Fix round 1 implementation record; earlier content unchanged. |
+
+### Fix round 2 — stored snapshot seed statement size — 2026-11-16
+
+- Branch: `codex/0010-W2-organize-a-board-into-pages`.
+- Starting record tip: `70df72979c7b6fc958df0acee5f1443854523dc0`.
+- Validated source/test revision: `b17fea949fe684ea07f1c31768b379d7a6f65c21`
+  (`test(pages): bound stored snapshot seed statement size`). This append is a separate record commit;
+  the final tip is reported in the handoff. This fix round is outside the review cap. No push or merge.
+- Classification: **test fixture/helper**. Read the supplied workerd S412 retry log: `SQLITE_TOOBIG`
+  occurs while `seedStored` executes the maximum-size v12 snapshot inserts, before any upgrade assertion.
+  A 1 MiB byte chunk becomes a **2,097,201-byte SQL statement** after hex encoding and SQL syntax.
+  Cloudflare documents a **100 KB SQL statement limit** for SQLite-backed Durable Objects:
+  [Durable Objects limits](https://developers.cloudflare.com/durable-objects/platform/limits/).
+- Fix: only `seedStored` now writes **32 KiB** byte chunks, giving a maximum statement length of
+  **65,585 bytes**. Revision/kind/index bindings, byte contents and contiguous chunk indexes retain
+  their meaning. S412 assertions, all other checks and all product files are byte-identical outside
+  the helper; no new dependencies or licence/version changes.
+
+#### Driver and stored-layout proof
+
+`tests/server/driver-node.ts:29–31` forks without an advanced serialization option; `47–49` sends the
+control object over IPC. The installed Node declarations document JSON as the serialization default.
+`tests/server/node-test.ts:164` passes received `roomSQL` bindings straight to storage, with no binary
+revival. A `Uint8Array` binding therefore is not carried as binary end to end on Node. The workerd
+path (`tests/server/driver-workerd.ts:118–124`) likewise forwards the supplied bindings to storage.
+Changing drivers to carry binary would exceed this helper-only fix. The smaller hex statements keep
+SQL strings and primitive bindings compatible with both existing paths.
+
+The stored layout permits smaller rows: `packages/board-room/src/snapshots.ts:24–42` reads the latest
+revision's Yjs chunks by `chunk_index`, concatenates all bytes and applies the result; it assumes no
+fixed row length. `packages/board-room/src/history.ts:30–40,301–306` requires contiguous indexes,
+nonempty rows and a **maximum**, not an exact size, of 1 MiB, then concatenates JSON/Yjs chunks.
+`NodeStorage.exec` and `WorkerStorage.exec` each execute the supplied SQL unchanged. No product or
+storage format change is required. An upgrade writes its normal production snapshot afterward.
+
+A scratch-only probe extracted the actual helper and exercised the maximum-size version 12 fixture,
+with a 100,000-byte statement guard before executing its SQL through `NodeStorage`. The old helper
+fails that guard (the independent workerd retry supplies the actual runtime failure). The corrected
+helper passes: **64 JSON rows + 44 Yjs rows**, maximum row 32 KiB, **2,097,152 payload bytes**. A JSON
+round trip of the SQL/control arguments models the Node IPC transport. Existing `documentBytes` and
+`loadDocument` reconstruct the unchanged legacy document; two room export/load cycles serve version
+13, with **0 edits, 0 receipts, revision 0 and unchanged history rows**. This probe is stack-free proof
+of statement size and layout compatibility, not a workerd/server-suite pass.
+
+Other literal seeding was inspected: `tests/server/mind-maps.test.ts` and
+`tests/server/drawing-layout.test.ts` use one-sticky legacy snapshot/history fixtures; S415 in
+`tests/server/pages.test.ts` seeds an empty history document. None of these literal seeds currently
+carries a payload large enough to cross the statement limit. They remain unchanged; no additional
+server check was reported failing because of them.
+
+#### Authoritative validation on the source revision above
+
+Node **26.13.0**, npm **11.20.0**. UTC times below are on 2026-11-16.
+
+| Result | Command | Counts | Start–end UTC | Receipt |
+| --- | --- | --- | --- | --- |
+| PASS: V3 | `npm run typecheck` | All **5** workspace members; exit 0 | 08:29:59.278–08:30:01.507 | `V3.log` |
+| PASS: V4 | `npm test` | **1,247 pass / 0 fail / 0 skip**; exit 0 | 08:29:59.279–08:30:06.992 | `V4.log` |
+
+AC power / 100% charge and `caffeinate -dimsu` were recorded. `pmset -g log` found **0 actual
+Sleep/Wake/DarkWake transitions** during 08:29:59.278–08:30:06.992 UTC. No run overlapped sleep.
+Raw receipts are retained outside the repository, without committing host paths:
+
+| Receipt | SHA-256 |
+| --- | --- |
+| `seed-red.log` | `dd9a3ff813160744ab1ab5d8a63a5579e5e11b2ceba2aa19c973a36ca5bb9f8f` |
+| `seed-green.log` | `ee91a4e54e5243326423296990702b10a58cba03821f58394d267c4339886190` |
+| `V3.log` | `6401c42ca0f07cac1d8322415400ae67617315cf6ab2f3b79fc6046e6511c61f` |
+| `V4.log` | `fb19da3c995bae1598592d0edcf41014ee113c40bf2e102974599c1ae3da3bad` |
+
+**Unrun:** V9, both `npm run test:server:node` and `npm run test:server:workerd`; the required stack
+cannot start in this sandbox. S412's workerd recovery is expected from bounded statements and remains
+for the independent server run to prove. V1/V2/V5–V8 and V10–V13 were not rerun as validation rows;
+the fix hunks, path list and diff whitespace were inspected. No browser, Supabase CLI or server stack
+was started. The internal repository remained read-only; unrelated work was preserved.
+
+**Escalation:** none. Graph discovery/indexing remained approval-blocked, so source reads supplied the
+trace. Both source-commit privacy hooks passed. Optional packed-refs maintenance was sandbox-denied
+after the successful commit; the branch ref and clean state were verified. No hook was bypassed.
+
+| Complete changed-path inventory | Before → after lines | Scope |
+| --- | --- | --- |
+| `tests/server/pages.test.ts` | `70df729` lines 80–81 → `b17fea9` lines 80–84 | Only the `seedStored` chunk-size constant, its explanation and its loop/slice bounds. Assertions/product unchanged. |
+| `docs/briefs/0010-W2-organize-a-board-into-pages.md` | append after 800 → 801–887 | This separate Fix round 2 record; the preceding 800 lines are unchanged. |
+
+`git diff --check 70df729..b17fea9` exits 0. The fix commit changes one helper in one test file;
+the separate record commit changes only this append.

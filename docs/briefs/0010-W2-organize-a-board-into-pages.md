@@ -691,3 +691,110 @@ M	tests/workshop-voting.test.mjs
 M	vitest.node.config.ts
 M	vitest.workerd.config.ts
 ```
+
+### Fix round 1 — server findings — 2026-11-16
+
+- Branch: `codex/0010-W2-organize-a-board-into-pages`.
+- Starting record tip: `11e689934e156a940f024f0294bc159db40a429e`.
+- Validated source/test revision: `2ea990f601455cdd64d3f13471e0fbf74dc8de3f`
+  (`test(pages): repair hosted fixtures and payload sizing`). This append is a separate record commit;
+  its tip is reported separately. No push or merge. This fix round does not count toward the review cap.
+- Read the supplied server findings and every named retry log. All 32 reproducible failures have
+  **test fixture** causes. No product or check-tool change, dependency, licence change, screen change
+  or `App.tsx` substitution in this round. The room/codec refusal rules remain intact.
+
+#### Proven causes and expected server-check changes
+
+| Failure IDs | Classification and proof | Fix and expected effect in the next server-only run |
+| --- | --- | --- |
+| S402, S407, S412 | **Test fixture.** Each seed used the current adapter (which upgrades to 13), reset the version, then deleted page fields. An encode/decode round trip retains each deleted object `page` in `Y.Map._map`, although `has("page")` is false. `codec.ts`'s exact legacy map check throws `invalid_update` in `Room.load`, before `upgradeStored`; export cannot serve the board. Isolated clean legacy maps for 10, 11, 12 and a maximum-size 12 board already loaded/exported as 13 with the unmodified product. | `storedBoardUpdate` copies live adapter entries into fresh legacy maps, never inserting `pages` or `page`, while cloning text and retaining style, geometry, order, identifiers and retired generations. All three server seeds use it. Expect older snapshots to export/join as 13 with the default page; S412 can now reach its maximum-size case. Four new room units prove two loads each, with revision 1 and an existing receipt unchanged, no edits, unchanged identifiers, history rows/chunks and restore generation. |
+| S378–S401 | **Test fixture, version-13 disposition.** `content()` strips generation/order from objects made by `add()`, but retained the new `page`. `templateObjects` correctly rejects that forbidden stored-template field as `bad_request`. Both simple and full old fixtures reproduce the rejection; their corrected forms validate with 1 and 4 objects respectively. | Strip `page` alongside generation/order. Expect the 24 template checks to reach their intended role, CRUD, content and limit assertions. Product template validation and the deliberate forbidden-page check S416 are unchanged. |
+| S33, S59 | **Test fixture, version-13 disposition.** The old large-board builders replaced `empty().boardId` but retained its original page id; `add()` then used the replacement board id for object pages. Both original builder functions reproduce `Invalid page reference` locally. These invalid references exist before the room sees an edit. | Share `largeTextBoard`, setting the default page id to the supplied board id before adding objects. The new room unit saves all 50 five-object increments, snapshots/reloads the complete board unchanged, then refuses a one-byte title growth without a receipt or revision. Thus the driven product edit/rename paths do not create the cross-page reference. Expect S33 persistence and S59 rename limits to run. |
+| S140 | **Test fixture, version-13 disposition.** `sizedBoard()` already makes a 2,097,152-byte payload after excluding page metadata. Its serialized canonical JSON is 2,104,400 bytes, so the raw-length assertion was wrong. At 2,097,153 payload bytes the product still refuses `Board too large`. | Measure the assertion and evidence with document v18's `payloadBytes`. Extend P2-U05 to prove both current-version boundaries. `sizedBoard` itself and its modes are unchanged. Exact 2 MiB acceptance and one-more-byte refusal retain their meaning. |
+| S38, S41 | **Test fixture dependency.** Both retry traces stop at `assert(large)`; `large` is assigned only after S33's successful persistence/export. Neither failure demonstrates a refusal/restore product bug. | Correcting S33 restores the prerequisite at its existing assignment. S38 and S41 assertions and bodies are unchanged. Expect them to reach their large-document refusal and restore checks. |
+| workerd S93 | Timing flake reported as non-reproducible and also passing on the baseline. | Left untouched; no implementation claim or rerun in this sandbox. |
+
+The corrected large text fixture measures **2,097,152 payload bytes** and **2,108,724 serialized
+bytes**. It therefore occupies **3 JSON chunks**, not the pre-pages 2. S33 now asserts the exact
+`ceil(serialized bytes / 1,048,576)` chunk count, separately asserting the exact payload boundary;
+its Yjs multi-chunk and bounded-row assertions remain. The same physical/payload distinction is
+covered by the new room unit. No brief acceptance assertion was relaxed.
+
+#### Stack-free reproduction and validation
+
+Before the helper fix, the unchanged deletion-based seed algorithm was mechanically extracted into
+`storedBoardUpdate` and exercised by the four new room cases:
+
+```sh
+node --test --test-reporter=tap --test-name-pattern='stored version' tests/room.test.mjs
+```
+
+Result: **0 pass / 4 fail**, each `invalid_update` at `codec.ts` → `Room.load` → export. After the
+fresh-map fix, the same command gave **4 pass / 0 fail**. The final focused command
+`node --test --test-reporter=tap tests/room.test.mjs tests/pages.test.mjs` gave **44 pass / 0 fail**.
+A scratch-only fixture probe evaluated the original builder functions from `11e6899` and the corrected
+fixtures without loading Vitest or starting a stack: both template forms, both large builders, all
+three legacy versions and both size boundaries reproduced the causes/fixes described above.
+
+All authoritative rows below ran on `2ea990f601455cdd64d3f13471e0fbf74dc8de3f`, with Node **26.13.0**
+and npm **11.20.0**. Times are UTC on 2026-11-16; these are implementation checks, not server acceptance.
+
+| Result | Command | Counts | Start–end UTC | Raw receipt |
+| --- | --- | --- | --- | --- |
+| PASS: V3 | `npm run typecheck` | 5 workspace members; exit 0 | 07:37:19.608–07:37:22.364 | `V3.log` |
+| PASS: V4 | `npm test` | **1,247 pass / 0 fail / 0 skip**; 5 new room units, extended P2-U05; exit 0 | 07:37:19.608–07:37:29.195 | `V4.log` |
+| PASS: V7 build | `npm run build:server` | 2 bundles (Node/Worker), verified notices; exit 0 | 07:37:23.479–07:37:24.069 | `V7-build.log` |
+| PASS: V7 audit | `npm run audit:licenses` | Lock, inventory and distributed notices verified; exit 0 | 07:37:29.265–07:37:29.413 | `V7-audit.log` |
+| PASS: V7 dry run | `WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=<scratch>/wrangler-logs npx wrangler deploy --dry-run --outdir <scratch>/worker-dry-run -c apps/server/wrangler.json` | Wrangler 4.156.0; 1,379.76 KiB, gzip 283.95 KiB; exit 0; no deploy | 07:38:28.609–07:38:29.417 | `V7-dry-run-final.log` |
+
+V7 is **3/3 commands passed**. An earlier dry run also exited 0, but its default diagnostic-log write
+was sandbox-denied. The final run above directs that log into writable scratch and completes cleanly.
+AC power / 100% charge and the active `caffeinate -dimsu` process were recorded. `pmset -g log` found
+**0 actual Sleep/Wake/DarkWake transitions** across 07:37:19.608–07:38:29.417 UTC; no validation overlapped
+sleep. No unrelated suite, browser, Supabase CLI or stack was started.
+
+Raw receipt SHA-256 values (receipts retained outside the repository; no host paths committed):
+
+| Receipt | SHA-256 |
+| --- | --- |
+| `room-red.log` | `2670ba920569255ce1aad2158d4f4acd0e0ef69c79d7395290b087167e7a533c` |
+| `room-green.log` | `ec131a73106875c5958da7d137383c34b806de7d58e0fa681c2b3be618a5faee` |
+| `focused.log` | `24c498ed735cb1a816c2f09305ee18ead827d08a78f5734f0be70b640c6889ab` |
+| `fixture-proof.log` | `22e58b24d66be3030c4202899c9faa867bb12f27eebd2dcc3e77deddd7a19e9b` |
+| `V3.log` | `6401c42ca0f07cac1d8322415400ae67617315cf6ab2f3b79fc6046e6511c61f` |
+| `V4.log` | `a46f01e8bdee983e8ebbfe58a16afdc5efed75be221652419993a3be1a07845c` |
+| `V7-build.log` | `c8fbd0d3d1c9e3b383a2843ff5907b3e03ba87f828aa8e6dc764933a923bb5f4` |
+| `V7-audit.log` | `7bf914273592848e5bf1987472a52faf6078fa65d6bcd8f1fc91fe29b8cccae1` |
+| `V7-dry-run-final.log` | `d97ece32703ff0aa42eeab95757d00470b28f36a99adba87f02d7d9aba1fb60c` |
+
+**Unrun:** V9 (`npm run test:server:node`, `npm run test:server:workerd`), including the 32 expected
+fixture-related recoveries and workerd S93; the sandbox cannot start the required stack. V1/V2/V5/V6
+and V10–V13 were not rerun in this fix round. No browser was started. The next independent server-only
+run must validate the expected effects; no server failure is reported as passed here.
+
+**Escalation:** none. Graph discovery/indexing remained approval-blocked under the sandbox's never
+policy, so source reads supplied the evidence. The source commit's two privacy hooks passed; optional
+Git packed-refs maintenance was denied after the successful commit, with its branch ref and clean
+status verified. No hook was bypassed. The internal repository was read-only throughout; the unrelated
+vote evidence document was not touched or staged.
+
+#### Complete fix-round changed-path and line-range inventory
+
+Ranges before → after refer to `11e6899` → `2ea990f`; deleted helper bodies are listed explicitly.
+All ten source/test paths are within the brief's fixture/test dispositions. `git diff --check
+11e6899..2ea990f` exits 0; every hunk and `git diff --name-status` were inspected. The record commit
+adds only the append below the prior 693 lines.
+
+| Changed path | Before → after lines | Disposition |
+| --- | --- | --- |
+| `tests/import-fixture.mjs` | 2 → 2; after 3 → 4–5; after 7 → 10–51 | Add existing dependency imports, fresh legacy snapshot encoder, shared default-page text fixture sized without page metadata. `sizedBoard` algorithm unchanged. |
+| `tests/pages.test.mjs` | after 81 → 82–83 | Extend P2-U05 with the current exact-2-MiB and plus-one boundaries. |
+| `tests/room.test.mjs` | after 88 → 89–167 | Four legacy-load regressions and the hosted large-fixture edit/persist/reload/rename regression. |
+| `tests/server/drawing-layout.test.ts` | 6 → 6; 81 → 81; 84–85 → 84 | S407 uses the clean legacy seed helper. |
+| `tests/server/lists.test.ts` | after 9 → 10; 167–188 deleted (after 167 in candidate) | S59 uses the shared corrected `fullBoard` alias instead of its stale-page/raw-size builder. |
+| `tests/server/mind-maps.test.ts` | 6 → 6; 85 → 85; 88–89 → 88 | S402 uses the clean legacy seed helper. |
+| `tests/server/pages.test.ts` | 75 → 75; 77–79 → 77 | S412 uses the clean legacy seed helper, including the maximum-size v12 case. |
+| `tests/server/shared.test.ts` | 993 → 993–994; 998 → 999 | S140 assertion/evidence measure the v18 payload. |
+| `tests/server/suite.test.ts` | 9 → 9–10; 368–384 deleted (after 368 in candidate); 396 → 380; 403 → 387 | Shared corrected `largeBoard`, explicit payload boundary, physical chunk count. S38/S41 bodies unchanged. |
+| `tests/server/templates.test.ts` | 49 → 49 | Omit `page` from stored-template fixture objects. |
+| `docs/briefs/0010-W2-organize-a-board-into-pages.md` | append after 693 → 694–800 | This separate Fix round 1 implementation record; earlier content unchanged. |

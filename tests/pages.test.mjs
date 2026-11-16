@@ -308,3 +308,11 @@ check(34, 'both template wrappers reject stored page and put inserted objects on
   const wrapper=templateBoard(snapshot.objects);assert.equal(wrapper.schemaVersion,13);assert.deepEqual(wrapper.pages,[{id:wrapper.boardId,name:'Page 1'}]);
   const next=insertActivity(board,wrapper,{x:0,y:0,z:1},{w:1440,h:900},second).board;s.validate(next);assert(next.objects.slice(board.objects.length).every(o=>o.page===second));
 });
+check(35, 'closing menus preserves their explicit return focus instead of focusing the current page name', async () => {
+  const {board,first,second}=await fixture(),h=await harness(board),focus=[];
+  try{h.pages.names.current.set(first,{focus:()=>focus.push('current name')});h.pages.options.current.set(second,{focus:()=>focus.push('other options')});
+    h.pages.pageMenu.current={querySelector:()=>({focus:()=>focus.push('menu item')})};h.pages.moveMenu.current={querySelector:()=>({focus:()=>focus.push('move item')})};h.pages.moveButton.current={focus:()=>focus.push('move button')};
+    h.pages.toggle();h.refresh();assert.equal(focus.at(-1),'current name');h.pages.showMenu(second);h.refresh();assert.equal(focus.at(-1),'menu item');
+    h.pages.closeMenu();h.refresh();assert.equal(focus.at(-1),'other options');h.pages.toggleMove();h.refresh();assert.equal(focus.at(-1),'move item');h.pages.closeMove();h.refresh();assert.equal(focus.at(-1),'move button');
+  }finally{h.close();}
+});

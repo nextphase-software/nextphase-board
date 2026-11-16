@@ -35,7 +35,7 @@ export function usePages(input: Input) {
   if (!same) { views.current.clear(); setState({ ...state, boardId: board.boardId, id, open: false, menu: '', editing: '', drag: null, moveOpen: false, go: null }); }
   const currentPage = useRef(id); currentPage.current = id;
   input.stepPage.current = id;
-  const focused = useRef('');
+  const focused = useRef({ open: false, menu: '', editing: '', moveOpen: false });
   const transitionView = useRef<View | undefined>(undefined); transitionView.current = undefined;
   function remember(next: string) {
     if (!hosted) try { localStorage.setItem(rememberedPageKey(model.current.boardId), next); } catch { /* Optional browser preference. */ }
@@ -109,13 +109,12 @@ export function usePages(input: Input) {
   // Focus after React has installed the new row or menu; no DOM state owns pages.
   useEffect(() => {
     if (state.editing && input.editingReason()) { setState(s => ({ ...s, editing: '' })); focusName(state.editing); return; }
-    const key = [state.open, state.menu, state.editing, state.moveOpen].join('|');
-    if (focused.current === key) return;
-    focused.current = key;
-    if (state.editing) { nameField.current?.focus(); nameField.current?.select(); }
-    else if (state.menu) pageMenu.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
-    else if (state.moveOpen) moveMenu.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
-    else if (state.open) names.current.get(id)?.focus();
+    const previous = focused.current;
+    focused.current = { open: state.open, menu: state.menu, editing: state.editing, moveOpen: state.moveOpen };
+    if (state.editing && state.editing !== previous.editing) { nameField.current?.focus(); nameField.current?.select(); }
+    else if (state.menu && state.menu !== previous.menu) pageMenu.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    else if (state.moveOpen && !previous.moveOpen) moveMenu.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    else if (state.open && !previous.open) names.current.get(id)?.focus();
   });
   function afterHistory(before: Board, next: Board, step?: string) {
     const fallback = fallbackPage(before, next, id);

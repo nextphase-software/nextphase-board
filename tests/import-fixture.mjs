@@ -1,9 +1,53 @@
 // SPDX-License-Identifier: Apache-2.0
-import { add, canonical, empty } from "../packages/board-rules/src/document.ts";
+import { add, canonical, empty, payloadBytes } from "../packages/board-rules/src/document.ts";
 import { defaultConnectorStyle } from "../packages/board-rules/src/objects/connector.ts";
+import * as Y from "yjs";
+import { Adapter } from "../packages/board-sync/src/document-adapter.ts";
 
 export function withoutPages({ pages: _pages, ...board }) {
   return { ...board, objects: board.objects.map(({ page: _page, ...object }) => object) };
+}
+export function storedBoardUpdate(board) {
+  const adapter = new Adapter(), doc = new Y.Doc();
+  try {
+    adapter.set(board);
+    // A legacy snapshot never had page keys. Deleting them from a current map
+    // leaves tombstones that the exact legacy codec correctly rejects on load.
+    for (const [key, value] of adapter.doc.getMap("board")) if (key !== "pages") {
+      doc.getMap("board").set(key, key === "schemaVersion" ? board.schemaVersion : structuredClone(value));
+    }
+    for (const [id, object] of adapter.doc.getMap("objects")) {
+      doc.getMap("objects").set(id, new Y.Map([...object].filter(([key]) => key !== "page")
+        .map(([key, value]) => [key, value instanceof Y.Text ? value.clone() : structuredClone(value)])));
+    }
+    for (const [id, value] of adapter.doc.getMap("retired")) doc.getMap("retired").set(id, value);
+    return Y.encodeStateAsUpdate(doc);
+  } finally { adapter.destroy(); doc.destroy(); }
+}
+
+// The hosted chunking/rename checks need rich text whose Yjs form spans chunks.
+export function largeTextBoard(boardId) {
+  let board = { ...empty(), boardId, pages: [{ id: boardId, name: "Page 1" }], title: "Large" };
+  for (let index = 0; index < 250; index++) board = add(board, "text", 0, 0);
+  for (const object of board.objects) object.text = "x".repeat(1000);
+  function marks(total) {
+    board.objects.forEach((object, index) => {
+      object.marks = Array.from({ length: Math.min(1000, Math.max(0, total - index * 1000)) }, (_, i) =>
+        ({ start: i, end: i + 1, ...(i % 2 ? { italic: true } : { bold: true }) }));
+    });
+  }
+  const size = () => new TextEncoder().encode(JSON.stringify(withoutPages(board))).length;
+  let low = 0, high = 250000;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2); marks(middle);
+    if (size() <= 2097152) low = middle; else high = middle - 1;
+  }
+  marks(low);
+  const padding = 2097152 - size();
+  if (padding < 0 || padding >= 1000) throw Error("Cannot pad the large text fixture");
+  board.objects[249].text = "é".repeat(padding) + "x".repeat(1000 - padding);
+  if (payloadBytes(canonical(board)) !== 2097152) throw Error("Cannot make the large text fixture size");
+  return board;
 }
 export function richBoard() {
   let board = { ...empty(), title: "Launch plan", retiredGenerations: [crypto.randomUUID()] };

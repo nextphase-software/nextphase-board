@@ -3,7 +3,7 @@
 // inside each check, so a missing feature fails its check by name.
 import { test, beforeAll, afterAll, afterEach, inject } from "vitest";
 import assert from "node:assert/strict";
-import { withoutPages } from "../import-fixture.mjs";
+import { storedBoardUpdate, withoutPages } from "../import-fixture.mjs";
 import * as Y from "yjs";
 import { makeDriver } from "board-test-driver";
 import type { Context, Driver, Peer } from "./driver-types.ts";
@@ -82,11 +82,10 @@ const check = (id: number, name: string, run: () => Promise<void>) => test(`S${i
 // Seeds the room's stored state with a version 10 board (one sticky), as the
 // history and lifecycle checks seed stored rows, then reloads the room.
 async function seedVersion10() {
-  const { rules, adapter } = await modules();
+  const { rules } = await modules();
   const current = await exported(), revision = (await rows("meta")).find((r) => r.key === "revision").value;
   const board = { ...withoutPages(rules.add({ ...rules.empty(), boardId: f.a, title: current.title }, "sticky", 0, 0)), schemaVersion: 10 as const };
-  const a = new adapter.Adapter(); a.set(board); a.doc.getMap("board").set("schemaVersion", 10); a.doc.getMap("board").delete("pages"); for (const o of a.doc.getMap<Y.Map<unknown>>("objects").values()) o.delete("page");
-  const json = new TextEncoder().encode(rules.canonical(board)), yjs = Y.encodeStateAsUpdate(a.doc); a.destroy();
+  const json = new TextEncoder().encode(rules.canonical(board)), yjs = storedBoardUpdate(board);
   const object = board.objects[0];
   await sql([{ sql: "DELETE FROM snapshot_chunks" }, { sql: "DELETE FROM edits" },
     { sql: `INSERT INTO snapshot_chunks VALUES (?, 'json', 0, ${hex(json)})`, bindings: [revision] },

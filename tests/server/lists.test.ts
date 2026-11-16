@@ -7,6 +7,7 @@ import type { Context, Driver, Peer } from "./driver-types.ts";
 import { Adapter } from "../../packages/board-sync/src/document-adapter.ts";
 import { readBoard } from "../../packages/board-sync/src/codec.ts";
 import { add, canonical, empty } from "../../packages/board-rules/src/document.ts";
+import { largeTextBoard as fullBoard } from "../import-fixture.mjs";
 const context = inject<Context & { docker: boolean }>("board");
 const runner = context.docker ? "docker" : inject<string>("runner");
 const names = ["owner", "editor", "viewer", "granted", "plain", "outsider"];
@@ -164,28 +165,6 @@ check(58, "creation supports Untitled validates bodies and preserves role refusa
   for (const name of ["viewer", "granted"]) await refused(await request(path, name, "POST", {}), 403, "role_too_low", "editor");
   for (const name of ["plain", "outsider"]) await refused(await request(path, name, "POST", {}), 404, "not_found");
 });
-async function fullBoard(boardId: string) {
-  let board = { ...empty(), boardId, title: "Large" };
-  for (let i = 0; i < 250; i++) board = add(board, "text", 0, 0);
-  for (const object of board.objects) object.text = "x".repeat(1000);
-  function marks(count: number) {
-    board.objects.forEach((object, index) => {
-      object.marks = Array.from({ length: Math.min(1000, Math.max(0, count - index * 1000)) }, (_, i) =>
-        ({ start: i, end: i + 1, ...(i % 2 ? { italic: true } : { bold: true }) }));
-    });
-  }
-  let low = 0, high = 250000;
-  const size = () => new TextEncoder().encode(JSON.stringify(board)).length;
-  while (low < high) {
-    const middle = Math.ceil((low + high) / 2); marks(middle);
-    if (size() <= 2097152) low = middle; else high = middle - 1;
-  }
-  marks(low);
-  const padding = 2097152 - size();
-  board.objects[249].text = "é".repeat(padding) + "x".repeat(1000 - padding);
-  assert.equal(new TextEncoder().encode(canonical(board)).length, 2097152);
-  return board;
-}
 check(59, "rename role matrix title rules and document size limit", async () => {
   const f = await fixture();
   for (const board of [f.a, f.b]) for (const name of names) {

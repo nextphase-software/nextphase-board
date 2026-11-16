@@ -46,7 +46,7 @@ function content(full = false): any[] {
     b = assignSection(b, new Set([a.id, c.id]), section.id); b = groupObjects(b, new Set([a.id, c.id]));
     b = createConnector(b, a.id, c.id).board;
   }
-  return b.objects.map(({ generation, order, ...o }) => o);
+  return b.objects.map(({ generation, order, page, ...o }) => o);
 }
 const body = (objects = content(), name = "Sprint kickoff") => ({ name, description: "Goals and owners.", sourceBoard: f.a, objects });
 const save = (who = "owner", value = body()) => ok(path(), who, "POST", value, 201);

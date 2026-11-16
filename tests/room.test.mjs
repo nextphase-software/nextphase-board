@@ -86,3 +86,82 @@ test("a lookup overtaken by a committed role change discards its older result", 
   assert.equal((await lookup).role, "editor");
   f.storage.close();
 });
+
+for (const [version, maximum] of [[10, false], [11, false], [12, false], [12, true]]) {
+  test(`stored version ${version}${maximum ? " maximum payload" : ""} upgrades without edits, receipts, revision or history changes`, async () => {
+    const { canonical, payloadBytes, upgrade } = await import("../packages/board-rules/src/document.ts");
+    const { richBoard, sizedBoard, storedBoardUpdate, withoutPages } = await import("./import-fixture.mjs");
+    const { readBoard } = await import("../packages/board-sync/src/codec.ts");
+    const { setMeta } = await import("../packages/board-room/src/storage.ts");
+    const f = fixture(), doc = new Y.Doc();
+    try {
+      const connection = await f.open();
+      Y.applyUpdate(doc, Buffer.from(f.messages[0].update, "base64"));
+      await f.room.message(connection, JSON.stringify({ kind: "edit", epoch: 0, requestId: "before-upgrade",
+        restoreGeneration: f.messages.find(message => message.kind === "joined").restoreGeneration, update: edit(doc, "Before upgrade") }));
+      assert.equal(meta(f.storage, "revision"), 1);
+      const board = { ...withoutPages(maximum ? sizedBoard(2097152, 12) : richBoard()), schemaVersion: version, boardId: f.room.boardId };
+      const json = new TextEncoder().encode(canonical(board)), yjs = storedBoardUpdate(board);
+      f.storage.transaction(() => {
+        f.storage.exec("DELETE FROM snapshot_chunks"); f.storage.exec("DELETE FROM edits");
+        for (const [kind, bytes] of [["json", json], ["yjs", yjs]]) {
+          for (let at = 0, index = 0; at < bytes.length; at += 1048576, index++) {
+            f.storage.exec("INSERT INTO snapshot_chunks VALUES (?, ?, ?, ?)", 1, kind, index, bytes.slice(at, at + 1048576));
+          }
+        }
+        for (const object of board.objects) f.storage.exec("INSERT INTO identifiers VALUES (?, ?, 0)", object.id, object.generation);
+        setMeta(f.storage, "history_capture_sha256", createHash("sha256").update(json).digest("hex"));
+        setMeta(f.storage, "history_capture_bytes", json.length);
+      });
+      const unchanged = () => ({ revision: meta(f.storage, "revision"), generation: meta(f.storage, "restore_generation"),
+        receipts: f.storage.all("SELECT * FROM receipts"), versions: f.storage.all("SELECT * FROM versions"),
+        versionChunks: f.storage.all("SELECT * FROM version_chunks"), identifiers: f.storage.all("SELECT * FROM identifiers") });
+      const before = unchanged(); assert.equal(before.receipts.length, 1);
+      for (let wake = 0; wake < 2; wake++) {
+        f.room.initialized = false;
+        const served = JSON.parse(await f.room.export(connection.attachment()));
+        assert.deepEqual(served, JSON.parse(canonical(upgrade(board))));
+        assert.deepEqual(served.pages, [{ id: board.boardId, name: "Page 1" }]);
+        assert(served.objects.every(object => object.page === board.boardId));
+        assert.equal(readBoard(f.room.doc).schemaVersion, 13);
+        assert.deepEqual(f.storage.all("SELECT * FROM edits"), []); assert.deepEqual(unchanged(), before);
+        if (maximum) assert.equal(payloadBytes(canonical(served)), 2097152);
+      }
+    } finally { doc.destroy(); f.room.doc.destroy(); f.storage.close(); }
+  });
+}
+
+test("the exact 2 MiB text fixture saves on the hosted default page and refuses a one-byte rename", async () => {
+  const { canonical, payloadBytes } = await import("../packages/board-rules/src/document.ts");
+  const { largeTextBoard } = await import("./import-fixture.mjs");
+  const { Adapter } = await import("../packages/board-sync/src/document-adapter.ts");
+  const f = fixture(), adapter = new Adapter();
+  try {
+    const connection = await f.open(), board = largeTextBoard(f.room.boardId);
+    Y.applyUpdate(adapter.doc, Buffer.from(f.messages[0].update, "base64"));
+    assert.deepEqual(board.pages, [{ id: f.room.boardId, name: "Page 1" }]);
+    assert(board.objects.every(object => object.page === f.room.boardId));
+    assert.equal(payloadBytes(canonical(board)), 2097152);
+    assert(Buffer.byteLength(canonical(board)) > 2097152);
+    for (let count = 5; count <= 250; count += 5) {
+      const vector = Y.encodeStateVector(adapter.doc);
+      adapter.set({ ...board, objects: board.objects.slice(0, count) });
+      const update = Buffer.from(Y.encodeStateAsUpdate(adapter.doc, vector)).toString("base64");
+      assert(Buffer.byteLength(update) < 1048000);
+      await f.room.message(connection, JSON.stringify({ kind: "edit", epoch: 0, requestId: "large-" + count,
+        restoreGeneration: f.messages.find(message => message.kind === "joined").restoreGeneration, update }));
+      assert.equal(f.messages.at(-1).kind, "saved");
+    }
+    assert.equal(meta(f.storage, "revision"), 50);
+    f.advance(60001); await f.room.alarm();
+    const chunks = f.storage.all("SELECT * FROM snapshot_chunks WHERE snapshot_revision = 50");
+    assert.equal(chunks.filter(row => row.kind === "json").length, Math.ceil(Buffer.byteLength(canonical(board)) / 1048576));
+    assert(chunks.filter(row => row.kind === "yjs").length >= 2);
+    f.room.initialized = false;
+    assert.equal(await f.room.export(connection.attachment()), canonical(board));
+    const receipts = f.storage.all("SELECT * FROM receipts");
+    await assert.rejects(f.room.rename(connection.attachment(), "Large!"), error => error.status === 413 && error.message === "document_too_large");
+    assert.equal(meta(f.storage, "revision"), 50); assert.deepEqual(f.storage.all("SELECT * FROM receipts"), receipts);
+    assert.equal(await f.room.export(connection.attachment()), canonical(board));
+  } finally { adapter.destroy(); f.room.doc.destroy(); f.storage.close(); }
+});

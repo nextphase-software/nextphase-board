@@ -6,7 +6,8 @@ import { makeDriver } from "board-test-driver";
 import type { Context, Driver, Peer } from "./driver-types.ts";
 import { Adapter } from "../../packages/board-sync/src/document-adapter.ts";
 import { readBoard } from "../../packages/board-sync/src/codec.ts";
-import { add, canonical, empty } from "../../packages/board-rules/src/document.ts";
+import { add, canonical, empty, payloadBytes } from "../../packages/board-rules/src/document.ts";
+import { largeTextBoard as largeBoard } from "../import-fixture.mjs";
 const context = inject<Context & { docker: boolean }>("board"), runner = context.docker ? "docker" : inject<string>("runner");
 let driver: Driver;
 const requestUrls: string[] = [];
@@ -365,23 +366,6 @@ check(32, "new rooms are empty and first open is idempotent", async () => {
 });
 
 let large: { a: string; workspace: string; json: string };
-function largeBoard(boardId: string) {
-  let b = { ...empty(), boardId, title: "Large" };
-  for (let n = 0; n < 250; n++) b = add(b, "text", 0, 0);
-  for (const object of b.objects) object.text = "x".repeat(1000);
-  function marks(total: number) {
-    for (let n = 0; n < b.objects.length; n++) b.objects[n].marks = Array.from({ length: Math.min(1000, Math.max(0, total - n * 1000)) }, (_, i) =>
-      ({ start: i, end: i + 1, ...(i % 2 ? { italic: true as const } : { bold: true as const }) }));
-  }
-  let low = 0, high = 250000;
-  const length = () => new TextEncoder().encode(JSON.stringify(b)).length;
-  while (low < high) { const middle = Math.ceil((low + high) / 2); marks(middle); if (length() <= 2097152) low = middle; else high = middle - 1; }
-  marks(low);
-  const padding = 2097152 - length();
-  assert(padding < 1000); b.objects[249].text = "é".repeat(padding) + "x".repeat(1000 - padding);
-  assert.equal(new TextEncoder().encode(canonical(b)).length, 2097152);
-  return b;
-}
 async function setBoard(client: Awaited<ReturnType<typeof join>>, board: any) {
   const vector = Y.encodeStateVector(client.doc), adapter = new Adapter(); adapter.doc = client.doc;
   adapter.set(board);
@@ -393,14 +377,14 @@ async function setBoard(client: Awaited<ReturnType<typeof join>>, board: any) {
 check(33, "exact 2 MiB board persists in bounded chunks", async () => {
   const f = await fixture(), c = await join(f.a), board = largeBoard(f.a);
   for (let n = 5; n <= 250; n += 5) await setBoard(c, { ...board, objects: board.objects.slice(0, n) });
-  const expected = canonical(board); await c.peer.close();
+  const expected = canonical(board); assert.equal(payloadBytes(expected), 2097152); await c.peer.close();
   await driver.control({ board: f.a, settled: true });
   const chunks = await driver.rows(f.a, "snapshot_chunks");
   const jsonChunks = chunks.filter((r) => r.kind === "json" && r.snapshot_revision === 50).length;
   const yjsChunks = chunks.filter((r) => r.kind === "yjs" && r.snapshot_revision === 50).length;
   const largest = Math.max(...chunks.map((row) => Object.values(row).reduce<number>((sum, value: any) =>
     sum + (typeof value === "number" ? 8 : typeof value === "string" ? new TextEncoder().encode(value).length : value?.bytes ?? 0), 0)));
-  assert.equal(jsonChunks, 2); assert(yjsChunks >= 2); assert(largest < 1.1 * 1048576);
+  assert.equal(jsonChunks, Math.ceil(new TextEncoder().encode(expected).length / 1048576)); assert(yjsChunks >= 2); assert(largest < 1.1 * 1048576);
   const start = performance.now(); await driver.wake(f.a);
   assert.equal(await (await request(`/boards/${f.a}/export`)).text(), expected);
   measures.storage = { jsonChunks, yjsChunks, largestRowBytes: largest, reloadMs: performance.now() - start };

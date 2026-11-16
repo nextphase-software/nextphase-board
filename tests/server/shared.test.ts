@@ -990,12 +990,13 @@ check(139, "import backup restores revision zero identifiers and empty comment t
 check(140, "editor imports the exact 2 MiB document and refuses one more canonical byte", async () => {
   const { sizedBoard } = await import("../import-fixture.mjs");
   const document = sizedBoard(), json = canonical(document), body = JSON.stringify({ title: document.title, document });
-  assert.equal(new TextEncoder().encode(json).length, 2097152);
+  const { payloadBytes } = await import("../../packages/board-rules/src/document.ts");
+  assert.equal(payloadBytes(json), 2097152);
   const started = Date.now(), details = await importDocument(document, document.title, "editor"), durationMs = Date.now() - started;
   assert.equal(await request(`/boards/${details.id}/export`, "editor").then((response) => response.text()), canonical({ ...document, boardId: details.id }));
   await helper("proxy", { clearLog: true }); const before = await workspaceRows();
   await importRefusal({ title: document.title, document: sizedBoard(2097153) }, "document_too_large", 400, "editor"); await noImportWrite(before);
-  console.log("MEASURE-S140 " + JSON.stringify({ canonicalBytes: new TextEncoder().encode(json).length,
+  console.log("MEASURE-S140 " + JSON.stringify({ canonicalBytes: payloadBytes(json),
     requestBytes: new TextEncoder().encode(body).length, objects: document.objects.length, durationMs }));
 });
 check(141, "import enforces the creation title and stores the chosen title", async () => {

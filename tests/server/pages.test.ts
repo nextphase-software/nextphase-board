@@ -72,11 +72,9 @@ const check = (id: number, name: string, run: () => Promise<void>) => test(`S${i
   catch (error) { fail++; console.log(`FAIL: S${id} ${name}`); throw error; }
 });
 async function seedStored(board: any) {
-  const {rules,adapter}=await modules();
+  const {rules}=await modules(),{storedBoardUpdate}=await import('../import-fixture.mjs');
   board={...board,boardId:f.a};
-  const a=new adapter.Adapter();a.set(rules.upgrade(board));
-  a.doc.transact(()=>{a.doc.getMap('board').set('schemaVersion',board.schemaVersion);a.doc.getMap('board').delete('pages');for(const o of a.doc.getMap<Y.Map<unknown>>('objects').values())o.delete('page');});
-  const json=new TextEncoder().encode(rules.canonical(board)),yjs=Y.encodeStateAsUpdate(a.doc);a.destroy();
+  const json=new TextEncoder().encode(rules.canonical(board)),yjs=storedBoardUpdate(board);
   const head=(await versions()).head;
   const writes:any[]=[{sql:'DELETE FROM snapshot_chunks'},{sql:'DELETE FROM edits'}];
   for(const [kind,data]of [['json',json],['yjs',yjs]] as const)for(let at=0,index=0;at<data.length;at+=1048576,index++)

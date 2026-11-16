@@ -79,6 +79,8 @@ check(5, 'maximum-size version 12 payload upgrades and all limit checks ignore o
   const s=await subjects(), {sizedBoard}=await load('tests/import-fixture.mjs'), old=sizedBoard(2097152,12), next=s.upgrade(old);
   assert.equal(s.payloadBytes(s.canonical(next)),2097152);assert(Buffer.byteLength(s.canonical(next))>2097152);
   const too=s.upgrade(sizedBoard(2097153,12));assert.throws(()=>s.canonical(too),/too large/);
+  const current=sizedBoard();assert.equal(s.payloadBytes(s.canonical(current)),2097152);
+  assert.equal(Buffer.byteLength(s.canonical(current)),2104400);assert.throws(()=>s.canonical(sizedBoard(2097153)),/too large/);
   const {writeBoardFile,readBoardFile}=await load('apps/web/src/board-file.ts'), raw=await writeBoardFile(next);
   assert.deepEqual(await readBoardFile({size:Buffer.byteLength(raw),arrayBuffer:async()=>new TextEncoder().encode(raw).buffer}),next);
   const {decode,digest}=await load('apps/web/src/storage.ts'),payload=s.canonical(next),wrapped=JSON.stringify({formatVersion:1,storageRevision:1,payload,sha256:await digest(payload)});

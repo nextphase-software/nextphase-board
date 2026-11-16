@@ -3,7 +3,7 @@
 // inside each check, so a missing feature fails its check by name.
 import { test, beforeAll, afterAll, afterEach, inject } from "vitest";
 import assert from "node:assert/strict";
-import { withoutPages } from "../import-fixture.mjs";
+import { storedBoardUpdate, withoutPages } from "../import-fixture.mjs";
 import * as Y from "yjs";
 import { makeDriver } from "board-test-driver";
 import type { Context, Driver, Peer } from "./driver-types.ts";
@@ -78,11 +78,10 @@ async function drawing(board: any, kind = 'diamond') {
   next.objects.at(-1)!.shape=kind as any;return next;
 }
 async function seedVersion11() {
-  const { rules, adapter } = await modules(), current = await exported();
+  const { rules } = await modules(), current = await exported();
   const revision = (await rows("meta")).find((r) => r.key === "revision").value;
   const board = { ...withoutPages(rules.add({ ...rules.empty(), boardId: f.a, title: current.title }, "sticky", 0, 0)), schemaVersion: 11 as const };
-  const a = new adapter.Adapter(); a.set(board); a.doc.getMap("board").set("schemaVersion", 11); a.doc.getMap("board").delete("pages"); for (const o of a.doc.getMap<Y.Map<unknown>>("objects").values()) o.delete("page");
-  const json = new TextEncoder().encode(rules.canonical(board)), yjs = Y.encodeStateAsUpdate(a.doc); a.destroy();
+  const json = new TextEncoder().encode(rules.canonical(board)), yjs = storedBoardUpdate(board);
   const object = board.objects[0];
   await sql([{ sql: "DELETE FROM snapshot_chunks" }, { sql: "DELETE FROM edits" },
     { sql: `INSERT INTO snapshot_chunks VALUES (?, 'json', 0, ${hex(json)})`, bindings: [revision] },

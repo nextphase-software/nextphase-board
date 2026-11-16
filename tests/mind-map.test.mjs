@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { withoutPages } from "./import-fixture.mjs";
 // 0009-W2 mind maps. Every check imports its subject dynamically, so on the
 // baseline each one fails by name rather than aborting the file.
 import test from "node:test";
@@ -56,24 +57,24 @@ test("MM-U1 the mindNode record holds its keys, values and defaults", async () =
   assert.deepEqual(textBox(node), { x: 18, y: 26, width: 84, height: 27 }); assert.equal(labelPrefix(node), "mind map node");
   assert.equal(isMindNode(node), true); assert.equal(eligibleIdea(node), false); assert.equal(sectionIdea(node), false);
   assert.equal(eligibleVote(node), false); assert(!ADD_OPTIONS.some((o) => o.type === "mindNode"));
-  assert.deepEqual(objectKeys("mindNode", 11), ["id", "generation", "type", "text", "color", "textSize", "align", "group", "marks", "section",
+  assert.deepEqual(objectKeys("mindNode", 13), ["id", "generation", "type", "page", "text", "color", "textSize", "align", "group", "marks", "section",
     "parent", "side", "rank", "collapsed", "x", "y", "width", "height", "order"]);
 });
 
 test("MM-U2 schema 11: new boards, reading 1 to 10, newer versions and canonical keys", async () => {
   const { empty, upgrade, validate, canonical, add } = await rules();
-  assert.equal(empty().schemaVersion, 12);
+  assert.equal(empty().schemaVersion, 13);
   for (let version = 1; version <= 11; version++) {
-    const board = { ...empty(), schemaVersion: version, title: "Old" };
+    const board = { ...withoutPages(empty()), schemaVersion: version, title: "Old" };
     assert.equal(validate(board).schemaVersion, version);
-    assert.equal(upgrade(board).schemaVersion, 12);
+    assert.equal(upgrade(board).schemaVersion, 13);
   }
-  const ten = add({ ...empty(), title: "Ten" }, "sticky", 0, 0), old = { ...ten, schemaVersion: 10 };
-  assert.deepEqual(upgrade(old).objects, old.objects);
-  assert.throws(() => validate({ ...empty(), title: "New", schemaVersion: 13 }));
+  const ten = add({ ...empty(), title: "Ten" }, "sticky", 0, 0), old = { ...withoutPages(ten), schemaVersion: 10 };
+  assert.deepEqual(withoutPages(upgrade(old)).objects, old.objects);
+  assert.throws(() => validate({ ...empty(), title: "New", schemaVersion: 14 }));
   const { board } = await starter();
   const parsed = JSON.parse(canonical(board));
-  assert.deepEqual(Object.keys(parsed.objects[0]), ["id", "generation", "type", "text", "color", "textSize", "align", "group", "marks", "section",
+  assert.deepEqual(Object.keys(parsed.objects[0]), ["id", "generation", "type", "page", "text", "color", "textSize", "align", "group", "marks", "section",
     "parent", "side", "rank", "collapsed", "x", "y", "width", "height", "order"]);
   const placed = add({ ...empty(), title: "Root" }, "mindNode", 0, 0);
   assert.equal(validate(placed).objects[0].parent, null);

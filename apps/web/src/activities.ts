@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { readBoardFile } from "./board-file.ts";
-import { upgrade, type BoardV7, type ItemV7, type BoardV12, type ItemV12 } from "nextphase-board-rules/document.ts";
+import { upgrade, type BoardV7, type ItemV7, type BoardV13, type ItemV13 } from "nextphase-board-rules/document.ts";
 import { copyObjects } from "./clipboard.ts";
 import { hasEnds, hasRectangle, hasText, isContainer, rectangleType } from "nextphase-board-rules/objects/registry.ts";
 import type { View } from "./view.ts";
@@ -10,7 +10,7 @@ export type Activity = { name: string; file: string };
 export type TemplateCommands = {
   addActivity: (entry: Activity) => void;
   snapshot: () => { title: string; selected: boolean; snapshot: Snapshot | null };
-  insertStored: (name: string, board: BoardV12) => void;
+  insertStored: (name: string, board: BoardV13) => void;
   commandReason: string; selected: boolean; objectCount: number;
 };
 export type Box = { left: number; top: number; right: number; bottom: number };
@@ -30,7 +30,7 @@ export async function readActivity(entry: Activity): Promise<BoardV7> {
   return board as BoardV7;
 }
 
-export function activityBox(objects: readonly (ItemV7 | ItemV12)[]): Box | null {
+export function activityBox(objects: readonly (ItemV7 | ItemV13)[]): Box | null {
   const rectangles = objects.filter(hasRectangle);
   return rectangles.length ? {
     left: Math.min(...rectangles.map((o) => o.x)), top: Math.min(...rectangles.map((o) => o.y)),
@@ -51,23 +51,23 @@ export function activityView(box: Box, current: View, size: Size): View {
   return { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2, z };
 }
 
-export function insertActivity(board: BoardV12, activity: BoardV7 | BoardV12, view: View, size: Size) {
-  const box = activityBox(activity.objects)!, existing = activityBox(board.objects);
+export function insertActivity(board: BoardV13, activity: BoardV7 | BoardV13, view: View, size: Size, page = board.boardId) {
+  const box = activityBox(activity.objects)!, existing = activityBox(board.objects.filter(o => o.page === page));
   const dx = existing ? existing.right + 120 - box.left : view.x - (box.left + box.right) / 2;
   const dy = existing ? existing.top - box.top : view.y - (box.top + box.bottom) / 2;
   const next = copyObjects(board, {
-    objects: upgrade(activity).objects.map(({ generation: _generation, order: _order, ...o }) => ({
+    objects: upgrade(activity).objects.map(({ generation: _generation, order: _order, page: _page, ...o }) => ({
       ...structuredClone(o),
     })),
     sourceIdentifiers: [activity.boardId, ...activity.retiredGenerations,
       ...activity.objects.flatMap((o) => [o.id, o.generation, ...(o.group ? [o.group] : [])])],
-  }, dx, dy);
+  }, dx, dy, page);
   const existingIds = new Set(board.objects.map((o) => o.id));
   const added = next.objects.filter((o) => !existingIds.has(o.id));
   return { board: next, ids: added.map((o) => o.id), view: activityView(activityBox(added)!, view, size) };
 }
 
-export function activityPreview(objects: readonly (ItemV7 | ItemV12)[]): Preview {
+export function activityPreview(objects: readonly (ItemV7 | ItemV13)[]): Preview {
   const box = activityBox(objects)!;
   const rectangles = objects.filter(hasRectangle);
   return {

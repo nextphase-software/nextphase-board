@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { clamp, freshIdentifier, type BoardV12, type ImageItem, validText } from "nextphase-board-rules/document.ts";
+import { clamp, freshIdentifier, type BoardV13, type ImageItem, validText } from "nextphase-board-rules/document.ts";
 import { imageType, isImage, type Rectangle } from "nextphase-board-rules/objects/registry.ts";
 import { bandOrder, sectionAt } from "./sections.ts";
 import { PICTURE_LIMIT, pictureHash, signature, tabPictures, type Picture } from "./image-assets.ts";
@@ -29,25 +29,25 @@ export function imageRow(sizes: readonly { width: number; height: number }[], ce
     x += s.width + 16; return result;
   });
 }
-export function importReason(board: BoardV12, accepted: readonly PreparedImage[], next: PreparedImage, pictures: ReadonlyMap<string, Picture> = tabPictures): string {
+export function importReason(board: BoardV13, accepted: readonly PreparedImage[], next: PreparedImage, pictures: ReadonlyMap<string, Picture> = tabPictures): string {
   if (board.objects.length + accepted.length >= 250) return IMAGE_REASONS.objects;
   const available = new Map(pictures), hashes = new Set(board.objects.filter(isImage).map((o) => o.asset));
   for (const item of [...accepted, next]) { hashes.add(item.hash); available.set(item.hash, item.picture); }
   const bytes = [...hashes].reduce((sum, hash) => sum + (available.get(hash)?.bytes.byteLength ?? 0), 0);
   return bytes > PICTURE_LIMIT ? IMAGE_REASONS.bytes : "";
 }
-export function addImages(board: BoardV12, images: readonly PreparedImage[], centre: { x: number; y: number }): BoardV12 {
+export function addImages(board: BoardV13, images: readonly PreparedImage[], centre: { x: number; y: number }, page = board.boardId): BoardV13 {
   if (!images.length) return board;
   if (board.objects.length + images.length > 250) throw Error(IMAGE_REASONS.objects);
   const reserved: string[] = [], fresh = () => { const id = freshIdentifier(board, reserved); reserved.push(id); return id; };
   const row = imageRow(images, centre);
-  const objects: ImageItem[] = images.map((image, i) => ({
-    id: fresh(), generation: fresh(), type: imageType().type, group: null,
-    section: sectionAt(board.objects, { x: row[i].x + row[i].width / 2, y: row[i].y + row[i].height / 2 })?.id ?? null,
+  const objects: (ImageItem & { page: string })[] = images.map((image, i) => ({
+    id: fresh(), generation: fresh(), type: imageType().type, page, group: null,
+    section: sectionAt(board.objects.filter(o => o.page === page), { x: row[i].x + row[i].width / 2, y: row[i].y + row[i].height / 2 })?.id ?? null,
     asset: image.hash, pixelWidth: image.picture.pixelWidth, pixelHeight: image.picture.pixelHeight, description: "",
     ...row[i], order: board.objects.length + i,
   }));
-  return { ...board, objects: bandOrder([...board.objects, ...objects]).map((o, order) => ({ ...o, order })) };
+  return { ...board, objects: bandOrder([...board.objects, ...objects], page).map((o, order) => ({ ...o, order })) };
 }
 export function refusalNotice(refused: readonly { name: string; reason: string }[]): string {
   const names = refused.slice(0, 3).map((r) => r.name || "Clipboard image");
@@ -90,7 +90,7 @@ export function nativePasteKey(event: { isTrusted: boolean; key: string; metaKey
     (platformPaste(platform) ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey);
 }
 export const descriptionDraft = (value: string) => validText(value, Number.MAX_SAFE_INTEGER) ? Array.from(value).slice(0, 1000).join("") : null;
-export function describeImage(board: BoardV12, boardId: string, id: string, generation: string, description: string): BoardV12 {
+export function describeImage(board: BoardV13, boardId: string, id: string, generation: string, description: string): BoardV13 {
   if (board.boardId !== boardId || !validText(description, 1000)) return board;
   const objects = board.objects.map((o) => isImage(o) && o.id === id && o.generation === generation && o.description !== description ? { ...o, description } : o);
   return objects.some((o, i) => o !== board.objects[i]) ? { ...board, objects } : board;

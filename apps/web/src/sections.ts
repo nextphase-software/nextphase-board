@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { add, clamp, type BoardV12 as Board, type ItemV12 as Item } from "nextphase-board-rules/document.ts";
+import { add, clamp, type BoardV13 as Board, type ItemV13 as Item } from "nextphase-board-rules/document.ts";
 import { arrangeOrder, type OrderCommand } from "./arrange.ts";
 import { editingCommandReason } from "./commands.ts";
 import { boundingBox, limitMove, type DisplayObject, type Point } from "./selection.ts";
@@ -8,14 +8,18 @@ import { withMaps } from "./mind-map.ts";
 
 import { bands, FOLLOW_REASON } from "./connectors.ts";
 
-type Ordered = { id: string; type: string; order: number };
+type Ordered = { id: string; type: string; order: number; page?: string };
 type Member = Ordered & { section?: string | null };
 
-export function bandOrder<T extends Ordered>(objects: readonly T[]): T[] {
-  return bands(objects);
+export function bandOrder<T extends Ordered>(objects: readonly T[], page?: string): T[] {
+  return bands(objects, page);
 }
 
-export function orderInBands<T extends Ordered>(command: OrderCommand, objects: readonly T[], selected: ReadonlySet<string>): T[] {
+export function orderInBands<T extends Ordered>(command: OrderCommand, objects: readonly T[], selected: ReadonlySet<string>, page?: string): T[] {
+  if (page !== undefined) {
+    const ordered = orderInBands(command, objects.filter(o => o.page === page), selected); let at = 0;
+    return objects.map((o, order) => ({ ...(o.page === page ? ordered[at++] : o), order }));
+  }
   return [0, 1, 2].flatMap((band) => arrangeOrder(command, objects.filter((o) => orderBand(o) === band), selected)).map((o, order) => o.order === order ? o : { ...o, order });
 }
 
@@ -47,7 +51,7 @@ export function dropTargets(board: Board, moving: ReadonlySet<string>, newJoinsO
     const whole = group && group.every((m) => moving.has(m.id));
     const members = whole ? ideas.filter((m) => m.group === o.group) : [o];
     const box = boundingBox(members.map((m) => ({ ...m, displayHeight: m.height })))!;
-    const target = sectionAt(board.objects, centre(box))?.id ?? null;
+    const target = sectionAt(board.objects.filter(m => m.page === o.page), centre(box))?.id ?? null;
     return newJoinsOnly && (target === null || target === o.section) ? [] : [[o.id, target]];
   }));
 }
@@ -68,7 +72,7 @@ export function moveWithMembers(board: Board, selected: ReadonlySet<string>, dx:
 }
 
 export function assignSection(board: Board, selected: ReadonlySet<string>, section: string | null): Board {
-  if (section !== null && !board.objects.some((o) => o.id === section && isContainer(o))) throw Error("Unknown section");
+  if (section !== null && !board.objects.some((o) => o.id === section && isContainer(o) && board.objects.filter(m => selected.has(m.id)).every(m => m.page === o.page))) throw Error("Unknown section");
   const objects = board.objects.map((o) => selected.has(o.id) && sectionIdea(o) && o.section !== section ? { ...o, section } : o);
   return objects.some((o, i) => o !== board.objects[i]) ? { ...board, objects } : board;
 }
@@ -76,9 +80,9 @@ export function assignSection(board: Board, selected: ReadonlySet<string>, secti
 export function placeObject(board: Board, object: Item): Board {
   if (!hasRectangle(object)) throw Error("An object with ends cannot be placed by a tool");
   const section = isContainer(object);
-  const placed = section || !sectionIdea(object) ? object : { ...object, section: sectionAt(board.objects, centre(object))?.id ?? null };
-  const objects = bandOrder([...board.objects, placed]).map((o, order) => ({ ...o, order,
-    section: section && sectionIdea(o) && contains(object, centre(o)) ? object.id : o.section,
+  const placed = section || !sectionIdea(object) ? object : { ...object, section: sectionAt(board.objects.filter(o => o.page === object.page), centre(object))?.id ?? null };
+  const objects = bandOrder([...board.objects, placed], object.page).map((o, order) => ({ ...o, order,
+    section: section && o.page === object.page && sectionIdea(o) && contains(object, centre(o)) ? object.id : o.section,
   }));
   return { ...board, objects };
 }
@@ -106,13 +110,13 @@ export function wrapReason(board: Board, selected: ReadonlySet<string>, drawn: r
     ? "The selection with its margin exceeds the 10,000-unit section limit." : "";
 }
 
-export function wrapSelection(board: Board, selected: ReadonlySet<string>, drawn: readonly DisplayObject[]): { board: Board; id: string } {
+export function wrapSelection(board: Board, selected: ReadonlySet<string>, drawn: readonly DisplayObject[], page = board.boardId): { board: Board; id: string } {
   const reason = wrapReason(board, selected, drawn);
   if (reason) throw Error(reason);
   const box = boundingBox(drawn.filter((o) => selected.has(o.id) && board.objects.some((item) => item.id === o.id && hasRectangle(item))))!;
   const rectangle = drawRectangle({ x: box.x - 40, y: box.y - 40 },
     { x: box.x + box.width + 40, y: box.y + box.height + 40 });
-  const object = { ...add(board, containerType().type, 0, 0).objects.at(-1)!, ...rectangle };
+  const object = { ...add(board, containerType().type, 0, 0, page).objects.at(-1)!, ...rectangle };
   return { board: assignSection(placeObject(board, object), selected, object.id), id: object.id };
 }
 

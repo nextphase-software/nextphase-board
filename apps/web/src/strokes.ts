@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { clamp, freshIdentifier, type BoardV12, type StrokeItem, type ItemV12 } from "nextphase-board-rules/document.ts";
+import { clamp, freshIdentifier, type BoardV13, type StrokeItem, type ItemV13 } from "nextphase-board-rules/document.ts";
 import { isImage, hasPoints, hasRectangle, hasText, usesShapePaint, inkInfo, inkWidth, inkColors, typeWithPoints, rectangleType, type StrokeKeys, type InkPoint, type InkWeight } from "nextphase-board-rules/objects/registry.ts";
 import { cornerPoint, type Corner, type Rectangle } from "./resize.ts";
 import type { Style } from "nextphase-board-rules/styles.ts";
@@ -22,15 +22,15 @@ function paddedBounds(points: readonly Point[], pad: number): Rectangle & { poin
     height: Math.max(...points.map((p) => p.y)) + pad - y, points: points.map((p) => [p.x - x, p.y - y]) };
 }
 export const absolutePoints = (o: StrokeItem): Point[] => o.points.map(([x, y]) => ({ x: o.x + x, y: o.y + y }));
-export function makeStroke(board: BoardV12, positions: readonly Point[], style: Omit<StrokeKeys, "points">, crossed: boolean, straight = false): StrokeItem | null {
+export function makeStroke(board: BoardV13, positions: readonly Point[], style: Omit<StrokeKeys, "points">, crossed: boolean, straight = false, page = board.boardId): (StrokeItem & { page: string }) | null {
   if (board.objects.length >= 250) throw Error("250 object limit reached");
   if (!crossed && !inkInfo(style).round) return null;
   const points = crossed ? drawingPoints(positions, straight) : [positions[0], positions[0]];
   const id = freshIdentifier(board);
-  return { id, generation: freshIdentifier(board, [id]), type: typeWithPoints().type,
+  return { id, generation: freshIdentifier(board, [id]), type: typeWithPoints().type, page,
     ...style, group: null, section: null, ...strokeGeometry(points, style), order: board.objects.length };
 }
-export function changeStrokeWeight(o: StrokeItem, weight: InkWeight): StrokeItem {
+export function changeStrokeWeight<T extends StrokeItem>(o: T, weight: InkWeight): T {
   if (o.weight === weight) return o;
   const change = (inkWidth({ ...o, weight }) - inkWidth(o)) / 2;
   const next = { ...o, weight, x: o.x - change, y: o.y - change, width: o.width + 2 * change,
@@ -38,10 +38,10 @@ export function changeStrokeWeight(o: StrokeItem, weight: InkWeight): StrokeItem
   if (!withinBoard(next)) throw Error("The stroke would exceed the board edges.");
   return next;
 }
-export function changeOrdinaryColor(objects: readonly ItemV12[], selected: ReadonlySet<string>, color: Style["color"]): ItemV12[] {
+export function changeOrdinaryColor(objects: readonly ItemV13[], selected: ReadonlySet<string>, color: Style["color"]): ItemV13[] {
   return objects.map((o) => hasRectangle(o) && hasText(o) && !usesShapePaint(o) && selected.has(o.id) && o.color !== color ? { ...o, color } : o);
 }
-export function changeStrokeColor(objects: readonly ItemV12[], selected: ReadonlySet<string>, color: string): ItemV12[] {
+export function changeStrokeColor(objects: readonly ItemV13[], selected: ReadonlySet<string>, color: string): ItemV13[] {
   const targets = objects.filter(hasPoints).filter((o) => selected.has(o.id));
   if (!targets.length || targets.some((o) => o.kind !== targets[0].kind) || !inkColors(targets[0]).some((c) => c.name === color)) return [...objects];
   return objects.map((o) => hasPoints(o) && selected.has(o.id) && o.color !== color ? { ...o, color } : o);
@@ -88,7 +88,7 @@ export function strokeHit(o: StrokeItem, p: Point, zoom: number): boolean {
   const points = absolutePoints(o);
   return points.slice(1).some((b, i) => pointSegmentDistance(p, points[i], b) <= 8 / zoom) || inkDistance(o, p, p) === 0;
 }
-export function erasedStrokes(objects: readonly ItemV12[], path: readonly Point[], zoom: number): StrokeItem[] {
+export function erasedStrokes(objects: readonly ItemV13[], path: readonly Point[], zoom: number): StrokeItem[] {
   if (!path.length) return [];
   return objects.filter(hasPoints).filter((o) => path.some((p, i) => inkDistance(o, i ? path[i - 1] : p, p) <= 6 / zoom));
 }
@@ -97,15 +97,15 @@ export const strokeFloor = (o: StrokeItem) => {
   const side = Math.max(o.width, o.height) - inkWidth(o);
   return side > 8 ? 8 / side : 1;
 };
-export function scaleStroke(o: StrokeItem, factor: number, corner: Corner, opposite: Point): StrokeItem {
+export function scaleStroke<T extends StrokeItem>(o: T, factor: number, corner: Corner, opposite: Point): T {
   const pad = inkWidth(o) / 2, east = corner.endsWith("e"), south = corner.startsWith("s");
   const ox = east ? pad : o.width - pad, oy = south ? pad : o.height - pad;
   const relative = o.points.map(([x, y]) => ({ x: Math.round((x - ox) * factor), y: Math.round((y - oy) * factor) }));
   const g = paddedBounds(relative, pad);
   return { ...o, ...g, x: east ? opposite.x : opposite.x - g.width, y: south ? opposite.y : opposite.y - g.height };
 }
-export function resizeWithStrokes(corner: Corner, members: readonly { object: Exclude<ItemV12, import("nextphase-board-rules/document.ts").ConnectorItem>; rectangle: Rectangle }[], delta: Point,
-  neededHeight: (object: Exclude<ItemV12, import("nextphase-board-rules/document.ts").ConnectorItem>, width: number) => number): (ItemV12 & Rectangle)[] {
+export function resizeWithStrokes(corner: Corner, members: readonly { object: Exclude<ItemV13, import("nextphase-board-rules/document.ts").ConnectorItem>; rectangle: Rectangle }[], delta: Point,
+  neededHeight: (object: Exclude<ItemV13, import("nextphase-board-rules/document.ts").ConnectorItem>, width: number) => number): (ItemV13 & Rectangle)[] {
   if (!members.length || !delta.x && !delta.y) return members.map((m) => m.object);
   const x = Math.min(...members.map((m) => m.rectangle.x)), y = Math.min(...members.map((m) => m.rectangle.y));
   const bounds = { x, y, width: Math.max(...members.map((m) => m.rectangle.x + m.rectangle.width)) - x,

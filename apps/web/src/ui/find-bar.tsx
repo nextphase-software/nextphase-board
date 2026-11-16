@@ -16,7 +16,7 @@ export function FindBar({ find }: { find: FindActions }) {
         value={find.query} onChange={event => find.changeQuery(event.currentTarget.value)} />
       <div className="find-live" aria-live="polite" aria-atomic="true">
         <span className="find-counter">{find.counter}</span>
-        {find.removed && <div className="find-removed">{find.removed}</div>}
+        {(find.removed || find.pageLine) && <div className="find-removed">{find.removed || find.pageLine}</div>}
       </div>
       <button className="icon-button" aria-label="Previous result" title="Previous result · ⇧Return"
         disabled={!find.results.length} onClick={() => find.step(-1)}><Icon name="chevron-up" /><span className="tooltip">Previous result · ⇧Return</span></button>

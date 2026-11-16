@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { withoutPages } from "./import-fixture.mjs";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 const load=p=>import(new URL('../'+p,import.meta.url));
@@ -11,7 +12,7 @@ test('SK-U1 fourteen kinds keep their order, names, placement tools and only two
 });
 test('SK-U2 each new kind is accepted only from schema 12, older square and circle unchanged',async()=>{
  const r=await registry(),{add,empty,validate}=await load('packages/board-rules/src/document.ts'),b=add({...empty(),title:'Shapes'},'shape',0,0);
- for(const k of r.SHAPE_KINDS) for(let version=6;version<=12;version++) {const check=()=>validate({...b,schemaVersion:version,objects:[{...b.objects[0],shape:k.kind}]});if(version>=k.validFrom)assert.doesNotThrow(check);else assert.throws(check);}
+ for(const k of r.SHAPE_KINDS) for(let version=6;version<=12;version++) {const check=()=>validate({...withoutPages(b),schemaVersion:version,objects:[{...withoutPages(b).objects[0],shape:k.kind}]});if(version>=k.validFrom)assert.doesNotThrow(check);else assert.throws(check);}
  assert.throws(()=>validate({...b,objects:[{...b.objects[0],shape:'hexagon'}]}));
 });
 test('SK-U3 all polygon outlines have the contracted vertices including the star centre',async()=>{

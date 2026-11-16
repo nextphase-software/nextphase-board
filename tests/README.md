@@ -667,3 +667,5 @@ counts and the eleven permitted App composition substitutions.
 `tests/server/drawing-layout.test.ts` adds S407–S410 to both server runners for
 load upgrades, refused edits, history restoration and board imports. Those server
 suites and D9 browser checks run separately from implementation validation.
+
+`tests/pages.test.mjs` covers 0010-W2 document v18, page operations, whole-board isolation, history and cross-page find. `tests/server/pages.test.ts` adds S411–S416 to both server runners; those require the separate local-stack run.

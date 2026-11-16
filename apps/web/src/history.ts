@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { freshIdentifier as fresh, type Board, type Item } from "nextphase-board-rules/document.ts";
+import { freshIdentifier as fresh, type Board, type Item, type Page } from "nextphase-board-rules/document.ts";
 
 import { bandOrder, orderParticipants, remapSection } from "./sections.ts";
 
@@ -8,13 +8,13 @@ import { hasRectangle } from "nextphase-board-rules/objects/registry.ts";
 import { afterDelete, copiedStructure, remapParent, type MeasureNode } from "./mind-map.ts";
 
 type ObjectChange = { before: Item | null; after: Item | null };
-export type Step = { changes: ObjectChange[]; affectedIds?: string[] };
+export type Step = { changes: ObjectChange[]; affectedIds?: string[]; pages?: { before: Page[]; after: Page[] }; page?: string };
 export type History = { past: Step[]; future: Step[] };
-export type Change = { board: Board; history: History; affectedId: string; affectedIds: string[] };
+export type Change = { board: Board; history: History; affectedId: string; affectedIds: string[]; page?: string };
 export const emptyHistory = (): History => ({ past: [], future: [] });
 
-// Only object transactions enter history. Title, view and storage are independent.
-export function record(history: History, before: Board, after: Board, orderIds?: readonly string[]): History {
+// Object and page transactions enter history. Title, view and storage are independent.
+export function record(history: History, before: Board, after: Board, orderIds?: readonly string[], page?: string): History {
   const all = [...new Set([...before.objects, ...after.objects].map((o) => o.id))];
   const semantic = all.filter((id) => {
     const a = before.objects.find((o) => o.id === id), b = after.objects.find((o) => o.id === id);
@@ -23,9 +23,10 @@ export function record(history: History, before: Board, after: Board, orderIds?:
   const participants = orderParticipants(before.objects, new Set(orderIds ?? []));
   const positions = participants.filter((id) => before.objects.find((o) => o.id === id)?.order !==
     after.objects.find((o) => o.id === id)?.order);
-  if (!semantic.length && !positions.length) return history;
+  const pagesChanged = JSON.stringify(before.pages) !== JSON.stringify(after.pages);
+  if (!semantic.length && !positions.length && !pagesChanged) return history;
   const ids = new Set([...semantic, ...(positions.length ? participants : [])]);
-  const step: Step = { affectedIds: orderIds ? [...orderIds] : semantic, changes: [...ids].map((id) => ({
+  const step: Step = { page, ...(pagesChanged ? { pages: { before: before.pages!, after: after.pages! } } : {}), affectedIds: orderIds ? [...orderIds] : semantic, changes: [...ids].map((id) => ({
     before: before.objects.find((o) => o.id === id) ?? null,
     after: after.objects.find((o) => o.id === id) ?? null,
   })) };
@@ -78,9 +79,9 @@ export function undo(board: Board, history: History): Change {
   const step = history.past.at(-1);
   if (!step) throw Error("Nothing to undo.");
   const affectedIds = step.affectedIds ?? step.changes.map((c) => (c.before ?? c.after)!.id);
-  const next = apply(board, step.changes.map((c) => ({ source: c.after, target: c.before })));
+  const next = { ...apply(board, step.changes.map((c) => ({ source: c.after, target: c.before }))), ...(step.pages ? { pages: step.pages.before } : {}) };
   return {
-    board: next, affectedId: affectedIds[0], affectedIds,
+    board: next, page: step.page, affectedId: affectedIds[0], affectedIds,
     history: retarget({ past: history.past.slice(0, -1), future: [...history.future, step] }, next, step.changes.map((c) => (c.before ?? c.after)!.id)),
   };
 }
@@ -89,9 +90,9 @@ export function redo(board: Board, history: History): Change {
   const step = history.future.at(-1);
   if (!step) throw Error("Nothing to redo.");
   const affectedIds = step.affectedIds ?? step.changes.map((c) => (c.after ?? c.before)!.id);
-  const next = apply(board, step.changes.map((c) => ({ source: c.before, target: c.after })));
+  const next = { ...apply(board, step.changes.map((c) => ({ source: c.before, target: c.after }))), ...(step.pages ? { pages: step.pages.after } : {}) };
   return {
-    board: next, affectedId: affectedIds[0], affectedIds,
+    board: next, page: step.page, affectedId: affectedIds[0], affectedIds,
     history: retarget({ past: [...history.past, step].slice(-100), future: history.future.slice(0, -1) }, next, step.changes.map((c) => (c.before ?? c.after)!.id)),
   };
 }
@@ -139,7 +140,7 @@ export function duplicate(board: Board, history: History, target: Item | Item[],
       order: objects.length,
     });
   }
-  const next = { ...board, objects: bandOrder(objects).map((o, order) => ({ ...o, order })) };
+  const next = { ...board, objects: bandOrder(objects, items[0]?.page).map((o, order) => ({ ...o, order })) };
   const affectedIds = [...ids.values()];
   return { board: next, history: record(history, board, next), affectedId: affectedIds[0], affectedIds };
 }

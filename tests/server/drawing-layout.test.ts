@@ -3,6 +3,7 @@
 // inside each check, so a missing feature fails its check by name.
 import { test, beforeAll, afterAll, afterEach, inject } from "vitest";
 import assert from "node:assert/strict";
+import { withoutPages } from "../import-fixture.mjs";
 import * as Y from "yjs";
 import { makeDriver } from "board-test-driver";
 import type { Context, Driver, Peer } from "./driver-types.ts";
@@ -79,8 +80,8 @@ async function drawing(board: any, kind = 'diamond') {
 async function seedVersion11() {
   const { rules, adapter } = await modules(), current = await exported();
   const revision = (await rows("meta")).find((r) => r.key === "revision").value;
-  const board = { ...rules.add({ ...rules.empty(), boardId: f.a, title: current.title }, "sticky", 0, 0), schemaVersion: 11 as const };
-  const a = new adapter.Adapter(); a.set(board); a.doc.getMap("board").set("schemaVersion", 11);
+  const board = { ...withoutPages(rules.add({ ...rules.empty(), boardId: f.a, title: current.title }, "sticky", 0, 0)), schemaVersion: 11 as const };
+  const a = new adapter.Adapter(); a.set(board); a.doc.getMap("board").set("schemaVersion", 11); a.doc.getMap("board").delete("pages"); for (const o of a.doc.getMap<Y.Map<unknown>>("objects").values()) o.delete("page");
   const json = new TextEncoder().encode(rules.canonical(board)), yjs = Y.encodeStateAsUpdate(a.doc); a.destroy();
   const object = board.objects[0];
   await sql([{ sql: "DELETE FROM snapshot_chunks" }, { sql: "DELETE FROM edits" },
@@ -93,13 +94,13 @@ async function seedVersion11() {
 }
 check(407, 'version 11 load upgrades without edits or history and accepts tape and diamond', async()=>{
   await versions(); const before=(await versions()).versions.length, old=await seedVersion11();
-  let stored=await exported();assert.equal(stored.schemaVersion,12);assert.deepEqual(stored.objects,old.objects);
-  await driver.wake(f.a);assert.equal((await exported()).schemaVersion,12);
+  let stored=await exported();assert.equal(stored.schemaVersion,13);assert.deepEqual(stored.objects, (await modules()).rules.upgrade(old).objects);
+  await driver.wake(f.a);assert.equal((await exported()).schemaVersion,13);
   const viewer=await join('viewer');await viewer.p.close();await new Promise(r=>setTimeout(r,200));await driver.control({board:f.a,settled:true});
   assert.deepEqual(await rows('edits'),[]);assert.equal((await versions()).versions.length,before);
   const c=await join(), next=await drawing((await modules()).codec.readBoard(c.doc));
   assert.equal((await answer(c,await send(c,()=>next))).kind,'saved');await driver.wake(f.a);
-  stored=await exported();assert.equal(stored.schemaVersion,12);assert.deepEqual(stored.objects,next.objects);
+  stored=await exported();assert.equal(stored.schemaVersion,13);assert.deepEqual(stored.objects,next.objects);
 });
 check(408, 'invalid tape keys geometry pattern and shape kinds or version are refused unchanged',async()=>{
   const before=await exported(), identifiers=await rows('identifiers'),edits=await rows('edits');
@@ -120,7 +121,7 @@ check(408, 'invalid tape keys geometry pattern and shape kinds or version are re
 });
 check(409, 'version 11 history restores as 12 and version 12 keeps tape and star keys',async()=>{
   const {rules}=await modules(),list=await versions(),head=list.head,current=await exported();
-  const old={...rules.add({...rules.empty(),boardId:f.a,title:current.title},'sticky',0,0),schemaVersion:11 as const};
+  const old={...withoutPages(rules.add({...rules.empty(),boardId:f.a,title:current.title},'sticky',0,0)),schemaVersion:11 as const};
   const data=new TextEncoder().encode(rules.canonical(old)),id=crypto.randomUUID(),object=old.objects[0],ordinal=Math.max(...list.versions.map((v:any)=>v.ordinal))+1;
   await sql([{sql:'INSERT OR IGNORE INTO identifiers VALUES (?, ?, 0)',bindings:[object.id,object.generation]},
     {sql:"INSERT INTO versions VALUES (?, ?, ?, ?, ?, 'manual', 'Old', '', NULL, NULL, '')",bindings:[id,ordinal,Date.now(),head.revision,head.generation]},
@@ -130,18 +131,18 @@ check(409, 'version 11 history restores as 12 and version 12 keeps tape and star
     {sql:"UPDATE meta SET value = ? WHERE key = 'history_capture_sha256'",bindings:[await sha256(data)]},
     {sql:"UPDATE meta SET value = ? WHERE key = 'history_capture_bytes'",bindings:[data.length]}]);
   const restore=async(version:string)=>{const {head}=await versions();return ok(`/boards/${f.a}/versions/${version}/restore`,'owner','POST',{requestId:crypto.randomUUID(),expectedRevision:head.revision,expectedGeneration:head.generation});};
-  await restore(id);let stored=await exported();assert.equal(stored.schemaVersion,12);assert.deepEqual(stored.objects,old.objects);
+  await restore(id);let stored=await exported();assert.equal(stored.schemaVersion,13);assert.deepEqual(stored.objects, (await modules()).rules.upgrade(old).objects);
   const c=await join(),next=await drawing(stored,'star');assert.equal((await answer(c,await send(c,()=>next))).kind,'saved');
   const saved=await ok(`/boards/${f.a}/versions`,'owner','POST',{requestId:crypto.randomUUID(),name:'Drawing',description:''});
   assert.equal((await answer(c,await send(c,b=>({...b,title:'Changed'})))).kind,'saved');await restore(saved.version.id);
-  stored=await exported();assert.equal(stored.schemaVersion,12);assert.deepEqual(stored.objects,next.objects);
+  stored=await exported();assert.equal(stored.schemaVersion,13);assert.deepEqual(stored.objects,next.objects);
 });
 check(410, 'import accepts tape and all fourteen shapes and refuses invalid tape points',async()=>{
   const {rules,registry}=await modules();let board=await drawing({...rules.empty(),title:'Drawing import'});
   board={...board,objects:board.objects.filter((o:any)=>o.type==='tape')};
   for(const kind of registry.SHAPE_KINDS){board=rules.add(board,'shape',0,0);board.objects.at(-1)!.shape=kind.kind;}
   const made=await ok(`/workspaces/${f.workspace}/boards`,'owner','POST',{title:board.title,document:board},201),stored=await exported(made.id);
-  assert.equal(stored.schemaVersion,12);assert.deepEqual(stored.objects,board.objects);
+  assert.equal(stored.schemaVersion,13);assert.deepEqual(stored.objects,board.objects);
   const bad={...board,objects:board.objects.map((o:any)=>o.type==='tape'?{...o,points:[...o.points,[20,20]]}:o)};
   const refused=await req(`/workspaces/${f.workspace}/boards`,'owner','POST',{title:board.title,document:bad});
   assert.equal(refused.status,400);assert.deepEqual(await refused.json(),{error:{reason:'invalid_document'}});

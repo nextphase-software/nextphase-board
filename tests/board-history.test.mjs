@@ -173,7 +173,7 @@ test('H-U15 actual confirmation rendering attributes namedBy first and has no nu
 test('H-U16 two maximal intent documents use four raw chunks and a bounded metadata-only journal',async()=>{
   await import('../packages/board-room/src/history.ts');const {add,canonical}=await import('../packages/board-rules/src/document.ts');const f=await fixture();try{
     let board={...f.room.board,title:'Large'};
-    for(let i=0;i<120;i++)board.objects.push({id:randomUUID(),generation:randomUUID(),type:'stroke',kind:'marker',color:'black',weight:'thin',group:null,section:null,x:0,y:0,width:1000000,height:1000000,points:[[2,2],...Array.from({length:999},()=>[999998,999998])],order:i});
+    for(let i=0;i<120;i++)board.objects.push({id:randomUUID(),generation:randomUUID(),type:'stroke',page:board.boardId,kind:'marker',color:'black',weight:'thin',group:null,section:null,x:0,y:0,width:1000000,height:1000000,points:[[2,2],...Array.from({length:999},()=>[999998,999998])],order:i});
     for(let i=0;i<80;i++)board=add(board,'sticky',i,0);
     let left=2097152-Buffer.byteLength(canonical(board));for(const object of board.objects){if(!('text'in object))continue;const escaped=Math.min(1000,Math.floor(left/6));object.text='\0'.repeat(escaped);left-=escaped*6;const ascii=Math.min(1000-escaped,left);object.text+='x'.repeat(ascii);left-=ascii;}
     assert.equal(Buffer.byteLength(canonical(board)),2097152);

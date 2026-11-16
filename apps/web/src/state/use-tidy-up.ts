@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type RefObject, type PointerEvent } from 'react';
-import type { BoardV12 as Board } from 'nextphase-board-rules/document.ts';
+import type { BoardV13 as Board } from 'nextphase-board-rules/document.ts';
 import { applyTidy, placeableItems, placedChanged, tidyGrid, tidyReason, type TidyItem, type SpacingHandle } from '../tidy-up';
 import { whole } from '../tape';
 import type { DisplayObject } from '../selection';
 import type { HostedBoard } from '../team/hosted-board';
 type Session = { before: Board; items: TidyItem[]; tool: string; selection: string; columns: number; spacing: number };
 type HandleDrag = { id: string; axis: 'x'|'y'; start: number; spacing: number; zoom: number };
-export function useTidyUp({board,selected,commit,tool,setMessage,hosted,scene,readOnly=false}: {
-  readOnly?:boolean;board:Board;selected:Set<string>;commit:(board:Board,recordObject?:boolean)=>void;tool:string;
+export function useTidyUp({board,objects=board.objects,selected,commit,tool,setMessage,hosted,scene,readOnly=false}: {
+  objects?:Board["objects"];readOnly?:boolean;board:Board;selected:Set<string>;commit:(board:Board,recordObject?:boolean)=>void;tool:string;
   setMessage:(value:string)=>void;hosted?:HostedBoard;scene:RefObject<HTMLDivElement|null>;
 }) {
   const [session,setSession]=useState<Session|null>(null),[drag,setDrag]=useState<HandleDrag|null>(null),[width,setWidth]=useState(0);
@@ -29,10 +29,10 @@ export function useTidyUp({board,selected,commit,tool,setMessage,hosted,scene,re
     window.addEventListener('resize',resize);return()=>window.removeEventListener('resize',resize);
   },[]);
   const grid=session?tidyGrid(session.items,session.columns,session.spacing):null;
-  function reason(state: Parameters<typeof tidyReason>[2]) {return tidyReason(board,selected,state);}
+  function reason(state: Parameters<typeof tidyReason>[2]) {return tidyReason({...board,objects},selected,state);}
   function start(state: Parameters<typeof tidyReason>[2]) {
     if(readOnly||window.innerWidth<768||reason(state))return;
-    const items=placeableItems(board,selected,displayed.current);
+    const items=placeableItems({...board,objects},selected,displayed.current);
     setSession({before:board,items,tool,selection,columns:Math.ceil(Math.sqrt(items.length)),spacing:24});setDrag(null);focus();
   }
   function apply() {

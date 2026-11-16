@@ -5,7 +5,7 @@ import { canonical, empty } from "../packages/board-rules/src/document.ts";
 import { LocalStore, digest, readPair } from "../apps/web/src/storage.ts";
 import { boardKeys, isBoardKey, recordBoardKey, fingerprint, LIST_KEY, entryDefaults, parseList, serializeList, orderedBoards, savedTime, boardStatus } from "../apps/web/src/board-catalog.ts";
 const id = "10000000-0000-4000-8000-000000000001", other = "20000000-0000-4000-8000-000000000002";
-const board = (boardId = id, title = "Synthetic board") => ({ ...empty(), boardId, title });
+const board = (boardId = id, title = "Synthetic board") => ({ ...empty(), boardId, title, pages: [{ id: boardId, name: "Page 1" }] });
 const wrap = async (b, revision = 1) => {
   const payload = canonical(b);
   return JSON.stringify({ formatVersion: 1, storageRevision: revision, payload, sha256: await digest(payload) });
@@ -232,7 +232,7 @@ test("refresh validates both records, carries metadata only on a matching head, 
     assert.equal(result.title, "Old title"); assert.equal(result.savedAt, 123); assert.equal(result.fromFile, true);
     assert.equal(result.head, fingerprint(raw));
   }
-  const payload = JSON.stringify({ ...board(other), schemaVersion: 13 });
+  const payload = JSON.stringify({ ...board(other), schemaVersion: 14 });
   const future = JSON.stringify({ formatVersion: 1, storageRevision: 1, payload, sha256: await digest(payload) });
   const x = database([[boardKeys(other).head, future]]), [result] = await x.store().refreshList();
   assert.deepEqual(result, { ...entryDefaults(other), head: fingerprint(future), state: "newer" });
@@ -319,7 +319,7 @@ test("collection keeps another board's, previous and future-version asset refere
   for (const [record,raw] of [
     [boardKeys(other).head,await wrap(b)],
     [boardKeys(other).previous,await wrap(b)],
-    [boardKeys(other).head,JSON.stringify({payload:JSON.stringify({...b,schemaVersion:13})})],
+    [boardKeys(other).head,JSON.stringify({payload:JSON.stringify({...b,schemaVersion:14})})],
   ]) {
     const d=database([[key,imagePicture],[record,raw]]); await d.store(id).create(board(id),new Map()); assert(d.data.has(key)); assert(!d.reads.includes(key));
   }

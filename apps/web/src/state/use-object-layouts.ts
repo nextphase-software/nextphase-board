@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useMemo, type RefObject } from "react";
 import Konva from "konva";
-import type { BoardV12 as Board, ItemV12 as Item } from "nextphase-board-rules/document.ts";
+import type { BoardV13 as Board, ItemV13 as Item } from "nextphase-board-rules/document.ts";
 import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT, type ResolvedItem } from "../geometry";
 import { isTape, objectType, textBox, hasText, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds, voteTextAnchor, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { hiddenIds, nodeBox, nodeLines } from "../mind-map";
@@ -19,6 +19,7 @@ const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
 
 type Input = {
   board: Board;
+  objects?: Board["objects"];
   selected: Set<string>;
   selectedId: string;
   item: Item | undefined;
@@ -71,7 +72,7 @@ function lineCount(object: Item, text = object.text ?? ""): number {
 }
 
 export function useObjectLayouts({
-  board, selected, selectedId, item, text, inline, textEditing, invalidObjectText, tool, readOnly, composing, busy, drag,
+  board, objects = board.objects, selected, selectedId, item, text, inline, textEditing, invalidObjectText, tool, readOnly, composing, busy, drag,
 }: Input) {
   const objectLayouts = useMemo(() => {
     const layouts = new Map(board.objects.filter(hasRectangle).map((o): [string, { height: number; runs: RunLine[] | null; limited: boolean; fadeStart: number; fadeEnd: number; fits?: boolean; fitHeight?: number; connector?: ConnectorLayout }] => {
@@ -110,7 +111,7 @@ export function useObjectLayouts({
   }, [board.objects, inline, selectedId, text]);
   // Hidden mind nodes are not drawn, hit, selected or listed.
   const hidden = hiddenIds(board.objects);
-  const displayedObjects: ResolvedItem[] = board.objects.filter((o) => !hidden.has(o.id)).map((o) => {
+  const allDisplayedObjects: ResolvedItem[] = board.objects.filter((o) => !hidden.has(o.id)).map((o) => {
     const layout = objectLayouts.get(o.id)!;
     let firstLine: {right:number;centerY:number}|undefined;
     if(voteTextAnchor(o)&&hasText(o)&&hasRectangle(o)&&(inline&&o.id===selectedId?text:o.text).length) {
@@ -122,12 +123,14 @@ export function useObjectLayouts({
     }
     return { ...o, firstLine, ...(layout.connector?.bounds ?? {}), connectorLayout: layout.connector, displayHeight: layout.height } as ResolvedItem;
   });
+  const visible = new Set(objects.map(o => o.id));
+  const displayedObjects = allDisplayedObjects.filter(o => visible.has(o.id));
   const resolvedItem = displayedObjects.find((o) => o.id === selectedId);
   const editorBox = resolvedItem && hasEnds(resolvedItem) ? labelEditorBox(resolvedItem.connectorLayout!.labelPoint, text) : undefined;
   const rectanglesSelected = displayedObjects.filter((o) => selected.has(o.id) && hasRectangle(o));
   const bounds = boundingBox(rectanglesSelected.length ? rectanglesSelected : displayedObjects.filter((o) => selected.has(o.id)));
   const selectedGroups = wholeGroups(displayedObjects, selected);
-  const numbers = groupNumbers(board.objects);
+  const numbers = groupNumbers(objects);
   const handlesVisible = rectanglesSelected.length > 0 && !rectanglesSelected.some(isMindNode) && !rectanglesSelected.some(isTape) && !!bounds && tool === "Select" && !readOnly && (!inline || !!item && !objectType(item.type).richText) && !composing &&
     (!busy || !!drag.current?.corner);
   const handlePoints = bounds ? CORNERS.map((corner) => ({
@@ -140,7 +143,7 @@ export function useObjectLayouts({
     readOnly || composing || busy || inline || textEditing || invalidObjectText ? "Unavailable while editing" : "");
   const itemHeight = item ? objectLayouts.get(item.id)!.height : 0;
   return {
-    editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
+    editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, allDisplayedObjects, bounds, selectedGroups, numbers,
     handlesVisible, handlePoints, itemHeight, measureNode,
   };
 }

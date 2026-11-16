@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { add, type Board as SavedBoard, type BoardV12 as Board, type ItemV12 as Item, validText } from "nextphase-board-rules/document.ts";
+import { add, type Board as SavedBoard, type BoardV13 as Board, type ItemV13 as Item, validText } from "nextphase-board-rules/document.ts";
 import { neededHeight, savedHeight } from "../geometry";
 import { moveWithMembers, placeObject } from "../sections";
 import { isTape, objectType, rectangleType, hasText, keepsProportions, hasRectangle, creationValues, typeForTool, isMindNode, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
@@ -13,6 +13,7 @@ import { textUnits } from "nextphase-board-rules/styles.ts";
 import type { NodeDrop, ResizeStart } from "../gesture";
 
 type Input = {
+  page: string;
   shapeSession: { paint: RefObject<ShapePaint> };
   model: RefObject<Board>;
   commit: (input: SavedBoard, recordObject?: boolean, orderIds?: readonly string[], opens?: string) => void;
@@ -37,7 +38,7 @@ type Input = {
 };
 
 export function useGeometryEdits({
-  shapeSession, model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,
+  page, shapeSession, model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,
   item, selected, select, objectLayouts, readOnly, busy, composing,
   setStatus, setTool, setPanel, setInline, editor, lineCount, measureNode,
 }: Input) {
@@ -75,7 +76,7 @@ export function useGeometryEdits({
       const type = typeForTool(tool);
       if (isMindNode({ type })) {
         // The starter map opens its root with all text selected.
-        const result = starterMap(model.current, { x, y }, measureNode);
+        const result = starterMap(model.current, { x, y }, measureNode, page);
         commit(result.board, true, undefined, result.id);
         select(result.id);
         setTool("Select");
@@ -84,7 +85,7 @@ export function useGeometryEdits({
         setTimeout(() => editor.current?.select(), 0);
         return;
       }
-      const object = creationValues(add(model.current, type, x, y).objects.at(-1)!, tool, shapeSession.paint.current);
+      const object = creationValues(add(model.current, type, x, y, page).objects.at(-1)!, tool, shapeSession.paint.current);
       const next = placeObject(model.current, object);
       commit(next, true);
       select(object.id);

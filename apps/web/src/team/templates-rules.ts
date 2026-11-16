@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { validate, validText, type BoardV12 } from "nextphase-board-rules/document.ts";
+import { validate, validText, type BoardV13 } from "nextphase-board-rules/document.ts";
 import { isImage } from "nextphase-board-rules/objects/registry.ts";
 import { buildSnapshot, type Snapshot } from "../clipboard.ts";
 
@@ -16,15 +16,16 @@ function containsNul(value: unknown): boolean {
   return typeof value === "string" ? value.includes("\u0000") : !!value && typeof value === "object" &&
     Object.entries(value).some(([k, v]) => k.includes("\u0000") || containsNul(v));
 }
-export function templateBoard(objects: unknown): BoardV12 {
+export function templateBoard(objects: unknown): BoardV13 {
   if (!Array.isArray(objects) || objects.length < 1 || objects.length > 250 || containsNul(objects) || objects.some(o =>
-    !o || typeof o !== "object" || Array.isArray(o) || "generation" in o || "order" in o || isImage(o))) throw Error("Invalid template");
-  const board = validate({ schemaVersion: 12, boardId: crypto.randomUUID(), title: "Template", retiredGenerations: [],
-    objects: objects.map((o, order) => ({ ...o, order, generation: crypto.randomUUID() })) }) as BoardV12;
+    !o || typeof o !== "object" || Array.isArray(o) || "generation" in o || "order" in o || "page" in o || isImage(o))) throw Error("Invalid template");
+  const boardId = crypto.randomUUID();
+  const board = validate({ schemaVersion: 13, boardId, pages: [{ id: boardId, name: "Page 1" }], title: "Template", retiredGenerations: [],
+    objects: objects.map((o, order) => ({ ...o, page: boardId, order, generation: crypto.randomUUID() })) }) as BoardV13;
   if (contentBytes(objects) > TEMPLATE_BYTES) throw Error("This is too large for a template. Select fewer objects.");
   return board;
 }
-export function templateSnapshot(board: BoardV12, selected: ReadonlySet<string>, drawn: Parameters<typeof buildSnapshot>[2]) {
+export function templateSnapshot(board: BoardV13, selected: ReadonlySet<string>, drawn: Parameters<typeof buildSnapshot>[2]) {
   return { title: board.title, selected: selected.size > 0,
     snapshot: buildSnapshot(board, selected.size ? selected : new Set(board.objects.map(o => o.id)), drawn) };
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import type { BoardV12 as Board } from "nextphase-board-rules/document.ts";
+import type { BoardV13 as Board } from "nextphase-board-rules/document.ts";
 import type { ClipboardCommand } from "../clipboard";
 import type { Flag } from "nextphase-board-rules/marks.ts";
 
@@ -9,6 +9,7 @@ import { hiddenIds, type MapCommand } from "../mind-map";
 
 import type { BoardVoting } from "../team/voting";
 type Input = {
+  page?: string;
   voting?: BoardVoting;
   chooseImages: () => void;
   command: (name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut" | MapCommand) => string | undefined;
@@ -31,7 +32,7 @@ type Input = {
 };
 
 export function usePageKeys({
-  voting, chooseImages, command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
+  page, voting, chooseImages, command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
   setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
 }: Input) {
   function pageKeyDown(e: React.KeyboardEvent<HTMLElement>) {
@@ -58,7 +59,7 @@ export function usePageKeys({
         if (!busy && !composing && model.current.objects.length) {
           e.preventDefault();
           const hidden = hiddenIds(model.current.objects);
-          select(model.current.objects.filter((o) => !hidden.has(o.id)).map((o) => o.id));
+          select(model.current.objects.filter((o) => o.page === (page ?? model.current.boardId) && !hidden.has(o.id)).map((o) => o.id));
         }
         return;
       }

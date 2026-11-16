@@ -21,7 +21,7 @@ export const tape = {
   voting: false, type: 'tape', label: 'Washi tape', tool: null, validFrom: 12, body: 'tape-body',
   points: false, text: false, ends: false, container: false, richText: false, kinds: [],
   extraKeys: ['pattern','points'] as readonly string[],
-  savedKeys: ['id','generation','type','pattern','group','section','x','y','width','height','points','order'],
+  savedKeys: ['id','generation','type','page','pattern','group','section','x','y','width','height','points','order'],
   validExtras: validTape, sizeRange: { min: 28, max: 2028 }, shapePaint: false, growsWithText: false,
   labelPrefix: (_o: object) => 'washi tape', contextLabel: (_o: object) => 'Washi tape',
 } as const;

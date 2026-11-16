@@ -4,6 +4,7 @@ import { placementTool } from "nextphase-board-rules/objects/registry.ts";
 import type { Board as SavedBoard } from "nextphase-board-rules/document.ts";
 
 type Props = {
+  pages: import("../find").Pages;
   showNotice: boolean;
   visibleMessage: string;
   invalidFields: string[];
@@ -20,11 +21,12 @@ type Props = {
 
 export function Notice({
   showNotice, visibleMessage, invalidFields, busy, tool, readOnly, snapshots, reopen, composing,
-  adopt, setReadOnly, setMessage
+  adopt, setReadOnly, setMessage, pages
 }: Props) {
   return (
     <aside className="notice" role="status" hidden={!showNotice}>
       {visibleMessage}
+      {pages.go?.text === visibleMessage && pages.list.some(p => p.id === pages.go?.id) && <button disabled={!!pages.openingReason} onClick={() => pages.openPage(pages.go!.id)}>Go to {pages.list.find(p => p.id === pages.go!.id)!.name}</button>}
       {invalidFields.map((s) => <div key={s}>{s}</div>)}
       {busy && (
         <div>

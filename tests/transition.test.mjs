@@ -17,7 +17,8 @@ test("normal changes, insertion and removal with retirement pass", () => {
 test("transition 1: board identity and schema cannot change", () => {
   const before = fixture();
   refused(before, { ...before, boardId: crypto.randomUUID() });
-  refused(before, { ...before, schemaVersion: 9 });
+  const { pages: _pages, ...legacy } = before;
+  refused(before, { ...legacy, schemaVersion: 9, objects: legacy.objects.map(({ page: _page, ...o }) => o) });
 });
 test("transition 2: retirement is permanent", () => {
   const before = { ...fixture(), retiredGenerations: [crypto.randomUUID()] };

@@ -118,7 +118,7 @@ test('TU-U12 Objects move buttons have titles only during a Tidy up preview',asy
 test('TU-U13 oversized width or height pins to the board edge and refuses Apply/Enter until columns or spacing fit',async()=>{
  const {empty,validate}=await load('packages/board-rules/src/document.ts'),{TidyUpBar,useCanvasInput,render}=await screens();
  for(const axis of ['x','y'])for(const change of ['columns','spacing']){
- const board={...empty(),title:'Large layout',objects:Array.from({length:3},(_,order)=>({id:crypto.randomUUID(),generation:crypto.randomUUID(),type:'stroke',kind:'marker',color:'black',weight:'thin',group:null,section:null,x:axis==='x'?-1e6:order*10,y:axis==='y'?-1e6:order*10,width:axis==='x'?1e6:4,height:axis==='y'?1e6:4,points:axis==='x'?[[2,2],[999998,2]]:[[2,2],[2,999998]],order}))};
+ const initial=empty(), board={...initial,title:'Large layout',objects:Array.from({length:3},(_,order)=>({id:crypto.randomUUID(),generation:crypto.randomUUID(),type:'stroke',page:initial.boardId,kind:'marker',color:'black',weight:'thin',group:null,section:null,x:axis==='x'?-1e6:order*10,y:axis==='y'?-1e6:order*10,width:axis==='x'?1e6:4,height:axis==='y'?1e6:4,points:axis==='x'?[[2,2],[999998,2]]:[[2,2],[2,999998]],order}))};
  assert.doesNotThrow(()=>validate(board));const before=structuredClone(board),h=await stateHarness(board);
  try{
  h.tidy.start(editable);h.refresh();assert(h.tidy.open);assert.equal(h.tidy.grid.fits,false);assert.equal(h.tidy.grid.bounds[axis],-1e6);

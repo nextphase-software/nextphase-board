@@ -41,7 +41,7 @@ export const stroke = {
   type: "stroke", label: "Draw", tool: null, validFrom: 8, body: "stroke-body",
   points: true, text: false, ends: false, container: false, richText: false,
   extraKeys: ["kind", "color", "weight", "points"] as readonly string[],
-  savedKeys: ["id", "generation", "type", "kind", "color", "weight", "group", "section", "x", "y", "width", "height", "points", "order"],
+  savedKeys: ["id", "generation", "type", "page", "kind", "color", "weight", "group", "section", "x", "y", "width", "height", "points", "order"],
   validExtras: validStroke, sizeRange: { min: 4, max: 2000000 }, shapePaint: false,
   growsWithText: false, labelPrefix: (o: Partial<StrokeKeys>) => inkInfo(o).prefix,
   contextLabel: (o: Partial<StrokeKeys>) => inkInfo(o).label,

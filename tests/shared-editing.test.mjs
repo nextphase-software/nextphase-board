@@ -32,7 +32,7 @@ function deleted(b, ids) {
   retiredGenerations: [...b.retiredGenerations, ...b.objects.filter((o) => removed.has(o.id)).map((o) => o.generation)].sort() };
 }
 function connector(b, from, to) {
-  return { ...b, objects: [...b.objects, { id: crypto.randomUUID(), generation: crypto.randomUUID(), type: "connector",
+  return { ...b, objects: [...b.objects, { id: crypto.randomUUID(), generation: crypto.randomUUID(), type: "connector", page: b.pages[0].id,
     order: b.objects.length, group: null, section: null, text: "", marks: [], color: "neutral", textSize: "medium", align: "center", ...defaultConnectorStyle(),
     from: { object: from, anchor: "auto" }, to: { object: to, anchor: "auto" } }] };
 }
@@ -74,12 +74,12 @@ test("adapter roundtrip preserves every base object type", () => {
   for (const type of OBJECT_TYPES.filter((t) => t.type !== "connector" && t.type !== "image" && t.type !== "stroke" && t.type !== "tape")) b = add(b, type.type, 0, 0);
   b = connector(b, b.objects.find((o) => o.type === "sticky").id, b.objects.find((o) => o.type === "text").id);
   // Base fixtures contain valid image and stroke objects too.
-  const image = { id: crypto.randomUUID(), generation: crypto.randomUUID(), type: "image", asset: "a".repeat(64), pixelWidth: 1,
+  const image = { id: crypto.randomUUID(), generation: crypto.randomUUID(), type: "image", page: b.pages[0].id, asset: "a".repeat(64), pixelWidth: 1,
     pixelHeight: 1, description: "Synthetic", x: 0, y: 0, width: 100, height: 100, group: null, section: null, order: b.objects.length };
   b.objects.push(image);
-  b.objects.push({ id: crypto.randomUUID(), generation: crypto.randomUUID(), type: "stroke", order: b.objects.length,
+  b.objects.push({ id: crypto.randomUUID(), generation: crypto.randomUUID(), type: "stroke", page: b.pages[0].id, order: b.objects.length,
     group: null, section: null, x: 0, y: 0, width: 24, height: 24, kind: "marker", color: "black", weight: "thin", points: [[2, 2], [22, 22]] });
-  b.objects.push({id:crypto.randomUUID(),generation:crypto.randomUUID(),type:"tape",pattern:"stripes",group:null,section:null,x:0,y:0,width:188,height:28,points:[[14,14],[174,14]],order:b.objects.length});
+  b.objects.push({id:crypto.randomUUID(),generation:crypto.randomUUID(),type:"tape",page:b.pages[0].id,pattern:"stripes",group:null,section:null,x:0,y:0,width:188,height:28,points:[[14,14],[174,14]],order:b.objects.length});
   const a = adapter(b); assert.equal(canonical(readBoard(a.doc)), canonical(b)); a.destroy();
 });
 

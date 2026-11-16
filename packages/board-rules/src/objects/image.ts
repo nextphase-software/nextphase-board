@@ -11,7 +11,7 @@ export const image = {
   type: "image", label: "Image", tool: null, validFrom: 10, body: "image-body",
   points: false, text: false, ends: false, container: false, richText: false,
   extraKeys: ["asset", "pixelWidth", "pixelHeight", "description"] as readonly string[],
-  savedKeys: ["id", "generation", "type", "group", "section", "asset", "pixelWidth", "pixelHeight", "description", "x", "y", "width", "height", "order"],
+  savedKeys: ["id", "generation", "type", "page", "group", "section", "asset", "pixelWidth", "pixelHeight", "description", "x", "y", "width", "height", "order"],
   validExtras: validImage, sizeRange: { min: 1, max: 20000 }, shapePaint: false,
   growsWithText: false, labelPrefix: (_o: object) => "image",
 } as const;

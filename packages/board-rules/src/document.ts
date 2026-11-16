@@ -6,6 +6,7 @@ export type ItemV1 = {
   id: string;
   generation: string;
   type: TextRectangleType;
+  page?: string;
   text: string;
   x: number;
   y: number;
@@ -22,21 +23,24 @@ export type RectangleItem = ItemV6;
 export type LegacyConnectorItem = Omit<ItemV6, keyof Rectangle | "type"> & EndsKeys & { type: EndsType };
 export type ConnectorItem = LegacyConnectorItem & ConnectorStyle;
 export type ItemV7 = RectangleItem | LegacyConnectorItem;
-export type StrokeItem = Pick<ItemV5, "id" | "generation" | "group" | "section" | "x" | "y" | "width" | "height" | "order"> & StrokeKeys & Partial<ShapeKeys> & { type: PointsType; text?: never; textSize?: never; align?: never; marks?: never };
+export type StrokeItem = { page?: string } & Pick<ItemV5, "id" | "generation" | "group" | "section" | "x" | "y" | "width" | "height" | "order"> & StrokeKeys & Partial<ShapeKeys> & { type: PointsType; text?: never; textSize?: never; align?: never; marks?: never };
 export type ItemV8 = ItemV7 | StrokeItem;
 export type ItemV9 = RectangleItem | ConnectorItem | StrokeItem;
-export type ImageItem = Pick<ItemV5, "id" | "generation" | "group" | "section" | "x" | "y" | "width" | "height" | "order"> & ImageKeys & {
+export type ImageItem = { page?: string } & Pick<ItemV5, "id" | "generation" | "group" | "section" | "x" | "y" | "width" | "height" | "order"> & ImageKeys & {
   type: typeof import("./objects/image.ts").image.type;
   text?: never; color?: never; textSize?: never; align?: never; marks?: never;
   shape?: never; fill?: never; border?: never;
 };
 export type ItemV10 = ItemV9 | ImageItem;
 export type MindNodeItem = ItemV6 & MindNodeKeys & { type: typeof import("./objects/mind-node.ts").mindNode.type };
-export type TapeItem = Pick<ItemV5, "id" | "generation" | "group" | "section" | "x" | "y" | "width" | "height" | "order"> & TapeKeys & {
+export type TapeItem = { page?: string } & Pick<ItemV5, "id" | "generation" | "group" | "section" | "x" | "y" | "width" | "height" | "order"> & TapeKeys & {
   type: typeof import("./objects/tape.ts").tape.type;
   text?: never; color?: never; textSize?: never; align?: never; marks?: never; shape?: never; fill?: never; border?: never;
 };
-export type ItemV12 = ItemV10 | MindNodeItem | TapeItem;
+type LegacyItemV12 = ItemV10 | MindNodeItem | TapeItem;
+export type ItemV13 = LegacyItemV12 & { page: string };
+export type ItemV12 = ItemV13;
+export type Page = { id: string; name: string };
 export type Item = ItemV1 | ItemV2 | ItemV3 | ItemV4 | ItemV5 | ItemV6 | ItemV7 | ItemV8 | ItemV9 | ImageItem | MindNodeItem | TapeItem;
 type BoardFields = {
   boardId: string;
@@ -53,8 +57,10 @@ export type BoardV7 = BoardFields & { schemaVersion: 7; objects: ItemV7[] };
 export type BoardV8 = BoardFields & { schemaVersion: 8; objects: ItemV8[] };
 export type BoardV9 = BoardFields & { schemaVersion: 9; objects: ItemV9[] };
 export type BoardV10 = BoardFields & { schemaVersion: 10; objects: ItemV10[] };
-export type BoardV12 = BoardFields & { schemaVersion: 12; objects: ItemV12[] };
-export type Board = BoardFields & { schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12; objects: Item[] };
+type LegacyBoardV12 = BoardFields & { schemaVersion: 12; objects: LegacyItemV12[] };
+export type BoardV12 = BoardV13;
+export type BoardV13 = BoardFields & { schemaVersion: 13; pages: Page[]; objects: ItemV13[] };
+export type Board = BoardFields & { pages?: Page[]; schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13; objects: Item[] };
 const uuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export const count = (s: string) => Array.from(s).length;
@@ -73,13 +79,17 @@ export function validate(value: unknown): Board {
       "schemaVersion",
       "boardId",
       "title",
+      ...(b.schemaVersion === 13 ? ["pages"] : []),
       "objects",
       "retiredGenerations",
-    ]) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(b.schemaVersion) || typeof b.boardId !== "string" || !uuid.test(b.boardId) ||
+    ]) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].includes(b.schemaVersion) || typeof b.boardId !== "string" || !uuid.test(b.boardId) ||
     typeof b.title !== "string" || !validText(b.title, 120, true) ||
     !Array.isArray(b.objects) || b.objects.length > 250 ||
     !Array.isArray(b.retiredGenerations) || b.retiredGenerations.length > 10000
   ) throw Error("Unsupported or malformed board");
+  if (b.schemaVersion === 13 && (!Array.isArray(b.pages) || b.pages.length < 1 || b.pages.length > 50 ||
+    new Set(b.pages.map((p) => p?.id)).size !== b.pages.length || b.pages.some((p) => !p ||
+      !keys(p, ["id", "name"]) || typeof p.id !== "string" || !uuid.test(p.id) || !validPageName(p.name)))) throw Error("Invalid pages");
   const ids = new Set([b.boardId]);
   const gens = new Set<string>();
   for (const [i, o] of b.objects.entries()) {
@@ -134,6 +144,20 @@ export function validate(value: unknown): Board {
     if (hasEnds(o) && (o.from.object === o.to.object || [o.from, o.to].some((end) =>
       !b.objects.some((idea) => idea.id === end.object && eligibleIdea(idea))))) throw Error("Invalid connector ends");
   }
+  if (b.schemaVersion === 13) {
+    const pages = new Set(b.pages!.map((p) => p.id)), objects = new Map(b.objects.map((o) => [o.id, o]));
+    const groups = new Map<string, string>();
+    for (const o of b.objects) {
+      if (!o.page || !pages.has(o.page) || pages.has(o.id) || pages.has(o.generation) ||
+        hasEnds(o) && (objects.get(o.from.object)?.page !== o.page || objects.get(o.to.object)?.page !== o.page) ||
+        "section" in o && o.section !== null && objects.get(o.section)?.page !== o.page ||
+        isMindNode(o) && o.parent !== null && objects.get(o.parent)?.page !== o.page) throw Error("Invalid page reference");
+      if ("group" in o && o.group) {
+        if (groups.has(o.group) && groups.get(o.group) !== o.page) throw Error("Group crosses pages");
+        groups.set(o.group, o.page);
+      }
+    }
+  }
   if (b.schemaVersion >= 11 && !validStructure(b.objects)) throw Error("Invalid mind map");
   return b;
 }
@@ -159,12 +183,26 @@ export function validStructure(objects: readonly { id: string; type: string }[])
   }
   return true;
 }
+export function validPageName(name: unknown): name is string {
+  return typeof name === "string" && validText(name, 60, true) && name === name.trim() && !/[\u0000-\u001f\u007f-\u009f]/u.test(name);
+}
+// Page metadata is excluded from the inherited payload budget (document v18).
+export function payloadBytes(text: string): number {
+  const value = JSON.parse(text);
+  if (value.schemaVersion === 13) {
+    delete value.pages;
+    for (const object of value.objects) delete object.page;
+    return new TextEncoder().encode(JSON.stringify(value)).length;
+  }
+  return new TextEncoder().encode(text).length;
+}
 export function canonical(b: Board) {
   validate(b);
   const s = JSON.stringify({
     schemaVersion: b.schemaVersion,
     boardId: b.boardId,
     title: b.title,
+    ...(b.schemaVersion === 13 ? { pages: b.pages!.map(({ id, name }) => ({ id, name })) } : {}),
     objects: b.objects.map((o) => {
       const values: Record<string, unknown> = { ...o, ...extraValues(o),
         ...(hasText(o) && b.schemaVersion >= 4 ? { marks: (o as ItemV4).marks.map(markOf) } : {}) };
@@ -172,7 +210,7 @@ export function canonical(b: Board) {
     }),
     retiredGenerations: [...b.retiredGenerations],
   });
-  if (new TextEncoder().encode(s).length > 2097152) {
+  if (payloadBytes(s) > 2097152) {
     throw Error("Board too large");
   }
   return s;
@@ -189,9 +227,9 @@ export function markOf(m: Mark): Mark {
 }
 // Adoption is deliberately separate from decoding/canonicalization: opening
 // legacy bytes never rewrites them or advances the editing revision.
-export function upgrade(b: Board): BoardV12 {
-  if (b.schemaVersion === 12) return b as BoardV12;
-  if (b.schemaVersion === 11 || b.schemaVersion === 10 || b.schemaVersion === 9) return { ...b, schemaVersion: 12 } as BoardV12;
+function legacyUpgrade(b: Board): LegacyBoardV12 {
+  if (b.schemaVersion === 12) return b as LegacyBoardV12;
+  if (b.schemaVersion === 11 || b.schemaVersion === 10 || b.schemaVersion === 9) return { ...b, schemaVersion: 12 } as LegacyBoardV12;
   if (b.schemaVersion === 8) return { ...b, schemaVersion: 12, objects: (b.objects as ItemV8[]).map((o) => hasEnds(o) ? { ...o, ...defaultConnectorStyle() } : o) };
   return {
     ...b, schemaVersion: 12,
@@ -205,27 +243,28 @@ export function upgrade(b: Board): BoardV12 {
     }),
   };
 }
-export function empty(): BoardV12 {
-  return {
-    schemaVersion: 12,
-    boardId: crypto.randomUUID(),
-    title: "",
-    objects: [],
-    retiredGenerations: [],
-  };
+export function upgrade(b: Board): BoardV13 {
+  if (b.schemaVersion === 13) return b as BoardV13;
+  const older = legacyUpgrade(b);
+  return { ...older, schemaVersion: 13, pages: [{ id: b.boardId, name: "Page 1" }],
+    objects: older.objects.map((o) => ({ ...o, page: b.boardId })) };
+}
+export function empty(): BoardV13 {
+  const boardId = crypto.randomUUID();
+  return { schemaVersion: 13, boardId, title: "", pages: [{ id: boardId, name: "Page 1" }], objects: [], retiredGenerations: [] };
 }
 // Every identifier namespace shares one freshness rule, including IDs allocated
 // earlier in a multi-object command.
 export function freshIdentifier(board: Board, extra: readonly string[] = []): string {
   const used = new Set([
-    board.boardId, ...board.retiredGenerations, ...extra,
+    board.boardId, ...(board.pages ?? []).map((p) => p.id), ...board.retiredGenerations, ...extra,
     ...board.objects.flatMap((o) => [o.id, o.generation, ...("group" in o && o.group ? [o.group] : [])]),
   ]);
   let id: string;
   do id = crypto.randomUUID(); while (used.has(id));
   return id;
 }
-export function add(input: Board, type: TextRectangleType, x: number, y: number): BoardV12 {
+export function add(input: Board, type: TextRectangleType, x: number, y: number, page = input.boardId): BoardV13 {
   const b = upgrade(input);
   if (b.objects.length >= 250) throw Error("250 object limit reached");
   const record = objectType(type);
@@ -237,6 +276,7 @@ export function add(input: Board, type: TextRectangleType, x: number, y: number)
       id,
       generation: freshIdentifier(b, [id]),
       type,
+      page,
       text: record.initialText,
       ...record.defaultStyle,
       group: null,

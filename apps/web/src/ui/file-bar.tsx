@@ -5,6 +5,7 @@ import { Icon } from "../icons";
 import type { TeamParts } from "../team/team-app";
 
 type Props = {
+  pages: import("../find").Pages;
   team?: TeamParts;
   boardButton: RefObject<HTMLButtonElement | null>;
   composing: boolean;
@@ -20,7 +21,7 @@ type Props = {
 
 export function FileBar({
   boardButton, composing, busy, toggle, panel, title, objectsButton, undoReason, redoReason,
-  command, team
+  command, team, pages
 }: Props) {
   return (
     <section className="file floating">
@@ -36,6 +37,7 @@ export function FileBar({
       </button>
       <small>{team?.hosted?.snapshot.workspace ?? "Local"}</small>
       <span className="divider" aria-hidden="true" />
+      {pages.local && <button ref={pages.button} className={"icon-button pages-button" + (pages.open ? " page-active" : "")} aria-label="Pages" aria-expanded={pages.open} onClick={pages.toggle}><Icon name="pages" /><span className="tooltip">Pages</span></button>}
       <button
         className="icon-button"
         ref={objectsButton}

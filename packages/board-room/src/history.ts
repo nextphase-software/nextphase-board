@@ -2,7 +2,7 @@
 import * as Y from 'yjs';
 import { readBoard } from 'nextphase-board-sync/codec.ts';
 import { Adapter } from 'nextphase-board-sync/document-adapter.ts';
-import { canonical, upgrade, validate, type Board, type BoardV12 } from 'nextphase-board-rules/document.ts';
+import { canonical, upgrade, validate, type Board, type BoardV13 } from 'nextphase-board-rules/document.ts';
 import { HISTORY_AGE, HISTORY_CHUNK, HISTORY_INTERVAL, HISTORY_LIMIT, historyId, historyInteger,
   historyReasons, wellFormed, metadataValid, versionValid, versionHeading, type Version, type HistoryReason, type SaveVersion,
   type RestoreVersion, type RestoreResult } from 'nextphase-board-sync/history.ts';
@@ -14,6 +14,9 @@ import { labelOf } from './tickets.ts';
 import { keepAnchors } from './comments.ts';
 import { snapshot } from './snapshots.ts';
 
+// A hosted document has one page; allow its metadata before canonical checks
+// apply the inherited 2 MiB budget without pages/page.
+const STORED_DOCUMENT_LIMIT = 2097152 + 16384;
 type Prepared = { data: Uint8Array; sha256: string };
 type Reference = { chunks: number; bytes: number; sha256: string };
 type Intent = { phase: 'intent' | 'reserved' | 'replaced'; selected: Reference; replaced: Reference;
@@ -24,14 +27,15 @@ export function versionRow(row: Row): Version {
     generation: Number(row.generation), reason: row.reason as HistoryReason, name: String(row.name), description: String(row.description),
     actor: row.actor === null ? null : String(row.actor), namedBy: row.named_by === null ? null : String(row.named_by), sourceName: String(row.source_name) };
 }
-export function documentBytes(rows: Row[], board: string): { board: BoardV12; data: Uint8Array } {
+export function documentBytes(rows: Row[], board: string): { board: BoardV13; data: Uint8Array } {
   if (!rows.length || rows.some((r, i) => r.chunk_index !== i || !(r.bytes instanceof Uint8Array) || !r.bytes.length || r.bytes.length > HISTORY_CHUNK)) throw Error('bad_chunks');
   const data = new Uint8Array(rows.reduce((n, r) => n + (r.bytes as Uint8Array).length, 0));
-  if (data.length > 2097152) throw Error('document_too_large');
+  if (data.length > STORED_DOCUMENT_LIMIT) throw Error('document_too_large');
   let at = 0; for (const row of rows) { data.set(row.bytes as Uint8Array, at); at += (row.bytes as Uint8Array).length; }
   const text = new TextDecoder().decode(data), value = validate(JSON.parse(text));
-  if (![10, 11, 12].includes(value.schemaVersion) || value.boardId !== board || value.objects.some(o => o.type === 'image') || canonical(value) !== text) throw Error('bad_document');
-  return { board: value as BoardV12, data };
+  if (![10, 11, 12, 13].includes(value.schemaVersion) || value.boardId !== board || value.objects.some(o => o.type === 'image') || canonical(value) !== text) throw Error('bad_document');
+  if (value.schemaVersion === 13 && value.pages?.length !== 1) throw new RoomError(400, 'invalid_document');
+  return { board: value as BoardV13, data };
 }
 export class History {
   private host: Room;
@@ -69,8 +73,9 @@ export class History {
     // Compare only valid older representations: new types and kinds cannot
     // appear in a legacy copy, and an upgrade alone captures no version.
     const legacy: Prepared[] = [];
-    for (const version of [10, 11] as const) {
-      const older = { ...this.host.board, schemaVersion: version };
+    for (const version of [10, 11, 12] as const) {
+      const { pages: _pages, ...current } = this.host.board;
+      const older = { ...current, schemaVersion: version, objects: current.objects.map(({ page: _page, ...o }) => o) };
       let valid = false;
       try { validate(older); valid = true; } catch { /* Not representable at this version. */ }
       if (valid) legacy.push(await this.prepare(older));
@@ -194,7 +199,7 @@ export class History {
     try { return await this.resume(this.receipt(person, value.requestId, digest)!); }
     catch { throw new RoomError(503, 'restore_pending'); }
   }
-  validateIdentity(board: BoardV12) {
+  validateIdentity(board: BoardV13) {
     for (const o of board.objects) {
       const rows = this.s.all('SELECT * FROM identifiers WHERE object_id = ? AND generation = ?', o.id, o.generation);
       if (rows.length !== 1) throw new RoomError(400, 'bad_request');
@@ -307,7 +312,7 @@ export async function validateHistoryBackup(env: RoomEnvironment, tables: Record
       if (Number(r.revision)>Number(snapshots.at(-1))) Y.applyUpdate(doc,r.update);
     }
     const head=readBoard(doc); validate(head); canonical(head);
-    if (head.boardId!==board || ![10,11,12].includes(head.schemaVersion) || head.objects.some(o=>o.type==='image'||identity.get(o.id)!==o.generation)) throw Error('bad_head');
+    if (head.boardId!==board || ![10,11,12,13].includes(head.schemaVersion) || head.schemaVersion===13&&head.pages?.length!==1 || head.objects.some(o=>o.type==='image'||identity.get(o.id)!==o.generation)) throw Error('bad_head');
   } finally {doc.destroy();}
   if (tables.snapshot_chunks.some(r=>!['json','yjs'].includes(String(r.kind)))) throw Error('bad_snapshot');
   const comments = new Map(tables.comments.map(r=>[r.id,r])), threads = new Map(tables.threads.map(r=>[r.id,r]));
@@ -337,7 +342,7 @@ export async function validateHistoryBackup(env: RoomEnvironment, tables: Record
   }
   const ordinal = get('history_ordinal'), revision = get('history_revision'), count = get('history_capture_bytes'), hash = get('history_capture_sha256');
   if (!historyInteger(ordinal) || ordinal < 1 || !historyInteger(revision) || revision > Number(get('revision')) ||
-    !historyInteger(count) || count < 1 || count > 2097152 || typeof hash !== 'string' || !/^[0-9a-f]{64}$/.test(hash) ||
+    !historyInteger(count) || count < 1 || count > STORED_DOCUMENT_LIMIT || typeof hash !== 'string' || !/^[0-9a-f]{64}$/.test(hash) ||
     !historyInteger(get('history_next_at')) || get('restore_pending') !== 0 || tables.history_intent_chunks.length) throw Error('bad_history');
   if (tables.versions.length > 50) throw Error('bad_history');
   const ids = new Set(), ordinals = new Set();

@@ -35,7 +35,7 @@ export function StrokeFields({ selection: s, commands: c, reason }: StrokeContro
   </div>;
 }
 // Native details owns disclosure state; screen parts keep no React state/effects.
-export function StrokeControls({ selection: s, commands: c, reason, remove }: StrokeControlProps & { remove: () => void }) {
+export function StrokeControls({ selection: s, commands: c, reason, remove, moveToPage }: StrokeControlProps & { remove: () => void; moveToPage?: React.ReactNode }) {
   const first = s.objects[0];
   if (!first) return null;
   const close = (element: HTMLElement) => { const details = element.closest("details"); if (details) { details.open = false; details.querySelector("summary")?.focus(); } };
@@ -58,6 +58,6 @@ export function StrokeControls({ selection: s, commands: c, reason, remove }: St
         </div>
       </details>;
     })}
-    <button aria-label="Delete" disabled={!!reason} onClick={remove}>Delete</button>
+    {moveToPage}<button aria-label="Delete" disabled={!!reason} onClick={remove}>Delete</button>
   </>;
 }

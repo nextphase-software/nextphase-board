@@ -3,7 +3,7 @@ import type { RectangleItem, StrokeItem, ImageItem } from "nextphase-board-rules
 import type { Corner, Rectangle } from "./resize";
 import type { View } from "./view";
 
-export type ResizeStart = { object: RectangleItem | StrokeItem | ImageItem; rectangle: Rectangle };
+export type ResizeStart = { object: (RectangleItem | StrokeItem | ImageItem) & { page: string }; rectangle: Rectangle };
 import type { ConnectionDrag } from "./connection-drag.ts";
 
 // One mind node pressed and dragged: its branch, the drop target under the

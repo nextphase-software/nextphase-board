@@ -87,8 +87,8 @@ export function extraValues<T extends { type: string } & Partial<ShapeKeys & End
 }
 export function objectKeys(type: string, version: number): string[] {
   const record = objectType(type);
-  if ("savedKeys" in record) return [...record.savedKeys];
-  return ["id", "generation", "type", "text", ...(version >= 2 ? ["color", "textSize", "align"] : []),
+  if ("savedKeys" in record) return record.savedKeys.filter((key) => version >= 13 || key !== "page");
+  return ["id", "generation", "type", ...(version >= 13 ? ["page"] : []), "text", ...(version >= 2 ? ["color", "textSize", "align"] : []),
     ...(version >= 3 ? ["group"] : []), ...(version >= 4 ? ["marks"] : []),
     ...(version >= 5 ? ["section"] : []), ...(version >= 6 ? objectType(type).extraKeys.filter((key) => version >= 9 || !CONNECTOR_STYLE_KEYS.includes(key as keyof ConnectorStyle)) : []),
     ...(objectType(type).ends ? [] : ["x", "y", "width", "height"]), "order"];

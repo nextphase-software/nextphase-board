@@ -3,7 +3,7 @@ import { hasText, hasEnds, isContainer, type Rectangle } from 'nextphase-board-r
 import type { ResolvedItem } from './geometry.ts';
 import { readingOrder } from './tidy-up.ts';
 
-export type FindResult = Rectangle & { id: string };
+export type FindResult = Rectangle & { id: string; page?: string };
 export type FindCursor = { current: FindResult | null; removed: FindResult | null };
 const normalized = (text: string) => text.normalize('NFC').toLowerCase();
 export const findQuery = (text: string) => normalized(text.trim());
@@ -45,17 +45,18 @@ export function reconcileCursor(results: readonly FindResult[], cursor: FindCurs
   const current = results.find(r => r.id === cursor.current!.id);
   if (!current) return { current: null, removed: cursor.current };
   const old = cursor.current;
-  return current.x === old.x && current.y === old.y && current.width === old.width && current.height === old.height
+  return current.x === old.x && current.y === old.y && current.width === old.width && current.height === old.height && current.page === old.page
     ? cursor : { current, removed: null };
 }
 
-export function stepResult(results: readonly FindResult[], cursor: FindCursor, direction: -1 | 1): FindCursor {
+export function stepResult(results: readonly FindResult[], cursor: FindCursor, direction: -1 | 1, pages?: readonly string[]): FindCursor {
   if (!results.length) return cursor;
   let index = cursor.current ? results.findIndex(r => r.id === cursor.current!.id) : -1;
   if (index < 0 && cursor.removed) {
     const restored = results.find(r => r.id === cursor.removed!.id);
     if (restored) return { current: restored, removed: null };
-    const places = ordered([...results, cursor.removed]);
+    const combined = [...results, cursor.removed];
+    const places = pages ? pages.flatMap(page => ordered(combined.filter(r => r.page === page))) : ordered(combined);
     const place = places.findIndex(r => r.id === cursor.removed!.id);
     return { current: places[(place + direction + places.length) % places.length], removed: null };
   }
@@ -85,9 +86,29 @@ export function sectionsList(objects: readonly ResolvedItem[]) {
 // Shared seam for screen/scene parts; the state hook is its only owner.
 export type FindActions = {
   open: boolean; query: string; results: FindResult[]; cursor: FindCursor; faded: ReadonlySet<string>;
-  counter: string; removed: string; shortcut: string;
+  counter: string; removed: string; pageLine?: string; multiplePages?: boolean; shortcut: string;
   field: (element: { focus(): void; select(): void } | null) => void;
   changeQuery: (query: string) => void; show: () => void; close: () => void; step: (direction: -1 | 1) => void;
   sections: (FindResult & { label: string })[]; canFit: boolean; canFitSelection: boolean;
   zoomToFit: () => void; zoomToSelection: () => void; fitSection: (id: string) => void;
+};
+
+// Structural UI seam; page state and every mutation live in use-pages.
+export type Pages = {
+  id: string; local: boolean; list: import('nextphase-board-rules/document.ts').Page[];
+  open: boolean; menu: string; editing: string; name: string; moveOpen: boolean;
+  drag: { id: string; y: number; active: boolean; gap: number } | null;
+  go: { id: string; text: string } | null; openingReason: string; editingReason: string; addReason: string;
+  button: { current: HTMLButtonElement | null }; panel: { current: HTMLElement | null };
+  names: { current: Map<string, HTMLButtonElement> }; options: { current: Map<string, HTMLButtonElement> };
+  nameField: { current: HTMLInputElement | null }; pageMenu: { current: HTMLDivElement | null };
+  moveButton: { current: HTMLButtonElement | null }; moveMenu: { current: HTMLDivElement | null };
+  duplicateReason: (id: string) => string; toggle: () => void; closeList: () => void;
+  openPage: import('./pages.ts').PageNavigation['openPage']; add: () => void; rename: (id: string) => void;
+  finishName: (keep: boolean) => void; changeName: (name: string) => void;
+  choose: (action: string, id: string) => void; beginDrag: (id: string, y: number) => void;
+  dragTo: (y: number) => void; endDrag: (cancel?: boolean) => boolean;
+  clickPage: (id: string) => void; suppressClick: () => void; showMenu: (id: string) => void;
+  closeMenu: () => void; toggleMove: () => void; closeMove: () => void;
+  movedCount: (ids: ReadonlySet<string>) => number; move: (id: string, selected: ReadonlySet<string>) => void;
 };

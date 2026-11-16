@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { add, type Board as AnyBoard, type BoardV12 as Board, type Item } from "nextphase-board-rules/document.ts";
+import { add, type Board as AnyBoard, type BoardV13 as Board, type Item } from "nextphase-board-rules/document.ts";
 import { OBJECT_TYPES, isMindNode, type MindNodeKeys, type Rectangle } from "nextphase-board-rules/objects/registry.ts";
 import { TEXT_LAYOUT } from "./geometry.ts";
 import { layoutRuns, type RunLine } from "./text-runs.ts";
@@ -180,17 +180,17 @@ export function settle<B extends AnyBoard>(before: AnyBoard, after: B, editing?:
 }
 
 function newNode(board: Board, values: Partial<Node>): { board: Board; node: Node } {
-  const placed = add(board, record().type, 0, 0);
+  const placed = add(board, record().type, 0, 0, values.page ?? board.boardId);
   const node = { ...placed.objects.at(-1)!, ...values } as Node;
-  return { node, board: { ...placed, objects: bands([...placed.objects.slice(0, -1), node] as Board["objects"]).map((o, order) => ({ ...o, order })) } };
+  return { node, board: { ...placed, objects: bands([...placed.objects.slice(0, -1), node] as Board["objects"], node.page).map((o, order) => ({ ...o, order })) } };
 }
 // A starter map: a root and three right-side ideas, the root box centred on the point.
-export function starterMap(board: Board, at: Point, measure: MeasureNode): { board: Board; id: string } {
+export function starterMap(board: Board, at: Point, measure: MeasureNode, page = board.boardId): { board: Board; id: string } {
   const box = measure(STARTER[0], true);
-  let current = newNode(board, { text: STARTER[0], ...box, x: Math.round(at.x - box.width / 2), y: Math.round(at.y - box.height / 2) });
+  let current = newNode(board, { page, text: STARTER[0], ...box, x: Math.round(at.x - box.width / 2), y: Math.round(at.y - box.height / 2) });
   const root = current.node;
   STARTER.slice(1).forEach((text, rank) => {
-    current = newNode(current.board, { text, parent: root.id, side: "right", rank, ...measure(text, false), x: root.x, y: root.y });
+    current = newNode(current.board, { page, text, parent: root.id, side: "right", rank, ...measure(text, false), x: root.x, y: root.y });
   });
   return { id: root.id, board: { ...current.board, objects: layoutRoots(current.board.objects, [root.id]) } };
 }
@@ -200,7 +200,7 @@ function insertChild(board: Board, parentId: string, at: number, side: Side | nu
   if (parent.collapsed) set(parent.id, { collapsed: false });
   list.forEach((child, i) => set(child.id, { rank: i < at ? i : i + 1 }));
   const updated = { ...board, objects: applyChanges(board.objects, changes) };
-  const { board: next, node } = newNode(updated, { text: "", parent: parentId, side, rank: at, ...measure("", false), x: parent.x, y: parent.y });
+  const { board: next, node } = newNode(updated, { page: parent.page, text: "", parent: parentId, side, rank: at, ...measure("", false), x: parent.x, y: parent.y });
   return { board: { ...next, objects: layoutRoots(next.objects, [rootIn(idx, parentId).id]) }, id: node.id };
 }
 // Add child: the last child; on a root the given side, or the side with fewer

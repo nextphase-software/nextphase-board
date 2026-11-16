@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
-import { richBoard, sizedBoard, imageBoard } from "./import-fixture.mjs";
+import { richBoard, sizedBoard, imageBoard, withoutPages } from "./import-fixture.mjs";
 
 const file = (raw) => {
   const bytes = new TextEncoder().encode(raw);
@@ -40,7 +40,7 @@ for (const version of [1, 2]) test(`team import refuses pictures in file version
 test("team import refuses a document of 2097153 canonical bytes without sending", async () => {
   const { importBoard } = await import("../apps/web/src/team/import.ts");
   const board = sizedBoard(2097153);
-  assert.equal(Buffer.byteLength(JSON.stringify(board)), 2097153);
+  assert.equal(Buffer.byteLength(JSON.stringify(withoutPages(board))), 2097153);
   await refused(importBoard, file(envelope(JSON.stringify(board))), "it is not a valid board");
 });
 test("team import refuses a version 1 file whose document upgrade exceeds 2 MiB", async () => {
@@ -59,9 +59,9 @@ test("team import sends exactly one title and complete current document", async 
 test("team import upgrades schema 9 to 10 preserving every object", async () => {
   const { importBoard } = await import("../apps/web/src/team/import.ts");
   const { canonical } = await import("../packages/board-rules/src/document.ts");
-  const board = { ...richBoard(), schemaVersion: 9 }, bodies = [];
+  const board = { ...withoutPages(richBoard()), schemaVersion: 9 }, bodies = [];
   await importBoard(file(envelope(canonical(board))), async (body) => { bodies.push(body); });
-  assert.deepEqual(bodies, [{ title: board.title, document: { ...board, schemaVersion: 12 } }]);
+  assert.deepEqual(bodies, [{ title: board.title, document: { ...board, schemaVersion: 13, pages: [{ id: board.boardId, name: "Page 1" }], objects: board.objects.map(o => ({ ...o, page: board.boardId })) } }]);
 });
 
 async function roomFixture() {

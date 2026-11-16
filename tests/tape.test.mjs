@@ -20,8 +20,8 @@ test('TP-U1 tape record, patterns, predicates and exact saved keys', async () =>
   assert.deepEqual(r.TAPE_PATTERNS.map(p => [p.value, p.name]), [['stripes','Stripes'],['dots','Dots'],['grid','Grid'],['zigzag','Zigzag'],['checks','Checks'],['kraft','Kraft']]);
   assert(r.isTape({ type: 'tape' })); assert(!r.hasPoints({ type: 'tape' })); assert(!r.eligibleIdea({ type: 'tape' })); assert(!r.eligibleVote({ type: 'tape' })); assert(r.sectionIdea({ type: 'tape' }));
   const b = await sample(), { canonical } = await rules();
-  assert.deepEqual(Object.keys(JSON.parse(canonical(b)).objects[0]), ['id','generation','type','pattern','group','section','x','y','width','height','points','order']);
-  assert.deepEqual(r.objectKeys('tape', 12), t.savedKeys);
+  assert.deepEqual(Object.keys(JSON.parse(canonical(b)).objects[0]), ['id','generation','type','page','pattern','group','section','x','y','width','height','points','order']);
+  assert.deepEqual(r.objectKeys('tape', 13), t.savedKeys);
 });
 test('TP-U2 every tape rule and older-version gate refuses without repair', async () => {
   const { validate, canonical } = await rules(), b = await sample(), o = b.objects[0];

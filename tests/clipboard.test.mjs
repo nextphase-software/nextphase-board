@@ -31,7 +31,7 @@ test("snapshot stores committed content in reading order, whole group marks, dra
   const rectangles = drawn(b).map((o, i) => ({ ...o, text: "Uncommitted draft", displayHeight: o.height + 700 + i }));
   const s = snapshot({ ...b, objects: [...b.objects].reverse() }, selection, rectangles);
   const copied = b.objects.filter((o) => selection.has(o.id));
-  assert.deepEqual(s.objects, copied.map(({ generation, order, ...o }) => ({
+  assert.deepEqual(s.objects, copied.map(({ generation, order, page: _page, ...o }) => ({
     ...o, group: order === 4 ? null : o.group,
   })));
   assert.deepEqual(s.objects.map((o) => o.text), copied.map((o) => o.text));
@@ -75,9 +75,9 @@ test("paste assigns globally fresh identifiers, maps each whole group once, copi
   validate(first.board);
   assert.deepEqual(first.board.objects.slice(0, b.objects.length), b.objects);
   for (const [i, o] of copies.entries()) {
-    const { id, generation, order, x, y, group, ...content } = o;
+    const { id, generation, order, x, y, group, page, ...content } = o;
     const { id: sourceId, x: sx, y: sy, group: mark, ...expected } = s.objects[i];
-    assert.deepEqual(content, expected);
+    assert.equal(page, b.boardId); assert.deepEqual(content, expected);
     assert.equal(order, b.objects.length + i);
     assert.equal(x, sx + 24);
     assert.equal(y, sy + 24);

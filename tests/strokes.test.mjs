@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { withoutPages } from "./import-fixture.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { add, empty, validate, canonical, upgrade } from "../packages/board-rules/src/document.ts";
@@ -28,9 +29,9 @@ const resize = (objects, delta, corner = "se") => resizeWithStrokes(corner, memb
 for (const kind of INK_KINDS) for (const weight of INK_WEIGHTS) test(`${kind.kind} ${weight}: exact keys, padding, colours and canonical order`, () => {
   const b = withLine(board(), points([20, 30], [80, 90]), style(kind.kind, weight));
   const o = b.objects[0], pad = inkWidth(o) / 2, bytes = canonical(b);
-  assert.equal(b.schemaVersion, 12);
-  assert.deepEqual(Object.keys(JSON.parse(bytes).objects[0]), ["id", "generation", "type", "kind", "color", "weight", "group", "section", "x", "y", "width", "height", "points", "order"]);
-  assert.deepEqual(objectKeys("stroke", 8), Object.keys(JSON.parse(bytes).objects[0]));
+  assert.equal(b.schemaVersion, 13);
+  assert.deepEqual(Object.keys(JSON.parse(bytes).objects[0]), ["id", "generation", "type", "page", "kind", "color", "weight", "group", "section", "x", "y", "width", "height", "points", "order"]);
+  assert.deepEqual(objectKeys("stroke", 13), Object.keys(JSON.parse(bytes).objects[0]));
   assert.deepEqual(o.points, [[pad, pad], [60 + pad, 60 + pad]]);
   assert.equal(o.width, 60 + 2 * pad); assert.equal(o.height, 60 + 2 * pad);
   assert.equal(canonical(validate(JSON.parse(bytes))), bytes);
@@ -86,13 +87,13 @@ test("points limits accept 2 and 1000, reject 1 and 1001; other types reject str
 test("all seven legacy versions keep their own bytes and in-memory upgrade records no edit", () => {
   const current = add(board(), "sticky", 0, 0); current.objects[0].text = "你好 🧭";
   for (let version = 1; version <= 7; version++) {
-    const old = structuredClone(current); old.schemaVersion = version;
+    const old = withoutPages(structuredClone(current)); old.schemaVersion = version;
     for (const o of old.objects) {
       if (version < 2) { delete o.color; delete o.textSize; delete o.align; }
       if (version < 3) delete o.group; if (version < 4) delete o.marks; if (version < 5) delete o.section;
     }
     const bytes = canonical(old), decoded = validate(JSON.parse(bytes)), before = structuredClone(decoded), upgraded = upgrade(decoded);
-    assert.equal(canonical(decoded), bytes); assert.deepEqual(decoded, before); assert.equal(upgraded.schemaVersion, 12);
+    assert.equal(canonical(decoded), bytes); assert.deepEqual(decoded, before); assert.equal(upgraded.schemaVersion, 13);
     assert.deepEqual(upgraded.objects, current.objects); assert.equal(upgrade(upgraded), upgraded);
     assert.deepEqual(record(emptyHistory(), upgraded, upgrade(decoded)), emptyHistory());
   }
@@ -201,7 +202,7 @@ for (const corner of ["nw", "ne", "sw", "se"]) test(`resize ${corner}: scales po
   const next = resize([o], delta, corner)[0], opposite = { nw: "se", ne: "sw", sw: "ne", se: "nw" }[corner];
   assert.equal(next.weight, o.weight); assert.equal(next.width, 222); assert.equal(next.height, 122);
   assert.deepEqual(cornerPoint(opposite, next), cornerPoint(opposite, o));
-  assert.doesNotThrow(() => canonical({ ...board(), objects: [next] }));
+  assert.doesNotThrow(() => canonical({ ...board(), pages: [{ id: next.page, name: "Page 1" }], objects: [next] }));
 });
 
 test("three-point resizing at factor 11/6 rounds every point and recomputes the exact rectangle", () => {

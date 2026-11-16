@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { freshIdentifier, type BoardV12, type ItemV12 } from "nextphase-board-rules/document.ts";
+import { freshIdentifier, type BoardV13, type ItemV13 } from "nextphase-board-rules/document.ts";
 import { hasRectangle, hasText } from "nextphase-board-rules/objects/registry.ts";
 import { editingCommandReason } from "./commands.ts";
 import { wholeGroups } from "./group.ts";
@@ -11,10 +11,10 @@ import { copiedSet, copiedSetReason, remapEnds } from "./connectors.ts";
 import { pictureBytes, PICTURE_LIMIT, tabPictures, type Picture } from "./image-assets.ts";
 import { copiedStructure, remapParent, withHiddenDescendants, type MeasureNode } from "./mind-map.ts";
 export const PASTE_PICTURES_REASON = "Could not paste: the pictures would exceed the 50 MiB board limit.";
-type CopiedItem<T> = T extends ItemV12 ? Omit<T, "generation" | "order"> : never;
+type CopiedItem<T> = T extends ItemV13 ? Omit<T, "generation" | "order" | "page"> : never;
 export type ClipboardCommand = "Copy" | "Cut" | "Paste";
 export type Snapshot = {
-  objects: CopiedItem<ItemV12>[];
+  objects: CopiedItem<ItemV13>[];
   sourceBox: { left: number; top: number; right: number; bottom: number };
   sourceIdentifiers: string[];
   pasteCount: number;
@@ -23,7 +23,7 @@ type EditingState = Parameters<typeof editingCommandReason>[0];
 type PasteView = { centerX: number; centerY: number; zoom: number; width: number; height: number };
 
 export function clipboardReason(command: ClipboardCommand, selected: ReadonlySet<string>,
-  snapshot: Snapshot | null, state: EditingState, objects?: readonly ItemV12[]): string {
+  snapshot: Snapshot | null, state: EditingState, objects?: readonly ItemV13[]): string {
   const reason = editingCommandReason(command === "Copy" ? { ...state, readOnly: false } : state);
   if (reason) return reason;
   if (command !== "Paste" && objects && copiedSetReason(objects, selected)) return copiedSetReason(objects, selected);
@@ -31,7 +31,7 @@ export function clipboardReason(command: ClipboardCommand, selected: ReadonlySet
     : selected.size ? "" : "Select an object to " + command.toLowerCase() + ".";
 }
 
-export function buildSnapshot(board: BoardV12, selected: ReadonlySet<string>,
+export function buildSnapshot(board: BoardV13, selected: ReadonlySet<string>,
   drawn: readonly DisplayObject[], measure?: MeasureNode): Snapshot | null {
   const copied = copiedSet(board.objects, withHiddenDescendants(board.objects, selected));
   const objects = board.objects.filter((o) => copied.has(o.id)).sort((a, b) => a.order - b.order);
@@ -41,7 +41,7 @@ export function buildSnapshot(board: BoardV12, selected: ReadonlySet<string>,
   const rectangles = new Map([...objects.filter(hasRectangle).map((o) => ({ ...o, displayHeight: o.height })), ...drawn].map((o) => [o.id, o]));
   return {
     objects: copiedStructure(objects, measure).map((o) => {
-      const { generation: _generation, order: _order, ...saved } = o;
+      const { generation: _generation, order: _order, page: _page, ...saved } = o;
       return {
         ...structuredClone(saved), section: o.section && copied.has(o.section) ? o.section : null,
         group: o.group !== null && groups.has(o.group) ? o.group : null,
@@ -83,8 +83,8 @@ function bounded(position: number, length: number): number {
   return result;
 }
 
-export function buildPaste(board: BoardV12, snapshot: Snapshot, view: PasteView, pictures: ReadonlyMap<string, Picture> = tabPictures): {
-  board: BoardV12; pasteCount: number;
+export function buildPaste(board: BoardV13, snapshot: Snapshot, view: PasteView, pictures: ReadonlyMap<string, Picture> = tabPictures, page = board.boardId): {
+  board: BoardV13; pasteCount: number;
 } {
   if (board.objects.length + snapshot.objects.length > 250) throw Error("250 object limit reached");
   const pasteCount = snapshot.pasteCount + 1;
@@ -95,13 +95,13 @@ export function buildPaste(board: BoardV12, snapshot: Snapshot, view: PasteView,
     bottom <= view.centerY + view.height / (2 * view.zoom);
   const dx = inView ? 24 * pasteCount : view.centerX - (left + right) / 2;
   const dy = inView ? 24 * pasteCount : view.centerY - (top + bottom) / 2;
-  const next = copyObjects(board, snapshot, dx, dy);
+  const next = copyObjects(board, snapshot, dx, dy, page);
   if (pictureBytes(next, pictures) > PICTURE_LIMIT) throw Error(PASTE_PICTURES_REASON);
   return { board: next, pasteCount };
 }
 
-export function copyObjects(board: BoardV12, snapshot: Pick<Snapshot, "objects" | "sourceIdentifiers">,
-  dx: number, dy: number): BoardV12 {
+export function copyObjects(board: BoardV13, snapshot: Pick<Snapshot, "objects" | "sourceIdentifiers">,
+  dx: number, dy: number, page = board.boardId): BoardV13 {
   if (board.objects.length + snapshot.objects.length > 250) throw Error("250 object limit reached");
   const reserved = [...snapshot.sourceIdentifiers];
   const fresh = () => {
@@ -111,14 +111,14 @@ export function copyObjects(board: BoardV12, snapshot: Pick<Snapshot, "objects" 
   };
   const groups = new Map<string, string>();
   const ids = new Map(snapshot.objects.map((o) => [o.id, fresh()]));
-  const copies = copiedStructure(snapshot.objects as ItemV12[]).map((o, index) => {
+  const copies = copiedStructure(snapshot.objects as ItemV13[]).map((o, index) => {
     if (o.group !== null && !groups.has(o.group)) groups.set(o.group, fresh());
     return {
-      ...remapParent(remapEnds(o, ids), ids), id: ids.get(o.id)!, generation: fresh(), section: remapSection(o.section, ids),
+      ...remapParent(remapEnds(o, ids), ids), id: ids.get(o.id)!, generation: fresh(), page, section: remapSection(o.section, ids),
       group: o.group === null ? null : groups.get(o.group)!,
       ...(hasRectangle(o) ? { x: bounded(o.x + dx, o.width), y: bounded(o.y + dy, o.height) } : {}),
       order: board.objects.length + index,
     };
   });
-  return { ...board, objects: bandOrder([...board.objects, ...copies]).map((o, order) => ({ ...o, order })) };
+  return { ...board, objects: bandOrder([...board.objects, ...copies], page).map((o, order) => ({ ...o, order })) };
 }

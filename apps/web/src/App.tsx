@@ -18,10 +18,10 @@ import { useContextBar } from "./state/use-context-bar";
 import { useViewport } from "./state/use-viewport";
 import { useSceneSize } from "./state/use-scene-size";
 import { useSelection } from "./state/use-selection";
-import { useObjectLayouts } from "./state/use-object-layouts"; import { useTidyUp } from "./state/use-tidy-up"; import { useFind } from "./state/use-find";
+import { useObjectLayouts } from "./state/use-object-layouts"; import { useTidyUp } from "./state/use-tidy-up"; import { useFind } from "./state/use-find"; import { usePages } from "./state/use-pages";
 import { useEditorPlacement } from "./state/use-editor-placement";
 import { BoardDrawing } from "./scene/board-drawing";
-import { Overlays } from "./scene/overlays"; import { ConnectionDots } from "./scene/connection-dots"; import { MindMapButtons } from "./scene/mind-map-buttons"; import { TidyUpLayer } from "./scene/tidy-up-layer"; import { TidyUpBar } from "./ui/tidy-up-bar"; import { FindRings } from "./scene/find-rings"; import { FindBar } from "./ui/find-bar";
+import { Overlays } from "./scene/overlays"; import { ConnectionDots } from "./scene/connection-dots"; import { MindMapButtons } from "./scene/mind-map-buttons"; import { TidyUpLayer } from "./scene/tidy-up-layer"; import { TidyUpBar } from "./ui/tidy-up-bar"; import { FindRings } from "./scene/find-rings"; import { FindBar } from "./ui/find-bar"; import { PagesPanel } from "./ui/pages-panel"; import { MoveToPage } from "./ui/move-to-page";
 import { InlineEditor } from "./scene/inline-editor";
 import { ShapesPanel } from "./ui/shapes-panel";
 import { GrowButton } from "./ui/shape-controls";
@@ -48,25 +48,25 @@ export function App({ team }: { team?: TeamParts } = {}) {
   const { inline, setInline, composing, setComposing, textSelection, setTextSelection } = useTextEntry();
   const { setMessage, messageSequence, latestAcknowledgement, visibleMessage } = useMessages();
   const {
-    connectorStyle, shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,
+    stepPage, connectorStyle, shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,
     model, historyRef, textSession, revision, adapter,
     updateHistory, clearHistory, beginTextSession, finishTextSession, beginNameEntry, finishNameEntry, commit, load,
-  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent });
+  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent }); const pages = usePages({ board, model, stepPage, hosted: !!team?.hosted, commit, finishTextSession, select, setMessage, getView: () => view, setView: value => setView(value), getObjects: () => allDisplayedObjects, openingReason: () => busy || composing || tidy.open ? "Finish the current action first." : "", editingReason: () => commandReason || (tidy.open ? "Apply or cancel Tidy up first." : "") });
   const {
     tapeSelection, strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,
     selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats, richText,
-  } = useSelection({ board, drafts, textSelection }); const tidy = useTidyUp({ board, selected, commit, tool, setMessage, hosted: team?.hosted, scene, readOnly });
+  } = useSelection({ board: pages.canvas(), drafts, textSelection }); const tidy = useTidyUp({ board, objects: pages.objects(), selected, commit, tool, setMessage, hosted: team?.hosted, scene, readOnly });
   const { invalidObjectText, invalidFields, invalid, pending } = useValidity({
     board, drafts, title, composing, busy: gestureBusy,
   });
-  const images = useImages({ board, model, selected, readOnly: readOnly || !!team?.hosted, busy: gestureBusy, composing, invalidObjectText, pending,
+  const images = useImages({ page: pages.id, board, model, selected, readOnly: readOnly || !!team?.hosted, busy: gestureBusy, composing, invalidObjectText, pending,
     commit, finishTextSession, select, setTool, setPanel: (value) => setPanel(value), setInline, setComposing, setMessage, scene,
     getView: () => view, getStore: () => store.current, isAlive: () => alive.current, barVisible: () => size.w >= 768 && contextFits || panel === "Objects" });
   const busy = images.busy; const {
-    editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, bounds, selectedGroups, numbers,
+    editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, allDisplayedObjects, bounds, selectedGroups, numbers,
     handlesVisible, handlePoints, itemHeight, measureNode,
   } = useObjectLayouts({
-    board: tidy.board, selected: tidy.selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,
+    board: tidy.board, objects: pages.objects(tidy.board), selected: tidy.selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,
   });
   const layout = usePanelLayout(scene);
   const { view, setView, setFollowView, trackPointer, inlineSurface } = useViewport({ scene, inline, drag, pending, ownViewChange: team?.hosted?.stopFollowing });
@@ -82,7 +82,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     revision, adapter, select, setInline, setView, invalid, busy, composing, pending, title, hosted: team?.hosted,
   });
   const size = useSceneSize(scene);
-  const pos = (o: { x: number; y: number }) => screenPoint(o, view, size); const find = useFind({ boardId: board.boardId, displayedObjects, selected, select, view, setView, size, scene, composing, busy, tidy, finishTextSession, setInline });
+  const pos = (o: { x: number; y: number }) => screenPoint(o, view, size); const find = useFind({ board, pages, allDisplayedObjects, boardId: board.boardId, displayedObjects, selected, select, view, setView, size, scene, composing, busy, tidy, finishTextSession, setInline });
   const {
     panel, setPanel, edit, toggle, editor, selector, templatesButton, firstTemplateButton, objectsButton, boardButton, navButton, infoButton,
   } = useEditorPlacement({
@@ -93,7 +93,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     commitText, changeText, create, movedBoard, move, resizeStart,
     resizeStillValid, resizedBoard, resizeBy,
   } = useGeometryEdits({
-    shapeSession, model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,
+    page: pages.id, shapeSession, model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,
     item, selected, select, objectLayouts, readOnly, busy, composing,
     setStatus, setTool, setPanel, setInline, editor, lineCount, measureNode,
   });
@@ -101,7 +101,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,
     pointerCancel, lostPointerCapture,
   } = useCanvasInput({
-    voting: team?.hosted?.voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+    page: pages.id, voting: team?.hosted?.voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
     setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
     scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
     selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
@@ -123,13 +123,13 @@ export function App({ team }: { team?: TeamParts } = {}) {
     item: resolvedItem, itemHeight, dotsVisible, editorBox,
   });
   const { connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
-    tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
+    pages, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
     arrangementMembers, lineCount, measureNode, editor, selector, setPanel, setTool, hosted: team?.hosted,
   });
   const { pageKeyDown } = usePageKeys({
-    voting: team?.hosted?.voting, chooseImages: images.chooseImages,
+    page: pages.id, voting: team?.hosted?.voting, chooseImages: images.chooseImages,
     command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
     setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
   });
@@ -170,18 +170,18 @@ export function App({ team }: { team?: TeamParts } = {}) {
         onLostPointerCapture={lostPointerCapture}
       >
         <BoardDrawing
-          faded={find.faded} bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={tidy.board} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
+          faded={find.faded} bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={pages.canvas(tidy.board)} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
         />
         <Overlays
           selectedGroups={selectedGroups} pos={pos} view={view} handlesVisible={handlesVisible}
           handlePoints={handlePoints} spacePan={spacePan} selectionBox={selectionBox} tool={tool}
         />
         <GrowButton available={growAvailable} grow={shapeCommands.grow} style={resolvedItem ? { left: pos(resolvedItem).left + resolvedItem.width * view.z / 2, top: pos(resolvedItem).top + resolvedItem.height * view.z } : undefined} />
-        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={board} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} pos={pos} zoom={view.z} />
+        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={pages.canvas()} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} pos={pos} zoom={view.z} />
       </div>
       {team?.commentsLayer && team.hosted && <team.commentsLayer hosted={team.hosted} board={board} objects={displayedObjects} view={view} size={size} tool={tool} setTool={setTool} setView={setView} scene={scene} select={select} setInline={setInline} />}{team?.presenceLayer && team.hosted && <team.presenceLayer hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}
       {team?.votingLayer && team.hosted && <team.votingLayer hosted={team.hosted} objects={displayedObjects} view={view} size={size} finishTextSession={finishTextSession} cancel={cancel} setInline={setInline} setTool={setTool} select={select} setView={setView} />}
-      <ImageNames board={board} /><FileBar team={team}
+      <ImageNames board={pages.canvas()} /><PagesPanel pages={pages} /><FileBar team={team} pages={pages}
         boardButton={boardButton} composing={composing} busy={busy} toggle={toggle} panel={panel}
         title={title} objectsButton={objectsButton} undoReason={undoReason} redoReason={redoReason}
         command={command}
@@ -193,7 +193,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
       <span id="undo-reason" className="sr-only">{undoReason}</span>
       <span id="redo-reason" className="sr-only">{redoReason}</span>
       <span id="selection-reason" className="sr-only">{selectionReason}</span>{duplicateReason !== selectionReason && <span id="duplicate-reason" className="sr-only">{duplicateReason}</span>}
-      {!team?.hosted && <Notice
+      {!team?.hosted && <Notice pages={pages}
         showNotice={showNotice} visibleMessage={visibleMessage} invalidFields={invalidFields}
         busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen}
         composing={composing} adopt={adopt} setReadOnly={setReadOnly} setMessage={setMessage}
@@ -208,7 +208,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
       {panel === "Objects" && (
         <ObjectsPanel
           tapeSelection={tapeSelection} tidy={tidy} description={images.description} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} growAvailable={growAvailable} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
-          duplicateReason={duplicateReason} board={board} busy={busy} composing={composing} setPanel={setPanel}
+          duplicateReason={duplicateReason} board={pages.canvas()} busy={busy} composing={composing} setPanel={setPanel}
           objectsButton={objectsButton} selector={selector} selected={selected}
           finishTextSession={finishTextSession} select={select} numbers={numbers} drafts={drafts}
           nativeEditor={nativeEditor} item={item} text={text} selectionColor={selectionColor} selectionSize={selectionSize}
@@ -220,7 +220,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
       )}
       {tidy.open && <TidyUpBar tidy={tidy} pos={pos} view={view} size={size} layout={layout} />}{selected.size > 0 && !tidy.open && (
         <ContextBar
-          tapeSelection={tapeSelection} tidy={tidy} board={board} description={images.description} imageCount={images.count} imagesOnly={images.only} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
+          tapeSelection={tapeSelection} tidy={tidy} board={pages.canvas()} moveToPage={<MoveToPage pages={pages} selected={selected} reason={duplicateReason} />} description={images.description} imageCount={images.count} imagesOnly={images.only} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
           connectorObjects={connectors} connectorPopup={connectorPopup} connectorOnly={connectorOnly} connectorCount={connectors.length} duplicateReason={duplicateReason} contextBar={contextBar} contextFits={contextFits} contextLeft={contextLeft}
           contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
           composing={composing} busy={busy} inline={inline} finishTextSession={finishTextSession}

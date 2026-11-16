@@ -3,6 +3,7 @@
 // inside each check, so a missing feature fails its check by name.
 import { test, beforeAll, afterAll, afterEach, inject } from "vitest";
 import assert from "node:assert/strict";
+import { withoutPages } from "../import-fixture.mjs";
 import * as Y from "yjs";
 import { makeDriver } from "board-test-driver";
 import type { Context, Driver, Peer } from "./driver-types.ts";
@@ -83,8 +84,8 @@ const check = (id: number, name: string, run: () => Promise<void>) => test(`S${i
 async function seedVersion10() {
   const { rules, adapter } = await modules();
   const current = await exported(), revision = (await rows("meta")).find((r) => r.key === "revision").value;
-  const board = { ...rules.add({ ...rules.empty(), boardId: f.a, title: current.title }, "sticky", 0, 0), schemaVersion: 10 as const };
-  const a = new adapter.Adapter(); a.set(board); a.doc.getMap("board").set("schemaVersion", 10);
+  const board = { ...withoutPages(rules.add({ ...rules.empty(), boardId: f.a, title: current.title }, "sticky", 0, 0)), schemaVersion: 10 as const };
+  const a = new adapter.Adapter(); a.set(board); a.doc.getMap("board").set("schemaVersion", 10); a.doc.getMap("board").delete("pages"); for (const o of a.doc.getMap<Y.Map<unknown>>("objects").values()) o.delete("page");
   const json = new TextEncoder().encode(rules.canonical(board)), yjs = Y.encodeStateAsUpdate(a.doc); a.destroy();
   const object = board.objects[0];
   await sql([{ sql: "DELETE FROM snapshot_chunks" }, { sql: "DELETE FROM edits" },
@@ -102,16 +103,16 @@ check(402, "a stored version 10 board is served as version 11 without an edit or
   const revision = (await rows("meta")).find((r) => r.key === "revision").value;
   const { board } = await seedVersion10(), before = (await versions()).versions.length;
   const served = await exported();
-  assert.equal(served.schemaVersion, 12); assert.deepEqual(served.objects, board.objects);
+  assert.equal(served.schemaVersion, 13); assert.deepEqual(served.objects, (await modules()).rules.upgrade(board).objects);
   const viewer = await join("viewer");
-  assert.equal((await modules()).codec.readBoard(viewer.doc).schemaVersion, 12);
+  assert.equal((await modules()).codec.readBoard(viewer.doc).schemaVersion, 13);
   await viewer.p.close();
   await new Promise((r) => setTimeout(r, 200)); await driver.control({ board: f.a, settled: true });
   assert.deepEqual(await rows("edits"), []);
   assert.equal((await rows("meta")).find((r) => r.key === "revision").value, revision);
   assert.equal((await versions()).versions.length, before, "closing the last connection captures no version for the upgrade");
   await driver.wake(f.a);
-  assert.equal((await exported()).schemaVersion, 12, "a reload with no edit serves version 12 again");
+  assert.equal((await exported()).schemaVersion, 13, "a reload with no edit serves version 13 again");
   assert.equal((await versions()).versions.length, before, "the upgrade alone captures no version");
   const c = await join();
   const { board: mapped } = await starterEdit(c);
@@ -119,7 +120,7 @@ check(402, "a stored version 10 board is served as version 11 without an edit or
   assert.equal((await rows("edits")).length, 1);
   await driver.wake(f.a);
   const reloaded = await exported();
-  assert.equal(reloaded.schemaVersion, 12); assert.equal(reloaded.objects.filter((o: any) => o.type === "mindNode").length, 4);
+  assert.equal(reloaded.schemaVersion, 13); assert.equal(reloaded.objects.filter((o: any) => o.type === "mindNode").length, 4);
 });
 
 check(403, "merged edits are repaired in document v16's order and still-invalid edits are refused", async () => {
@@ -172,7 +173,7 @@ check(404, "two clients reparent A under B and B under A at once and converge on
 check(405, "a stored version 10 history snapshot restores as version 11; a version 11 snapshot keeps its map", async () => {
   const { rules } = await modules();
   const list = await versions(), head = list.head, current = await exported();
-  const old = { ...rules.add({ ...rules.empty(), boardId: f.a, title: current.title }, "sticky", 0, 0), schemaVersion: 10 as const };
+  const old = { ...withoutPages(rules.add({ ...rules.empty(), boardId: f.a, title: current.title }, "sticky", 0, 0)), schemaVersion: 10 as const };
   const bytes = new TextEncoder().encode(rules.canonical(old)), id = crypto.randomUUID(), object = old.objects[0];
   const ordinal = Math.max(...list.versions.map((v: any) => v.ordinal)) + 1;
   await sql([{ sql: "INSERT OR IGNORE INTO identifiers VALUES (?, ?, 0)", bindings: [object.id, object.generation] },
@@ -186,7 +187,7 @@ check(405, "a stored version 10 history snapshot restores as version 11; a versi
     { sql: "UPDATE meta SET value = ? WHERE key = 'history_capture_bytes'", bindings: [bytes.length] }]);
   let restored = await ok(`/boards/${f.a}/versions/${id}/restore`, "owner", "POST", { requestId: crypto.randomUUID(), expectedRevision: head.revision, expectedGeneration: head.generation });
   let stored = await exported();
-  assert.equal(stored.schemaVersion, 12); assert.deepEqual(stored.objects.map((o: any) => [o.id, o.type, o.text]), [[object.id, "sticky", ""]]);
+  assert.equal(stored.schemaVersion, 13); assert.deepEqual(stored.objects.map((o: any) => [o.id, o.type, o.text]), [[object.id, "sticky", ""]]);
   assert.equal(restored.revision, head.revision + 1);
   const c = await join(), { root, board } = await starterEdit(c);
   const saved = await ok(`/boards/${f.a}/versions`, "owner", "POST", { requestId: crypto.randomUUID(), name: "Map", description: "" });
@@ -210,7 +211,7 @@ check(406, "the import route accepts a version 11 board with a map and refuses o
   const { board, id } = map.starterMap({ ...rules.empty(), title: "Mapped" }, { x: 0, y: 0 }, m);
   const created = await ok(`/workspaces/${f.workspace}/boards`, "owner", "POST", { title: "Mapped", document: board }, 201);
   const stored = await exported(created.id);
-  assert.equal(stored.schemaVersion, 12);
+  assert.equal(stored.schemaVersion, 13);
   assert.deepEqual(stored.objects.map((o: any) => [o.text, o.parent === null ? null : o.parent === id]), [["Main topic", null], ["First idea", true], ["Second idea", true], ["Third idea", true]]);
   const [a, b] = board.objects.slice(1);
   const loop = { ...board, objects: board.objects.map((o: any) => o.id === a.id ? { ...o, parent: b.id, side: null } : o.id === b.id ? { ...o, parent: a.id, side: null } : o) };

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
-import type { BoardV12, ItemV12 } from "nextphase-board-rules/document.ts";
+import type { BoardV13, ItemV13 } from "nextphase-board-rules/document.ts";
 import { hasEnds, hasRectangle, hasText, objectType } from "nextphase-board-rules/objects/registry.ts";
 
 function exact(value: unknown, keys: readonly string[]): Record<string, unknown> {
@@ -18,31 +18,32 @@ function map(value: unknown, keys: readonly string[]): Y.Map<unknown> {
 
 // Check the complete mapping before projecting it. Silently discarding an
 // unknown field here would allow hidden data to live in an otherwise valid board.
-export function readBoard(doc: Y.Doc): BoardV12 {
+export function readBoard(doc: Y.Doc): BoardV13 {
   if ([...doc.share.keys()].some((key) => !["board", "objects", "retired"].includes(key))) {
     throw Error("invalid_update");
   }
-  const board = map(doc.getMap("board"), ["schemaVersion", "boardId", "title"]);
+  const board = map(doc.getMap("board"), ["schemaVersion", "boardId", "title", "pages"]);
+  const paged = board.get("schemaVersion") === 13;
   const objects = doc.getMap("objects");
   const retired = doc.getMap("retired");
   if ([...retired.values()].some((value) => value !== true)) throw Error("invalid_update");
   const items = [...objects.entries()].map(([id, value]) => {
     if (!(value instanceof Y.Map) || typeof value.get("type") !== "string") throw Error("invalid_update");
-    const type = value.get("type") as ItemV12["type"];
+    const type = value.get("type") as ItemV13["type"];
     let record;
     try { record = objectType(type); } catch { throw Error("invalid_update"); }
     const object = { type };
-    const keys = ["generation", "type", "order", "group", "section", ...record.extraKeys];
+    const keys = ["generation", "type", "order", "group", "section", ...(paged ? ["page"] : []), ...record.extraKeys];
     if (hasEnds(object)) {
       // The adapter groups ends and connector style into atomic values.
-      keys.splice(5);
+      keys.splice(paged ? 6 : 5);
       keys.push("ends", "connectorStyle");
     }
     if (hasRectangle(object)) keys.push("geometry");
     if (hasText(object)) keys.push("text", "style", "marks");
     const mapped = map(value, keys);
     const result: Record<string, unknown> = { id };
-    for (const key of ["generation", "type", "order", "group", "section"]) result[key] = mapped.get(key);
+    for (const key of ["generation", "type", "order", "group", "section", ...(paged ? ["page"] : [])]) result[key] = mapped.get(key);
     if (hasEnds(object)) {
       const ends = exact(mapped.get("ends"), ["from", "to"]);
       result.from = exact(ends.from, ["object", "anchor"]);
@@ -64,13 +65,14 @@ export function readBoard(doc: Y.Doc): BoardV12 {
     for (const key of ["fill", "border"] as const) {
       if (key in result) exact(result[key], key === "fill" ? ["mode", "color"] : ["style", "color"]);
     }
-    return result as ItemV12;
+    return result as ItemV13;
   });
   return {
-    schemaVersion: board.get("schemaVersion") as 12,
+    schemaVersion: board.get("schemaVersion") as 13,
     boardId: board.get("boardId") as string,
     title: board.get("title") as string,
+    ...(paged ? { pages: board.get("pages") as BoardV13["pages"] } : {}),
     objects: items.sort((a, b) => a.order - b.order),
     retiredGenerations: [...retired.keys()].sort(),
-  };
+  } as BoardV13;
 }

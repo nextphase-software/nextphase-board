@@ -5,7 +5,7 @@ import * as Y from 'yjs';
 import { makeDriver } from 'board-test-driver';
 import { Adapter } from '../../packages/board-sync/src/document-adapter.ts';
 import { readBoard } from '../../packages/board-sync/src/codec.ts';
-import { add, canonical, type BoardV12 } from '../../packages/board-rules/src/document.ts';
+import { add, canonical,empty, type BoardV13 } from '../../packages/board-rules/src/document.ts';
 import { encode,decode } from '../../packages/board-sync/src/session.ts';
 import type { Context,Driver,Peer } from './driver-types.ts';
 const context=inject<Context>('board'),runner=inject<string>('runner');let driver:Driver,f:any,pass=0,fail=0;
@@ -40,9 +40,9 @@ function start(text='Current discussion',mentions:any[]=[]){return {action:'star
 async function comment(c:Awaited<ReturnType<typeof join>>,operation:any,id=crypto.randomUUID(),generation=c.joined.restoreGeneration){c.p.send({kind:'comment',epoch:c.joined.epoch,requestId:id,operation,restoreGeneration:generation});return until(()=>c.p.messages.find(m=>m.requestId===id&&['comment_saved','comment_refused'].includes(m.kind)));}
 async function sql(items:any[]){await driver.control({board:f.a,roomSQL:items});}
 async function freshTokens(){for(const person of Object.values(f.people) as any[])person.token=await helper('token',{person,options:{now:Date.now(),exp:Math.floor(Date.now()/1000)+4000000}});}
-function maximalBoard(): BoardV12 {
-  let board:BoardV12={schemaVersion:12,boardId:crypto.randomUUID(),title:'Large',objects:[],retiredGenerations:[]};
-  for(let i=0;i<120;i++)board.objects.push({id:crypto.randomUUID(),generation:crypto.randomUUID(),type:'stroke',kind:'marker',color:'black',weight:'thin',group:null,section:null,x:0,y:0,width:1000000,height:1000000,points:[[2,2],...Array.from({length:999},()=>[999998,999998] as [number,number])],order:i});
+function maximalBoard(): BoardV13 {
+  let board:BoardV13={...empty(),title:'Large'};
+  for(let i=0;i<120;i++)board.objects.push({id:crypto.randomUUID(),generation:crypto.randomUUID(),type:'stroke',page:board.boardId,kind:'marker',color:'black',weight:'thin',group:null,section:null,x:0,y:0,width:1000000,height:1000000,points:[[2,2],...Array.from({length:999},()=>[999998,999998] as [number,number])],order:i});
   for(let i=0;i<80;i++)board=add(board,'sticky',i,0);
   let left=2097152-new TextEncoder().encode(canonical(board)).length;
   for(const object of board.objects){if(!('text'in object))continue;const escaped=Math.min(1000,Math.floor(left/6));object.text='\0'.repeat(escaped);left-=escaped*6;const ascii=Math.min(1000-escaped,left);object.text+='x'.repeat(ascii);left-=ascii;}
@@ -52,7 +52,7 @@ function maximalBoard(): BoardV12 {
 check(169,'atomic initial/imported capture and idempotent current-layout restart',async()=>{
   let value=await list();assert.equal(value.versions.length,1);assert.equal(value.versions[0].reason,'initial');assert.equal(value.versions[0].revision,0);assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,7);
   await driver.wake(f.a);assert.deepEqual((await list()).versions,value.versions);
-  const document={schemaVersion:12,boardId:crypto.randomUUID(),title:'Import',objects:[],retiredGenerations:[]};
+  const document={...empty(),title:'Import'};
   const imported=await ok(`/workspaces/${f.workspace}/boards`,'owner','POST',{title:'Import',document},201);
   value=await ok(`/boards/${imported.id}/versions`);assert.equal(value.versions.length,1);assert.equal(value.versions[0].revision,0);
   const before=await backup();await driver.control({failHistory:'capture'});assert.equal((await req(`/boards/${f.b}/versions`)).status,503);assert.equal((await driver.rows(f.b,'meta')).length,0);assert.equal((await driver.rows(f.b,'versions')).length,0);assert.deepEqual((await rows('versions')).map(r=>r.id),before.tables.versions.map((r:any)=>r.id));
@@ -137,7 +137,7 @@ check(182,'intent rollback, durable pending phases and atomic terminal chunk cle
   await driver.control({failHistory:''});await ok(path(v.id)+'/restore','owner','POST',request);assert.equal((await rows('history_intent_chunks')).length,0);assert.equal((await rows('meta')).find(r=>r.key==='restore_pending').value,0);assert.equal((await list()).versions.length,3);
 });
 check(183,'restored identities keep the union and ordinary edits cannot resurrect removed pairs',async()=>{
-  let board:BoardV12={schemaVersion:12,boardId:crypto.randomUUID(),title:'Identity',objects:[],retiredGenerations:[]};board=add(board,'sticky',0,0);const created=await ok(`/workspaces/${f.workspace}/boards`,'owner','POST',{title:board.title,document:board},201);f.a=created.id;
+  let board:BoardV13={...empty(),title:'Identity'};board=add(board,'sticky',0,0);const created=await ok(`/workspaces/${f.workspace}/boards`,'owner','POST',{title:board.title,document:board},201);f.a=created.id;
   const c=await join(),selected=(await list()).versions[0],object=board.objects[0],adapter=new Adapter();adapter.set({...readBoard(c.doc),objects:[],retiredGenerations:[object.generation]});
   // Use the joined CRDT for a real ordinary removal.
   const vector=Y.encodeStateVector(c.doc);c.doc.getMap('objects').delete(object.id);c.doc.getMap('retired').set(object.generation,true);const id=crypto.randomUUID();c.p.send({kind:'edit',epoch:c.joined.epoch,requestId:id,update:encode(Y.encodeStateAsUpdate(c.doc,vector)),restoreGeneration:c.joined.restoreGeneration});assert.equal((await c.p.next('saved')).kind,'saved');

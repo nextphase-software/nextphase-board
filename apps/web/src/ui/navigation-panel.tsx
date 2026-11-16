@@ -26,7 +26,7 @@ export function NavigationPanel({
         <button disabled={busy || composing || !find.canFitSelection} title={!find.canFitSelection ? "Select something to zoom to" : undefined}
           onClick={find.zoomToSelection}>Zoom to selection<kbd>⇧2</kbd></button>
       </div>
-      <h3>Sections</h3>
+      <h3>{find.multiplePages ? "Sections on this page" : "Sections"}</h3>
       {find.sections.length ? <ul className="navigation-sections">{find.sections.map(section => <li key={section.id}>
         <button disabled={busy || composing} aria-label={'Go to section ' + section.label} onClick={() => find.fitSection(section.id)}>{section.label}</button>
       </li>)}</ul> : <p className="navigation-empty">No sections yet</p>}

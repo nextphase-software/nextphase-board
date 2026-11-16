@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { type Board as SavedBoard, type BoardV12 as Board, empty, type ItemV12 as Item, upgrade } from "nextphase-board-rules/document.ts";
+import { type Board as SavedBoard, type BoardV13 as Board, empty, type ItemV13 as Item, upgrade } from "nextphase-board-rules/document.ts";
 import { Adapter } from "nextphase-board-sync/document-adapter.ts";
 import { defaultConnectorStyle, type ConnectorStyle, defaultPaint, hasText, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
 import { emptyHistory, record, type History, type Step } from "../history";
@@ -20,6 +20,7 @@ export function useBoardDocument({ readOnly, setStatus, hosted, nameSent }: Inpu
     [title, setTitle] = useState(""),
     [drafts, setDrafts] = useState<Record<string, string>>({}),
     [history, setHistory] = useState<History>(emptyHistory);
+  const stepPage = useRef<string | undefined>(undefined);
   const connectorStyle = useRef<ConnectorStyle>(defaultConnectorStyle());
   const shapePaint = useRef(defaultPaint());
   const nameGroup = useRef<string | undefined>(undefined);
@@ -61,7 +62,7 @@ export function useBoardDocument({ readOnly, setStatus, hosted, nameSent }: Inpu
       const objects = layoutRoots(model.current.objects, [session.id]);
       if (objects !== model.current.objects) apply({ ...model.current, objects }, session.group);
     }
-    if (session && !hosted) updateHistory(record(historyRef.current, session.before, model.current));
+    if (session && !hosted) updateHistory(record(historyRef.current, session.before, model.current, undefined, stepPage.current));
   }
   function beginNameEntry() {
     if (hosted && !readOnly) { finishTextSession(); nameGroup.current = crypto.randomUUID(); }
@@ -81,7 +82,7 @@ export function useBoardDocument({ readOnly, setStatus, hosted, nameSent }: Inpu
       next = settle(model.current, raw);
       if (JSON.stringify(next) === JSON.stringify(model.current)) return;
       const prior = historyRef.current.past.at(-1);
-      updateHistory(record(historyRef.current, model.current, next, orderIds));
+      updateHistory(record(historyRef.current, model.current, next, orderIds, stepPage.current));
       if (historyRef.current.past.at(-1) !== prior) step = historyRef.current.past.at(-1);
     }
     const before = model.current, group = opens && hosted ? crypto.randomUUID() : undefined;
@@ -114,7 +115,7 @@ export function useBoardDocument({ readOnly, setStatus, hosted, nameSent }: Inpu
     revision.current = 0;
   }
   return {
-    connectorStyle, shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,
+    stepPage, connectorStyle, shapeSession, board, setBoard, title, setTitle, drafts, setDrafts, history,
     model, historyRef, textSession, revision, adapter,
     updateHistory, clearHistory, beginTextSession, finishTextSession, beginNameEntry, finishNameEntry, commit, load,
   };

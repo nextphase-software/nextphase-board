@@ -36,12 +36,12 @@ function exactUndo(before, after) {
 
 test("v6 shape defaults, per-type key sets and canonical nested key order", () => {
   let b = withShape();
-  assert.equal(b.schemaVersion, 12);
+  assert.equal(b.schemaVersion, 13);
   assert.deepEqual(b.objects[0], { ...b.objects[0], shape: "square", fill: { mode: "fill", color: "white" },
     border: { style: "solid", color: "dark-gray" }, color: "neutral", textSize: "small", align: "center", width: 180, height: 180, text: "" });
   b = add(add(add(b, "sticky", 500, 0), "text", 800, 0), "section", 0, 500);
   const parsed = JSON.parse(canonical(b));
-  assert.deepEqual(Object.keys(parsed.objects[0]), ["id", "generation", "type", "text", "color", "textSize", "align", "group", "marks", "section", "shape", "fill", "border", "x", "y", "width", "height", "order"]);
+  assert.deepEqual(Object.keys(parsed.objects[0]), ["id", "generation", "type", "page", "text", "color", "textSize", "align", "group", "marks", "section", "shape", "fill", "border", "x", "y", "width", "height", "order"]);
   assert.deepEqual(Object.keys(parsed.objects[0].fill), ["mode", "color"]);
   assert.deepEqual(Object.keys(parsed.objects[0].border), ["style", "color"]);
   for (const o of parsed.objects.slice(1)) for (const key of shape.extraKeys) assert(!Object.hasOwn(o, key));

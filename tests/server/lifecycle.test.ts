@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import * as Y from 'yjs';
 import {makeDriver} from 'board-test-driver';
 import {encode,decode} from '../../packages/board-sync/src/session.ts';
-import {canonical,add,type BoardV12} from '../../packages/board-rules/src/document.ts';
+import {canonical,empty,add,type BoardV13} from '../../packages/board-rules/src/document.ts';
 import type {Context,Driver,Peer} from './driver-types.ts';
 const context=inject<Context>('board'),runner=inject<string>('runner');
 let driver:Driver,f:any,pass=0,fail=0;const peers:Peer[]=[],docs:Y.Doc[]=[],measure:Record<string,unknown>={};
@@ -53,7 +53,7 @@ check(195,'six owner routes, live refusals, exact envelopes and generic lookups'
 check(196,'ordinary/imported atomic authority and never-opened Move without capture',async()=>{
   const authority=await dbRows('board_lifecycle');assert.equal(authority[0].state,'active');assert.equal(authority[0].cycle,0);
   const moved=await move();assert.equal(moved.restoreBefore-moved.deletedAt,2592000000);assert.equal((await rows('versions')).length,0);
-  const imported=await ok(`/workspaces/${f.workspace}/boards`,'owner','POST',{title:'Imported',document:{schemaVersion:12,boardId:crypto.randomUUID(),title:'Source',objects:[],retiredGenerations:[]}},201);
+  const imported=await ok(`/workspaces/${f.workspace}/boards`,'owner','POST',{title:'Imported',document:{...empty(),title:'Source'}},201);
   assert.equal((await dbRows('board_lifecycle',{board_id:imported.id}))[0].state,'active');assert.equal((await driver.rows(imported.id,'versions')).length,1);
 });
 check(197,'fence blocks held edits/old tickets and role-change 4403 still reconnects',async()=>{
@@ -163,7 +163,7 @@ check(218,'authority/independent ledger outages return 503 and never cached succ
   await versions();await helper('proxy',{rpc:'lifecycle_value',fail:true});assert.equal((await req(`/boards/${f.a}/versions`)).status,503);await helper('proxy',{rpc:'lifecycle_value',fail:false});await driver.control({failLifecycle:'ledger'});assert.equal((await req(`/boards/${f.a}/join-tickets`,'owner','POST')).status,503);await driver.control({failLifecycle:''});assert.equal((await versions()).versions.length,1);
   await driver.control({failLifecycle:'room'});const request=identity(0);assert.equal((await ok(mutatePath('move'),'owner','POST',request,202)).state,'moving');await driver.control({failLifecycle:''});assert.equal((await ok(mutatePath('move'),'owner','POST',request)).state,'trashed');
 });
-function maximalBoard():BoardV12{let board:BoardV12={schemaVersion:12,boardId:crypto.randomUUID(),title:'Large',objects:[],retiredGenerations:[]};for(let i=0;i<120;i++)board.objects.push({id:crypto.randomUUID(),generation:crypto.randomUUID(),type:'stroke',kind:'marker',color:'black',weight:'thin',group:null,section:null,x:0,y:0,width:1000000,height:1000000,points:[[2,2],...Array.from({length:999},()=>[999998,999998] as [number,number])],order:i});for(let i=0;i<80;i++)board=add(board,'sticky',i,0);let left=2097152-new TextEncoder().encode(canonical(board)).length;for(const o of board.objects){if(!('text'in o))continue;const escaped=Math.min(1000,Math.floor(left/6));o.text='\0'.repeat(escaped);left-=escaped*6;const ascii=Math.min(1000-escaped,left);o.text+='x'.repeat(ascii);left-=ascii;}assert.equal(new TextEncoder().encode(canonical(board)).length,2097152);return board;}
+function maximalBoard():BoardV13{let board:BoardV13={...empty(),title:'Large'};for(let i=0;i<120;i++)board.objects.push({id:crypto.randomUUID(),generation:crypto.randomUUID(),type:'stroke',page:board.boardId,kind:'marker',color:'black',weight:'thin',group:null,section:null,x:0,y:0,width:1000000,height:1000000,points:[[2,2],...Array.from({length:999},()=>[999998,999998] as [number,number])],order:i});for(let i=0;i<80;i++)board=add(board,'sticky',i,0);let left=2097152-new TextEncoder().encode(canonical(board)).length;for(const o of board.objects){if(!('text'in o))continue;const escaped=Math.min(1000,Math.floor(left/6));o.text='\0'.repeat(escaped);left-=escaped*6;const ascii=Math.min(1000-escaped,left);o.text+='x'.repeat(ascii);left-=ascii;}assert.equal(new TextEncoder().encode(canonical(board)).length,2097152);return board;}
 check(219,'actual maximal canonical chunks and every new encoded row meet separate budgets',async()=>{
   const document=maximalBoard(),created=await ok(`/workspaces/${f.workspace}/boards`,'owner','POST',{title:document.title,document},201);const chunks=await driver.rows(created.id,'version_chunks');assert(chunks.length>=2);assert(chunks.every(r=>r.bytes.bytes<=1048576));await versions();await driver.control({failLifecycle:'room'});await pending('move',0);const stored:any[]=[];for(const table of ['board_lifecycle','board_lifecycle_requests','deleted_board_ids'])for(const row of await dbRows(table)){const bytes=new TextEncoder().encode(JSON.stringify(row)).length;assert(bytes<131072);if(row.result)assert(new TextEncoder().encode(row.result).length<=65536);stored.push({table,bytes});}measure.S219={canonicalBytes:2097152,chunks:chunks.map(r=>r.bytes.bytes),rows:stored};
   assert.equal((await req(`/workspaces/${f.workspace}/trash?cursor=${'x'.repeat(513)}`)).status,400);

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { withoutPages } from "./import-fixture.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { add, empty, validate, canonical, upgrade } from "../packages/board-rules/src/document.ts";
@@ -27,7 +28,7 @@ const rectangles = (b) => new Map(b.objects.filter(hasRectangle).map((o) => [o.i
 const layout = (b) => connectorLayout(line(b), rectangles(b), measure);
 const changed = (b, change) => ({ ...b, objects: b.objects.map((o) => hasEnds(o) ? { ...o, ...change } : o) });
 function oldVersion(b, version) {
-  return { ...b, schemaVersion: version, objects: b.objects.filter((o) => version >= 7 || !hasEnds(o)).map((o, order) => {
+  return { ...withoutPages(b), schemaVersion: version, objects: withoutPages(b).objects.filter((o) => version >= 7 || !hasEnds(o)).map((o, order) => {
     const old = { ...o, order };
     if (version < 9) for (const key of CONNECTOR_STYLE_KEYS) delete old[key];
     if (version < 6) for (const key of ["shape", "fill", "border"]) delete old[key];
@@ -41,11 +42,11 @@ function oldVersion(b, version) {
 
 test("v9 requires exact ordered connector keys, canonical ends and every style value", () => {
   const b = joined();
-  assert.equal(b.schemaVersion, 12);
+  assert.equal(b.schemaVersion, 13);
   const bytes = canonical(b), parsed = JSON.parse(bytes), c = line(parsed);
-  assert.deepEqual(Object.keys(c), ["id", "generation", "type", "text", "color", "textSize", "align", "group", "marks", "section", "from", "to", ...CONNECTOR_STYLE_KEYS, "order"]);
+  assert.deepEqual(Object.keys(c), ["id", "generation", "type", "page", "text", "color", "textSize", "align", "group", "marks", "section", "from", "to", ...CONNECTOR_STYLE_KEYS, "order"]);
   assert.deepEqual(Object.keys(c.from), ["object", "anchor"]);
-  assert.deepEqual(Object.keys(c), objectKeys(c.type, 9));
+  assert.deepEqual(Object.keys(c), objectKeys(c.type, 13));
   const values = { lineColor: [...SHAPE_COLORS.map((c) => c.name), "#12abef"], lineWeight: ["thin", "thick"], lineDash: ["solid", "dashed"], startHead: HEADS, endHead: HEADS, lineShape: LINE_SHAPES };
   for (const key of CONNECTOR_STYLE_KEYS) {
     for (const value of values[key]) {
@@ -80,11 +81,11 @@ for (const version of [1, 2, 3, 4, 5, 6, 7, 8]) test(`v${version} keeps exact ca
   b.objects = b.objects.map((o, order) => hasEnds(o) ? { ...o, to: { object: ideas(b)[1].id, anchor: "auto" }, order } : { ...o, order });
   const old = oldVersion(b, version), bytes = canonical(old), before = structuredClone(old);
   const decoded = validate(JSON.parse(bytes)), current = upgrade(decoded);
-  assert.equal(canonical(decoded), bytes); assert.deepEqual(old, before); assert.equal(current.schemaVersion, 12);
+  assert.equal(canonical(decoded), bytes); assert.deepEqual(old, before); assert.equal(current.schemaVersion, 13);
   assert.equal(upgrade(current), current);
   for (const c of current.objects.filter(hasEnds)) {
     assert.deepEqual(connectorStyleOf(c), defaults); assert.equal(c.from.anchor, "auto"); assert.equal(c.to.anchor, "auto");
-    const stripped = { ...c }; for (const key of CONNECTOR_STYLE_KEYS) delete stripped[key]; assert.deepEqual(stripped, line(old));
+    const { page: _page, ...stripped } = c; for (const key of CONNECTOR_STYLE_KEYS) delete stripped[key]; assert.deepEqual(stripped, line(old));
   }
 });
 
@@ -474,7 +475,7 @@ test("loading a version 8 board with connectors upgrades without a revision, his
   const old = oldVersion(joined(), 8), bytes = canonical(old), statuses = [];
   const doc = renderHook(() => hooks.useBoardDocument({ readOnly: false, setStatus(value) { statuses.push(value); } }));
   doc.load(validate(JSON.parse(bytes)));
-  assert.equal(doc.model.current.schemaVersion, 12); assert.equal(doc.revision.current, 0);
+  assert.equal(doc.model.current.schemaVersion, 13); assert.equal(doc.revision.current, 0);
   assert.deepEqual(doc.historyRef.current, emptyHistory()); assert.deepEqual(statuses, []);
   assert.deepEqual(connectorStyleOf(line(doc.model.current)), defaults);
   assert.equal(line(doc.model.current).from.anchor, "auto"); assert.equal(line(doc.model.current).to.anchor, "auto");
@@ -535,7 +536,7 @@ test("a version 7 activity adds default-styled auto-anchor connectors onto a ver
   const { insertActivity } = await import("../apps/web/src/activities.ts");
   const activity = oldVersion(joined(), 7), board = { ...empty(), title: "Synthetic template destination" };
   const result = insertActivity(board, activity, { x: 0, y: 0, z: 1 }, { w: 1280, h: 800 });
-  assert.equal(result.board.schemaVersion, 12); validate(result.board);
+  assert.equal(result.board.schemaVersion, 13); validate(result.board);
   assert.deepEqual(connectorStyleOf(line(result.board)), defaults); assert.equal(line(result.board).from.anchor, "auto");
   assert.equal(activity.schemaVersion, 7); assert(!("lineColor" in line(activity)));
 });

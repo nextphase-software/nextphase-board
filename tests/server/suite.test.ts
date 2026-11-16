@@ -479,7 +479,7 @@ check(38, "hostile transitions hidden fields history and size store nothing", as
 });
 check(39, "hosted image edits are refused", async () => {
   const f = await fixture(), c = await join(f.a), vector = Y.encodeStateVector(c.doc), adapter = new Adapter(); adapter.doc = c.doc;
-  adapter.set({ ...readBoard(c.doc), objects: [{ id: crypto.randomUUID(), generation: crypto.randomUUID(), type: "image", group: null, section: null,
+  adapter.set({ ...readBoard(c.doc), objects: [{ id: crypto.randomUUID(), generation: crypto.randomUUID(), type: "image", page: readBoard(c.doc).pages[0].id, group: null, section: null,
     asset: "a".repeat(64), pixelWidth: 1, pixelHeight: 1, description: "Synthetic", x: 0, y: 0, width: 1, height: 1, order: 0 }] });
   c.peer.send({ kind: "edit", restoreGeneration: c.joined.restoreGeneration, epoch: c.epoch, requestId: "image", update: encoded(Y.encodeStateAsUpdate(c.doc, vector)) });
   assert.equal((await c.peer.next("refused")).reason, "images_not_supported");

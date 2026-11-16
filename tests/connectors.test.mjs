@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { withoutPages } from "./import-fixture.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { add, empty, validate, canonical } from "../packages/board-rules/src/document.ts";
@@ -33,11 +34,11 @@ const coordinates = (points) => points.map(({ x, y }) => [x, y]);
 
 test("v7 connector canonical keys, fixed values, no geometry and end key order", () => {
   const b = join(), line = connector(b), parsed = JSON.parse(canonical(b)).objects.find(hasEnds);
-  assert.equal(b.schemaVersion, 12);
-  assert.deepEqual(Object.keys(parsed), ["id", "generation", "type", "text", "color", "textSize", "align", "group", "marks", "section", "from", "to", ...CONNECTOR_STYLE_KEYS, "order"]);
+  assert.equal(b.schemaVersion, 13);
+  assert.deepEqual(Object.keys(parsed), ["id", "generation", "type", "page", "text", "color", "textSize", "align", "group", "marks", "section", "from", "to", ...CONNECTOR_STYLE_KEYS, "order"]);
   assert.deepEqual(Object.keys(parsed.from), ["object", "anchor"]); assert.deepEqual(Object.keys(parsed.to), ["object", "anchor"]);
-  assert.deepEqual(objectKeys(line.type, 9), Object.keys(parsed));
-  for (const version of [7, 8]) assert.deepEqual(objectKeys(line.type, version), Object.keys(parsed).filter((key) => !CONNECTOR_STYLE_KEYS.includes(key)));
+  assert.deepEqual(objectKeys(line.type, 13), Object.keys(parsed));
+  for (const version of [7, 8]) assert.deepEqual(objectKeys(line.type, version), Object.keys(parsed).filter((key) => key !== "page" && !CONNECTOR_STYLE_KEYS.includes(key)));
   assert.deepEqual(validate(JSON.parse(canonical(b))), b);
   assert.deepEqual([line.text, line.color, line.textSize, line.align, line.group, line.marks, line.section], ["", "neutral", "medium", "center", null, [], null]);
   const shuffled = { ...b, objects: b.objects.map((o) => Object.fromEntries(Object.entries(hasEnds(o) ? {
@@ -68,7 +69,7 @@ test("v7 validates both ends and fixed shared values without repairing bad recor
     assert.throws(() => validate(board)); assert.throws(() => canonical(board)); assert.deepEqual(board, before);
   }
   for (const version of [7, 8]) {
-    const old = structuredClone(full); old.schemaVersion = version;
+    const old = withoutPages(structuredClone(full)); old.schemaVersion = version;
     for (const o of old.objects.filter(hasEnds)) for (const key of CONNECTOR_STYLE_KEYS) delete o[key];
     assert.doesNotThrow(() => validate(old)); connector(old).from.anchor = "left";
     assert.throws(() => validate(old));
@@ -91,7 +92,7 @@ test("all five types retain v7 canonical order in an interleaved array", () => {
   b.objects = [b.objects[2], b.objects[0], b.objects[1], ...b.objects.slice(3)].map((o, order) => ({ ...o, order }));
   const parsed = JSON.parse(canonical(b));
   assert.deepEqual(parsed.objects.map((o) => o.id), b.objects.map((o) => o.id));
-  for (const o of parsed.objects) assert.deepEqual(Object.keys(o), objectKeys(o.type, 9));
+  for (const o of parsed.objects) assert.deepEqual(Object.keys(o), objectKeys(o.type, 13));
 });
 
 test("adapter ends are atomic, recreate exactly and never change when an idea moves", () => {

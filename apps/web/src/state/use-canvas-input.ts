@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { add, clamp, type Board as SavedBoard, type BoardV12 as Board, type TapeItem } from "nextphase-board-rules/document.ts";
+import { add, clamp, type Board as SavedBoard, type BoardV13 as Board, type TapeItem } from "nextphase-board-rules/document.ts";
 import type { ResolvedItem as Item } from "../geometry";
 import { expandSelection, pressSelection, toggleGroup } from "../group";
 import { nearestHandle, type Corner } from "../resize";
@@ -22,6 +22,7 @@ import { editingCommandReason } from "../commands";
 import type { BoardVoting } from "../team/voting";
 
 type Input = {
+  page: string;
   voting?: BoardVoting;
   tidy?: TidyActions;
   find?: FindActions;
@@ -69,13 +70,13 @@ type Input = {
 };
 
 export function useCanvasInput({
-  voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+  page, voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
   setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
   scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
   selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
   handlesVisible, handlePoints, objectLayouts, displayedObjects, edit, textEditing, invalidObjectText,
 }: Input) {
-  const tapeEnd = useRef<{object:TapeItem;end:number;pointer:number}|null>(null);
+  const tapeEnd = useRef<{object:TapeItem & { page: string };end:number;pointer:number}|null>(null);
   tidy?.measure(displayedObjects);
   const canShowDots = !tidy?.open && tool === "Select" && !readOnly && !inline && !composing && !textEditing && !busy && !spacePanRef.current && !drag.current;
   const dots = canShowDots ? connectionDots(displayedObjects, selected, view.z) : [];
@@ -357,7 +358,7 @@ export function useCanvasInput({
       }
     } else if (d.ids && d.mapDrag && Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3) {
       const next = movedBoard(d.ids, dx, dy, { preview: true });
-      const target = dropTarget(next.objects, point(e), new Set(d.mapDrag.branch));
+      const target = dropTarget(next.objects.filter(o => o.page === page), point(e), new Set(d.mapDrag.branch));
       d.mapDrag = { ...d.mapDrag, target: target?.target ?? null, side: target?.side ?? "right" };
       d.crossed = true;
       setBoard(next);
@@ -391,12 +392,12 @@ export function useCanvasInput({
       if (!editingCommandReason({ readOnly, composing, pointerGesture: false, invalidObjectText })) try {
         const positions = [...d.drawing.positions, point(e)];
         if (isEraser(d.drawing.tool)) {
-          const touched = erasedStrokes(model.current.objects, positions, d.view.z);
+          const touched = erasedStrokes(model.current.objects.filter(o => o.page === page), positions, d.view.z);
           if (touched.length) commit(deleteObject(model.current, { past: [], future: [] }, touched).board, true);
         } else if (d.drawing.tool === "Washi tape") {
-          commit(placeObject(model.current,makeTape(model.current,positions[0],positions.at(-1)!,drawing.pattern??"stripes",!(d.crossed||delta>=3))),true);
+          commit(placeObject(model.current,makeTape(model.current,positions[0],positions.at(-1)!,drawing.pattern??"stripes",!(d.crossed||delta>=3),page)),true);
         } else {
-          const object = makeStroke(model.current, positions, drawingStyleFor(d.drawing.tool, drawing.style), !!d.crossed || delta >= 3, e.shiftKey);
+          const object = makeStroke(model.current, positions, drawingStyleFor(d.drawing.tool, drawing.style), !!d.crossed || delta >= 3, e.shiftKey, page);
           if (object) commit(placeObject(model.current, object), true);
         }
       } catch (error) { setMessage(String(error)); }
@@ -422,7 +423,7 @@ export function useCanvasInput({
         e.clientY <= rect.bottom ? connectionTarget(displayedObjects, d.connection.source, p) : null;
       if (target && !editingCommandReason({ readOnly, composing, pointerGesture: false, invalidObjectText })) {
         try {
-          const result = createConnector(model.current, d.connection.source, target, connectorStyle.current);
+          const result = createConnector(model.current, d.connection.source, target, connectorStyle.current, page);
           commit(result.board, true); select(result.id); setInline(false); setPanel(""); scene.current?.focus();
         } catch (error) { setMessage(String(error)); }
       }
@@ -438,7 +439,7 @@ export function useCanvasInput({
       if (isMindNode({ type: typeForTool(d.id) }) && delta < 3 && !d.cancelled) create(d.id, d.x, d.y, false, true);
       else if (placementTool(d.id)!.draws || delta < 3 && !d.cancelled) {
         try {
-          let object = creationValues(add(model.current, typeForTool(d.id), d.x, d.y).objects.at(-1)!, d.id, shapeSession.paint.current);
+          let object = creationValues(add(model.current, typeForTool(d.id), d.x, d.y, page).objects.at(-1)!, d.id, shapeSession.paint.current);
           if (placementTool(d.id)!.draws && delta >= 3) {
             object = { ...object, ...drawRectangle(d, {
               x: d.x + (e.clientX - d.cx) / d.view.z, y: d.y + (e.clientY - d.cy) / d.view.z,

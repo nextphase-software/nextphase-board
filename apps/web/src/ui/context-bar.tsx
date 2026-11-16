@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
-import { clamp, count, type BoardV12 as Board, type ItemV12 as Item } from "nextphase-board-rules/document.ts";
+import { clamp, count, type BoardV13 as Board, type ItemV13 as Item } from "nextphase-board-rules/document.ts";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, colorEntry, type Style } from "nextphase-board-rules/styles.ts";
 import { objectType, hasText, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { children, type MapCommand } from "../mind-map";
@@ -18,6 +18,7 @@ import { ArrangeControls } from "./arrange-controls";
 import { ImageControls, type DescriptionControl } from "./image-controls";
 
 type Props = {
+  moveToPage: React.ReactNode;
   tapeSelection: TapeSelection; tidy: TidyUI;
   board: Board;
   imageCount: number; imagesOnly: boolean; description: DescriptionControl;
@@ -75,7 +76,7 @@ type Props = {
 };
 
 export function ContextBar({
-  tapeSelection, tidy, board, imageCount, imagesOnly, description, strokeSelection, strokeCommands, connectorObjects, connectorCommands, connectorPopup, connectorOnly, connectorCount, duplicateReason, shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
+  moveToPage, tapeSelection, tidy, board, imageCount, imagesOnly, description, strokeSelection, strokeCommands, connectorObjects, connectorCommands, connectorPopup, connectorOnly, connectorCount, duplicateReason, shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
   inline, richText, finishTextSession, setInline, scene, edit, text, colourControl, colourButton,
   selectionReason, colourLabel, swatchOpen, setArrangeFor, setSwatchFor, selectionKey,
   selectionColor, swatches, contextWidth, size, closeSwatches, changeStyle, selectionSize,
@@ -99,7 +100,7 @@ export function ContextBar({
         visibility: contextFits ? "visible" : "hidden",
       }}
     >
-      {tapeSelection.only ? <><TapeControls selection={tapeSelection} commands={strokeCommands} reason={selectionReason} />{(["Duplicate","Delete"] as const).map(name=><button key={name} className="icon-button" aria-label={name} disabled={!!(name==="Duplicate"?duplicateReason:selectionReason)} onClick={()=>command(name)}><Icon name={name} /><span className="tooltip">{name}</span></button>)}</> : strokeSelection.only ? <StrokeControls selection={strokeSelection} commands={strokeCommands} reason={selectionReason} remove={() => command("Delete")} /> : connectorOnly ? <ConnectorControls objects={connectorObjects} commands={connectorCommands} popup={connectorPopup} count={selected.size} empty={!text} reason={selectionReason} edit={edit} remove={() => command("Delete")} /> : <>
+      {tapeSelection.only ? <><TapeControls selection={tapeSelection} commands={strokeCommands} reason={selectionReason} />{moveToPage}{(["Duplicate","Delete"] as const).map(name=><button key={name} className="icon-button" aria-label={name} disabled={!!(name==="Duplicate"?duplicateReason:selectionReason)} onClick={()=>command(name)}><Icon name={name} /><span className="tooltip">{name}</span></button>)}</> : strokeSelection.only ? <StrokeControls moveToPage={moveToPage} selection={strokeSelection} commands={strokeCommands} reason={selectionReason} remove={() => command("Delete")} /> : connectorOnly ? <ConnectorControls moveToPage={moveToPage} objects={connectorObjects} commands={connectorCommands} popup={connectorPopup} count={selected.size} empty={!text} reason={selectionReason} edit={edit} remove={() => command("Delete")} /> : <>
       {imagesOnly ? <ImageControls count={imageCount} control={description} /> : <>
       <ShapeControls part="kind" selection={shapeSelection} commands={shapeCommands} reason={selectionReason} popup={shapePopup} />
       {(!shapeSelection.objects.length || connectorCount > 0 || strokeSelection.objects.length > 0 || tapeSelection.objects.length > 0) && <span>{item ? objectType(item.type).label : selected.size + " objects"}</span>}
@@ -224,7 +225,7 @@ export function ContextBar({
       </span>}
       {!imagesOnly && selected.size >= 2 && <><button className="icon-button" aria-label="Tidy up" title={tidyReason || 'Tidy up'} disabled={!!tidyReason}
         onClick={()=>tidy.start({readOnly,composing,pointerGesture:busy,invalidObjectText:false})}><Icon name="Tidy up" /><span className="tooltip">Tidy up · {/Mac|iPhone|iPad/.test(navigator.platform)?'⌥⇧T':'Alt+Shift+T'}</span></button><span className="divider" aria-hidden="true" /></>}
-      {(["Duplicate", "Delete"] as const).map((name) => (
+      {moveToPage}{(["Duplicate", "Delete"] as const).map((name) => (
         <button key={name} className="icon-button" aria-label={name}
           aria-describedby={name === "Duplicate" && duplicateReason !== selectionReason ? "duplicate-reason" : "selection-reason"} disabled={!!(name === "Duplicate" ? duplicateReason : selectionReason)}
           onClick={() => command(name)}>

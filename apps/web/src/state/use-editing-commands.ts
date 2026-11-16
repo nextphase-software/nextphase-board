@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { Board as SavedBoard, BoardV12 as Board, ItemV12 as Item } from "nextphase-board-rules/document.ts";
+import type { Board as SavedBoard, BoardV13 as Board, ItemV13 as Item } from "nextphase-board-rules/document.ts";
 import { count } from "nextphase-board-rules/document.ts";
 import { catalog } from "../activities/catalog";
 import { activityPreview, insertActivity, readActivity, type Activity, type Preview } from "../activities";
@@ -24,6 +24,7 @@ import { copiedSet, copiedSetReason, cascadeCount, connectReason, createConnecto
 import type { HostedBoard } from "../team/hosted-board";
 
 type Input = {
+  pages?: import("../pages").PageNavigation;
   hosted?: HostedBoard;
   tool: string;
   connectorStyle: RefObject<ConnectorStyle>;
@@ -61,15 +62,16 @@ type Input = {
 const MAP_COMMANDS: readonly string[] = ["Add child", "Add child left", "Add child right", "Add sibling", "Collapse", "Expand"] satisfies MapCommand[];
 
 export function useEditingCommands({
-  tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
+  pages: navigation, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
   setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
   displayedObjects, commandReason, selectionReason, clipboardState, editingState,
   arrangementMembers, lineCount, measureNode, editor, selector, setPanel, setTool, hosted,
 }: Input) {
+  const pages = navigation ?? { id: model.current.boardId, openingReason: "", openPage: () => undefined, afterHistory: () => {} };
   const [objectClipboard, setObjectClipboard] = useState<Snapshot | null>(null);
   const [templatePreviews, setTemplatePreviews] = useState<Record<string, Preview>>({});
-  const activityState = useRef({ commandReason, view });
-  activityState.current = { commandReason, view };
+  const activityState = useRef({ commandReason, view, page: pages.id });
+  activityState.current = { commandReason, view, page: pages.id };
   async function loadTemplates() {
     if (Object.keys(templatePreviews).length === catalog.length) return;
     const entries = await Promise.all(catalog.map(async (entry) => {
@@ -90,7 +92,7 @@ export function useEditingCommands({
     try {
       const result = insertActivity(model.current, activity, activityState.current.view, {
         w: scene.current!.clientWidth, h: scene.current!.clientHeight,
-      });
+      }, activityState.current.page);
       finishTextSession();
       commit(result.board, true);
       select(result.ids);
@@ -106,7 +108,7 @@ export function useEditingCommands({
     try {
       const result = insertActivity(model.current, activity, activityState.current.view, {
         w: scene.current!.clientWidth, h: scene.current!.clientHeight,
-      });
+      }, activityState.current.page);
       finishTextSession(); commit(result.board, true); select(result.ids); setPanel(""); setView(result.view);
       scene.current?.focus(); hosted?.toast(`Added “${name}”: ${result.ids.length} objects.`);
     } catch (error) { hosted?.toast(String(error)); }
@@ -136,7 +138,7 @@ export function useEditingCommands({
         const result = buildPaste(model.current, objectClipboard!, {
           centerX: view.x, centerY: view.y, zoom: view.z,
           width: scene.current!.clientWidth, height: scene.current!.clientHeight,
-        });
+        }, undefined, pages.id);
         const existing = new Set(model.current.objects.map((o) => o.id));
         const ids = result.board.objects.filter((o) => !existing.has(o.id)).map((o) => o.id);
         commit(result.board, true);
@@ -222,10 +224,14 @@ export function useEditingCommands({
       // The step holds the layout of every map the command changes.
       const board = name === "Undo" || name === "Redo" ? result.board : settle(model.current, result.board);
       const steps = board === result.board ? result.history : record(historyRef.current, model.current, board);
+      const isHistory = name === "Undo" || name === "Redo";
+      const previous = model.current;
+      if (!isHistory && steps.past.length) steps.past[steps.past.length - 1] = { ...steps.past.at(-1)!, page: pages.id };
       const hidden = hiddenIds(board.objects);
-      const affected = board.objects.filter((o) => result.affectedIds.includes(o.id) && !hidden.has(o.id));
+      const affected = board.objects.filter((o) => o.page === (isHistory && result.page && board.pages?.some(p => p.id === result.page) ? result.page : pages.id) && result.affectedIds.includes(o.id) && !hidden.has(o.id));
       commit(board);
       updateHistory(steps);
+      if (isHistory) pages.afterHistory(previous, model.current, result.page);
       if (paint) shapeSession.update(paint);
       setDrafts((d) => {
         const next = { ...d };
@@ -277,11 +283,11 @@ export function useEditingCommands({
     const current = model.current;
     if (name === "Connect") {
       const ideas = current.objects.filter((o) => selected.has(o.id)).sort((a, b) => a.order - b.order);
-      const result = createConnector(current, ideas[0].id, ideas[1].id, connectorStyle.current);
+      const result = createConnector(current, ideas[0].id, ideas[1].id, connectorStyle.current, pages.id);
       commit(result.board, true); select(result.id); setTool("Select");
       if (native) selector?.current?.focus(); else scene.current?.focus();
     } else if (name === "Section from selection") {
-      const result = wrapSelection(current, selected, displayedObjects);
+      const result = wrapSelection(current, selected, displayedObjects, pages.id);
       commit(result.board, true);
       select(result.id);
       setTool("Select");
@@ -291,7 +297,7 @@ export function useEditingCommands({
     } else if (name === "Group" || name === "Ungroup") {
       commit(name === "Group" ? groupObjects(current, selected) : ungroupObjects(current, selected), true);
     } else if (isOrderCommand(name)) {
-      commit({ ...current, objects: orderInBands(name, current.objects, selected) }, true,
+      commit({ ...current, objects: orderInBands(name, current.objects, selected, pages.id) }, true,
         current.objects.filter((o) => selected.has(o.id)).map((o) => o.id));
     } else {
       const positions = new Map(arrangePositions(name, arrangementMembers).map((p) => [p.id, p]));

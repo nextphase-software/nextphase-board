@@ -11,6 +11,7 @@ export class Adapter {
       for (const key of ["schemaVersion", "boardId", "title"] as const) {
         if (board.get(key) !== b[key]) board.set(key, b[key]);
       }
+      if (JSON.stringify(board.get("pages")) !== JSON.stringify(b.pages)) board.set("pages", b.pages.map(p => ({ ...p })));
       const objects = this.doc.getMap<Y.Map<unknown>>("objects");
       const live = new Set(b.objects.map((o) => o.id));
       for (const id of objects.keys()) if (!live.has(id)) objects.delete(id);
@@ -20,7 +21,7 @@ export class Adapter {
           m = new Y.Map<unknown>();
           objects.set(o.id, m);
         }
-        for (const key of ["generation", "type", "order", "group", "section"] as const) {
+        for (const key of ["generation", "type", "page", "order", "group", "section"] as const) {
           if (m.get(key) !== o[key]) m.set(key, o[key]);
         }
         for (const [key, value] of Object.entries(hasEnds(o) ? { ends: { from: { object: o.from.object, anchor: o.from.anchor }, to: { object: o.to.object, anchor: o.to.anchor } }, connectorStyle: connectorStyleOf(o) } : extraValues(o))) {

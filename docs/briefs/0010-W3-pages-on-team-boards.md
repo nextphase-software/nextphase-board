@@ -672,3 +672,68 @@ M	tests/workshop-voting.test.mjs
 M	vitest.node.config.ts
 M	vitest.workerd.config.ts
 ```
+
+
+### Planner amendments A1–A3 (fix round 1)
+
+The planner approved the three implementation escalations as amendments to brief v1.
+These amendments supersede the pending-approval status in the preceding record; that record
+remains unchanged.
+
+- **A1 — F1-U13.** The find-bar guard must still occur exactly once in all four files.
+  `team/reactions-layer.tsx`, `team/comments/layer.tsx` and `state/use-presence.ts` received
+  the page changes authorized by web modules v42, so their obsolete whole-file comparisons
+  are removed. `team/spotlight-layer.tsx` was not changed; its existing whole-file comparison
+  remains. Only the comparison line in F1-U13 changes; nothing else in that test changes.
+- **A2 — retained recovery.** `apps/server/src/worker.ts` is added to the allowlist for the
+  version guard only. Its retained-recovery check now accepts storage versions **7 or 8**;
+  every other condition is unchanged. Searching all of `apps/server/src` and `scripts`
+  (`rg -n 'storage_version|storageVersion|!== ?7|=== ?7' apps/server/src scripts`) found no
+  other matching guard in the Node runner, its startup/scripts, Worker entry points or
+  operator routes. No other entry-point file needed a change.
+- **A3 — sync inventory.** The effective web modules v42 count is **11 existing files plus
+  `order-keys.ts`, 12 total**. The exact twelve-file inventory test is retained unchanged.
+
+Branch: `codex/0010-W3-pages-on-team-boards`.
+Fix-round prerequisite / prior record tip: `5c2c6cf6772c0bb55a93d446c29540e313317e82`.
+New validated source/test revision: **`926d95afc151274e62c63048a29cac7abd1143f6`**.
+Source/test and this append-only record are separate commits; the final record tip is reported
+in the handoff. No merge, push or deployment occurred. Added dependencies: none.
+
+| Check | Commands / inspection | Fix-round result |
+| --- | --- | --- |
+| V3 | `npm run typecheck` | **PASS**: exit 0; all five workspace members |
+| V4 | Full `npm test` | **PASS**: exit 0; 1,273 tests, 1,273 pass, 0 fail, 0 skipped. All 22 P3 checks pass; F1-U13 and W1-U32/U33 now pass |
+| V5 | Team-off `npm run build`; `npm run audit:licenses`; `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v1.txt` | **PASS**: 3/3 commands exit 0 |
+| V6 | `npm run build:fixtures`; team-on `npm run build`; `npm run audit:licenses`; `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt` | **PASS**: 4/4 commands exit 0 |
+| V7 | `npm run build:server`; `npm run audit:licenses`; `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` | **PASS**: 3/3 commands exit 0; no deploy |
+| V8 | All fix hunks inspected; `git diff --name-status 5c2c6cf6772c0bb55a93d446c29540e313317e82..926d95afc151274e62c63048a29cac7abd1143f6`; `git diff --check 5c2c6cf6772c0bb55a93d446c29540e313317e82..926d95afc151274e62c63048a29cac7abd1143f6` | **PASS**: only the two amended source/test lines below; this record is appended separately |
+
+Both web builds used the brief's synthetic settings:
+`BOARD_SUPABASE_URL=http://127.0.0.1:55321`, `BOARD_SUPABASE_ANON_KEY=synthetic`,
+`BOARD_SERVER_URL=http://127.0.0.1:8796`, and `BOARD_TEAM_FEATURES=off` or `on` respectively.
+Node 26.13.0 and npm 11.20.0 were unchanged. All twelve validation commands above exited 0.
+Validation started **2026-11-16T19:40:08.103211+00:00** and ended **2026-11-16T19:40:19.241376+00:00**;
+the full unit run was **2026-11-16T19:40:09.055292+00:00–2026-11-16T19:40:17.157784+00:00**.
+The host's `pmset -g log` Sleep/Wake inspection showed no sleep overlapping this interval.
+The source commit's pre-commit and commit-message public-boundary hooks passed. Git again
+reported the non-fatal `packed-refs.lock` sandbox maintenance error; the committed source ref
+and clean source worktree were verified.
+
+#### Fix-round changed-file and line-range inventory
+
+Ranges compare the prior record tip to this round's source or record commit. Each source/test
+change replaces one line (two insertions and two deletions in total). The brief change is append-only.
+
+| File | Before | After | Change |
+| --- | --- | --- | --- |
+| `apps/server/src/worker.ts` | 41 | 41 | Accept versions 7 and 8; retain all other recovery conditions |
+| `tests/find.test.mjs` | 213 | 213 | Retain the whole-file assertion only for unchanged spotlight-layer; keep all four exact-once guards |
+| `docs/briefs/0010-W3-pages-on-team-boards.md` | Insertion after 674 | 675–739 | This fix-round record only |
+
+No App, dependency, inventory, other test or runtime file changed in this round.
+V1 and V2 were not rerun; their preceding results remain recorded. Still unrun in this sandbox:
+Supabase CLI/schema/stack setup, V9 and S417–S424 on both server runners
+(`npm run test:server:node`, `npm run test:server:workerd`), and V10–V13, including N2,
+runtime design comparison, independent negative checks and A–J/browser checks. Browsers and
+Supabase CLI cannot start here. V3–V8 are now clear; independent server/browser acceptance remains.

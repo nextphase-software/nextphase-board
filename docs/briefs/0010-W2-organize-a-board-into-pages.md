@@ -1007,3 +1007,117 @@ its final contents equal `2a1ad32`. Both regressions reside only in the page tes
 | `docs/briefs/0010-W2-organize-a-board-into-pages.md` | append after 887 → 888–1009 | This separate Review fix round 1 record; earlier content unchanged. |
 
 `git diff --check 2a1ad32..4e1c7ae` exits 0. All final hunks and `git diff --name-status` were inspected.
+
+### Review fix round 2 — transparent page names and menu state precedence — 2026-11-16
+
+- Branch: `codex/0010-W2-organize-a-board-into-pages`.
+- Starting record tip: `7d5e618c6a031b9dac7c8297302205d6362038c3`.
+- Validated source/test revision: `11fb52734e48752551cf8e89755c80a7305fb13f`
+  (`fix(web): preserve page name and menu state styling`). This append is a separate record commit;
+  the handoff reports its tip separately. This is review fix round **2 of at most 3**; one remains.
+- Read review v2, the check report and both N1-S33 receipt copies. Re-read the approved Pages image
+  and interaction v43 lines 75–83 before edits; the page-menu and move-menu images and menu state
+  clauses were also re-read for the requested audit. No design, asset, dependency or licence change.
+  No push or merge. The internal repository was read-only.
+
+#### F1b and the complete list/menu button audit
+
+The supplied receipts show the row fills already correct while the name button covers them with
+`#f1eff5`: the open row is `#dceafb`, other-row hover `#eef1f5`, and name-pressed rows `#d9dfe7`.
+The name's transparent base rule loses to shared button hover. The repair adds an unconditional,
+background-only selector with specificity (0,3,1), equal to shared hover but later in source order.
+It stays transparent on hover, active, focus and disabled states without overriding font weight,
+border/padding/minimum-size resets or the focus-visible outline. Row fills themselves are unchanged.
+
+Every button family in the list and both menus was traced from its markup to its CSS states:
+
+| Button family | Audit result / repair |
+| --- | --- |
+| Page name buttons, open and other rows | **Fixed F1b:** add `.pages-panel .page-row button.page-name { background: transparent; }`. The row's existing hover/pressed/open fill remains visible. |
+| Add page and Page options buttons | **Already correct:** the previous enabled hover/active selectors beat shared hover; menu-open options retain `#d9dfe7`. No selector, token or declaration changed. |
+| Page options menu: Rename page, Duplicate page, Move up/down, Delete page | Ordinary hover/focus `#eef1f5`, pressed `#d9dfe7` and disabled transparent/muted/full-opacity states already have correct precedence. **Additional cascade repair:** Delete page's `#a3302a` text was overridden by the ordinary hover/focus ink colour; strengthen its colour selector with `:not(:disabled)` so it wins by equal specificity and later order. Disabled Delete page still uses the unchanged muted rule. |
+| Move to page menu: target-page items and disabled current page | Hover/focus and disabled states already correct. **Additional cascade repair:** the ordinary pressed selector (0,3,1) lost to context-menu hover (0,4,1). Add the context-qualified active selector (0,4,1) to the existing pressed-fill rule, after hover, so a pressed hovered item keeps `#d9dfe7`. |
+| Focus-visible in the list and both menus | Existing 3 px `#1665d8` outline with 2 px offset remains byte-identical. All disabled styles and normal/open row name weights remain byte-identical. |
+
+Complete changed-selector list:
+
+1. **Added:** `.pages-panel .page-row button.page-name` — only `background: transparent`.
+2. **Added to the existing pressed rule:** `.context .page-menu button:active:not(:disabled)` —
+   `background: var(--np-line)`; `.page-menu button:active:not(:disabled)` and its declaration remain.
+3. **Strengthened:** `.page-menu button.page-danger` →
+   `.page-menu button.page-danger:not(:disabled)` — the existing `color: var(--np-critical)` value.
+
+Nothing outside these state repairs changes. Shared CSS before the Pages block remains byte-identical.
+No TypeScript/TSX source changed. In particular, the lone-connector Move to page reason is untouched:
+`apps/web/src/ui/move-to-page.tsx` is byte-identical to `7d5e618`. `App.tsx` is also byte-identical;
+it remains **264 lines**, with the existing **19 substitutions** and no new substitution this round.
+
+#### Focused regression
+
+The new named CSS check in `tests/pages.test.mjs` checks specificity/source order for all three
+repairs; ordinary menu hover/focus/pressed behavior; unchanged row, Add/options, name-weight, focus
+and disabled declarations; the background-only name override; and unchanged shared CSS. It uses
+source rules, not a browser-computed-style simulation.
+
+```sh
+node --test --test-reporter=tap --test-name-pattern='0010-W2 F1b' tests/pages.test.mjs
+```
+
+Before: **0 pass / 1 fail**, reporting all four losing comparisons (name vs shared hover; Move item
+pressed vs context hover; Delete colour vs menu hover and vs focus). The final check copied beside
+the starting stylesheet reproduces the same failures without editing the worktree. After:
+**1 pass / 0 fail**. These focused receipts do not claim a browser or independent acceptance pass.
+
+#### Authoritative V3–V6 validation on `11fb527`
+
+Node **26.13.0**, npm **11.20.0**. Both web builds use the synthetic settings below:
+
+```sh
+BOARD_SUPABASE_URL=http://127.0.0.1:55321
+BOARD_SUPABASE_ANON_KEY=synthetic
+BOARD_SERVER_URL=http://127.0.0.1:8796
+```
+
+| Result | Commands | Counts | UTC start–end, 2026-11-16 |
+| --- | --- | --- | --- |
+| PASS: V3 | `npm run typecheck` | All **5** workspace members; exit 0 | 09:20:44.150–09:20:47.084 |
+| PASS: V4 | `npm test` | **1,250 pass / 0 fail / 0 skip**, including the new F1b check; exit 0 | 09:20:44.153–09:20:53.730 |
+| PASS: V5 | `BOARD_TEAM_FEATURES=off npm run build`; `npm run audit:licenses`; `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v1.txt` | **3/3 commands** exit 0; one local web build, notices byte-identical | 09:20:49.767–09:20:50.391 |
+| PASS: V6 | `npm run build:fixtures`; `BOARD_TEAM_FEATURES=on npm run build`; `npm run audit:licenses`; `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt` | **4/4 commands** exit 0; **7 fixture output files**, one team web build, notices byte-identical | 09:20:56.241–09:20:56.912 |
+
+AC power / 100% charge and `caffeinate -dimsu` were recorded. `pmset -g log` found **0 actual
+Sleep/Wake/DarkWake transitions** across 09:20:44.150–09:20:56.912 UTC. No validation overlapped sleep.
+Raw receipts remain outside the repository; no host paths are committed:
+
+| Receipt | SHA-256 |
+| --- | --- |
+| `red-final.log` | `1f3f29ecb9ffe2964d0bd343101f1b5f880f7c17bdffd4ab774e99f21a041849` |
+| `green.log` | `98e3ba34052f5ef1d469edd82205c7fcf43a3b9c2b03a75cbfdb211a2dc2b225` |
+| `V3.log` | `6401c42ca0f07cac1d8322415400ae67617315cf6ab2f3b79fc6046e6511c61f` |
+| `V4.log` | `5ad75e7cd7176f919f3e96b46ba36a6953445589eedcf78d6288d33d9e94c7a2` |
+| `V5-build.log` | `f487d01a4726454336e262b2b9527dea58dea559d4c18b471064b309a01dfba6` |
+| `V5-audit.log` | `7bf914273592848e5bf1987472a52faf6078fa65d6bcd8f1fc91fe29b8cccae1` |
+| `V5-notices.log` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `V6-fixtures.log` | `d10037338e529c19d7af2318453d4c4603374a35d994d35be70a785b31c340f4` |
+| `V6-build.log` | `f487d01a4726454336e262b2b9527dea58dea559d4c18b471064b309a01dfba6` |
+| `V6-audit.log` | `7bf914273592848e5bf1987472a52faf6078fa65d6bcd8f1fc91fe29b8cccae1` |
+| `V6-notices.log` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+
+**Unrun:** browsers, N1-S33/scoped recheck, new design captures/comparisons, both server suites,
+Supabase CLI/stack and validation rows V1/V2/V7–V13. The fix's path list/hunks and diff whitespace were
+inspected. The CSS regression supplies rule-level proof; computed styles and the approved look still
+require the independent browser recheck. No milestone or runtime acceptance is claimed here.
+
+**Escalation:** none. Graph discovery/indexing remained approval-blocked under the never policy,
+so source reads supplied the trace. Both source-commit privacy hooks passed. Optional packed-refs
+maintenance was sandbox-denied after the successful commit; the branch ref and clean status were
+verified. No hook was bypassed. Unrelated work and the vote evidence document were not touched/staged.
+
+| Complete changed-path inventory | Before → after lines | Scope |
+| --- | --- | --- |
+| `apps/web/style.css` | after 1596 → 1597; 1616 → 1617; 1618 → 1619 (`7d5e618` → `11fb527`) | The three selector changes listed above; existing state values retained. |
+| `tests/pages.test.mjs` | after 383 → 384–427 | One new focused F1b/list/menu CSS regression; existing checks unchanged. |
+| `docs/briefs/0010-W2-organize-a-board-into-pages.md` | append after 1009 → 1010–1123 | This separate Review fix round 2 record; all earlier content unchanged. |
+
+`git diff --check 7d5e618..11fb527` exits 0. All hunks and `git diff --name-status` were inspected;
+the fix changes only CSS and its focused test, and the separate record commit only this append.

@@ -51,7 +51,7 @@ export function activityView(box: Box, current: View, size: Size): View {
   return { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2, z };
 }
 
-export function insertActivity(board: BoardV14, activity: BoardV7 | BoardV14, view: View, size: Size, page = board.boardId) {
+export function insertActivity(board: BoardV14, activity: BoardV7 | BoardV14, view: View, size: Size, page = board.pages[0].id) {
   const box = activityBox(activity.objects)!, existing = activityBox(board.objects.filter(o => o.page === page));
   const dx = existing ? existing.right + 120 - box.left : view.x - (box.left + box.right) / 2;
   const dy = existing ? existing.top - box.top : view.y - (box.top + box.bottom) / 2;

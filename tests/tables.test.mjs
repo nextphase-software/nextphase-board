@@ -97,6 +97,43 @@ test("T-U03 axis changes, reading order and duplication, paste and template copi
   assert.notEqual(duplicate.rows[0].id, inserted.rows[0].id);
 });
 
+test("T-U13 saved table templates insert twice on an imported board and the room accepts both edits", async () => {
+  const t = await tableRules(), b = await board(3, 4);
+  const { templateObjects } = await import("../apps/server/src/templates.ts");
+  const { templateSnapshot, templateBoard } = await import("../apps/web/src/team/templates-rules.ts");
+  const { insertActivity } = await import("../apps/web/src/activities.ts");
+  const { evaluate } = await import("../packages/board-room/src/edits.ts");
+  const original = t.setCell(b.objects[0], address(b.objects[0]), "Keep me");
+  // Hosted import assigns a room ID and preserves the exported page IDs.
+  const imported = { ...b, boardId: uuid(), objects: [original] };
+  const server = await shared(imported);
+  try {
+    const { snapshot } = templateSnapshot(imported, new Set(), [{ ...original, displayHeight: original.height }]);
+    const stored = templateObjects(JSON.parse(JSON.stringify(snapshot.objects)));
+    const template = templateBoard(JSON.parse(JSON.stringify(stored.objects)));
+    for (let i = 0; i < 2; i++) {
+      const client = await shared(server.doc);
+      try {
+        const update = client.write(current => insertActivity(current, template,
+          { x: 0, y: 0, z: 1 }, { w: 1440, h: 900 }).board);
+        const result = evaluate(server.doc, server.read(), update, { all: () => [] });
+        assert.equal(result.kind, "complete", result.reason);
+        try { Y.applyUpdate(server.doc, result.update); }
+        finally { result.doc.destroy(); }
+      } finally { client.adapter.destroy(); }
+    }
+    const tables = server.read().objects;
+    assert.equal(tables.length, 3);
+    assert.equal(new Set(tables.flatMap(o => [o.id, ...o.rows.map(r => r.id), ...o.columns.map(c => c.id)])).size, 24);
+    for (const o of tables) {
+      assert.equal(o.page, imported.pages[0].id);
+      assert.deepEqual(o.rows.map(r => r.height), original.rows.map(r => r.height));
+      assert.deepEqual(o.columns.map(c => c.width), original.columns.map(c => c.width));
+      assert.equal(t.cellText(o, address(o)), "Keep me");
+    }
+  } finally { server.adapter.destroy(); }
+});
+
 test("T-U04 shared table codec checks live shape and tombstones, and skips orphan cells", async () => {
   await tableRules();
   const b = await board(), t = b.objects[0], base = await shared(b), key = t.rows[0].id + ":" + t.columns[0].id;

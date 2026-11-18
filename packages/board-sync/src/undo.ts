@@ -46,7 +46,8 @@ export function capture(doc: Y.Doc): State {
     for (const [key, value] of map) {
       if (table && ["columnMap", "rowMap", "cells"].includes(key)) continue;
       if (["generation", "type"].includes(key)) continue;
-      const snapshot = table && (key === "place" || key === "tableStyle") ? structuredClone(value) : value;
+      const snapshot = table && (key === "place" || key === "tableStyle")
+        ? { ...value as Record<string, unknown> } : value;
       values.set(key, { value: value instanceof Y.Text ? value.toString() : snapshot,
         identity: value instanceof Y.Text ? textIdentity(value) : identity(map._map.get(key)) });
     }

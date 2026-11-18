@@ -404,3 +404,343 @@ implementation.
 - Repairs to separately tracked baseline failures.
 
 ## Implementation record
+
+### 2026-11-17 implementation
+
+- Branch `codex/0011-W1-tables`
+- Prerequisite base `f23e0ef4d8ffdf2209848d17007d2cfd568d4866`
+- Behavior baseline `3f4ad488fce08538bba1060521799fc448615051`
+- Validated source and tests `7c96df4c2aac0504db56b6eb1cc00f296d70ffdd`
+- Toolchain Node 26.13.0 and npm 11.20.0. Added dependencies, services and assets: none.
+- The public boundary hooks passed on each source commit. Git reported a sandbox restriction on `.git/packed-refs.lock` after updating the branch successfully.
+
+Tables use schema 14 and stable row and column IDs in saved documents and hosted edits. The canvas supports click and drag placement, native cell editing, row and column controls, and resizing. A mixed selection resize remains one history command and guards the affected values of each table together. The palette and vote-target inventory assertions include the new Table record.
+
+#### V1–V8
+
+All results below apply to `7c96df4c2aac0504db56b6eb1cc00f296d70ffdd` unless the row names the separate install baseline.
+
+- PASS: V1. Compared the tracked dependency manifests, lockfiles, inventories and accepted runtime notices byte for byte using `git show <revision>:<file>` at the prerequisite and source revisions. 20 files matched.
+- PASS: V2. `npm ci --ignore-scripts --no-audit --no-fund` exited 0 on the clean source worktree and a separate archive of `3f4ad48`. Each installed 118 packages.
+- PASS: V3. `npm run typecheck` exited 0 across all five workspace members.
+- PASS: V4. `npm test` exited 0. 1,292 passed, including 12 new table checks T-U01–T-U12. Zero failed, skipped or cancelled. The composition guard confirmed 22 substitutions and 264 App lines.
+- PASS: V5. The team-off build and license audit exited 0. `cmp` confirmed byte equality with `0001-runtime-notices-v1.txt`.
+- PASS: V6. The fixture build, team-on web build and license audit exited 0. `cmp` confirmed byte equality with `0001-runtime-notices-v3.txt`.
+- PASS: V7. `npm run build:server` produced both Node and Worker artifacts. The license audit and Wrangler 4.156.0 dry run exited 0. The dry run reported a 1,398.88 KiB bundle and two bindings.
+- PASS: V8. Inspected the source hunks, `git diff --name-status f23e0ef..7c96df4` and `git diff --check f23e0ef..7c96df4`. The source diff contains 95 files, including seven additions. The record is appended in its own commit.
+
+Build and comparison commands for V5–V7
+
+```sh
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+npm run audit:licenses
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v1.txt
+npm run build:fixtures
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+npm run audit:licenses
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt
+npm run build:server
+npm run audit:licenses
+WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=<scratch-log> npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json
+```
+
+Run times in UTC
+
+| Check | Start | End |
+| --- | --- | --- |
+| V2 baseline | 2026-11-18T00:41:01Z | 2026-11-18T00:41:02Z |
+| V2 candidate | 2026-11-18T00:45:48Z | 2026-11-18T00:45:50Z |
+| V3 | 2026-11-18T00:46:25Z | 2026-11-18T00:46:27Z |
+| V4 | 2026-11-18T00:46:25Z | 2026-11-18T00:46:33Z |
+| V5 | 2026-11-18T00:46:25Z | 2026-11-18T00:46:26Z |
+| V6 | 2026-11-18T00:46:26Z | 2026-11-18T00:46:28Z |
+| V7 | 2026-11-18T00:46:28Z | 2026-11-18T00:46:30Z |
+
+`pmset -g log` recorded zero sleep, wake or dark-wake events from 2026-11-18T00:45:48Z to 2026-11-18T00:46:40Z. The baseline install also ran within the same awake interval.
+
+#### Unrun and escalation
+
+- V9 and S425–S430 remain for the separate server run. The Supabase CLI could not be started in this sandbox. The new server test file transpiled with esbuild as a source check.
+- V10–V13 remain for the independent check run, including N3-S1–N3-S14, browser captures, baseline capability failures and the A–J comparison. Browser and native input-method execution were unavailable in this sandbox.
+- The codebase-memory MCP calls required approval under a session that disallowed approvals. Source inspection proceeded through direct reads. No contract decision needs maintainer escalation.
+- Milestone exclusions remain as specified above. External publication and deployment were outside this run.
+
+#### Source, test and guide files
+
+```text
+M	apps/server/src/routes/boards.ts
+M	apps/server/src/templates.ts
+M	apps/web/src/App.tsx
+M	apps/web/src/activities.ts
+M	apps/web/src/board-file.ts
+M	apps/web/src/clipboard.ts
+M	apps/web/src/connectors.ts
+M	apps/web/src/context-bar-position.ts
+M	apps/web/src/geometry.ts
+M	apps/web/src/gesture.ts
+M	apps/web/src/history.ts
+M	apps/web/src/icons.tsx
+M	apps/web/src/images.ts
+M	apps/web/src/mind-map.ts
+M	apps/web/src/pages.ts
+M	apps/web/src/resize.ts
+M	apps/web/src/scene/board-drawing.tsx
+M	apps/web/src/scene/inline-editor.tsx
+A	apps/web/src/scene/table-body.tsx
+A	apps/web/src/scene/table-buttons.tsx
+M	apps/web/src/sections.ts
+M	apps/web/src/state/use-board-document.ts
+M	apps/web/src/state/use-canvas-input.ts
+M	apps/web/src/state/use-editing-commands.ts
+M	apps/web/src/state/use-editor-placement.ts
+M	apps/web/src/state/use-find.ts
+M	apps/web/src/state/use-geometry-edits.ts
+M	apps/web/src/state/use-hosted-board.ts
+M	apps/web/src/state/use-images.ts
+M	apps/web/src/state/use-object-layouts.ts
+M	apps/web/src/state/use-page-keys.ts
+M	apps/web/src/state/use-pages.ts
+M	apps/web/src/state/use-selection.ts
+M	apps/web/src/state/use-text-entry.ts
+M	apps/web/src/state/use-tidy-up.ts
+M	apps/web/src/state/use-validity.ts
+M	apps/web/src/storage.ts
+M	apps/web/src/strokes.ts
+A	apps/web/src/table.ts
+M	apps/web/src/tape.ts
+M	apps/web/src/team/comments/layer.tsx
+M	apps/web/src/team/comments/panel.tsx
+M	apps/web/src/team/comments/rules.ts
+M	apps/web/src/team/hosted-board.ts
+M	apps/web/src/team/page-presence.ts
+M	apps/web/src/team/templates-rules.ts
+M	apps/web/src/ui/content-field.tsx
+M	apps/web/src/ui/context-bar.tsx
+M	apps/web/src/ui/palette.tsx
+A	apps/web/src/ui/table-controls.tsx
+M	apps/web/style.css
+M	docs/guides/try-board.md
+M	packages/board-room/src/comments.ts
+M	packages/board-room/src/conflicts.ts
+M	packages/board-room/src/edits.ts
+M	packages/board-room/src/history.ts
+M	packages/board-room/src/room.ts
+M	packages/board-rules/src/document.ts
+M	packages/board-rules/src/objects/registry.ts
+A	packages/board-rules/src/objects/table.ts
+M	packages/board-sync/src/codec.ts
+M	packages/board-sync/src/comments.ts
+M	packages/board-sync/src/document-adapter.ts
+M	packages/board-sync/src/session.ts
+M	packages/board-sync/src/undo.ts
+M	tests/README.md
+M	tests/board-catalog.test.mjs
+M	tests/board-file.test.mjs
+M	tests/connector-styles.test.mjs
+M	tests/connectors.test.mjs
+M	tests/document.test.mjs
+M	tests/images.test.mjs
+M	tests/import-fixture.mjs
+M	tests/mind-map.test.mjs
+M	tests/modules.test.mjs
+M	tests/objects.test.mjs
+M	tests/pages.test.mjs
+M	tests/room.test.mjs
+M	tests/server/drawing-layout.test.ts
+M	tests/server/mind-maps.test.ts
+M	tests/server/pages.test.ts
+A	tests/server/tables.test.ts
+M	tests/server/team-pages.test.ts
+M	tests/shapes.test.mjs
+M	tests/storage.test.mjs
+M	tests/strokes.test.mjs
+A	tests/tables.test.mjs
+M	tests/team-import.test.mjs
+M	tests/team-pages.test.mjs
+M	tests/team-templates.test.mjs
+M	tests/workshop-reactions.test.mjs
+M	tests/workshop-spotlight.test.mjs
+M	tests/workshop-voting.test.mjs
+M	vitest.node.config.ts
+M	vitest.workerd.config.ts
+```
+
+Compiler-required type-only changes outside the main implementation paths
+
+- `apps/web/src/activities.ts`
+- `apps/web/src/connectors.ts`
+- `apps/web/src/geometry.ts`
+- `apps/web/src/gesture.ts`
+- `apps/web/src/images.ts`
+- `apps/web/src/mind-map.ts`
+- `apps/web/src/pages.ts`
+- `apps/web/src/state/use-find.ts`
+- `apps/web/src/state/use-images.ts`
+- `apps/web/src/state/use-page-keys.ts`
+- `apps/web/src/state/use-pages.ts`
+- `apps/web/src/state/use-tidy-up.ts`
+- `apps/web/src/strokes.ts`
+- `apps/web/src/tape.ts`
+- `apps/web/src/team/comments/layer.tsx`
+- `apps/web/src/team/comments/panel.tsx`
+- `apps/web/src/team/comments/rules.ts`
+- `apps/web/src/team/page-presence.ts`
+- `packages/board-room/src/comments.ts`
+- `packages/board-sync/src/comments.ts`
+
+Changed ranges under `tests/`
+
+| File | Prerequisite lines | Validated source lines |
+| --- | --- | --- |
+| `tests/README.md` | — | 681–683 |
+| `tests/board-catalog.test.mjs` | 235, 322 | 235, 322 |
+| `tests/board-file.test.mjs` | 56, 79, 139 | 56, 79, 139 |
+| `tests/connector-styles.test.mjs` | 45, 84, 478, 539 | 45, 84, 478, 539 |
+| `tests/connectors.test.mjs` | 37 | 37 |
+| `tests/document.test.mjs` | 20, 43, 117, 132, 135, 246, 293, 375 | 20, 43, 117, 132, 135, 246, 293, 375 |
+| `tests/images.test.mjs` | 27, 56 | 27, 56 |
+| `tests/import-fixture.mjs` | —, 11, 20, 75, 92 | 10–12, 14–19, 28–31, 86, 103 |
+| `tests/mind-map.test.mjs` | 66, 70, 74 | 66, 70, 74 |
+| `tests/modules.test.mjs` | 58, 119, —, 189, —, 210–211, 230, 441–442, 594–596, 599–600, 603–604, 607–608, 611–612, 615–616 | 58, 119, 149, 190, 206–207, 213–214, 233, 444–445, 597–599, 602–603, 606–607, 610–611, 614–615, 618–687 |
+| `tests/objects.test.mjs` | 4, 11, 44 | 4, 11, 44 |
+| `tests/pages.test.mjs` | 26, 57, 205, 209, 212, 310 | 26, 57, 205, 209, 212–213, 311 |
+| `tests/room.test.mjs` | 126 | 126 |
+| `tests/server/drawing-layout.test.ts` | 96–97, 102, 133, 137, 144 | 96–97, 102, 133, 137, 144 |
+| `tests/server/mind-maps.test.ts` | 105, 107, 114, 122, 189, 213 | 105, 107, 114, 122, 189, 213 |
+| `tests/server/pages.test.ts` | 91, 99, 102, 129 | 91, 99, 102, 129 |
+| `tests/server/tables.test.ts` | — | 1–378 |
+| `tests/server/team-pages.test.ts` | 124, 126, 179, 181 | 124, 126, 179, 181 |
+| `tests/shapes.test.mjs` | 39 | 39 |
+| `tests/storage.test.mjs` | 92, 116, 132 | 92, 116, 132 |
+| `tests/strokes.test.mjs` | 32, 96 | 32, 96 |
+| `tests/tables.test.mjs` | — | 1–398 |
+| `tests/team-import.test.mjs` | 64 | 64 |
+| `tests/team-pages.test.mjs` | 120, 126, 202–203 | 120, 126, 202–203 |
+| `tests/team-templates.test.mjs` | 48 | 48 |
+| `tests/workshop-reactions.test.mjs` | 18 | 18 |
+| `tests/workshop-spotlight.test.mjs` | 18 | 18 |
+| `tests/workshop-voting.test.mjs` | 18, 56 | 18, 56 |
+
+#### App.tsx substitutions
+
+Each entry gives the 3f4ad48 line number, the original line and its replacement.
+
+<details>
+<summary>22 substitutions</summary>
+
+```json
+[
+  [
+    24,
+    "import { Overlays } from \"./scene/overlays\"; import { ConnectionDots } from \"./scene/connection-dots\"; import { MindMapButtons } from \"./scene/mind-map-buttons\"; import { TidyUpLayer } from \"./scene/tidy-up-layer\"; import { TidyUpBar } from \"./ui/tidy-up-bar\"; import { FindRings } from \"./scene/find-rings\"; import { FindBar } from \"./ui/find-bar\"; import { PagesPanel } from \"./ui/pages-panel\"; import { MoveToPage } from \"./ui/move-to-page\";",
+    "import { Overlays } from \"./scene/overlays\"; import { ConnectionDots } from \"./scene/connection-dots\"; import { MindMapButtons } from \"./scene/mind-map-buttons\"; import { TableButtons } from \"./scene/table-buttons\"; import { TidyUpLayer } from \"./scene/tidy-up-layer\"; import { TidyUpBar } from \"./ui/tidy-up-bar\"; import { FindRings } from \"./scene/find-rings\"; import { FindBar } from \"./ui/find-bar\"; import { PagesPanel } from \"./ui/pages-panel\"; import { MoveToPage } from \"./ui/move-to-page\";"
+  ],
+  [
+    48,
+    "  const { inline, setInline, composing, setComposing, textSelection, setTextSelection } = useTextEntry();",
+    "  const { tableEntry, inline, setInline, composing, setComposing, textSelection, setTextSelection } = useTextEntry();"
+  ],
+  [
+    56,
+    "    tapeSelection, strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,",
+    "    tableSelection, chooseTable, tableName, tapeSelection, strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,"
+  ],
+  [
+    59,
+    "  const { invalidObjectText, invalidFields, invalid, pending } = useValidity({",
+    "  const { cellInvalidNotice, invalidObjectText, invalidFields, invalid, pending } = useValidity({"
+  ],
+  [
+    60,
+    "    board, drafts, title, composing, busy: gestureBusy,",
+    "    board, drafts, title, composing, busy: gestureBusy, cellDraft: tableEntry.draft?.text,"
+  ],
+  [
+    66,
+    "    editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, allDisplayedObjects, bounds, selectedGroups, numbers,",
+    "    tableMeasure, growTableRows, resolvedTable, editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, allDisplayedObjects, bounds, selectedGroups, numbers,"
+  ],
+  [
+    69,
+    "    board: tidy.board, objects: pages.objects(tidy.board), selected: tidy.selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,",
+    "    tableDraft: tableEntry.draft, tableSelection, board: tidy.board, objects: pages.objects(tidy.board), selected: tidy.selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,"
+  ],
+  [
+    87,
+    "    panel, setPanel, edit, toggle, editor, selector, templatesButton, firstTemplateButton, objectsButton, boardButton, navButton, infoButton,",
+    "    tableEditorBox, revealCell, panel, setPanel, edit, toggle, editor, selector, templatesButton, firstTemplateButton, objectsButton, boardButton, navButton, infoButton,"
+  ],
+  [
+    90,
+    "    composing, busy, readOnly, pos,",
+    "    composing, busy, readOnly, pos, tableCell: tableEntry.draft?.cell, setView,"
+  ],
+  [
+    93,
+    "    commitText, changeText, create, movedBoard, move, resizeStart,",
+    "    tableGeometry, commitText, changeText, create, movedBoard, move, resizeStart,"
+  ],
+  [
+    96,
+    "    page: pages.id, shapeSession, model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,",
+    "    page: pages.id, tableEntry, tableMeasure, growTableRows, chooseTable, revealCell, shapeSession, model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,"
+  ],
+  [
+    101,
+    "    preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,",
+    "    tableGesture, preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,"
+  ],
+  [
+    104,
+    "    page: pages.id, voting: team?.hosted?.voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,",
+    "    page: pages.id, tableSelection, chooseTable, tableGeometry, tableAction: (action) => tableAction(action), voting: team?.hosted?.voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,"
+  ],
+  [
+    125,
+    "  const { connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({",
+    "  const { tableAction, tableSize, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({"
+  ],
+  [
+    126,
+    "    pages, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,",
+    "    pages, tableSelection, chooseTable, growTableRows, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,"
+  ],
+  [
+    136,
+    "  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, onChange: pages.changed, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand(\"Paste\"), composing });",
+    "  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, onChange: pages.changed, tables: { selection: tableSelection, entry: tableEntry, choose: chooseTable, setMessage, cancelDrag: tableGesture.cancelDrag, focus: tableGesture.focus, finish: finishTextSession, endComposition: tableEntry.endComposition }, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand(\"Paste\"), composing });"
+  ],
+  [
+    138,
+    "    editor={editor} inline={inline} text={text} readOnly={readOnly} busy={busy} item={item}",
+    "    tableEntry={tableEntry} tableName={tableName} cellInvalidNotice={cellInvalidNotice} setMessage={setMessage} editCell={tableGeometry.editCell} changeCell={tableGeometry.changeCell} finishCellComposition={tableGeometry.finishCellComposition} editor={editor} inline={inline} text={text} readOnly={readOnly} busy={busy} item={item}"
+  ],
+  [
+    173,
+    "          faded={find.faded} bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={pages.canvas(tidy.board)} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}",
+    "          tableSelection={tableSelection} tableCell={tableEntry.draft?.cell} tableGesture={tableGesture} faded={find.faded} bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={pages.canvas(tidy.board)} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}"
+  ],
+  [
+    180,
+    "        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={pages.canvas()} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} page={pages.id} pos={pos} zoom={view.z} />",
+    "        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={pages.canvas()} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TableButtons object={resolvedTable} selection={tableSelection} editing={inline} busy={busy || composing || tool !== \"Select\" || tidy.open} readOnly={readOnly} zoom={view.z} pos={pos} size={size} ghost={tableGesture.ghost} action={tableAction} select={(s, t) => chooseTable(s, t, setMessage)} focus={tableGesture.focus} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} page={pages.id} pos={pos} zoom={view.z} />"
+  ],
+  [
+    190,
+    "        latestAcknowledgement={latestAcknowledgement} status={status} invalid={invalid} save={save}",
+    "        latestAcknowledgement={latestAcknowledgement} status={status} invalid={invalid} save={tableEntry.exitBefore(save, finishTextSession)}"
+  ],
+  [
+    225,
+    "          contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}",
+    "          tableSelection={tableSelection} tableDraft={tableEntry.draft?.text} tableResizing={tableGesture.resizing} cellInvalidNotice={cellInvalidNotice} setMessage={setMessage} tableAction={tableAction} tableSize={tableSize} editCell={tableGeometry.editCell} contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}"
+  ],
+  [
+    241,
+    "          view={view} itemHeight={itemHeight} text={text} nativeEditor={nativeEditor}",
+    "          tableEditorBox={tableEditorBox} view={view} itemHeight={itemHeight} text={text} nativeEditor={nativeEditor}"
+  ]
+]
+```
+
+</details>

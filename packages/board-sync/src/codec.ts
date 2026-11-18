@@ -70,7 +70,8 @@ export function readBoard(doc: Y.Doc, legacy = false): BoardV14 {
   const board = map(doc.getMap("board"), ["schemaVersion", "boardId", "title", "pageMap", "pages"]);
   const version = board.get("schemaVersion");
   const paged = version === 13 || version === 14;
-  if (!legacy && board.has("pages")) throw Error("invalid_update");
+  if (!legacy && board.has("pages") || legacy && (version === 14 ||
+      version === 13 && (!board.has("pages") || board.has("pageMap")))) throw Error("invalid_update");
   let pages: BoardV14["pages"] | undefined;
   if (paged) {
     if (legacy && board.has("pages")) pages = board.get("pages") as BoardV14["pages"];

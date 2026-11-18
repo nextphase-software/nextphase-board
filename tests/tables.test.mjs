@@ -345,6 +345,7 @@ test("T-U11 stored schema 13 pageMap upgrades to 14 through a schema-only snapsh
   const { NodeStorage } = await import("../apps/server/src/node-storage.ts"), { Room } = await import("../packages/board-room/src/room.ts");
   const { meta, setMeta } = await import("../packages/board-room/src/storage.ts");
   const { canonical } = await document(), { createHash } = await import("node:crypto");
+  const { readBoard } = await import("../packages/board-sync/src/codec.ts");
   const { storedBoardUpdate } = await import("./import-fixture.mjs");
   const id = uuid(), legacy = { schemaVersion: 13, boardId: id, title: "Old room", pages: [{ id, name: "Page 1" }], objects: [], retiredGenerations: [] };
   const storage = new NodeStorage(":memory:"), now = Date.now();
@@ -357,6 +358,8 @@ test("T-U11 stored schema 13 pageMap upgrades to 14 through a schema-only snapsh
     await room.create(legacy);
     const data = storedBoardUpdate(legacy), json = new TextEncoder().encode(canonical(legacy));
     Y.applyUpdate(stored, data);
+    assert.throws(() => readBoard(stored, true), /invalid_update/);
+    assert.throws(() => readBoard(room.doc, true), /invalid_update/);
     storage.exec("DELETE FROM snapshot_chunks");
     storage.exec("INSERT INTO snapshot_chunks VALUES (0,'yjs',0,?)", data);
     storage.exec("INSERT INTO snapshot_chunks VALUES (0,'json',0,?)", json);

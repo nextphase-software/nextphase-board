@@ -744,3 +744,42 @@ Each entry gives the 3f4ad48 line number, the original line and its replacement.
 ```
 
 </details>
+
+### Server fix round — 0011-W1 v1
+
+- Branch `codex/0011-W1-tables`
+- REC-046 repro revision `0f91afc669a2eedf52ca1f0baa6458a9e4831ae1`
+- Validated source and tests `2d93d268ec6d9d8fc068c47fbea68814b52b3850`
+- Toolchain Node 26.13.0 and npm 11.20.0. Added dependencies, services and assets: none.
+
+| Check | Cause and disposition |
+| --- | --- |
+| S430 | Hosted board import assigns a new board ID while preserving the source page IDs. With no page argument, `insertActivity` assigned the new board ID to every copied object as its page. The room rejected the absent page reference as `invalid_document`. Default insertion now uses the first existing page. Explicit page arguments still select their supplied destination. T-U13 saves and wraps the template, then sends both inserts through the room evaluator and verifies page references, IDs, sizes and cell text. S430's assertions are intact. |
+| S259 · A1 | The maintainer authorized adding `table` after `text` and before `image` in the registry-eligible expectation. The existing snapshot assertions and voting code are intact. |
+| S170 | S170 fires at the initial version's `capturedAt + 1,800,000` ms. The room stores `history_next_at` from a later clock read. The Node failure is consistent with that existing timing assumption. An in-memory probe reproduced the missing checkpoint on both `3f4ad48` and `0f91afc` with an advancing clock, and captured the edited title on both at the stored deadline. The capture and deadline code predates this milestone. Workerd passed S170 in REC-046. The failed Node run did not measure the two timestamps. S170 and the history and room code are intact. |
+
+The S170 probe sent a real room edit to change the title and confirmed its saved receipt before firing the
+alarm. It ran two clock cases per revision using the Node runner's in-memory storage.
+
+| Clock case | Schema 13 baseline | Schema 14 candidate |
+| --- | --- | --- |
+| Fixed during creation | Zero skew. Two versions at S170's alarm time | Zero skew. Two versions at S170's alarm time |
+| Advances 1 ms per read during creation | 2 ms skew. One version at S170's alarm time, two at the stored deadline | 2 ms skew. One version at S170's alarm time, two at the stored deadline |
+
+| Command | Result |
+| --- | --- |
+| `node --test --test-reporter=tap --test-name-pattern T-U13 tests/tables.test.mjs` | Reproduced `invalid_document` before the fix. After the fix, 1 passed and 0 failed. |
+| `npm run typecheck` | All five workspaces passed. |
+| `npm test` | 1,293 passed, including T-U13. Zero failed or skipped. |
+| `node --test --test-reporter=tap tests/room.test.mjs tests/tables.test.mjs` | 22 passed without Supabase. Zero failed or skipped. |
+| `git diff --check 0f91afc..2d93d26` | Passed. |
+
+| Changed file | Lines at the validated source | Change |
+| --- | --- | --- |
+| `apps/web/src/activities.ts` | 54 | Default activity insertion page |
+| `tests/server/voting.test.ts` | 52 | A1 expectation in S259 |
+| `tests/tables.test.mjs` | 100–136 | T-U13 regression |
+
+The Supabase-backed `npm run test:server:node` and `npm run test:server:workerd` commands remain unrun
+against the fix. Both require the local stack and are reserved for the check run. This includes the
+S259 and S430 acceptance reruns and the Node rerun of S170. Browser checks remain outside this fix round.

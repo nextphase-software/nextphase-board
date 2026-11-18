@@ -26,6 +26,9 @@ env:
   # S80, S93: close-time limits; S170: checkpoint timing. They pass on the reference machine and
   # failed in both full runs on hosted runners.
   SPEED_CHECKS: "80|93|170"
+  # Node only: S181, S182, S188 restart the server and intermittently hang (120 s timeout instead
+  # of about 7 s) on hosted Linux runners; under investigation. They pass on workerd.
+  NODE_HANG_CHECKS: "181|182|188"
 
 jobs:
   static:
@@ -97,13 +100,17 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p logs
-          npm run "test:server:${{ matrix.runner }}" -- --shard="${{ matrix.shard }}/3" -t "^(?!S(${SPEED_CHECKS}) )" 2>&1 \
+          skip="$SPEED_CHECKS"
+          if [ "${{ matrix.runner }}" = node ]; then skip="$skip|$NODE_HANG_CHECKS"; fi
+          echo "Left out here: S${skip//|/, S}"
+          npm run "test:server:${{ matrix.runner }}" -- --shard="${{ matrix.shard }}/3" -t "^(?!S(${skip}) )" 2>&1 \
             | tee "logs/server-${{ matrix.runner }}.log"
       - name: Summary
         if: always()
         run: |
           {
-            echo "### Server suite (${{ matrix.runner }} ${{ matrix.shard }}/3, speed checks S${SPEED_CHECKS//|/, S} left out)"
+            skip="$SPEED_CHECKS"; if [ "${{ matrix.runner }}" = node ]; then skip="$skip|$NODE_HANG_CHECKS"; fi
+            echo "### Server suite (${{ matrix.runner }} ${{ matrix.shard }}/3; left out: S${skip//|/, S})"
             echo
             sed 's/\x1b\[[0-9;]*m//g' "logs/server-${{ matrix.runner }}.log" | grep -E "^ *(Test Files|Tests|Duration) " | sed 's/^ */- /' || echo "- no result lines"
           } >> "$GITHUB_STEP_SUMMARY"

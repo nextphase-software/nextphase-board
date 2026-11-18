@@ -14,7 +14,7 @@ type Input = { hosted?: HostedBoard; model: RefObject<BoardV14>; load: (board: B
   setTool: Dispatch<SetStateAction<string>>; setInline: Dispatch<SetStateAction<boolean>>;
   tables?: {
     selection?: TableSelection; entry: TableEntry;
-    choose: (s: TableSelection, t: TableItem, notice: (text: string) => void) => void;
+    choose: (s: TableSelection, t: TableItem) => void;
     setMessage: (text: string) => void;
     cancelDrag: () => void;
     focus: () => void;
@@ -47,7 +47,7 @@ export function useHostedBoard({ hosted, model, load, setBoard, setTitle, setRea
         tables.finish();
         setInline(false);
         tables.endComposition();
-        if (result.selection && table) tables.choose(result.selection, table, tables.setMessage);
+        if (result.selection && table) tables.choose(result.selection, table);
         else select("");
         if (result.notice) tables.setMessage(result.notice);
       } else if (draft && table && old && isTable(old) && cellText(old, draft.cell) !== cellText(table, draft.cell)) {

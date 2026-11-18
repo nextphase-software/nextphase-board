@@ -600,7 +600,7 @@ test("0011-W1 App composition changes only its recorded substitutions", () => {
   const substitutions = [
   [
     "import { Overlays } from \"./scene/overlays\"; import { ConnectionDots } from \"./scene/connection-dots\"; import { MindMapButtons } from \"./scene/mind-map-buttons\"; import { TidyUpLayer } from \"./scene/tidy-up-layer\"; import { TidyUpBar } from \"./ui/tidy-up-bar\"; import { FindRings } from \"./scene/find-rings\"; import { FindBar } from \"./ui/find-bar\"; import { PagesPanel } from \"./ui/pages-panel\"; import { MoveToPage } from \"./ui/move-to-page\";",
-    "import { Overlays } from \"./scene/overlays\"; import { ConnectionDots } from \"./scene/connection-dots\"; import { MindMapButtons } from \"./scene/mind-map-buttons\"; import { TableButtons } from \"./scene/table-buttons\"; import { TidyUpLayer } from \"./scene/tidy-up-layer\"; import { TidyUpBar } from \"./ui/tidy-up-bar\"; import { FindRings } from \"./scene/find-rings\"; import { FindBar } from \"./ui/find-bar\"; import { PagesPanel } from \"./ui/pages-panel\"; import { MoveToPage } from \"./ui/move-to-page\";"
+    "import { Overlays } from \"./scene/overlays\"; import { ConnectionDots } from \"./scene/connection-dots\"; import { MindMapButtons } from \"./scene/mind-map-buttons\"; import { TableButtons, TableCellStatus } from \"./scene/table-buttons\"; import { TidyUpLayer } from \"./scene/tidy-up-layer\"; import { TidyUpBar } from \"./ui/tidy-up-bar\"; import { FindRings } from \"./scene/find-rings\"; import { FindBar } from \"./ui/find-bar\"; import { PagesPanel } from \"./ui/pages-panel\"; import { MoveToPage } from \"./ui/move-to-page\";"
   ],
   [
     "  const { inline, setInline, composing, setComposing, textSelection, setTextSelection } = useTextEntry();",
@@ -608,7 +608,7 @@ test("0011-W1 App composition changes only its recorded substitutions", () => {
   ],
   [
     "    tapeSelection, strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,",
-    "    tableSelection, chooseTable, tableName, tapeSelection, strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,"
+    "    tableSelection, tableAnnouncement, chooseTable, tableName, tapeSelection, strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,"
   ],
   [
     "  const { invalidObjectText, invalidFields, invalid, pending } = useValidity({",
@@ -672,7 +672,7 @@ test("0011-W1 App composition changes only its recorded substitutions", () => {
   ],
   [
     "        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={pages.canvas()} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} page={pages.id} pos={pos} zoom={view.z} />",
-    "        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={pages.canvas()} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TableButtons object={resolvedTable} selection={tableSelection} editing={inline} busy={busy || composing || tool !== \"Select\" || tidy.open} readOnly={readOnly} zoom={view.z} pos={pos} size={size} ghost={tableGesture.ghost} action={tableAction} select={(s, t) => chooseTable(s, t, setMessage)} focus={tableGesture.focus} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} page={pages.id} pos={pos} zoom={view.z} />"
+    "        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={pages.canvas()} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TableButtons object={resolvedTable} selection={tableSelection} editing={inline} busy={busy || composing || tool !== \"Select\" || tidy.open} readOnly={readOnly} zoom={view.z} pos={pos} size={size} ghost={tableGesture.ghost} action={tableAction} select={chooseTable} focus={tableGesture.focus} /><TableCellStatus announcement={tableAnnouncement} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} page={pages.id} pos={pos} zoom={view.z} />"
   ],
   [
     "        latestAcknowledgement={latestAcknowledgement} status={status} invalid={invalid} save={save}",

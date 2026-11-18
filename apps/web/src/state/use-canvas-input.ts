@@ -26,7 +26,7 @@ import type { CellAddress } from "nextphase-board-rules/objects/registry.ts";
 
 type Input = {
   tableSelection?: TableSelection;
-  chooseTable: (selection: TableSelection, table: TableItem, message: (text: string) => void) => void;
+  chooseTable: (selection: TableSelection, table: TableItem) => void;
   tableGeometry: {
     editCell: (table: TableItem, at: CellAddress) => void;
     resizedTableBorder: (table: TableItem, border: TableBorder, start: TableLayout, delta: number) => TableItem;
@@ -166,7 +166,7 @@ export function useCanvasInput({
       if (result) {
         e.preventDefault(); e.stopPropagation();
         if ("action" in result) tableAction(result.action);
-        else if ("select" in result) chooseTable({ kind: "cell", id: selectedTable.id, ...result.select }, selectedTable, setMessage);
+        else if ("select" in result) chooseTable({ kind: "cell", id: selectedTable.id, ...result.select }, selectedTable);
         else if ("edit" in result) tableGeometry.editCell(selectedTable, result.edit);
         else if ("exit" in result) select(result.exit ? "" : selectedTable.id);
         return true;
@@ -321,7 +321,7 @@ export function useCanvasInput({
           const ids = [...withMembers(model.current.objects, selected.has(hit.id) ? selected : expanded)];
           if (readOnly || !selected.has(hit.id)) {
             const cell = selectedTable?.id === hit.id && isTable(hit) && hit.tableLayout ? hitCell(hit, hit.tableLayout, p) : undefined;
-            if (cell && isTable(hit)) chooseTable({ kind: "cell", id: hit.id, ...cell }, hit, setMessage);
+            if (cell && isTable(hit)) chooseTable({ kind: "cell", id: hit.id, ...cell }, hit);
             else select(expanded);
           }
           if (!readOnly) drag.current = {
@@ -565,7 +565,7 @@ export function useCanvasInput({
       }
       else {
         const cell = selectedTable?.id === d.id && selectedTable.tableLayout ? hitCell(selectedTable, selectedTable.tableLayout, point(e)) : undefined;
-        if (cell && selectedTable && d.tableCellClick) chooseTable({ kind: "cell", id: d.id, ...cell }, selectedTable, setMessage);
+        if (cell && selectedTable && d.tableCellClick) chooseTable({ kind: "cell", id: d.id, ...cell }, selectedTable);
         else select(pressSelection(model.current.objects, selected, d.id));
         setBoard({ ...model.current });
       }

@@ -20,7 +20,7 @@ type Input = {
   tableEntry: TableEntry;
   tableMeasure: MeasureCell;
   growTableRows: (value: TableItem) => TableItem;
-  chooseTable: (selection: CellSelection, table: TableItem, message: (text: string) => void) => void;
+  chooseTable: (selection: CellSelection, table: TableItem) => void;
   revealCell: (box: Rectangle) => void;
   page: string;
   shapeSession: { paint: RefObject<ShapePaint> };
@@ -118,7 +118,7 @@ export function useGeometryEdits({
     if (!box) return;
     const cell: CellSelection = { kind: "cell", id: table.id, ...at };
     finishTextSession();
-    chooseTable(cell, table, setMessage);
+    chooseTable(cell, table);
     revealCell({ x: box.x + TABLE_INSET, y: box.y + TABLE_INSET, width: box.width - 2 * TABLE_INSET, height: box.height - 2 * TABLE_INSET });
     setPanel(""); tableEntry.setDraft({ cell, text: cellText(table, at) }); setInline(true);
   }

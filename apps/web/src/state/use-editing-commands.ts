@@ -29,7 +29,7 @@ import { anchorCell, boundTable, tableReason, type TableAction, type TableSelect
 
 type Input = {
   tableSelection?: TableSelection;
-  chooseTable: (selection: TableSelection, table: TableItem, message: (text: string) => void) => void;
+  chooseTable: (selection: TableSelection, table: TableItem) => void;
   growTableRows: (table: TableItem) => TableItem;
   pages?: import("../pages").PageNavigation;
   hosted?: HostedBoard;
@@ -306,7 +306,7 @@ export function useEditingCommands({
     } catch (error) { setMessage(String(error)); return; }
     const saved = model.current.objects.find(o => o.id === t.id);
     if (saved && isTable(saved) && saved.rows.some(r => r.id === nextCell.row) && saved.columns.some(c => c.id === nextCell.column))
-      chooseTable({ kind: "cell", id: t.id, ...nextCell }, saved, setMessage);
+      chooseTable({ kind: "cell", id: t.id, ...nextCell }, saved);
     scene.current?.focus();
   }
   function tableSize(value: Style["textSize"]) {

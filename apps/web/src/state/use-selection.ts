@@ -16,7 +16,7 @@ type Input = {
 };
 
 export function useSelection({ board, drafts, textSelection }: Input) {
-  const [level, setLevel] = useState<TableSelection | null>(null);
+  const [level, setLevel] = useState<{ selection: TableSelection; announcement: string } | null>(null);
   const [selected, setIds] = useState<Set<string>>(() => new Set());
   const selectedObjects = board.objects.filter((o) => selected.has(o.id));
   const ideas = selectedObjects.filter(hasRectangle), connectors = selectedObjects.filter(hasEnds);
@@ -33,12 +33,13 @@ export function useSelection({ board, drafts, textSelection }: Input) {
   const item = board.objects.find((o) => o.id === selectedId),
     text = item && hasText(item) ? (drafts[item.id] ?? item.text) : "";
   const table = item && isTable(item) ? item : undefined;
-  const tableSelection = table ? level?.id === table.id
-    ? validTableSelection(table, level, false, "own").selection ?? undefined : { kind: "table" as const, id: table.id } : undefined;
+  const tableSelection = table ? level?.selection.id === table.id
+    ? validTableSelection(table, level.selection, false, "own").selection ?? undefined : { kind: "table" as const, id: table.id } : undefined;
+  const tableAnnouncement = tableSelection?.kind === "cell" ? level?.announcement ?? "" : "";
   function setSelected(ids: Set<string>) { setLevel(null); setIds(ids); }
-  function chooseTable(next: TableSelection, table: TableItem, setMessage: (text: string) => void) {
-    setIds(new Set([next.id])); setLevel(next);
-    if (next.kind === "cell") setMessage(announceCell(table, next));
+  function chooseTable(next: TableSelection, table: TableItem) {
+    setIds(new Set([next.id]));
+    setLevel({ selection: next, announcement: next.kind === "cell" ? announceCell(table, next) : "" });
   }
   const shapes = textIdeas.filter(usesShapePaint), otherObjects = textIdeas.filter((o) => !usesShapePaint(o));
   const shapeSelection = { objects: shapes, hasOther: otherObjects.length > 0,
@@ -54,7 +55,7 @@ export function useSelection({ board, drafts, textSelection }: Input) {
   ])) as Record<Flag, boolean>;
   const colourLabel = selectionColor ? colorEntry(selectionColor).label : "Mixed";
   return {
-    tableName: table ? numberedObjectLabel(board, table) : "", tableSelection, chooseTable, tapeSelection, strokeSelection, ideas, connectors, connectorOnly, shapeSelection, richText, selected, setSelected, selectionKey, selectedId, item, text,
+    tableName: table ? numberedObjectLabel(board, table) : "", tableSelection, tableAnnouncement, chooseTable, tapeSelection, strokeSelection, ideas, connectors, connectorOnly, shapeSelection, richText, selected, setSelected, selectionKey, selectedId, item, text,
     selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats,
   };
 }

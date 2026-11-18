@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import * as Y from "yjs";
 
 const tableRules = () => import("../packages/board-rules/src/objects/table.ts");
@@ -413,16 +414,23 @@ test("T-U11 stored schema 13 pageMap upgrades to 14 through a schema-only snapsh
   } finally { room.doc.destroy(); stored.destroy(); storage.close(); }
 });
 
-test("T-U12 table chrome exposes named buttons, hit sizes and only the permitted selections", async () => {
-  const w = await web(), t = (await board()).objects[0], { build } = await import("esbuild");
-  const compiled = await build({ entryPoints: ["apps/web/src/scene/table-buttons.tsx"], bundle: true, write: false,
+async function tableUi(exports) {
+  const { build } = await import("esbuild");
+  const compiled = await build({
+    stdin: { contents: exports, loader: "ts", resolveDir: new URL("../apps/web/src/", import.meta.url).pathname },
+    bundle: true, write: false,
     format: "esm", platform: "node", jsx: "automatic", packages: "external",
-    plugins: [{ name: "jsx-runtime", setup(build) {
-      build.onResolve({ filter: /^react\/jsx-runtime$/ }, () => ({ path: import.meta.resolve("react/jsx-runtime"), external: true }));
-      build.onResolve({ filter: /^nextphase-board-rules\// }, args => ({ path: import.meta.resolve(args.path), external: true }));
+    plugins: [{ name: "resolve-test-imports", setup(build) {
+      build.onResolve({ filter: /^(react(?:\/jsx-runtime)?$|nextphase-board-rules\/)/ },
+        args => ({ path: import.meta.resolve(args.path), external: true }));
     } }],
   });
-  const { TableButtons } = await import("data:text/javascript;base64," + Buffer.from(compiled.outputFiles[0].text).toString("base64"));
+  return import("data:text/javascript;base64," + Buffer.from(compiled.outputFiles[0].text).toString("base64"));
+}
+
+test("T-U12 table chrome exposes named buttons, hit sizes and only the permitted selections", async () => {
+  const w = await web(), t = (await board()).objects[0];
+  const { TableButtons } = await tableUi('export { TableButtons } from "./scene/table-buttons.tsx";');
   const props = { object: { ...t, tableLayout: w.layoutTable(t, () => 1) }, zoom: 1, pos: p => ({ left: p.x, top: p.y }), size: {w:1440,h:900} };
   const buttons = (selection, extra) => TableButtons({ ...props, selection: { id: t.id, ...selection }, ...extra })?.props.children ?? [];
   assert.deepEqual(buttons({ kind: "table" }).map(b => b.props["aria-label"]), ["Add column", "Add row"]);
@@ -432,4 +440,79 @@ test("T-U12 table chrome exposes named buttons, hit sizes and only the permitted
   assert.deepEqual(buttons({ kind: "column", column: t.columns[0].id }).map(b => b.props["aria-label"]), ["Select column 1"]);
   assert.equal(buttons({ kind: "cell", ...address(t) }, {readOnly:true}).length, 0);
   assert.equal(buttons({ kind: "cell", ...address(t) }, {editing:true}).length, 0);
+});
+
+test("T-U14 both add bars render 24 px thick and 8 px from the drawn edge", async () => {
+  const { layoutTable } = await web(), table = (await board()).objects[0];
+  const { TableButtons } = await tableUi('export { TableButtons } from "./scene/table-buttons.tsx";');
+  const tableLayout = layoutTable(table, () => 3), { box } = tableLayout;
+  for (const zoom of [1, 0.5, 2]) {
+    const { props: { children: [right, bottom] } } = TableButtons({
+      object: { ...table, tableLayout }, selection: { id: table.id, kind: "table" },
+      zoom, pos: ({ x, y }) => ({ left: x * zoom, top: y * zoom }),
+    });
+    assert.equal(right.props.className, "table-add-bar table-add-column");
+    assert.equal(bottom.props.className, "table-add-bar table-add-row");
+    assert.deepEqual(right.props.style, {
+      left: (box.x + box.width) * zoom + 8, top: box.y * zoom, width: 24, height: box.height * zoom,
+    });
+    assert.deepEqual(bottom.props.style, {
+      left: box.x * zoom, top: (box.y + box.height) * zoom + 8, width: box.width * zoom, height: 24,
+    });
+  }
+  const css = readFileSync(new URL("../apps/web/style.css", import.meta.url), "utf8");
+  const addBarRule = css.match(/^\.scene > \.table-add-bar\s*\{([^}]+)\}/m)?.[1] ?? "";
+  assert.match(addBarRule, /\bmin-width:\s*0\s*;/);
+  assert.match(addBarRule, /\bmin-height:\s*0\s*;/);
+  assert.doesNotMatch(css, /\.table-add-(?:bar|column|row)::(?:before|after)\b/);
+});
+
+test("T-U15 moving the selected cell updates a polite sr-only status and leaves the visible notice empty", async () => {
+  const { createElement, Fragment, useState } = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { useSelection, useCanvasInput, useMessages, Notice, TableCellStatus } = await tableUi(`
+    export { useSelection } from "./state/use-selection.ts";
+    export { useCanvasInput } from "./state/use-canvas-input.ts";
+    export { useMessages } from "./state/use-messages.ts";
+    export { Notice } from "./ui/notice.tsx";
+    export { TableCellStatus } from "./scene/table-buttons.tsx";
+  `);
+  const b = withTable(await board(), t => ({ ...t, cells: [{ ...address(t), text: "Ship CSV import" }] }));
+  const scene = {};
+  function renderAfter(keys) {
+    return renderToStaticMarkup(createElement(function Harness() {
+      const [step, setStep] = useState(0);
+      const { selected, tableSelection, tableAnnouncement, chooseTable, setSelected } = useSelection({ board: b, drafts: {}, textSelection: null });
+      const { setMessage, visibleMessage } = useMessages();
+      const { sceneKeyDown } = useCanvasInput({
+        selected, tableSelection, chooseTable, setMessage, displayedObjects: b.objects, tool: "Select",
+        view: { z: 1 }, drag: { current: null }, spacePanRef: { current: false },
+      });
+      // Server rendering applies these state updates before emitting the final markup.
+      if (step === 0) {
+        setMessage("");
+        setSelected(new Set([b.objects[0].id]));
+      } else if (step <= keys.length) {
+        sceneKeyDown({ key: keys[step - 1], target: scene, currentTarget: scene, nativeEvent: {},
+          preventDefault() {}, stopPropagation() {} });
+      }
+      if (step <= keys.length) setStep(step + 1);
+      return createElement(Fragment, null,
+        createElement(Notice, {
+          pages: { list: [] }, showNotice: !!visibleMessage, visibleMessage, invalidFields: [],
+          busy: false, tool: "Select", readOnly: false, snapshots: [],
+        }),
+        createElement(TableCellStatus, { announcement: tableAnnouncement }),
+      );
+    }));
+  }
+  for (const [keys, announcement] of [
+    [["Enter", "ArrowRight"], "Row 1, column 2: empty"],
+    [["Enter"], "Row 1, column 1: Ship CSV import"],
+    [[], ""],
+  ]) {
+    const markup = renderAfter(keys);
+    assert.match(markup, /<aside class="notice" role="status" hidden=""><\/aside>/);
+    assert.ok(markup.includes(`<span class="sr-only" role="status" aria-live="polite" aria-atomic="true">${announcement}</span>`), markup);
+  }
 });

@@ -3,6 +3,10 @@ import type { TableItem } from "nextphase-board-rules/document.ts";
 import type { Point } from "../selection";
 import { tableButtons, tableDimensions, tableReason, type TableAction, type TableGhost, type TableLayout, type TableSelection } from "../table";
 
+export function TableCellStatus({ announcement }: { announcement: string }) {
+  return <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>;
+}
+
 export function TableButtons({ object, selection, editing, busy, readOnly, zoom, pos, size, ghost, action, select, focus }: {
   object?: TableItem & { tableLayout?: TableLayout }; selection?: TableSelection;
   editing: boolean; busy: boolean; readOnly: boolean; zoom: number; pos: (p: Point) => { left: number; top: number };

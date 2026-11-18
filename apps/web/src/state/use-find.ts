@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useCallback, useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
-import type { BoardV13 as Board } from 'nextphase-board-rules/document.ts';
+import type { BoardV14 as Board } from 'nextphase-board-rules/document.ts';
 import type { PageNavigation } from '../pages';
 import { firstPageResult, pageFindResults, resultPageLine, stepPageResult } from '../pages';
 import type { ResolvedItem } from '../geometry';

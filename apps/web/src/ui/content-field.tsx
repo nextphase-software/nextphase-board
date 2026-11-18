@@ -1,10 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, RefObject, SetStateAction, SyntheticEvent } from "react";
 import { count, type ItemV12 as Item, validText } from "nextphase-board-rules/document.ts";
-import { objectType, hasText, isMindNode } from "nextphase-board-rules/objects/registry.ts";
+import { objectType, hasText, isTable, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { codePointOffset, type Flag, type TextSelection } from "nextphase-board-rules/marks.ts";
 
+import { editorName, tableKey } from "../table";
+import type { TableEntry } from "../table";
+import type { CellAddress } from "nextphase-board-rules/objects/registry.ts";
+import type { TableItem } from "nextphase-board-rules/document.ts";
+
 type Props = {
+  tableEntry: TableEntry;
+  tableName: string;
+  cellInvalidNotice: string;
+  setMessage: (message: string) => void;
+  editCell: (table: TableItem, cell: CellAddress) => void;
+  changeCell: (value: string) => void;
+  finishCellComposition: (value: string, inserted: string) => void;
   editor: RefObject<HTMLTextAreaElement | null>;
   inline: boolean;
   text: string;
@@ -25,10 +37,40 @@ type Props = {
 };
 
 export function ContentField({
-  editor, inline, text, readOnly, busy, item, selectedId, composing, beginTextSession,
+  tableEntry, tableName, cellInvalidNotice, setMessage, editCell, changeCell, finishCellComposition, editor, inline, text, readOnly, busy, item, selectedId, composing, beginTextSession,
   changeText, setComposing, setDrafts, commitText, finishTextSession, setInline,
   setTextSelection, toggleFormat,
 }: Props) {
+  if (item && isTable(item)) {
+    const draft = tableEntry.draft;
+    if (!inline || !draft || draft.cell.id !== item.id) return null;
+    const close = () => { finishTextSession(); setInline(false); };
+    return <textarea key={draft.cell.row + ":" + draft.cell.column} ref={editor} className="table-textarea"
+      aria-label={editorName(item, draft.cell, tableName)} placeholder="Add text" value={draft.text}
+      readOnly={readOnly || busy} onChange={e => changeCell(e.currentTarget.value)}
+      onKeyDown={e => {
+        e.stopPropagation();
+        if (composing || e.nativeEvent.isComposing) {
+          if (e.key === "Tab" || e.key === "Enter" || e.key === "Escape") e.preventDefault();
+          return;
+        }
+        const result = tableKey(item, draft.cell, e, true, readOnly, false);
+        if (!result) return;
+        e.preventDefault();
+        if (cellInvalidNotice) { setMessage(cellInvalidNotice); return; }
+        if ("edit" in result) editCell(item, result.edit);
+        else if ("exit" in result) { close(); document.querySelector<HTMLElement>(".scene")?.focus(); }
+      }}
+      onCompositionStart={e => {
+        tableEntry.composition.current = { base: draft.text, offset: e.currentTarget.selectionStart, changed: false };
+        setComposing(true);
+      }}
+      onCompositionEnd={e => {
+        setComposing(false);
+        finishCellComposition(e.currentTarget.value, e.data);
+      }}
+      onBlur={() => { setComposing(false); close(); }} />;
+  }
   if (item && !hasText(item)) return null;
   const type = item ? objectType(item.type) : undefined;
   const node = !!item && isMindNode(item);

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import type { BoardV13 as Board } from 'nextphase-board-rules/document.ts';
+import type { BoardV14 as Board } from 'nextphase-board-rules/document.ts';
 import { addPage, deletePage, duplicatePage, duplicatePageReason, fallbackPage, movePage, movedSet, moveToPage, pageBoard, pageObjects, renamePage, PAGE_LIMIT } from '../pages';
 import { fitView, freeArea, type View } from '../view';
 import { objectBox, unionBoxes } from '../find';

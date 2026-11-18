@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
-import { OBJECT_TYPES, placementTool, kindForTool, SHAPE_KINDS } from "nextphase-board-rules/objects/registry.ts";
+import { OBJECT_TYPES, table, placementTool, kindForTool, SHAPE_KINDS } from "nextphase-board-rules/objects/registry.ts";
 import { DrawButton, DrawingBar, type DrawingControls } from "./drawing-tools";
 import { TemplatesPanel } from "./templates-panel";
 import type { TemplateCommands, Preview } from "../activities";
@@ -54,7 +54,7 @@ export function Palette({
           }}
         >
           <Icon name={name} />
-          <span className="tooltip">{name}{placementTool(name)?.shapePaint ? " · " + SHAPE_KINDS[0].key : ""}</span>
+          <span className="tooltip">{name}{placementTool(name)?.shapePaint ? " · " + SHAPE_KINDS[0].key : name === table.tool ? " · ⇧T" : ""}</span>
         </button>,
         ...(placementTool(name)?.shapePaint ? [<DrawButton key="Draw" tool={tool} drawing={drawing} disabled={readOnly || busy || composing} arm={arm} />] : []),
       ])}

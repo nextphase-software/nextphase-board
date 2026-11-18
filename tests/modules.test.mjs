@@ -55,7 +55,7 @@ function webImportProblems(content, file = "") {
 test("the package holds exactly its modules", () => {
   assert.deepEqual(rulesParts, [
     "document.ts", "marks.ts", "objects/connector.ts", "objects/image.ts", "objects/mind-node.ts", "objects/registry.ts",
-    "objects/section.ts", "objects/shape.ts", "objects/sticky.ts", "objects/stroke.ts", "objects/tape.ts", "objects/text.ts",
+    "objects/section.ts", "objects/shape.ts", "objects/sticky.ts", "objects/stroke.ts", "objects/table.ts", "objects/tape.ts", "objects/text.ts",
     "platform.d.ts", "styles.ts", "transition.ts",
   ]);
   for (const [name, content] of rulesContents) {
@@ -116,7 +116,7 @@ test("the import guards catch each forbidden form", () => {
   }
 });
 
-test("screen parts contain exactly the thirty-two screen modules named through 0010-W2 v1", () => {
+test("screen parts contain exactly the thirty-three screen modules named through 0011-W1 v1", () => {
   assert.deepEqual(screenParts, [
     "arrange-controls.tsx",
     "board-panel.tsx",
@@ -146,6 +146,7 @@ test("screen parts contain exactly the thirty-two screen modules named through 0
     "shape-controls.tsx",
     "shapes-panel.tsx",
     "stroke-controls.tsx",
+    "table-controls.tsx",
     "tape-controls.tsx",
     "templates-panel.tsx",
     "tidy-up-bar.tsx",
@@ -186,7 +187,7 @@ test("every screen part begins with the Apache-2.0 licence header", () => {
   }
 });
 
-test("scene parts contain exactly the sixteen modules named through 0010-W1 v1", () => {
+test("scene parts contain exactly the eighteen modules named through 0011-W1 v1", () => {
   assert.deepEqual(sceneParts, [
     "board-drawing.tsx",
     "connection-dots.tsx",
@@ -202,13 +203,15 @@ test("scene parts contain exactly the sixteen modules named through 0010-W1 v1",
     "section-body.tsx",
     "shape-body.tsx",
     "stroke-body.tsx",
+    "table-body.tsx",
+    "table-buttons.tsx",
     "tape-body.tsx",
     "tidy-up-layer.tsx",
   ]);
 });
 
-test("object types contain exactly the ten object-type modules named through 0009-W3 v1", () => {
-  assert.deepEqual(objectTypes, ["connector.ts", "image.ts", "mind-node.ts", "registry.ts", "section.ts", "shape.ts", "sticky.ts", "stroke.ts", "tape.ts", "text.ts"]);
+test("object types contain exactly the eleven object-type modules named through 0011-W1 v1", () => {
+  assert.deepEqual(objectTypes, ["connector.ts", "image.ts", "mind-node.ts", "registry.ts", "section.ts", "shape.ts", "sticky.ts", "stroke.ts", "table.ts", "tape.ts", "text.ts"]);
 });
 
 test("object types never import React or Konva", () => {
@@ -227,7 +230,7 @@ test("composition and screen parts ask the registry instead of comparing type na
 });
 
 test("screen and scene guard detects equality and inequality in both operand orders", () => {
-  for (const name of ["sticky", "text", "section", "shape", "square", "circle", "connector", "stroke", "tape", "image", "marker", "highlighter"]) {
+  for (const name of ["sticky", "text", "section", "shape", "square", "circle", "connector", "stroke", "table", "tape", "image", "marker", "highlighter"]) {
     for (const operator of ["===", "!=="]) for (const quote of ['"', "'"]) {
       const literal = quote + name + quote;
       for (const comparison of [`o.type ${operator} ${literal}`, `${literal} ${operator} o.type`]) {
@@ -438,8 +441,8 @@ test("object types import only siblings or styles, which never imports object ty
 
 function typeNameComparisons(source) {
   return [
-    /[=!]==\s*["'](?:sticky|text|section|shape|square|circle|connector|stroke|tape|image|marker|highlighter)["']/,
-    /["'](?:sticky|text|section|shape|square|circle|connector|stroke|tape|image|marker|highlighter)["']\s*[=!]==/,
+    /[=!]==\s*["'](?:sticky|text|section|shape|square|circle|connector|stroke|table|tape|image|marker|highlighter)["']/,
+    /["'](?:sticky|text|section|shape|square|circle|connector|stroke|table|tape|image|marker|highlighter)["']\s*[=!]==/,
   ].filter((pattern) => pattern.test(source));
 }
 
@@ -591,29 +594,97 @@ test("the hosted board hook holds exactly one passive effect", () => {
   assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });
 
-// Web modules v42: exact existing-line substitutions from the behaviour baseline.
-test("0010-W3 App composition changes only its recorded substitutions", () => {
-  const base = execFileSync("git", ["show", "e442c8a:apps/web/src/App.tsx"], { encoding: "utf8" });
+// Web modules v43: exact existing-line substitutions from the behaviour baseline.
+test("0011-W1 App composition changes only its recorded substitutions", () => {
+  const base = execFileSync("git", ["show", "3f4ad48:apps/web/src/App.tsx"], { encoding: "utf8" });
   const substitutions = [
   [
-    "  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent }); const pages = usePages({ board, model, stepPage, hosted: !!team?.hosted, commit, finishTextSession, select, setMessage, getView: () => view, setView: value => setView(value), getObjects: () => allDisplayedObjects, openingReason: () => busy || composing || tidy.open ? \"Finish the current action first.\" : \"\", editingReason: () => commandReason || (tidy.open ? \"Apply or cancel Tidy up first.\" : \"\") });",
-    "  } = useBoardDocument({ readOnly, setStatus, hosted: team?.hosted, nameSent: team?.nameSent }); const pages = usePages({ board, model, stepPage, hosted: !!team?.hosted, team: team?.hosted, canEdit: !team?.hosted || !readOnly, commit, finishTextSession, select, setMessage, getView: () => view, setView: (value, following) => following ? setFollowView(value) : setView(value), getObjects: () => allDisplayedObjects, openingReason: () => busy || composing || tidy.open ? \"Finish the current action first.\" : \"\", editingReason: () => commandReason || (tidy.open ? \"Apply or cancel Tidy up first.\" : \"\") });"
+    "import { Overlays } from \"./scene/overlays\"; import { ConnectionDots } from \"./scene/connection-dots\"; import { MindMapButtons } from \"./scene/mind-map-buttons\"; import { TidyUpLayer } from \"./scene/tidy-up-layer\"; import { TidyUpBar } from \"./ui/tidy-up-bar\"; import { FindRings } from \"./scene/find-rings\"; import { FindBar } from \"./ui/find-bar\"; import { PagesPanel } from \"./ui/pages-panel\"; import { MoveToPage } from \"./ui/move-to-page\";",
+    "import { Overlays } from \"./scene/overlays\"; import { ConnectionDots } from \"./scene/connection-dots\"; import { MindMapButtons } from \"./scene/mind-map-buttons\"; import { TableButtons } from \"./scene/table-buttons\"; import { TidyUpLayer } from \"./scene/tidy-up-layer\"; import { TidyUpBar } from \"./ui/tidy-up-bar\"; import { FindRings } from \"./scene/find-rings\"; import { FindBar } from \"./ui/find-bar\"; import { PagesPanel } from \"./ui/pages-panel\"; import { MoveToPage } from \"./ui/move-to-page\";"
   ],
   [
-    "  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand(\"Paste\"), composing });",
-    "  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, onChange: pages.changed, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand(\"Paste\"), composing });"
+    "  const { inline, setInline, composing, setComposing, textSelection, setTextSelection } = useTextEntry();",
+    "  const { tableEntry, inline, setInline, composing, setComposing, textSelection, setTextSelection } = useTextEntry();"
   ],
   [
-    "      {team?.commentsLayer && team.hosted && <team.commentsLayer hosted={team.hosted} board={board} objects={displayedObjects} view={view} size={size} tool={tool} setTool={setTool} setView={setView} scene={scene} select={select} setInline={setInline} />}{team?.presenceLayer && team.hosted && <team.presenceLayer hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}",
-    "      {team?.commentsLayer && team.hosted && <team.commentsLayer page={pages.id} openPage={pages.openPage} hosted={team.hosted} board={board} objects={displayedObjects} view={view} size={size} tool={tool} setTool={setTool} setView={setView} scene={scene} select={select} setInline={setInline} />}{team?.presenceLayer && team.hosted && <team.presenceLayer page={pages.id} hosted={team.hosted} scene={scene} selected={selected} objects={displayedObjects} view={view} size={size} setFollowView={setFollowView} />}"
+    "    tapeSelection, strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,",
+    "    tableSelection, chooseTable, tableName, tapeSelection, strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,"
   ],
   [
-    "      {team?.votingLayer && team.hosted && <team.votingLayer hosted={team.hosted} objects={displayedObjects} view={view} size={size} finishTextSession={finishTextSession} cancel={cancel} setInline={setInline} setTool={setTool} select={select} setView={setView} />}",
-    "      {team?.votingLayer && team.hosted && <team.votingLayer page={pages.id} openPage={pages.openPage} allObjects={allDisplayedObjects} hosted={team.hosted} objects={displayedObjects} view={view} size={size} finishTextSession={finishTextSession} cancel={cancel} setInline={setInline} setTool={setTool} select={select} setView={setView} />}"
+    "  const { invalidObjectText, invalidFields, invalid, pending } = useValidity({",
+    "  const { cellInvalidNotice, invalidObjectText, invalidFields, invalid, pending } = useValidity({"
   ],
   [
-    "      {!team?.hosted && <Notice pages={pages}",
-    "      {(!team?.hosted || !!visibleMessage) && <Notice pages={pages} hosted={!!team?.hosted}"
+    "    board, drafts, title, composing, busy: gestureBusy,",
+    "    board, drafts, title, composing, busy: gestureBusy, cellDraft: tableEntry.draft?.text,"
+  ],
+  [
+    "    editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, allDisplayedObjects, bounds, selectedGroups, numbers,",
+    "    tableMeasure, growTableRows, resolvedTable, editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, allDisplayedObjects, bounds, selectedGroups, numbers,"
+  ],
+  [
+    "    board: tidy.board, objects: pages.objects(tidy.board), selected: tidy.selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,",
+    "    tableDraft: tableEntry.draft, tableSelection, board: tidy.board, objects: pages.objects(tidy.board), selected: tidy.selected, selectedId, item, text, inline, textEditing: !!textSelection, invalidObjectText, tool, readOnly, composing, busy, drag,"
+  ],
+  [
+    "    panel, setPanel, edit, toggle, editor, selector, templatesButton, firstTemplateButton, objectsButton, boardButton, navButton, infoButton,",
+    "    tableEditorBox, revealCell, panel, setPanel, edit, toggle, editor, selector, templatesButton, firstTemplateButton, objectsButton, boardButton, navButton, infoButton,"
+  ],
+  [
+    "    composing, busy, readOnly, pos,",
+    "    composing, busy, readOnly, pos, tableCell: tableEntry.draft?.cell, setView,"
+  ],
+  [
+    "    commitText, changeText, create, movedBoard, move, resizeStart,",
+    "    tableGeometry, commitText, changeText, create, movedBoard, move, resizeStart,"
+  ],
+  [
+    "    page: pages.id, shapeSession, model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,",
+    "    page: pages.id, tableEntry, tableMeasure, growTableRows, chooseTable, revealCell, shapeSession, model, commit, beginTextSession, finishTextSession, setDrafts, setMessage,"
+  ],
+  [
+    "    preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,",
+    "    tableGesture, preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,"
+  ],
+  [
+    "    page: pages.id, voting: team?.hosted?.voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,",
+    "    page: pages.id, tableSelection, chooseTable, tableGeometry, tableAction: (action) => tableAction(action), voting: team?.hosted?.voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,"
+  ],
+  [
+    "  const { connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({",
+    "  const { tableAction, tableSize, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({"
+  ],
+  [
+    "    pages, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,",
+    "    pages, tableSelection, chooseTable, growTableRows, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,"
+  ],
+  [
+    "  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, onChange: pages.changed, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand(\"Paste\"), composing });",
+    "  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, onChange: pages.changed, tables: { selection: tableSelection, entry: tableEntry, choose: chooseTable, setMessage, cancelDrag: tableGesture.cancelDrag, focus: tableGesture.focus, finish: finishTextSession, endComposition: tableEntry.endComposition }, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand(\"Paste\"), composing });"
+  ],
+  [
+    "    editor={editor} inline={inline} text={text} readOnly={readOnly} busy={busy} item={item}",
+    "    tableEntry={tableEntry} tableName={tableName} cellInvalidNotice={cellInvalidNotice} setMessage={setMessage} editCell={tableGeometry.editCell} changeCell={tableGeometry.changeCell} finishCellComposition={tableGeometry.finishCellComposition} editor={editor} inline={inline} text={text} readOnly={readOnly} busy={busy} item={item}"
+  ],
+  [
+    "          faded={find.faded} bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={pages.canvas(tidy.board)} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}",
+    "          tableSelection={tableSelection} tableCell={tableEntry.draft?.cell} tableGesture={tableGesture} faded={find.faded} bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={pages.canvas(tidy.board)} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}"
+  ],
+  [
+    "        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={pages.canvas()} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} page={pages.id} pos={pos} zoom={view.z} />",
+    "        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={pages.canvas()} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TableButtons object={resolvedTable} selection={tableSelection} editing={inline} busy={busy || composing || tool !== \"Select\" || tidy.open} readOnly={readOnly} zoom={view.z} pos={pos} size={size} ghost={tableGesture.ghost} action={tableAction} select={(s, t) => chooseTable(s, t, setMessage)} focus={tableGesture.focus} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} page={pages.id} pos={pos} zoom={view.z} />"
+  ],
+  [
+    "        latestAcknowledgement={latestAcknowledgement} status={status} invalid={invalid} save={save}",
+    "        latestAcknowledgement={latestAcknowledgement} status={status} invalid={invalid} save={tableEntry.exitBefore(save, finishTextSession)}"
+  ],
+  [
+    "          contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}",
+    "          tableSelection={tableSelection} tableDraft={tableEntry.draft?.text} tableResizing={tableGesture.resizing} cellInvalidNotice={cellInvalidNotice} setMessage={setMessage} tableAction={tableAction} tableSize={tableSize} editCell={tableGeometry.editCell} contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}"
+  ],
+  [
+    "          view={view} itemHeight={itemHeight} text={text} nativeEditor={nativeEditor}",
+    "          tableEditorBox={tableEditorBox} view={view} itemHeight={itemHeight} text={text} nativeEditor={nativeEditor}"
   ]
 ];
   let expected = base;

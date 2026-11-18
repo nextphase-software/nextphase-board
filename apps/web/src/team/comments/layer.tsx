@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { BoardV13 } from "nextphase-board-rules/document.ts";
+import type { BoardV14 } from "nextphase-board-rules/document.ts";
 import { hasEnds, hasRectangle } from "nextphase-board-rules/objects/registry.ts";
 import type { ResolvedItem } from "../../geometry";
 import { hitObject } from "../../connectors";
@@ -15,7 +15,7 @@ import { CommentIcon } from "./icons";
 import { anchorAt, anchorPoint, authorColour, commentInputBlocked, drawingOrder, placeBox, refusalWords, threadName, visibleThreads,
   words, type Anchor, type CommentOperation, type CommentThread, type Point } from "./rules";
 
-type Props = { page: string; openPage: (page: string) => View | undefined; hosted: HostedBoard; board: BoardV13; objects: ResolvedItem[]; view: View; size: { w: number; h: number };
+type Props = { page: string; openPage: (page: string) => View | undefined; hosted: HostedBoard; board: BoardV14; objects: ResolvedItem[]; view: View; size: { w: number; h: number };
   tool: string; setTool: Dispatch<SetStateAction<string>>; setView: Dispatch<SetStateAction<View>>;
   scene: RefObject<HTMLDivElement | null>; select: (value: string) => void; setInline: Dispatch<SetStateAction<boolean>> };
 export function CommentsLayer(props: Props) {

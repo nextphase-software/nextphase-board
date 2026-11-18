@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { ResolvedItem as Item } from "../geometry";
-import { objectType, rectangleType, hasText, textBox, hasEnds, isMindNode, fontSize } from "nextphase-board-rules/objects/registry.ts";
+import { objectType, rectangleType, hasText, textBox, hasEnds, isMindNode, isTable, fontSize } from "nextphase-board-rules/objects/registry.ts";
 import { labelEditorBox } from "../connectors";
 import { textUnits } from "nextphase-board-rules/styles.ts";
 import type { View } from "../view";
 
+import { cellBox, TABLE_INSET } from "../table";
+import type { CellSelection } from "../table";
+import type { Point } from "../selection";
+
 type Input = {
+  tableCell?: CellSelection;
+  setView: (view: View) => void;
   finishTextSession: () => void;
   setTool: Dispatch<SetStateAction<string>>;
   scene: React.RefObject<HTMLDivElement | null>;
@@ -25,7 +31,7 @@ type Input = {
 };
 
 export function useEditorPlacement({
-  finishTextSession, setTool, scene, view, size, selected, item, itemHeight, inline, setInline,
+  tableCell, setView, finishTextSession, setTool, scene, view, size, selected, item, itemHeight, inline, setInline,
   composing, busy, readOnly, pos, text,
 }: Input) {
   const [panel, setPanel] = useState("");
@@ -42,10 +48,10 @@ export function useEditorPlacement({
     if (inline && !composing) {
       editor.current?.focus();
       // A node's editor opens with the caret at the end (only a starter map selects its root's text).
-      if (item && isMindNode(item)) editor.current?.setSelectionRange(editor.current.value.length, editor.current.value.length);
+      if (item && (isMindNode(item) || isTable(item))) editor.current?.setSelectionRange(editor.current.value.length, editor.current.value.length);
       else if (item && hasText(item) && !objectType(item.type).richText && item.text === objectType(item.type).initialText) editor.current?.select();
     }
-  }, [inline, selected]);
+  }, [inline, selected, tableCell?.row, tableCell?.column]);
   useEffect(() => {
     if (panel === "Templates") firstTemplateButton.current?.focus();
     if (panel === "Objects") {
@@ -106,6 +112,14 @@ export function useEditorPlacement({
       textUnits(item.textSize) * view.z < 12 || obscured
     ) fallbackEditor();
   }, [inline, selected, view, size, composing, itemHeight, item?.width, item?.textSize, item?.connectorLayout?.labelPoint.x, item?.connectorLayout?.labelPoint.y, item?.connectorLayout ? text : undefined]);
+  const tableBox = item && isTable(item) && item.tableLayout && tableCell && cellBox(item, item.tableLayout, tableCell);
+  const tableEditorBox = tableBox ? { x: tableBox.x + TABLE_INSET, y: tableBox.y + TABLE_INSET,
+    width: tableBox.width - 2 * TABLE_INSET, height: tableBox.height - 2 * TABLE_INSET } : undefined;
+  function revealCell(box: Point & { width: number; height: number }) {
+    const p = pos(box), w = box.width * view.z, h = box.height * view.z;
+    if (w < 40 || h < 24 || p.left < 0 || p.top < 0 || p.left + w > size.w || p.top + h > size.h)
+      setView({ x: box.x + box.width / 2, y: box.y + box.height / 2, z: 1 });
+  }
   function toggle(name: string) {
     if (composing || busy) return;
     finishTextSession();
@@ -126,5 +140,5 @@ export function useEditorPlacement({
         : navButton).current?.focus();
     }
   }
-  return { templatesButton, firstTemplateButton, panel, setPanel, edit, toggle, editor, selector, objectsButton, boardButton, navButton, infoButton };
+  return { tableEditorBox, revealCell, templatesButton, firstTemplateButton, panel, setPanel, edit, toggle, editor, selector, objectsButton, boardButton, navButton, infoButton };
 }

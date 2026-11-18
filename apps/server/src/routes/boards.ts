@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { canonical, validate, type BoardV13 } from "nextphase-board-rules/document.ts";
+import { canonical, upgrade, validate, type BoardV14 } from "nextphase-board-rules/document.ts";
 import { validTitle } from "../cursor.ts";
 import { RoomError } from "nextphase-board-room/protocol.ts";
 import { boardDetails } from "../supabase.ts";
@@ -15,12 +15,12 @@ export function boards(app: ServerApp, runtime: Runtime) {
     shape(value, imported ? ["title", "document"] : keys.length ? ["title"] : []);
     const title = keys.length ? value.title : "Untitled";
     if (!validTitle(title)) throw new RoomError(400, "bad_request");
-    let document: BoardV13 | undefined;
+    let document: BoardV14 | undefined;
     if (imported) {
       try {
         const board = validate(value.document);
-        if (board.schemaVersion !== 13) throw Error();
-        document = board as BoardV13;
+        if (board.schemaVersion !== 13 && board.schemaVersion !== 14) throw Error();
+        document = upgrade(board);
       } catch { throw new RoomError(400, "invalid_document"); }
       try {
         canonical(document);

@@ -1,11 +1,80 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
-import { orderWrites, rebalance } from "./order-keys.ts";
-import { markOf, styleOf, upgrade, type Board } from "nextphase-board-rules/document.ts";
-import { connectorStyleOf, extraValues, hasEnds, hasRectangle, hasText, isImage } from "nextphase-board-rules/objects/registry.ts";
+import { compareKeys, orderWrites, rebalance } from "./order-keys.ts";
+import { markOf, styleOf, upgrade, type Board, type TableItem } from "nextphase-board-rules/document.ts";
+import { connectorStyleOf, extraValues, hasEnds, hasRectangle, hasText, isImage, isTable, cellKey, type TableAxis } from "nextphase-board-rules/objects/registry.ts";
+export type TableOrderHint = {
+  table: string; axis?: TableAxis; moved?: readonly string[];
+  orders?: Partial<Record<TableAxis, ReadonlyMap<string, string>>>;
+  replaceCells?: ReadonlySet<string>;
+};
+
+function writeText(text: Y.Text, value: string) {
+  const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+  const old = [...segmenter.segment(text.toString())].map((part) => part.segment);
+  const next = [...segmenter.segment(value)].map((part) => part.segment);
+  let start = 0, end = 0;
+  while (start < old.length && start < next.length && old[start] === next[start]) start++;
+  while (end < old.length - start && end < next.length - start &&
+    old[old.length - 1 - end] === next[next.length - 1 - end]) end++;
+  const offset = old.slice(0, start).join("").length;
+  const removed = old.slice(start, old.length - end).join("").length;
+  if (removed) text.delete(offset, removed);
+  const inserted = next.slice(start, next.length - end).join("");
+  if (inserted) text.insert(offset, inserted);
+}
+
+function writeAxis<K extends "width" | "height">(map: Y.Map<Y.Map<unknown>>, values: ({ id: string } & Record<K, number>)[],
+    size: K, moved?: readonly string[], restored?: ReadonlyMap<string, string>) {
+  const ids = values.map(v => v.id), live = new Set(ids);
+  for (const id of map.keys()) if (!live.has(id)) map.delete(id);
+  const stored = new Map([...map].map(([id, entry]) => [id, entry.get("order") as string]));
+  for (const [id, key] of restored ?? []) if (live.has(id)) stored.set(id, key);
+  const writes = orderWrites(ids, stored, moved);
+  for (const [id, key] of restored ?? []) if (live.has(id)) writes.set(id, key);
+  for (const value of values) {
+    let entry = map.get(value.id);
+    if (!entry) { entry = new Y.Map(); map.set(value.id, entry); }
+    if (entry.get(size) !== value[size]) entry.set(size, value[size]);
+    const key = writes.get(value.id);
+    if (key !== undefined && key !== entry.get("order")) entry.set("order", key);
+  }
+}
+
+function writeTable(map: Y.Map<unknown>, table: TableItem, changed: boolean, hint?: TableOrderHint) {
+  const place = { x: table.x, y: table.y }, style = { textSize: table.textSize };
+  const set = (key: string, value: unknown) => {
+    if (JSON.stringify(map.get(key)) === JSON.stringify(value)) return false;
+    map.set(key, value); return true;
+  };
+  const placeChanged = set("place", place), styleChanged = set("tableStyle", style);
+  const child = <T>(key: string): Y.Map<T> => {
+    let result = map.get(key) as Y.Map<T> | undefined;
+    if (!result) { result = new Y.Map<T>(); map.set(key, result); }
+    return result;
+  };
+  const columnMap = child<Y.Map<unknown>>("columnMap"), rowMap = child<Y.Map<unknown>>("rowMap"), cells = child<Y.Text>("cells");
+  const desired = new Map(table.cells.map(c => [cellKey(c), c.text]));
+  const live = new Set(table.rows.flatMap(row => table.columns.map(column => cellKey({ row: row.id, column: column.id }))));
+  const axisChanged = <K extends "width" | "height">(axis: Y.Map<Y.Map<unknown>>, entries: ({ id: string } & Record<K, number>)[], size: K) =>
+    axis.size !== entries.length || [...axis].sort(([a, x], [b, y]) => compareKeys(String(x.get("order")), String(y.get("order"))) || compareKeys(a, b))
+      .some(([id, entry], i) => id !== entries[i].id || entry.get(size) !== entries[i][size]);
+  if (!changed && !placeChanged && !styleChanged && !axisChanged(columnMap, table.columns, "width") &&
+      !axisChanged(rowMap, table.rows, "height") && !hint && [...live].every(key => (cells.get(key)?.toString() ?? "") === (desired.get(key) ?? ""))) return;
+  writeAxis(columnMap, table.columns, "width", hint?.axis === "column" ? hint.moved : undefined, hint?.orders?.column);
+  writeAxis(rowMap, table.rows, "height", hint?.axis === "row" ? hint.moved : undefined, hint?.orders?.row);
+  for (const key of cells.keys()) if (!live.has(key) || hint?.replaceCells?.has(key)) cells.delete(key);
+  for (const key of live) {
+    let text = cells.get(key);
+    if (!text) { text = new Y.Text(); cells.set(key, text); }
+    const value = desired.get(key) ?? "";
+    if (text.toString() !== value) writeText(text, value);
+  }
+}
+
 export class Adapter {
   doc = new Y.Doc();
-  set(input: Board, movedPages?: readonly string[], pageOrders?: ReadonlyMap<string, string>) {
+  set(input: Board, movedPages?: readonly string[], pageOrders?: ReadonlyMap<string, string>, tableHint?: TableOrderHint) {
     const b = upgrade(input);
     this.doc.transact(() => {
       const board = this.doc.getMap("board");
@@ -36,8 +105,13 @@ export class Adapter {
           m = new Y.Map<unknown>();
           objects.set(o.id, m);
         }
+        let changed = false;
         for (const key of ["generation", "type", "page", "order", "group", "section"] as const) {
-          if (m.get(key) !== o[key]) m.set(key, o[key]);
+          if (m.get(key) !== o[key]) { m.set(key, o[key]); changed = true; }
+        }
+        if (isTable(o)) {
+          writeTable(m, o, changed, tableHint?.table === o.id ? tableHint : undefined);
+          continue;
         }
         for (const [key, value] of Object.entries(hasEnds(o) ? { ends: { from: { object: o.from.object, anchor: o.from.anchor }, to: { object: o.to.object, anchor: o.to.anchor } }, connectorStyle: connectorStyleOf(o) } : extraValues(o))) {
           if (JSON.stringify(m.get(key)) !== JSON.stringify(value)) m.set(key, value);
@@ -51,18 +125,7 @@ export class Adapter {
             m.set("text", text);
           }
           if (text.toString() !== o.text) {
-            const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-            const old = [...segmenter.segment(text.toString())].map((part) => part.segment);
-            const next = [...segmenter.segment(o.text)].map((part) => part.segment);
-            let start = 0, end = 0;
-            while (start < old.length && start < next.length && old[start] === next[start]) start++;
-            while (end < old.length - start && end < next.length - start &&
-              old[old.length - 1 - end] === next[next.length - 1 - end]) end++;
-            const offset = old.slice(0, start).join("").length;
-            const removed = old.slice(start, old.length - end).join("").length;
-            if (removed) text.delete(offset, removed);
-            const inserted = next.slice(start, next.length - end).join("");
-            if (inserted) text.insert(offset, inserted);
+            writeText(text, o.text);
           }
           const style = styleOf(o);
           if (JSON.stringify(m.get("style")) !== JSON.stringify(style)) {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState, type RefObject, type PointerEvent } from 'react';
-import type { BoardV13 as Board } from 'nextphase-board-rules/document.ts';
+import type { BoardV14 as Board } from 'nextphase-board-rules/document.ts';
 import { applyTidy, placeableItems, placedChanged, tidyGrid, tidyReason, type TidyItem, type SpacingHandle } from '../tidy-up';
 import { whole } from '../tape';
 import type { DisplayObject } from '../selection';

@@ -34,7 +34,7 @@ const coordinates = (points) => points.map(({ x, y }) => [x, y]);
 
 test("v7 connector canonical keys, fixed values, no geometry and end key order", () => {
   const b = join(), line = connector(b), parsed = JSON.parse(canonical(b)).objects.find(hasEnds);
-  assert.equal(b.schemaVersion, 13);
+  assert.equal(b.schemaVersion, 14);
   assert.deepEqual(Object.keys(parsed), ["id", "generation", "type", "page", "text", "color", "textSize", "align", "group", "marks", "section", "from", "to", ...CONNECTOR_STYLE_KEYS, "order"]);
   assert.deepEqual(Object.keys(parsed.from), ["object", "anchor"]); assert.deepEqual(Object.keys(parsed.to), ["object", "anchor"]);
   assert.deepEqual(objectKeys(line.type, 13), Object.keys(parsed));

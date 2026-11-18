@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { PointerEventHandler, ReactNode, RefObject } from "react";
 import { TEXT_INSET, TEXT_LAYOUT, type ResolvedItem as Item } from "../geometry";
-import { objectType, textBox, hasText, hasEnds, isMindNode, fontSize } from "nextphase-board-rules/objects/registry.ts";
+import { objectType, textBox, hasText, isTable, hasEnds, isMindNode, fontSize } from "nextphase-board-rules/objects/registry.ts";
 import { labelEditorBox } from "../connectors";
 import { textUnits } from "nextphase-board-rules/styles.ts";
 import type { View } from "../view";
 
+import { cellLineHeight } from "../table";
+import type { Rectangle } from "../resize";
+
 type Props = {
+  tableEditorBox?: Rectangle;
   inlineSurface: RefObject<HTMLElement | null>;
   trackPointer: PointerEventHandler;
   pos: (o: { x: number; y: number }) => { left: number; top: number };
@@ -17,7 +21,15 @@ type Props = {
   nativeEditor: ReactNode;
 };
 
-export function InlineEditor({ inlineSurface, trackPointer, pos, item, view, itemHeight, text, nativeEditor }: Props) {
+export function InlineEditor({ tableEditorBox, inlineSurface, trackPointer, pos, item, view, itemHeight, text, nativeEditor }: Props) {
+  if (isTable(item) && tableEditorBox) {
+    const font = textUnits(item.textSize);
+    return <section ref={inlineSurface} className="inline table-editor" onPointerEnter={trackPointer} onPointerDown={trackPointer} onPointerMove={trackPointer}
+      style={{ ...pos(tableEditorBox), width: tableEditorBox.width * view.z, height: tableEditorBox.height * view.z,
+        fontFamily: "system-ui", fontSize: font * view.z, lineHeight: cellLineHeight(font) * view.z + "px" }}>
+      {nativeEditor}
+    </section>;
+  }
   if (!hasText(item)) return null;
   // The node editor lies exactly over the node's box, in the node look.
   if (isMindNode(item)) return (

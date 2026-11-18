@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { type Board as SavedBoard, type BoardV13 as Board, empty, type ItemV13 as Item, upgrade } from "nextphase-board-rules/document.ts";
-import { Adapter } from "nextphase-board-sync/document-adapter.ts";
-import { defaultConnectorStyle, type ConnectorStyle, defaultPaint, hasText, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
+import { type Board as SavedBoard, type BoardV14 as Board, empty, tableCellCount, type ItemV14 as Item, upgrade } from "nextphase-board-rules/document.ts";
+import { Adapter, type TableOrderHint } from "nextphase-board-sync/document-adapter.ts";
+import { defaultConnectorStyle, type ConnectorStyle, defaultPaint, MAX_BOARD_CELLS, hasText, isTable, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
 import { emptyHistory, record, type History, type Step } from "../history";
 import { layoutRoots, settle } from "../mind-map";
 
@@ -44,7 +44,7 @@ export function useBoardDocument({ readOnly, setStatus, hosted, nameSent }: Inpu
     updateHistory(emptyHistory());
   }
   function beginTextSession(item: Item | undefined) {
-    if (!item || !hasText(item) || readOnly || textSession.current?.id === item.id) return;
+    if (!item || (!hasText(item) && !isTable(item)) || readOnly || textSession.current?.id === item.id) return;
     finishTextSession();
     const added = pendingAdd.current?.id === item.id ? pendingAdd.current : null;
     pendingAdd.current = null;
@@ -70,9 +70,10 @@ export function useBoardDocument({ readOnly, setStatus, hosted, nameSent }: Inpu
   function finishNameEntry() { nameGroup.current = undefined; }
   // The commit lays out, on the document it commits, every map it changes,
   // except the map of a node whose text session is open (interaction v40).
-  function commit(input: SavedBoard, recordObject = false, orderIds?: readonly string[], opens?: string, movedPages?: readonly string[]) {
+  function commit(input: SavedBoard, recordObject = false, orderIds?: readonly string[], opens?: string, movedPages?: readonly string[], tableHint?: TableOrderHint) {
     const raw = upgrade(input);
     if (readOnly) return;
+    if (tableCellCount(raw.objects) > MAX_BOARD_CELLS) throw Error("A board holds at most 5,000 table cells.");
     let next = settle(model.current, raw, textSession.current?.id);
     if (JSON.stringify(next) === JSON.stringify(model.current)) return;
     pendingAdd.current = null;
@@ -86,15 +87,15 @@ export function useBoardDocument({ readOnly, setStatus, hosted, nameSent }: Inpu
       if (historyRef.current.past.at(-1) !== prior) step = historyRef.current.past.at(-1);
     }
     const before = model.current, group = opens && hosted ? crypto.randomUUID() : undefined;
-    if (!apply(next, group ?? nameGroup.current ?? textSession.current?.group, movedPages)) return;
+    if (!apply(next, group ?? nameGroup.current ?? textSession.current?.group, movedPages, tableHint)) return;
     if (opens) pendingAdd.current = { id: opens, before, group, step: hosted ? undefined : step };
   }
-  function apply(next: Board, group?: string, movedPages?: readonly string[]) {
+  function apply(next: Board, group?: string, movedPages?: readonly string[], tableHint?: TableOrderHint) {
     const titleChanged = next.title !== model.current.title;
-    if (hosted && hosted.edit(next, group, movedPages, stepPage.current) !== true) return false;
+    if (hosted && hosted.edit(next, group, movedPages, stepPage.current, tableHint) !== true) return false;
     if (hosted && titleChanged) nameSent?.(next.title);
     model.current = next;
-    adapter.current!.set(next);
+    adapter.current!.set(next, movedPages, undefined, tableHint);
     revision.current++;
     setBoard(next);
     setStatus("Unsaved");

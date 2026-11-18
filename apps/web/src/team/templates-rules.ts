@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { validate, validText, type BoardV13 } from "nextphase-board-rules/document.ts";
+import { validate, validText, type BoardV14 } from "nextphase-board-rules/document.ts";
 import { hasEnds, hasRectangle, isImage } from "nextphase-board-rules/objects/registry.ts";
 import { buildSnapshot, type Snapshot } from "../clipboard.ts";
 import { connectorLayout } from "../connectors.ts";
@@ -17,16 +17,16 @@ function containsNul(value: unknown): boolean {
   return typeof value === "string" ? value.includes("\u0000") : !!value && typeof value === "object" &&
     Object.entries(value).some(([k, v]) => k.includes("\u0000") || containsNul(v));
 }
-export function templateBoard(objects: unknown): BoardV13 {
+export function templateBoard(objects: unknown): BoardV14 {
   if (!Array.isArray(objects) || objects.length < 1 || objects.length > 250 || containsNul(objects) || objects.some(o =>
     !o || typeof o !== "object" || Array.isArray(o) || "generation" in o || "order" in o || "page" in o || isImage(o))) throw Error("Invalid template");
   const boardId = crypto.randomUUID();
-  const board = validate({ schemaVersion: 13, boardId, pages: [{ id: boardId, name: "Page 1" }], title: "Template", retiredGenerations: [],
-    objects: objects.map((o, order) => ({ ...o, page: boardId, order, generation: crypto.randomUUID() })) }) as BoardV13;
+  const board = validate({ schemaVersion: 14, boardId, pages: [{ id: boardId, name: "Page 1" }], title: "Template", retiredGenerations: [],
+    objects: objects.map((o, order) => ({ ...o, page: boardId, order, generation: crypto.randomUUID() })) }) as BoardV14;
   if (contentBytes(objects) > TEMPLATE_BYTES) throw Error("This is too large for a template. Select fewer objects.");
   return board;
 }
-export function templateSnapshot(board: BoardV13, selected: ReadonlySet<string>, drawn: Parameters<typeof buildSnapshot>[2], page = board.pages[0].id) {
+export function templateSnapshot(board: BoardV14, selected: ReadonlySet<string>, drawn: Parameters<typeof buildSnapshot>[2], page = board.pages[0].id) {
   // Page captures have no canvas measurements. Resolve connector boxes from
   // saved geometry; the clipboard placement box is not part of template storage.
   const rectangles = new Map(board.objects.filter(hasRectangle).map(o => [o.id, o]));

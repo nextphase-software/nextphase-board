@@ -15,7 +15,7 @@ async function fixture(count=4){
     changes:async(_board,after)=>{if(offline)throw Error('Replay unavailable');return {latest,lowestKept:1,changes:changes.filter(c=>c.number>after)};}},
     lifecycle:{lifecycle:async()=>({state:life,generation})},fence:async()=>generation,raiseFence:async(min=0)=>generation=Math.max(generation,min)+1,
     hash:async v=>createHash('sha256').update(v).digest('hex'),randomId:randomUUID,randomTicket:randomUUID,verify:async()=>{},connections:()=>[...connections],schedule:async()=>{},backupLimit:16777216};
-  let room=new Room(id,env),board={schemaVersion:13,boardId:id,pages:[{id,name:"Page 1"}],title:'Reactions board',objects:[],retiredGenerations:[]};
+  let room=new Room(id,env),board={schemaVersion:14,boardId:id,pages:[{id,name:"Page 1"}],title:'Reactions board',objects:[],retiredGenerations:[]};
   for(let i=0;i<count;i++)board=add(board,'sticky',i*260,0);
   await room.create(board);
   async function open(role='editor',person=randomUUID(),label='synthetic'){

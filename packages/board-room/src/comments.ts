@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { requireActive } from "./lifecycle.ts";
-import type { BoardV13 } from "nextphase-board-rules/document.ts";
+import type { BoardV14 } from "nextphase-board-rules/document.ts";
 import { hasRectangle } from "nextphase-board-rules/objects/registry.ts";
 import { anchorPoint, detachAnchor, nameObject, textProblem, type Anchor, type AnchorInput,
   type Comment, type CommentOperation, type Thread } from "nextphase-board-sync/comments.ts";
@@ -23,12 +23,12 @@ function operationShape(value: unknown): value is CommentOperation {
     (typeof value.text !== "string" || textProblem(value.text) === "bad_message")) return false;
   return !["start", "move"].includes(String(action)) || record(value.anchor);
 }
-function threadRow(row: Row, board: BoardV13): Thread {
+function threadRow(row: Row, board: BoardV14): Thread {
   return { id: String(row.id), person: String(row.person), label: String(row.label), anchor: storedAnchor(row, board),
     resolved: !!row.resolved, createdAt: Number(row.created_at), updatedAt: Number(row.updated_at),
     sequence: Number(row.sequence), firstComment: String(row.first_comment) };
 }
-export function storedAnchor(row: Row, board: BoardV13): Anchor {
+export function storedAnchor(row: Row, board: BoardV14): Anchor {
   const anchor = JSON.parse(String(row.anchor));
   return anchor.page ? anchor : { ...anchor, page: board.pages[0].id, pageName: board.pages[0].name };
 }
@@ -41,8 +41,8 @@ export class Comments {
   mentions: Mentions;
   private env: RoomEnvironment;
   private access: Access;
-  private host: { board: BoardV13; boardId: string; generation: number };
-  constructor(env: RoomEnvironment, access: Access, host: { board: BoardV13; boardId: string; generation: number }) {
+  private host: { board: BoardV14; boardId: string; generation: number };
+  constructor(env: RoomEnvironment, access: Access, host: { board: BoardV14; boardId: string; generation: number }) {
     this.mentions = new Mentions(env, host);
     this.env = env; this.access = access; this.host = host;
   }
@@ -180,7 +180,7 @@ export class Comments {
   }
 }
 // Called inside the edit's own transaction; only deletions need wire frames.
-export function keepAnchors(env: RoomEnvironment, before: BoardV13, after: BoardV13) {
+export function keepAnchors(env: RoomEnvironment, before: BoardV14, after: BoardV14) {
   const detached: Thread[] = [];
   for (const row of env.storage.all("SELECT * FROM threads ORDER BY sequence")) {
     const thread = threadRow(row, before), next = detachAnchor(thread.anchor, before, after);

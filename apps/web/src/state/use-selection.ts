@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from "react";
-import type { BoardV12 as Board } from "nextphase-board-rules/document.ts";
+import type { BoardV12 as Board, TableItem } from "nextphase-board-rules/document.ts";
 import { count } from "nextphase-board-rules/document.ts";
 import { FLAGS, formatted, formattedRange, type Flag, type TextSelection } from "nextphase-board-rules/marks.ts";
-import { isTape, objectType, isImage, hasText, hasPoints, usesShapePaint, commonShapeValue, hasRectangle, hasEnds } from "nextphase-board-rules/objects/registry.ts";
+import { isTape, isTable, objectType, isImage, hasText, hasPoints, usesShapePaint, commonShapeValue, hasRectangle, hasEnds } from "nextphase-board-rules/objects/registry.ts";
 import { colorEntry, commonStyle } from "nextphase-board-rules/styles.ts";
+
+import { numberedObjectLabel } from "../sections";
+import { announceCell, validTableSelection, type TableSelection } from "../table";
 
 type Input = {
   board: Board;
@@ -13,7 +16,8 @@ type Input = {
 };
 
 export function useSelection({ board, drafts, textSelection }: Input) {
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [level, setLevel] = useState<TableSelection | null>(null);
+  const [selected, setIds] = useState<Set<string>>(() => new Set());
   const selectedObjects = board.objects.filter((o) => selected.has(o.id));
   const ideas = selectedObjects.filter(hasRectangle), connectors = selectedObjects.filter(hasEnds);
   const connectorOnly = selectedObjects.length > 0 && connectors.length === selectedObjects.length;
@@ -28,6 +32,14 @@ export function useSelection({ board, drafts, textSelection }: Input) {
   const selectedId = selectedObjects.length === 1 ? selectedObjects[0].id : "";
   const item = board.objects.find((o) => o.id === selectedId),
     text = item && hasText(item) ? (drafts[item.id] ?? item.text) : "";
+  const table = item && isTable(item) ? item : undefined;
+  const tableSelection = table ? level?.id === table.id
+    ? validTableSelection(table, level, false, "own").selection ?? undefined : { kind: "table" as const, id: table.id } : undefined;
+  function setSelected(ids: Set<string>) { setLevel(null); setIds(ids); }
+  function chooseTable(next: TableSelection, table: TableItem, setMessage: (text: string) => void) {
+    setIds(new Set([next.id])); setLevel(next);
+    if (next.kind === "cell") setMessage(announceCell(table, next));
+  }
   const shapes = textIdeas.filter(usesShapePaint), otherObjects = textIdeas.filter((o) => !usesShapePaint(o));
   const shapeSelection = { objects: shapes, hasOther: otherObjects.length > 0,
     kind: commonShapeValue(shapes, (o) => o.shape!),
@@ -42,7 +54,7 @@ export function useSelection({ board, drafts, textSelection }: Input) {
   ])) as Record<Flag, boolean>;
   const colourLabel = selectionColor ? colorEntry(selectionColor).label : "Mixed";
   return {
-    tapeSelection, strokeSelection, ideas, connectors, connectorOnly, shapeSelection, richText, selected, setSelected, selectionKey, selectedId, item, text,
+    tableName: table ? numberedObjectLabel(board, table) : "", tableSelection, chooseTable, tapeSelection, strokeSelection, ideas, connectors, connectorOnly, shapeSelection, richText, selected, setSelected, selectionKey, selectedId, item, text,
     selectionColor, selectionSize, selectionAlign, colourLabel, selectionFormats,
   };
 }

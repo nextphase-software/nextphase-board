@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef } from "react";
-import { objectType, hasText } from "nextphase-board-rules/objects/registry.ts";
+import { objectType, hasText, validCellText } from "nextphase-board-rules/objects/registry.ts";
 import { type BoardV12 as Board, validText } from "nextphase-board-rules/document.ts";
 
+import { TABLE_LIMIT_WORDS } from "../table";
+
 type Input = {
+  cellDraft?: string;
   board: Board;
   drafts: Record<string, string>;
   title: string;
@@ -11,7 +14,7 @@ type Input = {
   busy: boolean;
 };
 
-export function useValidity({ board, drafts, title, composing, busy }: Input) {
+export function useValidity({ board, drafts, title, composing, busy, cellDraft }: Input) {
   const invalidObjectFields = board.objects.flatMap((o, i) =>
     hasText(o) && !validText(drafts[o.id] ?? o.text, objectType(o.type).textLimit)
       ? [
@@ -30,5 +33,6 @@ export function useValidity({ board, drafts, title, composing, busy }: Input) {
   const invalid = invalidFields.length > 0;
   const pending = useRef({ invalid: true, composing: false, busy: false });
   pending.current = { invalid, composing, busy };
-  return { invalidObjectText, invalidFields, invalid, pending };
+  const cellInvalid = cellDraft !== undefined && !validCellText(cellDraft);
+  return { cellInvalid, cellInvalidNotice: cellInvalid ? TABLE_LIMIT_WORDS : "", invalidObjectText, invalidFields, invalid, pending };
 }

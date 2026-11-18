@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-import { add, clamp, type BoardV13 as Board, type ItemV13 as Item } from "nextphase-board-rules/document.ts";
+import { add, clamp, type BoardV14 as Board, type ItemV14 as Item } from "nextphase-board-rules/document.ts";
 import { arrangeOrder, type OrderCommand } from "./arrange.ts";
 import { editingCommandReason } from "./commands.ts";
 import { boundingBox, limitMove, type DisplayObject, type Point } from "./selection.ts";
-import { usesShapePaint, kindInfo, isTape, TAPE_PATTERNS, isImage, containerType, isContainer, labelPrefix, hasRectangle, hasEnds, hasText, sectionIdea, orderBand, isMindNode } from "nextphase-board-rules/objects/registry.ts";
+import { usesShapePaint, kindInfo, isTape, isTable, TAPE_PATTERNS, isImage, containerType, isContainer, labelPrefix, hasRectangle, hasEnds, hasText, sectionIdea, orderBand, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { withMaps } from "./mind-map.ts";
 
 import { bands, FOLLOW_REASON } from "./connectors.ts";
+
+import { tableDimensions } from "./table.ts";
+type Layouts = ReadonlyMap<string, { height: number }>;
+const drawnHeight = (o: Item & { height: number }, layouts?: Layouts) => isTable(o) ? layouts?.get(o.id)?.height ?? o.height : o.height;
 
 type Ordered = { id: string; type: string; order: number; page?: string };
 type Member = Ordered & { section?: string | null };
@@ -43,32 +47,36 @@ export function sectionAt(objects: readonly Item[], point: Point): (Item & { x: 
   return [...objects].reverse().filter(hasRectangle).find((o) => isContainer(o) && contains(o, point));
 }
 
-export function dropTargets(board: Board, moving: ReadonlySet<string>, newJoinsOnly = false): Map<string, string | null> {
+export function dropTargets(board: Board, moving: ReadonlySet<string>, newJoinsOnly = false, layouts?: Layouts): Map<string, string | null> {
   const carried = new Set(board.objects.filter((o) => isContainer(o) && moving.has(o.id)).map((o) => o.id));
   const ideas = board.objects.filter(sectionIdea).filter((o) => moving.has(o.id) && !carried.has(o.section!));
   return new Map(ideas.flatMap((o): [string, string | null][] => {
     const group = o.group && board.objects.filter((m) => m.group === o.group);
     const whole = group && group.every((m) => moving.has(m.id));
     const members = whole ? ideas.filter((m) => m.group === o.group) : [o];
-    const box = boundingBox(members.map((m) => ({ ...m, displayHeight: m.height })))!;
+    const box = boundingBox(members.map((m) => ({ ...m, displayHeight: drawnHeight(m, layouts) })))!;
     const target = sectionAt(board.objects.filter(m => m.page === o.page), centre(box))?.id ?? null;
     return newJoinsOnly && (target === null || target === o.section) ? [] : [[o.id, target]];
   }));
 }
 
-export function dropped(board: Board, moving: ReadonlySet<string>): Board {
-  const targets = dropTargets(board, moving);
+export function dropped(board: Board, moving: ReadonlySet<string>, layouts?: Layouts): Board {
+  const targets = dropTargets(board, moving, false, layouts);
   return { ...board, objects: board.objects.map((o) => targets.has(o.id) && o.section !== targets.get(o.id)
     ? { ...o, section: targets.get(o.id)! } : o) };
 }
 
-export function moveWithMembers(board: Board, selected: ReadonlySet<string>, dx: number, dy: number): Board {
+export function moveWithMembers(board: Board, selected: ReadonlySet<string>, dx: number, dy: number, layouts?: Layouts): Board {
   // A section never carries a mind node; a moved node moves its whole map.
   const ids = withMaps(board.objects, withMembers(board.objects, selected));
-  const delta = limitMove(board.objects.filter(hasRectangle).filter((o) => ids.has(o.id)), { x: dx, y: dy });
+  const delta = limitMove(board.objects.filter(hasRectangle).filter((o) => ids.has(o.id)).map(o => ({ ...o, height: drawnHeight(o, layouts) })), { x: dx, y: dy });
   if (!delta.x && !delta.y) return board;
-  return { ...board, objects: board.objects.map((o) => hasRectangle(o) && ids.has(o.id)
-    ? { ...o, x: o.x + delta.x, y: o.y + delta.y } : o) };
+  return { ...board, objects: board.objects.map((o) => {
+    if (!hasRectangle(o) || !ids.has(o.id)) return o;
+    const x = o.x + delta.x, y = o.y + delta.y;
+    return { ...o, x: isTable(o) ? clamp(Math.round(x), -1e6, 1e6 - o.width) : x,
+      y: isTable(o) ? clamp(Math.round(y), -1e6, Math.max(-1e6, 1e6 - drawnHeight(o, layouts))) : y };
+  }) };
 }
 
 export function assignSection(board: Board, selected: ReadonlySet<string>, section: string | null): Board {
@@ -77,12 +85,12 @@ export function assignSection(board: Board, selected: ReadonlySet<string>, secti
   return objects.some((o, i) => o !== board.objects[i]) ? { ...board, objects } : board;
 }
 
-export function placeObject(board: Board, object: Item): Board {
+export function placeObject(board: Board, object: Item, layouts?: Layouts): Board {
   if (!hasRectangle(object)) throw Error("An object with ends cannot be placed by a tool");
   const section = isContainer(object);
   const placed = section || !sectionIdea(object) ? object : { ...object, section: sectionAt(board.objects.filter(o => o.page === object.page), centre(object))?.id ?? null };
   const objects = bandOrder([...board.objects, placed], object.page).map((o, order) => ({ ...o, order,
-    section: section && o.page === object.page && sectionIdea(o) && contains(object, centre(o)) ? object.id : o.section,
+    section: section && o.page === object.page && sectionIdea(o) && contains(object, centre({ ...o, height: drawnHeight(o, layouts) })) ? object.id : o.section,
   }));
   return { ...board, objects };
 }
@@ -121,7 +129,7 @@ export function wrapSelection(board: Board, selected: ReadonlySet<string>, drawn
 }
 
 const shortName = (text: string) => text.slice(0, 36).replace(/\r\n|[\r\n]/g, " ") || "Empty";
-function numberedObjectLabel(board: Board, object: Item): string {
+export function numberedObjectLabel(board: Board, object: Item): string {
   const peers = board.objects.filter((o) => orderBand(o) === orderBand(object));
   return labelPrefix(object) + " " + (peers.findIndex((o) => o.id === object.id) + 1);
 }
@@ -135,6 +143,7 @@ export function commandObjectLabel(board: Board, object: Item): string {
 export function objectLabel(board: Board, object: Item, numbers: ReadonlyMap<string, number>, drafts: Record<string, string> = {}): string {
   const container = isContainer(object);
   const prefix = numberedObjectLabel(board, object);
+  if (isTable(object)) return prefix + " · " + tableDimensions(object);
   const text = hasText(object) ? drafts[object.id] ?? object.text : isImage(object) ? object.description || "No description" : isTape(object) ? TAPE_PATTERNS.find(p => p.value === object.pattern)!.name : "";
   const name = container ? shortName(text) : text.slice(0, 36) || "Empty";
   if (hasEnds(object)) {

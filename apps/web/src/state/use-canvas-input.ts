@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { add, clamp, type Board as SavedBoard, type BoardV13 as Board, type TapeItem } from "nextphase-board-rules/document.ts";
+import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { add, clamp, type Board as SavedBoard, type BoardV14 as Board, type TapeItem, type TableItem } from "nextphase-board-rules/document.ts";
 import type { ResolvedItem as Item } from "../geometry";
 import { expandSelection, pressSelection, toggleGroup } from "../group";
 import { nearestHandle, type Corner } from "../resize";
 import type { View } from "../view";
 import { drawRectangle, dropped, placeObject, withMembers } from "../sections";
-import { isTape, type TapePattern, isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, isMindNode, type ShapePaint, type ConnectorStyle } from "nextphase-board-rules/objects/registry.ts";
+import { isTape, isTable, table, type TapePattern, isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, isMindNode, type ShapePaint, type ConnectorStyle } from "nextphase-board-rules/objects/registry.ts";
 import type { Drag, NodeDrop, ResizeStart } from "../gesture";
 import { branchIds, dropTarget, MAP_WORDS } from "../mind-map";
 
@@ -21,7 +21,17 @@ import { editingCommandReason } from "../commands";
 
 import type { BoardVoting } from "../team/voting";
 
+import { hitBorder, hitCell, tableGhost, tableKey, tableBorders, type TableAction, type TableBorder, type TableGhost, type TableLayout, type TableSelection } from "../table";
+import type { CellAddress } from "nextphase-board-rules/objects/registry.ts";
+
 type Input = {
+  tableSelection?: TableSelection;
+  chooseTable: (selection: TableSelection, table: TableItem, message: (text: string) => void) => void;
+  tableGeometry: {
+    editCell: (table: TableItem, at: CellAddress) => void;
+    resizedTableBorder: (table: TableItem, border: TableBorder, start: TableLayout, delta: number) => TableItem;
+  };
+  tableAction: (action: TableAction) => void;
   page: string;
   voting?: BoardVoting;
   tidy?: TidyActions;
@@ -37,7 +47,7 @@ type Input = {
   setView: Dispatch<SetStateAction<View>>;
   trackPointer: (e: React.PointerEvent) => void;
   setMessage: (value: string) => void;
-  create: (tool: string, x: number, y: number, native?: boolean, released?: boolean) => void;
+  create: (tool: string, x: number, y: number, native?: boolean, released?: boolean, dimensions?: { columns: number; rows: number }) => void;
   resizeStart: () => ResizeStart[];
   resizeStillValid: (start: ResizeStart[]) => boolean;
   resizedBoard: (corner: Corner, start: ResizeStart[], dx: number, dy: number, shift: boolean) => Board;
@@ -70,12 +80,17 @@ type Input = {
 };
 
 export function useCanvasInput({
-  page, voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
+  tableSelection, chooseTable, tableGeometry, tableAction, page, voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
   setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
   scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
   selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
   handlesVisible, handlePoints, objectLayouts, displayedObjects, edit, textEditing, invalidObjectText,
 }: Input) {
+  const tableDrag = useRef<{ object: TableItem; border: TableBorder; layout: TableLayout } | null>(null);
+  const ghost = useRef<TableGhost | null>(null);
+  const [hoverAxis, setHoverAxis] = useState<TableBorder["axis"]>();
+  const tableTarget = displayedObjects.find(o => o.id === tableSelection?.id);
+  const selectedTable = tableTarget && isTable(tableTarget) ? tableTarget : undefined;
   const tapeEnd = useRef<{object:TapeItem & { page: string };end:number;pointer:number}|null>(null);
   tidy?.measure(displayedObjects);
   const canShowDots = !tidy?.open && tool === "Select" && !readOnly && !inline && !composing && !textEditing && !busy && !spacePanRef.current && !drag.current;
@@ -85,7 +100,7 @@ export function useCanvasInput({
   const preview = activeDrawing?.tool === "Washi tape" ? {pattern:drawing.pattern ?? "stripes",...tapeGeometry(activeDrawing.positions[0],activeDrawing.positions.at(-1)!)} : activeDrawing && !isEraser(activeDrawing.tool) && (drag.current?.crossed || inkInfo(drawingStyleFor(activeDrawing.tool, drawing.style)).round)
     ? { ...drawingStyleFor(activeDrawing.tool, drawing.style), ...strokeGeometry(drawingPoints(activeDrawing.positions), drawingStyleFor(activeDrawing.tool, drawing.style)) }
     : drag.current?.mapDrag && drag.current.crossed ? { mapDrag: drag.current.mapDrag } : null;
-  const drawingCursor = isEraser(tool) ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Ccircle cx='7' cy='7' r='6' fill='white' fill-opacity='.4' stroke='%235f5b66'/%3E%3C/svg%3E") 7 7, crosshair` : undefined;
+  const inkCursor = isEraser(tool) ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Ccircle cx='7' cy='7' r='6' fill='white' fill-opacity='.4' stroke='%235f5b66'/%3E%3C/svg%3E") 7 7, crosshair` : undefined;
   const connection = drag.current?.connection;
   function point(e: { clientX: number; clientY: number }) {
     const r = scene.current!.getBoundingClientRect();
@@ -111,13 +126,13 @@ export function useCanvasInput({
   }
   function cancel() {
     const d = drag.current;
-    tapeEnd.current = null;
+    tapeEnd.current = null; tableDrag.current = null; ghost.current = null; setHoverAxis(undefined);
     if (d?.pan) setView(d.view);
     if (d?.box) select(d.previous ?? []);
     setSelectionBox(null);
     drag.current = null;
     setBusy(false);
-    if (!d?.temporary && !d?.drawing) setTool((tool) => tool === "Comment" ? tool : "Select");
+    if (!d?.temporary && !d?.drawing && d?.id !== table.tool) setTool((tool) => tool === "Comment" ? tool : "Select");
     releaseCapture(d?.pointerId);
     setBoard({ ...model.current });
   }
@@ -142,8 +157,29 @@ export function useCanvasInput({
     clearHistory();
     if (readOnly) cancel();
   }, [readOnly]);
+  function tableKeys(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape" && (drag.current?.id === table.tool || tableDrag.current)) {
+      e.preventDefault(); e.stopPropagation(); cancel(); return true;
+    }
+    if (selectedTable && tableSelection && tool === "Select" && !inline && !busy && !tidy?.open) {
+      const result = tableKey(selectedTable, tableSelection, e, false, readOnly, composing);
+      if (result) {
+        e.preventDefault(); e.stopPropagation();
+        if ("action" in result) tableAction(result.action);
+        else if ("select" in result) chooseTable({ kind: "cell", id: selectedTable.id, ...result.select }, selectedTable, setMessage);
+        else if ("edit" in result) tableGeometry.editCell(selectedTable, result.edit);
+        else if ("exit" in result) select(result.exit ? "" : selectedTable.id);
+        return true;
+      }
+    }
+    if (e.code === "KeyT" && e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && !readOnly && !busy && !inline && !textEditing && !tidy?.open) {
+      e.preventDefault(); e.stopPropagation(); setTool(toolForKey("t", true)!); return true;
+    }
+    if (e.key === "Escape" && tool === table.tool) { e.preventDefault(); e.stopPropagation(); setTool("Select"); return true; }
+    return false;
+  }
   function sceneKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    if (e.target !== e.currentTarget || composing) return;
+    if (e.target !== e.currentTarget || composing || e.nativeEvent?.isComposing) return;
     if (e.shiftKey && (e.code === "Digit1" || e.code === "Digit2") && !e.ctrlKey && !e.metaKey && !e.altKey &&
       !inline && !textEditing && !e.nativeEvent.isComposing && !busy && !drag.current && !tidy?.open) {
       e.preventDefault(); e.stopPropagation(); e.code === "Digit1" ? find?.zoomToFit() : find?.zoomToSelection(); return;
@@ -154,6 +190,7 @@ export function useCanvasInput({
       e.preventDefault(); e.stopPropagation(); tidy?.start({readOnly,composing,pointerGesture:busy,invalidObjectText}); return;
     }
     if (e.key === "Escape" && (drag.current?.drawing || tapeEnd.current)) { e.preventDefault(); e.stopPropagation(); cancel(); return; }
+    if (!readOnly && tableKeys(e)) return;
     const drawTool = drawingKey(e.key, e.shiftKey);
     if (drawTool && !readOnly && !inline && !textEditing && !busy && !drag.current && !e.nativeEvent.isComposing && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault(); e.stopPropagation(); setTool(drawTool); return;
@@ -173,7 +210,7 @@ export function useCanvasInput({
       }
       return;
     }
-    if (e.key === "Enter" && !drag.current && !e.metaKey && !e.ctrlKey) {
+    if (e.key === "Enter" && !drag.current && !e.metaKey && !e.ctrlKey && !(selectedTable && readOnly)) {
       e.preventDefault();
       if (placementTool(tool)) {
         create(
@@ -190,7 +227,7 @@ export function useCanvasInput({
     if (
       e.target !== e.currentTarget &&
         !(e.target instanceof HTMLCanvasElement) &&
-        !(e.target instanceof Element && e.target.closest(".resize-handle,.connection-dot")) || composing || inline && !model.current.objects.some((o) => selected.has(o.id) && isContainer(o))
+        !(e.target instanceof Element && e.target.closest(".resize-handle,.connection-dot")) || composing || inline && !model.current.objects.some((o) => selected.has(o.id) && (isContainer(o) || isTable(o)))
     ) return;
     if (e.button !== 0 || drag.current) return;
     if (tidy?.open) { tidy.cancel(); e.preventDefault(); return; }
@@ -208,6 +245,11 @@ export function useCanvasInput({
     const p = point(e);
     if(voting?.pointerDown(e,hitObject(displayedObjects,p,view.z))){scene.current?.focus();e.currentTarget.setPointerCapture(e.pointerId);e.preventDefault();return;}
     finishTextSession();
+    if (inline && selectedTable) setInline(false);
+    if (tool === table.tool && !readOnly) {
+      drag.current = { id: tool, x: p.x, y: p.y, cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false, pointerId: e.pointerId };
+      setBusy(true); scene.current?.focus(); e.currentTarget.setPointerCapture(e.pointerId); e.preventDefault(); return;
+    }
     if (isDrawingTool(tool)) {
       if (editingCommandReason({ readOnly, composing, pointerGesture: false, invalidObjectText })) return;
       drag.current = { id: "", x: p.x, y: p.y, cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false,
@@ -248,6 +290,14 @@ export function useCanvasInput({
       e.preventDefault();
       return;
     }
+    const border = tool === "Select" && !readOnly && !e.shiftKey && !inline && selectedTable?.tableLayout
+      ? hitBorder(selectedTable, selectedTable.tableLayout, p, view.z) : undefined;
+    if (border && selectedTable?.tableLayout) {
+      const saved = model.current.objects.find(o => o.id === selectedTable.id && isTable(o)) as TableItem;
+      tableDrag.current = { object: saved, border, layout: selectedTable.tableLayout };
+      drag.current = { id: saved.id, x: p.x, y: p.y, cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false, pointerId: e.pointerId };
+      setBusy(true); scene.current?.focus(); e.currentTarget.setPointerCapture(e.pointerId); e.preventDefault(); return;
+    }
     const hit = hitObject(displayedObjects, p, view.z);
     if (placementTool(tool)?.draws && !readOnly) {
       drag.current = { id: tool, x: p.x, y: p.y, cx: e.clientX, cy: e.clientY,
@@ -269,10 +319,15 @@ export function useCanvasInput({
         } else {
           const expanded = pressSelection(model.current.objects, selected, hit.id);
           const ids = [...withMembers(model.current.objects, selected.has(hit.id) ? selected : expanded)];
-          if (readOnly || !selected.has(hit.id)) select(expanded);
+          if (readOnly || !selected.has(hit.id)) {
+            const cell = selectedTable?.id === hit.id && isTable(hit) && hit.tableLayout ? hitCell(hit, hit.tableLayout, p) : undefined;
+            if (cell && isTable(hit)) chooseTable({ kind: "cell", id: hit.id, ...cell }, hit, setMessage);
+            else select(expanded);
+          }
           if (!readOnly) drag.current = {
             id: hit.id, ids: hasEnds(hit) ? undefined : ids, x: hit.x, y: hit.y,
             cx: e.clientX, cy: e.clientY, view: { ...view }, pan: false,
+            ...(selected.size === 1 && selected.has(hit.id) && isTable(hit) ? { tableCellClick: true } : {}),
             // One node pressed and dragged carries its branch and may reparent.
             ...(ids.length === 1 && isMindNode(hit) ? { mapDrag: { node: hit.id, branch: branchIds(model.current.objects, hit.id),
               root: hit.parent === null, target: null, side: "right" as const } } : {}),
@@ -307,6 +362,11 @@ export function useCanvasInput({
     trackPointer(e);
     const d = drag.current;
     if(!d&&voting?.pointerMove(e,hitObject(displayedObjects,point(e),view.z)))return;
+    if (!d) {
+      const border = !readOnly && !inline && tool === "Select" && !spacePanRef.current && selectedTable?.tableLayout
+        ? hitBorder(selectedTable, selectedTable.tableLayout, point(e), view.z) : undefined;
+      if (border?.axis !== hoverAxis) setHoverAxis(border?.axis);
+    }
     if (!d || d.connection?.reconnect && e.pointerId !== d.pointerId) return;
     if (tapeEnd.current) {
       const end=tapeEnd.current;if(e.pointerId!==end.pointer)return;
@@ -314,6 +374,19 @@ export function useCanvasInput({
       if(JSON.stringify(live)!==JSON.stringify(end.object)){cancel();return;}
       const moved=moveTapeEnd(end.object,end.end,point(e));
       setBoard({...model.current,objects:model.current.objects.map(o=>o.id===moved.id?moved:o)});return;
+    }
+    if (d.id === table.tool) {
+      d.crossed ||= Math.hypot(e.clientX - d.cx, e.clientY - d.cy) >= 3;
+      ghost.current = d.crossed ? tableGhost(d, point(e), true) : null;
+      setBoard({ ...model.current }); return;
+    }
+    if (tableDrag.current) {
+      const drag = tableDrag.current, live = model.current.objects.find(o => o.id === drag.object.id);
+      if (JSON.stringify(live) !== JSON.stringify(drag.object)) { cancel(); return; }
+      const delta = drag.border.axis === "row" ? (e.clientY - d.cy) / d.view.z : (e.clientX - d.cx) / d.view.z;
+      const next = tableGeometry.resizedTableBorder(drag.object, drag.border, drag.layout, delta);
+      setBoard({ ...model.current, objects: model.current.objects.map(o => o.id === drag.object.id ? next : o) });
+      return;
     }
     if (d.drawing) {
       d.drawing.positions.push(point(e));
@@ -388,6 +461,21 @@ export function useCanvasInput({
     }
     if (!d) return;
     const delta = Math.hypot(e.clientX - d.cx, e.clientY - d.cy);
+    if (d.id === table.tool) {
+      const dimensions = tableGhost(d, point(e), !!d.crossed || delta >= 3);
+      ghost.current = null; setBoard({ ...model.current }); releaseCapture(d.pointerId);
+      create(table.tool, dimensions.x, dimensions.y, false, true, dimensions); return;
+    }
+    if (tableDrag.current) {
+      const drag = tableDrag.current; tableDrag.current = null;
+      const live = model.current.objects.find(o => o.id === drag.object.id);
+      if (!readOnly && delta >= 3 && JSON.stringify(live) === JSON.stringify(drag.object)) {
+        const amount = drag.border.axis === "row" ? (e.clientY - d.cy) / d.view.z : (e.clientX - d.cx) / d.view.z;
+        const next = tableGeometry.resizedTableBorder(drag.object, drag.border, drag.layout, amount);
+        commit({ ...model.current, objects: model.current.objects.map(o => o.id === next.id ? next : o) }, true);
+      }
+      setBoard({ ...model.current }); releaseCapture(d.pointerId); return;
+    }
     if (d.drawing) {
       if (!editingCommandReason({ readOnly, composing, pointerGesture: false, invalidObjectText })) try {
         const positions = [...d.drawing.positions, point(e)];
@@ -445,7 +533,7 @@ export function useCanvasInput({
               x: d.x + (e.clientX - d.cx) / d.view.z, y: d.y + (e.clientY - d.cy) / d.view.z,
             }, placementTool(d.id)!.sizeRange) };
           }
-          const next = placeObject(model.current, object);
+          const next = placeObject(model.current, object, objectLayouts);
           commit(next, true);
           select(object.id);
           setTool("Select");
@@ -472,11 +560,13 @@ export function useCanvasInput({
         setBoard({ ...model.current });
       } else if (delta >= 3 && d.ids) {
         const next = movedBoard(d.ids, (e.clientX - d.cx) / d.view.z, (e.clientY - d.cy) / d.view.z);
-        if (next !== model.current) commit(dropped(next, new Set(d.ids)), true);
+        if (next !== model.current) commit(dropped(next, new Set(d.ids), objectLayouts), true);
         setBoard({ ...model.current });
       }
       else {
-        select(pressSelection(model.current.objects, selected, d.id));
+        const cell = selectedTable?.id === d.id && selectedTable.tableLayout ? hitCell(selectedTable, selectedTable.tableLayout, point(e)) : undefined;
+        if (cell && selectedTable && d.tableCellClick) chooseTable({ kind: "cell", id: d.id, ...cell }, selectedTable, setMessage);
+        else select(pressSelection(model.current.objects, selected, d.id));
         setBoard({ ...model.current });
       }
     }
@@ -489,6 +579,11 @@ export function useCanvasInput({
     const p = point(e);
     const hit = hitObject(displayedObjects, p, view.z);
     if (!hit) return;
+    if (!readOnly && isTable(hit) && hit.tableLayout) {
+      const cell = hitCell(hit, hit.tableLayout, p);
+      if (cell) tableGeometry.editCell(hit, cell);
+      return;
+    }
     select(hit.id);
     if (!readOnly && hasText(hit)) {
       setPanel("");
@@ -509,5 +604,9 @@ export function useCanvasInput({
       cancel();
     }
   }
-  return { preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick, pointerCancel, lostPointerCapture };
+  const border = tableDrag.current && selectedTable?.tableLayout
+    ? tableBorders(selectedTable, selectedTable.tableLayout).find(b => b.id === tableDrag.current?.border.id) : undefined;
+  const cursorAxis = tableDrag.current?.border.axis ?? (!readOnly && !inline && !busy && selectedTable && tool === "Select" ? hoverAxis : undefined);
+  const drawingCursor = cursorAxis ? cursorAxis === "row" ? "row-resize" : "col-resize" : inkCursor;
+  return { tableGesture: { ghost: ghost.current, border, resizing: !!tableDrag.current || !!drag.current?.corner, cancelDrag: () => { if (tableDrag.current || selectedTable && drag.current?.corner) cancel(); }, focus: () => scene.current?.focus() }, preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick, pointerCancel, lostPointerCapture };
 }

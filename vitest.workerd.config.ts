@@ -15,6 +15,6 @@ export default defineConfig({
     } };
   })],
   resolve: { alias: { "board-test-driver": fileURLToPath(new URL("tests/server/driver-workerd.ts", import.meta.url)) } },
-  test: { provide: { runner: "workerd" }, include: ["tests/server/team-pages.test.ts", "tests/server/pages.test.ts", "tests/server/templates.test.ts", "tests/server/reactions.test.ts", "tests/server/spotlight.test.ts", "tests/server/voting.test.ts", "tests/server/timer.test.ts", "tests/server/lifecycle.test.ts", "tests/server/history.test.ts", "tests/server/suite.test.ts", "tests/server/lists.test.ts", "tests/server/removal.test.ts", "tests/server/shared.test.ts", "tests/server/mentions.test.ts", "tests/server/mind-maps.test.ts", "tests/server/drawing-layout.test.ts"], globalSetup: ["tests/server/setup.ts"],
+  test: { provide: { runner: "workerd" }, include: ["tests/server/team-pages.test.ts", "tests/server/tables.test.ts", "tests/server/pages.test.ts", "tests/server/templates.test.ts", "tests/server/reactions.test.ts", "tests/server/spotlight.test.ts", "tests/server/voting.test.ts", "tests/server/timer.test.ts", "tests/server/lifecycle.test.ts", "tests/server/history.test.ts", "tests/server/suite.test.ts", "tests/server/lists.test.ts", "tests/server/removal.test.ts", "tests/server/shared.test.ts", "tests/server/mentions.test.ts", "tests/server/mind-maps.test.ts", "tests/server/drawing-layout.test.ts"], globalSetup: ["tests/server/setup.ts"],
     fileParallelism: false, testTimeout: 120000, hookTimeout: 120000, reporters: ["default"] },
 });

@@ -7,7 +7,7 @@ import { RoomLifecycle, type Lifecycle, type LifecycleRequest } from "./lifecycl
 import * as Y from "yjs";
 import { Adapter, convertPages } from "nextphase-board-sync/document-adapter.ts";
 import { readBoard } from "nextphase-board-sync/codec.ts";
-import { canonical, upgrade, validate, type BoardV13 } from "nextphase-board-rules/document.ts";
+import { canonical, upgrade, validate, type BoardV13, type BoardV14 } from "nextphase-board-rules/document.ts";
 import { History, validateHistoryBackup } from "./history.ts";
 import { HISTORY_INTERVAL } from "nextphase-board-sync/history.ts";
 import { Copies } from "./copies.ts";
@@ -36,7 +36,7 @@ export class Room {
   voting: WorkshopVoting;
   spotlight: Spotlight;
   doc = new Y.Doc();
-  board!: BoardV13;
+  board!: BoardV14;
   initialized = false;
   generation = 0;
   private copies?: Copies;
@@ -72,13 +72,13 @@ export class Room {
     this.tail = result.catch(() => {});
     return result;
   }
-  create(document: BoardV13) {
+  create(document: BoardV13 | BoardV14) {
     return this.ordered(async () => {
       if (meta(this.env.storage, "storage_version")) throw new RoomError(409, "room_exists");
       await this.load(document);
     });
   }
-  async load(document?: BoardV13) {
+  async load(document?: BoardV13 | BoardV14) {
     await this.lifecycle.active();
     this.closeLegacy();
     initialize(this.env.storage);
@@ -93,8 +93,11 @@ export class Room {
       if (!details) throw new RoomError(404, "not_found");
       if (!page) throw new RoomError(503, "service_unavailable");
       const adapter = new Adapter();
-      const board: BoardV13 = document ?? { schemaVersion: 13, boardId: this.boardId, title: details.title, pages: [{ id: this.boardId, name: "Page 1" }], objects: [], retiredGenerations: [] };
-      if (validate(board).schemaVersion !== 13) throw new RoomError(400, "invalid_document");
+      const input = document ?? { schemaVersion: 14 as const, boardId: this.boardId, title: details.title, pages: [{ id: this.boardId, name: "Page 1" }], objects: [], retiredGenerations: [] };
+      try {
+        if (![13, 14].includes(validate(input).schemaVersion)) throw Error();
+      } catch { throw new RoomError(400, "invalid_document"); }
+      const board = upgrade(input);
       adapter.set(board);
       try {
         const prepared = await this.history.prepare(board);
@@ -125,16 +128,11 @@ export class Room {
     this.doc = loadDocument(storage);
     const legacy = meta(storage, "storage_version") === 7;
     this.board = readBoard(this.doc, legacy);
-    if (legacy) storage.transaction(() => {
-      resetVoting(storage);
-      if ([10, 11, 12].includes(this.board.schemaVersion)) this.upgradeStored();
-      else if (this.doc.getMap("board").has("pages")) convertPages(this.doc, this.board.pages);
-      this.board = readBoard(this.doc); validate(this.board);
+    if (legacy || this.board.schemaVersion !== 14) storage.transaction(() => {
+      if (legacy) resetVoting(storage);
+      this.upgradeStored(legacy);
       snapshot(storage, this.doc, this.board, meta(storage, "revision"));
-      setMeta(storage, "storage_version", 8);
-    });
-    if (!legacy && [10, 11, 12].includes(this.board.schemaVersion)) storage.transaction(() => {
-      this.upgradeStored(); snapshot(storage, this.doc, this.board, meta(storage, "revision"));
+      if (legacy) setMeta(storage, "storage_version", 8);
     });
     this.voting.validate();
     this.initialized = true;
@@ -158,17 +156,19 @@ export class Room {
     this.saved();
     this.background(() => this.deliverNotices());
   }
-  // A stored version 10–12 board upgrades to version 13 with the default page. This
-  // is not a person's edit: no edits row, receipt or revision. The snapshot at
-  // the current revision keeps it, so a reload serves version 13 again.
-  private upgradeStored() {
-    const next = upgrade(this.board);
+  // Snapshot the upgraded map at the existing revision, without a person's edit.
+  private upgradeStored(legacy: boolean) {
+    validate(this.board);
+    const version = Number(this.board.schemaVersion);
+    if (![10, 11, 12, 13, 14].includes(version) || legacy && version === 14) throw Error("invalid_document");
     this.doc.transact(() => {
-      this.doc.getMap("board").set("schemaVersion", 13);
-      convertPages(this.doc, next.pages);
-      for (const value of this.doc.getMap<Y.Map<unknown>>("objects").values()) value.set("page", this.boardId);
+      if (version < 13) {
+        convertPages(this.doc, upgrade(this.board).pages);
+        for (const value of this.doc.getMap<Y.Map<unknown>>("objects").values()) value.set("page", this.boardId);
+      } else if (legacy && this.doc.getMap("board").has("pages")) convertPages(this.doc, this.board.pages);
+      this.doc.getMap("board").set("schemaVersion", 14);
     });
-    this.board = readBoard(this.doc);
+    this.board = readBoard(this.doc); validate(this.board);
   }
   private closeLegacy() {
     for (const peer of this.env.connections()) if (!currentAttachment(peer.attachment())) this.close(peer, 1012);

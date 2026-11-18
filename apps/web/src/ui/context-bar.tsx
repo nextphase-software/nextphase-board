@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Dispatch, SetStateAction, RefObject } from "react";
-import { clamp, count, type BoardV13 as Board, type ItemV13 as Item } from "nextphase-board-rules/document.ts";
+import { clamp, count, type BoardV14 as Board, type ItemV14 as Item } from "nextphase-board-rules/document.ts";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, colorEntry, type Style } from "nextphase-board-rules/styles.ts";
-import { objectType, hasText, isMindNode } from "nextphase-board-rules/objects/registry.ts";
+import { objectType, hasText, isMindNode, isTable } from "nextphase-board-rules/objects/registry.ts";
 import { children, type MapCommand } from "../mind-map";
 import { FLAGS, FLAG_LABELS, type Flag } from "nextphase-board-rules/marks.ts";
 import { Icon } from "../icons";
@@ -17,7 +17,20 @@ import { ArrangeControls } from "./arrange-controls";
 
 import { ImageControls, type DescriptionControl } from "./image-controls";
 
+import { TableControls } from "./table-controls";
+import { anchorCell, type TableSelection, type TableAction } from "../table";
+import type { CellAddress } from "nextphase-board-rules/objects/registry.ts";
+import type { TableItem } from "nextphase-board-rules/document.ts";
+
 type Props = {
+  tableSelection?: TableSelection;
+  tableDraft?: string;
+  tableResizing: boolean;
+  cellInvalidNotice: string;
+  setMessage: (value: string) => void;
+  tableAction: (action: TableAction) => void;
+  tableSize: (size: Style["textSize"]) => void;
+  editCell: (table: TableItem, cell: CellAddress) => void;
   moveToPage: React.ReactNode;
   tapeSelection: TapeSelection; tidy: TidyUI;
   board: Board;
@@ -75,7 +88,7 @@ type Props = {
   command: (name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut" | MapCommand) => void;
 };
 
-export function ContextBar({
+export function ContextBar({ tableSelection, tableDraft, tableResizing, cellInvalidNotice, setMessage, tableAction, tableSize, editCell,
   moveToPage, tapeSelection, tidy, board, imageCount, imagesOnly, description, strokeSelection, strokeCommands, connectorObjects, connectorCommands, connectorPopup, connectorOnly, connectorCount, duplicateReason, shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
   inline, richText, finishTextSession, setInline, scene, edit, text, colourControl, colourButton,
   selectionReason, colourLabel, swatchOpen, setArrangeFor, setSwatchFor, selectionKey,
@@ -88,19 +101,62 @@ export function ContextBar({
   const tidyReason = selectionReason || tidy.reason({readOnly,composing,pointerGesture:busy,invalidObjectText:false});
   const nodes = board.objects.filter((o) => selected.has(o.id) && isMindNode(o));
   const branch = item && isMindNode(item) && item.parent !== null && children(board.objects, item.id).length ? item : undefined;
+  const arrangeTools = <>{!nodes.length && <span className="arrange-control" ref={arrangeControl}>
+        <button ref={arrangeButton} className="icon-button" disabled={!!selectionReason}
+          aria-label="Arrange" title={selectionReason || "Arrange"}
+          aria-describedby="selection-reason" aria-expanded={arrangeOpen}
+          aria-controls={arrangeOpen ? "arrange-menu" : undefined}
+          onClick={(e) => {
+            e.currentTarget.focus();
+            setSwatchFor("");
+            setArrangeFor(arrangeOpen ? "" : selectionKey);
+          }}>
+          <Icon name="Arrange" /><span className="tooltip">{selectionReason || "Arrange"}</span>
+        </button>
+        {arrangeOpen && <div id="arrange-menu" ref={arrangeMenu} className="arrange-menu"
+          role="group" aria-label="Arrange" style={{
+            left: clamp(arrangeButton.current?.offsetLeft ?? 0, 12 - contextLeft,
+              size.w - 280 - contextLeft),
+            top: clamp(48, 12 - contextTop, size.h - 12 - arrangeHeight - contextTop),
+            maxHeight: size.h - 24,
+          }} onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              closeArrange();
+            }
+          }}>
+          <ArrangeControls prefix="menu-arrange" choose={(name) => { if (name === "Connect") { closeArrange(); arrange(name); } else { arrange(name); closeArrange(); } }} arrangementReason={arrangementReason} />
+        </div>}
+      </span>}</>;
+  const objectCommands = <>{moveToPage}{(["Duplicate", "Delete"] as const).map((name) => (
+        <button key={name} className="icon-button" aria-label={name}
+          aria-describedby={name === "Duplicate" && duplicateReason !== selectionReason ? "duplicate-reason" : "selection-reason"} disabled={!!(name === "Duplicate" ? duplicateReason : selectionReason)}
+          onClick={() => command(name)}>
+          <Icon name={name} /><span className="tooltip">{(name === "Duplicate" ? duplicateReason : selectionReason) || name}</span>
+        </button>
+      ))}</>;
+  const table = item && isTable(item) && tableSelection && selected.size === 1 ? item : undefined;
+  // Keep the measured element mounted while hiding the table bar during a drag.
+  const visible = contextFits && !(table && tableResizing);
   return (
     <section
       ref={contextBar}
       className="context"
-      aria-hidden={!contextFits}
-      inert={!contextFits}
+      aria-hidden={!visible}
+      inert={!visible}
       style={{
         left: contextLeft,
         top: contextTop,
-        visibility: contextFits ? "visible" : "hidden",
+        visibility: visible ? "visible" : "hidden",
       }}
     >
-      {tapeSelection.only ? <><TapeControls selection={tapeSelection} commands={strokeCommands} reason={selectionReason} />{moveToPage}{(["Duplicate","Delete"] as const).map(name=><button key={name} className="icon-button" aria-label={name} disabled={!!(name==="Duplicate"?duplicateReason:selectionReason)} onClick={()=>command(name)}><Icon name={name} /><span className="tooltip">{name}</span></button>)}</> : strokeSelection.only ? <StrokeControls moveToPage={moveToPage} selection={strokeSelection} commands={strokeCommands} reason={selectionReason} remove={() => command("Delete")} /> : connectorOnly ? <ConnectorControls moveToPage={moveToPage} objects={connectorObjects} commands={connectorCommands} popup={connectorPopup} count={selected.size} empty={!text} reason={selectionReason} edit={edit} remove={() => command("Delete")} /> : <>
+      {table && tableSelection ? <TableControls key={JSON.stringify(tableSelection)} table={table} selection={tableSelection}
+        edit={() => editCell(table, anchorCell(table, tableSelection))} done={() => {
+          if (cellInvalidNotice) { setMessage(cellInvalidNotice); return; }
+          finishTextSession(); setInline(false); scene.current?.focus();
+        }} draft={inline ? tableDraft : undefined} invalid={!!cellInvalidNotice} readOnly={readOnly} composing={composing}
+        reason={selectionReason} action={tableAction} size={tableSize}>{arrangeTools}{objectCommands}</TableControls> : tapeSelection.only ? <><TapeControls selection={tapeSelection} commands={strokeCommands} reason={selectionReason} />{moveToPage}{(["Duplicate","Delete"] as const).map(name=><button key={name} className="icon-button" aria-label={name} disabled={!!(name==="Duplicate"?duplicateReason:selectionReason)} onClick={()=>command(name)}><Icon name={name} /><span className="tooltip">{name}</span></button>)}</> : strokeSelection.only ? <StrokeControls moveToPage={moveToPage} selection={strokeSelection} commands={strokeCommands} reason={selectionReason} remove={() => command("Delete")} /> : connectorOnly ? <ConnectorControls moveToPage={moveToPage} objects={connectorObjects} commands={connectorCommands} popup={connectorPopup} count={selected.size} empty={!text} reason={selectionReason} edit={edit} remove={() => command("Delete")} /> : <>
       {imagesOnly ? <ImageControls count={imageCount} control={description} /> : <>
       <ShapeControls part="kind" selection={shapeSelection} commands={shapeCommands} reason={selectionReason} popup={shapePopup} />
       {(!shapeSelection.objects.length || connectorCount > 0 || strokeSelection.objects.length > 0 || tapeSelection.objects.length > 0) && <span>{item ? objectType(item.type).label : selected.size + " objects"}</span>}
@@ -195,43 +251,10 @@ export function ContextBar({
         <Icon name={branch.collapsed ? "Expand" : "Collapse"} />{branch.collapsed ? "Expand" : "Collapse"}
       </button>
       </>}
-      {!nodes.length && <span className="arrange-control" ref={arrangeControl}>
-        <button ref={arrangeButton} className="icon-button" disabled={!!selectionReason}
-          aria-label="Arrange" title={selectionReason || "Arrange"}
-          aria-describedby="selection-reason" aria-expanded={arrangeOpen}
-          aria-controls={arrangeOpen ? "arrange-menu" : undefined}
-          onClick={(e) => {
-            e.currentTarget.focus();
-            setSwatchFor("");
-            setArrangeFor(arrangeOpen ? "" : selectionKey);
-          }}>
-          <Icon name="Arrange" /><span className="tooltip">{selectionReason || "Arrange"}</span>
-        </button>
-        {arrangeOpen && <div id="arrange-menu" ref={arrangeMenu} className="arrange-menu"
-          role="group" aria-label="Arrange" style={{
-            left: clamp(arrangeButton.current?.offsetLeft ?? 0, 12 - contextLeft,
-              size.w - 280 - contextLeft),
-            top: clamp(48, 12 - contextTop, size.h - 12 - arrangeHeight - contextTop),
-            maxHeight: size.h - 24,
-          }} onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              e.preventDefault();
-              e.stopPropagation();
-              closeArrange();
-            }
-          }}>
-          <ArrangeControls prefix="menu-arrange" choose={(name) => { if (name === "Connect") { closeArrange(); arrange(name); } else { arrange(name); closeArrange(); } }} arrangementReason={arrangementReason} />
-        </div>}
-      </span>}
+      {arrangeTools}
       {!imagesOnly && selected.size >= 2 && <><button className="icon-button" aria-label="Tidy up" title={tidyReason || 'Tidy up'} disabled={!!tidyReason}
         onClick={()=>tidy.start({readOnly,composing,pointerGesture:busy,invalidObjectText:false})}><Icon name="Tidy up" /><span className="tooltip">Tidy up · {/Mac|iPhone|iPad/.test(navigator.platform)?'⌥⇧T':'Alt+Shift+T'}</span></button><span className="divider" aria-hidden="true" /></>}
-      {moveToPage}{(["Duplicate", "Delete"] as const).map((name) => (
-        <button key={name} className="icon-button" aria-label={name}
-          aria-describedby={name === "Duplicate" && duplicateReason !== selectionReason ? "duplicate-reason" : "selection-reason"} disabled={!!(name === "Duplicate" ? duplicateReason : selectionReason)}
-          onClick={() => command(name)}>
-          <Icon name={name} /><span className="tooltip">{(name === "Duplicate" ? duplicateReason : selectionReason) || name}</span>
-        </button>
-      ))}
+      {objectCommands}
       </>}
     </section>
   );

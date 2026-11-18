@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useMemo, type RefObject } from "react";
 import Konva from "konva";
-import type { BoardV13 as Board, ItemV13 as Item } from "nextphase-board-rules/document.ts";
+import type { BoardV14 as Board, ItemV14 as Item, TableItem } from "nextphase-board-rules/document.ts";
 import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT, type ResolvedItem } from "../geometry";
-import { isTape, objectType, textBox, hasText, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds, voteTextAnchor, isMindNode } from "nextphase-board-rules/objects/registry.ts";
+import { isTape, isTable, objectType, textBox, hasText, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds, voteTextAnchor, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { hiddenIds, nodeBox, nodeLines } from "../mind-map";
 import { groupNumbers, wholeGroups } from "../group";
 import { cornerPoint, type Corner } from "../resize";
@@ -15,9 +15,14 @@ import type { Drag } from "../gesture";
 
 import { connectorLayout, labelEditorBox, type ConnectorLayout } from "../connectors";
 
+import { growTable, TABLE_LEVEL, layoutTable, type TableLayout, type TableSelection } from "../table";
+import type { TableDraft } from "../table";
+
 const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
 
 type Input = {
+  tableDraft: TableDraft | null;
+  tableSelection?: TableSelection;
   board: Board;
   objects?: Board["objects"];
   selected: Set<string>;
@@ -71,11 +76,22 @@ function lineCount(object: Item, text = object.text ?? ""): number {
   return lines;
 }
 
+function measureCell(text: string, width: number, fontSize: number) {
+  const measurement = new Konva.Text({ ...TEXT_LAYOUT, fontSize, width, text });
+  const lines = Math.max(1, measurement.textArr.length);
+  measurement.destroy();
+  return lines;
+}
+
 export function useObjectLayouts({
-  board, objects = board.objects, selected, selectedId, item, text, inline, textEditing, invalidObjectText, tool, readOnly, composing, busy, drag,
+  tableDraft, tableSelection, board, objects = board.objects, selected, selectedId, item, text, inline, textEditing, invalidObjectText, tool, readOnly, composing, busy, drag,
 }: Input) {
   const objectLayouts = useMemo(() => {
-    const layouts = new Map(board.objects.filter(hasRectangle).map((o): [string, { height: number; runs: RunLine[] | null; limited: boolean; fadeStart: number; fadeEnd: number; fits?: boolean; fitHeight?: number; connector?: ConnectorLayout }] => {
+    const layouts = new Map(board.objects.filter(hasRectangle).map((o): [string, { height: number; runs: RunLine[] | null; limited: boolean; fadeStart: number; fadeEnd: number; fits?: boolean; fitHeight?: number; connector?: ConnectorLayout; table?: TableLayout }] => {
+    if (isTable(o)) {
+      const table = layoutTable(o, measureCell, tableDraft?.cell.id === o.id ? tableDraft : undefined);
+      return [o.id, { height: table.box.height, table, runs: null, limited: false, fadeStart: 0, fadeEnd: 0 }];
+    }
     if (isMindNode(o)) return [o.id, { height: o.height, runs: nodeLines(inline && o.id === selectedId ? text : o.text, o.parent === null, measureText),
       limited: false, fadeStart: 0, fadeEnd: 0 }];
     if (!hasText(o) || !objectType(o.type).richText) return [o.id, { height: o.height, runs: null,
@@ -108,7 +124,7 @@ export function useObjectLayouts({
       layouts.set(o.id, { height: connector.bounds.height, connector, runs: null, limited: false, fadeStart: 0, fadeEnd: 0 });
     }
     return layouts;
-  }, [board.objects, inline, selectedId, text]);
+  }, [board.objects, inline, selectedId, text, tableDraft]);
   // Hidden mind nodes are not drawn, hit, selected or listed.
   const hidden = hiddenIds(board.objects);
   const allDisplayedObjects: ResolvedItem[] = board.objects.filter((o) => !hidden.has(o.id)).map((o) => {
@@ -121,7 +137,7 @@ export function useObjectLayouts({
       if(width===undefined){const measurement=new Konva.Text({...TEXT_LAYOUT,fontSize,width:box.width,text:displayedText,align:o.align});width=measurement.textArr[0]?.width; measurement.destroy();}
       if(width!==undefined)firstLine={right:box.x+lineOffset(o.align,box.width,width)+width,centerY:box.y+lineHeight/2};
     }
-    return { ...o, firstLine, ...(layout.connector?.bounds ?? {}), connectorLayout: layout.connector, displayHeight: layout.height } as ResolvedItem;
+    return { ...o, ...(layout.table ? { tableLayout: layout.table, tableSelection: tableSelection?.id === o.id ? tableSelection : undefined } : {}), firstLine, ...(layout.connector?.bounds ?? {}), connectorLayout: layout.connector, displayHeight: layout.height } as ResolvedItem;
   });
   const visible = new Set(objects.map(o => o.id));
   const displayedObjects = allDisplayedObjects.filter(o => visible.has(o.id));
@@ -131,7 +147,7 @@ export function useObjectLayouts({
   const bounds = boundingBox(rectanglesSelected.length ? rectanglesSelected : displayedObjects.filter((o) => selected.has(o.id)));
   const selectedGroups = wholeGroups(displayedObjects, selected);
   const numbers = groupNumbers(objects);
-  const handlesVisible = rectanglesSelected.length > 0 && !rectanglesSelected.some(isMindNode) && !rectanglesSelected.some(isTape) && !!bounds && tool === "Select" && !readOnly && (!inline || !!item && !objectType(item.type).richText) && !composing &&
+  const handlesVisible = (!tableSelection || tableSelection.kind === TABLE_LEVEL) && rectanglesSelected.length > 0 && !rectanglesSelected.some(isMindNode) && !rectanglesSelected.some(isTape) && !!bounds && tool === "Select" && !readOnly && (!inline || !!item && !objectType(item.type).richText) && !composing &&
     (!busy || !!drag.current?.corner);
   const handlePoints = bounds ? CORNERS.map((corner) => ({
     corner, ...cornerPoint(corner, bounds),
@@ -143,7 +159,7 @@ export function useObjectLayouts({
     readOnly || composing || busy || inline || textEditing || invalidObjectText ? "Unavailable while editing" : "");
   const itemHeight = item ? objectLayouts.get(item.id)!.height : 0;
   return {
-    editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, allDisplayedObjects, bounds, selectedGroups, numbers,
+    resolvedTable: resolvedItem && isTable(resolvedItem) ? resolvedItem : undefined, tableMeasure: measureCell, growTableRows: (table: TableItem) => growTable(table, measureCell), editorBox, resolvedItem, growHeight, growAvailable, lineCount, objectLayouts, displayedObjects, allDisplayedObjects, bounds, selectedGroups, numbers,
     handlesVisible, handlePoints, itemHeight, measureNode,
   };
 }

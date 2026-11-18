@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OBJECT_TYPES, objectType, typeForTool, placementTool, containerType, isContainer, isImage, isMindNode, isTape } from "../packages/board-rules/src/objects/registry.ts";
+import { OBJECT_TYPES, objectType, typeForTool, placementTool, containerType, isContainer, isImage, isMindNode, isTape, isTable } from "../packages/board-rules/src/objects/registry.ts";
 import { sticky } from "../packages/board-rules/src/objects/sticky.ts";
 import { section } from "../packages/board-rules/src/objects/section.ts";
 import { text } from "../packages/board-rules/src/objects/text.ts";
 import { COLORS, colorEntry, textUnits } from "../packages/board-rules/src/styles.ts";
 
 test("object types retain sticky and text order, labels and placement tools", () => {
-  assert.deepEqual(OBJECT_TYPES.map((t) => t.type), ["sticky", "shape", "text", "section", "stroke", "connector", "image", "mindNode", "tape"]);
+  assert.deepEqual(OBJECT_TYPES.map((t) => t.type), ["sticky", "shape", "text", "section", "table", "stroke", "connector", "image", "mindNode", "tape"]);
   assert.equal(objectType("sticky"), sticky);
   assert.equal(objectType("text"), text);
   assert.equal(objectType("sticky").label, "Sticky");
@@ -41,7 +41,7 @@ test("v7 registry owns ends, rectangles, eligibility, bands and key sets", async
   for (const t of OBJECT_TYPES) {
     const o = { type: t.type };
     assert.equal(hasEnds(o), t.ends); assert.equal(hasRectangle(o), !t.ends);
-    assert.equal(eligibleIdea(o), !t.ends && !t.container && !t.points && !isImage(o) && !isMindNode(o) && !isTape(o));
+    assert.equal(eligibleIdea(o), !t.ends && !t.container && !t.points && !isImage(o) && !isMindNode(o) && !isTape(o) && !isTable(o));
     assert.equal(sectionIdea(o), !t.ends && !t.container && !isMindNode(o));
     assert.equal(hasPoints(o), t.points);
     assert.equal(orderBand(o), t.container ? 0 : t.ends ? 1 : 2);

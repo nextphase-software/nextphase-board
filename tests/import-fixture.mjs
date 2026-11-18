@@ -7,8 +7,16 @@ import { Adapter } from "../packages/board-sync/src/document-adapter.ts";
 export function withoutPages({ pages: _pages, ...board }) {
   return { ...board, objects: board.objects.map(({ page: _page, ...object }) => object) };
 }
+export function version13Board({ boardId, title, pages, objects, retiredGenerations }) {
+  return { schemaVersion: 13, boardId, title, pages, objects, retiredGenerations };
+}
 export function storedBoardUpdate(board, legacyPages = board.schemaVersion < 13) {
-  if (!legacyPages) { const current = new Adapter(); try { current.set(board); return Y.encodeStateAsUpdate(current.doc); } finally { current.destroy(); } }
+  if (!legacyPages && board.schemaVersion !== 13) {
+    const current = new Adapter();
+    try { current.set(board); return Y.encodeStateAsUpdate(current.doc); }
+    finally { current.destroy(); }
+  }
+  if (legacyPages && board.schemaVersion === 14) throw Error("Storage 7 cannot hold schema 14");
   const adapter = new Adapter(), doc = new Y.Doc();
   try {
     adapter.set(board);
@@ -17,7 +25,10 @@ export function storedBoardUpdate(board, legacyPages = board.schemaVersion < 13)
     for (const [key, value] of adapter.doc.getMap("board")) if (!["pages", "pageMap"].includes(key)) {
       doc.getMap("board").set(key, key === "schemaVersion" ? board.schemaVersion : structuredClone(value));
     }
-    if (board.schemaVersion === 13) doc.getMap("board").set("pages", board.pages.map(p => ({ ...p })));
+    if (board.schemaVersion === 13) {
+      if (legacyPages) doc.getMap("board").set("pages", board.pages.map(p => ({ ...p })));
+      else doc.getMap("board").set("pageMap", adapter.doc.getMap("board").get("pageMap").clone());
+    }
     for (const [id, object] of adapter.doc.getMap("objects")) {
       doc.getMap("objects").set(id, new Y.Map([...object].filter(([key]) => board.schemaVersion === 13 || key !== "page")
         .map(([key, value]) => [key, value instanceof Y.Text ? value.clone() : structuredClone(value)])));
@@ -72,7 +83,7 @@ export function richBoard() {
 
 // Long drawing coordinates reach the canonical byte boundary within 250 objects.
 // Canonicalize the small skeleton first, so an over-limit fixture can still be serialized.
-export function sizedBoard(bytes = 2097152, version = 13) {
+export function sizedBoard(bytes = 2097152, version = 14) {
   let board = richBoard();
   board.title = "Sized";
   board.objects[2].text = "";
@@ -89,7 +100,7 @@ export function sizedBoard(bytes = 2097152, version = 13) {
     connector.from.anchor = "auto"; connector.to.anchor = "auto";
   }
   board = JSON.parse(canonical(board));
-  const measured = () => new TextEncoder().encode(JSON.stringify(version === 13 ? withoutPages(board) : board)).length;
+  const measured = () => new TextEncoder().encode(JSON.stringify(version >= 13 ? withoutPages(board) : board)).length;
   let remaining = bytes - measured();
   for (const object of board.objects.slice(6)) for (const point of object.points.slice(1, -1)) {
     for (const axis of [0, 1]) if (remaining >= 5) { point[axis] = 999998; remaining -= 5; }

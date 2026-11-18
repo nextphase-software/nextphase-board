@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { clamp, freshIdentifier, type BoardV13, type TapeItem } from 'nextphase-board-rules/document.ts';
+import { clamp, freshIdentifier, type BoardV14, type TapeItem } from 'nextphase-board-rules/document.ts';
 import { tapeType, TAPE_PAD, TAPE_MIN, TAPE_MAX, type TapePattern } from 'nextphase-board-rules/objects/registry.ts';
 import { pointSegmentDistance, strokeInBox } from './strokes.ts';
 import type { Point } from './selection.ts';
@@ -27,7 +27,7 @@ export function tapeGeometry(start: Point, end: Point, origin: Point = {x:0,y:0}
     points:[[a.x-x,a.y-y],[b.x-x,b.y-y]] as [number,number][]};
 }
 export const clickTape = (p: Point) => tapeGeometry({x:p.x-80,y:p.y},{x:p.x+80,y:p.y});
-export function makeTape(board: BoardV13, start: Point, end: Point, pattern: TapePattern, click=false, page = board.boardId): TapeItem & { page: string } {
+export function makeTape(board: BoardV14, start: Point, end: Point, pattern: TapePattern, click=false, page = board.boardId): TapeItem & { page: string } {
   if(board.objects.length>=250) throw Error('250 object limit reached');
   const id=freshIdentifier(board);
   return {id,generation:freshIdentifier(board,[id]),type:tapeType().type,page,pattern,group:null,section:null,

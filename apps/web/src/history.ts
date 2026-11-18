@@ -4,7 +4,7 @@ import { freshIdentifier as fresh, type Board, type Item, type Page } from "next
 import { bandOrder, orderParticipants, remapSection } from "./sections.ts";
 
 import { cascade, copiedSet, remapEnds, COPY_REASON } from "./connectors.ts";
-import { hasRectangle } from "nextphase-board-rules/objects/registry.ts";
+import { hasRectangle, isTable, remapTable } from "nextphase-board-rules/objects/registry.ts";
 import { afterDelete, copiedStructure, remapParent, type MeasureNode } from "./mind-map.ts";
 
 type ObjectChange = { before: Item | null; after: Item | null };
@@ -132,7 +132,7 @@ export function duplicate(board: Board, history: History, target: Item | Item[],
   const ids = new Map([...identities].map(([source, copy]) => [source, copy.id]));
   for (const item of items) {
     objects.push({
-      ...remapParent(remapEnds(item, ids), ids), ...identities.get(item.id)!,
+      ...remapParent(remapEnds(isTable(item) ? remapTable(item) : item, ids), ids), ...identities.get(item.id)!,
       ...("section" in item ? { section: remapSection(item.section, ids) } : {}),
       ...("group" in item ? { group: item.group ? groups.get(item.group)! : null } : {}),
       ...(hasRectangle(item) ? { x: Math.max(-1e6, Math.min(1e6 - item.width, item.x + 24)),

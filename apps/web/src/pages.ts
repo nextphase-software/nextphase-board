@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { freshIdentifier, validPageName, type BoardV13 as Board, type Page } from 'nextphase-board-rules/document.ts';
+import { freshIdentifier, validPageName, type BoardV14 as Board, type Page } from 'nextphase-board-rules/document.ts';
 import { hasEnds } from 'nextphase-board-rules/objects/registry.ts';
 import { copiedSet } from './connectors.ts';
 import { withHiddenDescendants, withMaps } from './mind-map.ts';

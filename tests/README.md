@@ -678,3 +678,6 @@ adds S417–S424 to both server runners for create/import, page edits and permis
 concurrency, old-room conversion, presence, comments, voting, history and backups.
 Those stack checks belong to the later server-only run; browser N2 and design,
 baseline-negative and A–J checks belong to the independent check run.
+
+- `tables.test.mjs` covers table rules, shared maps, concurrent edits, Undo, canvas helpers and stored-room upgrades.
+- `server/tables.test.ts` contains S425–S430 for both server runners.

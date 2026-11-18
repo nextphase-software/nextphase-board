@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
 import { readBoard } from "nextphase-board-sync/codec.ts";
-import { canonical, validate, type BoardV13 } from "nextphase-board-rules/document.ts";
+import { canonical, validate, type BoardV14 } from "nextphase-board-rules/document.ts";
 import { checkTransition } from "nextphase-board-rules/transition.ts";
 import { isImage } from "nextphase-board-rules/objects/registry.ts";
 import { createEncoder, toUint8Array } from "lib0/encoding";
@@ -11,10 +11,10 @@ import type { Storage } from "./storage.ts";
 import { promote } from "./conflicts.ts";
 import { repair } from "./repair.ts";
 export type EditResult = { kind: "waiting" } | { kind: "refused"; reason: string } |
-  { kind: "complete"; doc: Y.Doc; board: BoardV13; update: Uint8Array; changed: boolean;
+  { kind: "complete"; doc: Y.Doc; board: BoardV14; update: Uint8Array; changed: boolean;
     identifiers: { id: string; generation: string }[] };
 
-export function evaluate(doc: Y.Doc, before: BoardV13, update: Uint8Array, storage: Storage): EditResult {
+export function evaluate(doc: Y.Doc, before: BoardV14, update: Uint8Array, storage: Storage): EditResult {
   const candidate = new Y.Doc();
   // Establish root types before integrating items, so their parent references
   // are the same maps that the mapping and conflict rules inspect.
@@ -30,7 +30,7 @@ export function evaluate(doc: Y.Doc, before: BoardV13, update: Uint8Array, stora
     readSyncMessage(decoder, createEncoder(), candidate, null, (error) => { throw error; });
     if (candidate.store.pendingStructs || candidate.store.pendingDs) return { kind: "waiting" };
     let changed = promote(doc, candidate, update);
-    let after: BoardV13;
+    let after: BoardV14;
     try { after = readBoard(candidate); } catch { return { kind: "refused", reason: "invalid_update" }; }
     if (after.objects.some(o => !after.pages?.some(p => p.id === o.page))) return { kind: "refused", reason: "invalid_document" };
     const repaired = repair(candidate, before, after);
@@ -38,7 +38,7 @@ export function evaluate(doc: Y.Doc, before: BoardV13, update: Uint8Array, stora
     if (repaired.changed) after = readBoard(candidate);
     try {
       validate(after);
-      if (after.schemaVersion !== 13) throw Error();
+      if (after.schemaVersion !== 14) throw Error();
     } catch { return { kind: "refused", reason: "invalid_document" }; }
     try { canonical(after); } catch { return { kind: "refused", reason: "document_too_large" }; }
     try { checkTransition(before, after); } catch { return { kind: "refused", reason: "invalid_transition" }; }

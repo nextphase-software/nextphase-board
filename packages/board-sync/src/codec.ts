@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
 import { compareKeys, validOrderKey } from "./order-keys.ts";
-import type { BoardV13, ItemV13 } from "nextphase-board-rules/document.ts";
-import { hasEnds, hasRectangle, hasText, objectType } from "nextphase-board-rules/objects/registry.ts";
+import type { BoardV14, ItemV14 } from "nextphase-board-rules/document.ts";
+import { hasEnds, hasRectangle, hasText, objectType, isTable, TABLE_ID } from "nextphase-board-rules/objects/registry.ts";
+
+import { TEXT_SIZES } from "nextphase-board-rules/styles.ts";
 
 function exact(value: unknown, keys: readonly string[]): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value) || value instanceof Y.AbstractType ||
@@ -17,18 +19,61 @@ function map(value: unknown, keys: readonly string[]): Y.Map<unknown> {
   return value;
 }
 
+const invalid = (): never => { throw Error("invalid_update"); };
+const sharedCell = (key: string) => {
+  const [row, column, extra] = key.split(":");
+  return extra === undefined && TABLE_ID.test(row) && TABLE_ID.test(column) ? { row, column } : undefined;
+};
+function tableMap(value: unknown, allowed: (key: string) => boolean) {
+  if (!(value instanceof Y.Map) || [...value._map.keys()].some(key => !allowed(key))) return invalid();
+  return value as Y.Map<unknown>;
+}
+function axisEntries<K extends "width" | "height">(value: unknown, size: K) {
+  return [...tableMap(value, id => TABLE_ID.test(id))].map(([id, value]) => {
+    const entry = map(value, ["order", size]), order = entry.get("order"), units = entry.get(size);
+    if (entry.size !== 2 || !validOrderKey(order) || typeof units !== "number" || !Number.isInteger(units)) return invalid();
+    return { id, order, units };
+  }).sort((a, b) => compareKeys(a.order, b.order) || compareKeys(a.id, b.id));
+}
+function readTable(value: Y.Map<unknown>, id: string, common: string[]): ItemV14 {
+  const keys = [...common, "place", "tableStyle", "columnMap", "rowMap", "cells"];
+  const table = map(value, keys);
+  if (table.size !== keys.length) return invalid();
+  const place = exact(table.get("place"), ["x", "y"]), style = exact(table.get("tableStyle"), ["textSize"]);
+  if (Object.getPrototypeOf(place) !== Object.prototype || Object.getPrototypeOf(style) !== Object.prototype ||
+      Object.keys(place).length !== 2 || !Number.isInteger(place.x) || !Number.isInteger(place.y) ||
+      !TEXT_SIZES.some(s => s.name === style.textSize)) return invalid();
+  const columns = axisEntries(table.get("columnMap"), "width").map(({id, units}) => ({id, width: units}));
+  const rows = axisEntries(table.get("rowMap"), "height").map(({id, units}) => ({id, height: units}));
+  const cells = new Map<string, string>();
+  for (const [key, text] of tableMap(table.get("cells"), key => !!sharedCell(key))) {
+    if (!(text instanceof Y.Text) || text.toDelta().some((part: { attributes?: unknown; insert?: unknown }) =>
+      part.attributes || typeof part.insert !== "string")) return invalid();
+    const content = text.toString();
+    if (content) cells.set(key, content);
+  }
+  return { id, ...Object.fromEntries(common.map(key => [key, table.get(key)])), ...place, ...style, columns, rows,
+    cells: rows.flatMap(({id: row}) => columns.flatMap(({id: column}) => {
+      const text = cells.get(row + ":" + column);
+      return text ? [{ row, column, text }] : [];
+    })),
+    width: columns.reduce((sum, c) => sum + c.width, 0), height: rows.reduce((sum, r) => sum + r.height, 0),
+  } as ItemV14;
+}
+
 // Check the complete mapping before projecting it. Silently discarding an
 // unknown field here would allow hidden data to live in an otherwise valid board.
-export function readBoard(doc: Y.Doc, legacy = false): BoardV13 {
+export function readBoard(doc: Y.Doc, legacy = false): BoardV14 {
   if ([...doc.share.keys()].some((key) => !["board", "objects", "retired"].includes(key))) {
     throw Error("invalid_update");
   }
   const board = map(doc.getMap("board"), ["schemaVersion", "boardId", "title", "pageMap", "pages"]);
-  const paged = board.get("schemaVersion") === 13;
+  const version = board.get("schemaVersion");
+  const paged = version === 13 || version === 14;
   if (!legacy && board.has("pages")) throw Error("invalid_update");
-  let pages: BoardV13["pages"] | undefined;
+  let pages: BoardV14["pages"] | undefined;
   if (paged) {
-    if (legacy && board.has("pages")) pages = board.get("pages") as BoardV13["pages"];
+    if (legacy && board.has("pages")) pages = board.get("pages") as BoardV14["pages"];
     else {
       const pageMap = board.get("pageMap");
       if (!(pageMap instanceof Y.Map) || [...pageMap._map.keys()].some(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))) throw Error("invalid_update");
@@ -45,11 +90,13 @@ export function readBoard(doc: Y.Doc, legacy = false): BoardV13 {
   if ([...retired.values()].some((value) => value !== true)) throw Error("invalid_update");
   const items = [...objects.entries()].map(([id, value]) => {
     if (!(value instanceof Y.Map) || typeof value.get("type") !== "string") throw Error("invalid_update");
-    const type = value.get("type") as ItemV13["type"];
+    const type = value.get("type") as ItemV14["type"];
     let record;
     try { record = objectType(type); } catch { throw Error("invalid_update"); }
     const object = { type };
-    const keys = ["generation", "type", "order", "group", "section", ...(paged ? ["page"] : []), ...record.extraKeys];
+    const common = ["generation", "type", "order", "group", "section", ...(paged ? ["page"] : [])];
+    if (isTable(object)) return readTable(value, id, common);
+    const keys = [...common, ...record.extraKeys];
     if (hasEnds(object)) {
       // The adapter groups ends and connector style into atomic values.
       keys.splice(paged ? 6 : 5);
@@ -81,14 +128,14 @@ export function readBoard(doc: Y.Doc, legacy = false): BoardV13 {
     for (const key of ["fill", "border"] as const) {
       if (key in result) exact(result[key], key === "fill" ? ["mode", "color"] : ["style", "color"]);
     }
-    return result as ItemV13;
+    return result as ItemV14;
   });
   return {
-    schemaVersion: board.get("schemaVersion") as 13,
+    schemaVersion: version,
     boardId: board.get("boardId") as string,
     title: board.get("title") as string,
     ...(paged ? { pages } : {}),
     objects: items.sort((a, b) => a.order - b.order),
     retiredGenerations: [...retired.keys()].sort(),
-  } as BoardV13;
+  } as BoardV14;
 }

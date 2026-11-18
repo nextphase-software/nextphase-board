@@ -121,9 +121,9 @@ check(419,'all six concurrent page cases merge in both arrival orders',async()=>
   }
 });
 async function legacySeed(b:any) {
-  const {storedBoardUpdate}=await import('../import-fixture.mjs'),{rules}=await modules(),revision=(await versions()).head.revision;
+  const {storedBoardUpdate,version13Board}=await import('../import-fixture.mjs'),{rules}=await modules(),revision=(await versions()).head.revision;
   const writes:any[]=[{sql:'DELETE FROM snapshot_chunks'},{sql:'DELETE FROM edits'}];
-  for(const [kind,data]of [['json',new TextEncoder().encode(rules.canonical(b))],['yjs',storedBoardUpdate(b,true)]] as const)for(let at=0,index=0;at<data.length;at+=32768,index++)writes.push({sql:`INSERT INTO snapshot_chunks VALUES (?,?,?,${hex(data.slice(at,at+32768))})`,bindings:[revision,kind,index]});
+  for(const [kind,data]of [['json',new TextEncoder().encode(rules.canonical(version13Board(b)))],['yjs',storedBoardUpdate(version13Board(b),true)]] as const)for(let at=0,index=0;at<data.length;at+=32768,index++)writes.push({sql:`INSERT INTO snapshot_chunks VALUES (?,?,?,${hex(data.slice(at,at+32768))})`,bindings:[revision,kind,index]});
   writes.push({sql:"UPDATE meta SET value=7 WHERE key='storage_version'"}, {sql:'DROP TABLE workshop_vote'},
     {sql:'CREATE TABLE workshop_vote (singleton INTEGER PRIMARY KEY,status TEXT,session_id TEXT,session_version INTEGER,prompt TEXT,budget INTEGER,targets TEXT,totals TEXT)'},
     {sql:"INSERT INTO workshop_vote VALUES (1,'running',?,1,'Legacy vote',3,?,NULL)",bindings:[crypto.randomUUID(),JSON.stringify([[b.objects[0].id,b.objects[0].generation,0]])]});
@@ -176,9 +176,9 @@ check(424,'history and backups retain all pages; storage-7 backup upgrades and 6
   const head=(await versions()).head;await ok(`/boards/${f.a}/versions/${saved.version.id}/restore`,'owner','POST',{requestId:crypto.randomUUID(),expectedRevision:head.revision,expectedGeneration:head.generation});assert.deepEqual((await exported()).pages,b.pages);
   const operator=async(action:string,value?:unknown)=>driver.request(`/operator/boards/${f.a}/${action}`,{method:'POST',headers:{'Board-Operator-Key':context.operatorKey,'Content-Type':'application/json'},...(value?{body:JSON.stringify(value)}:{})});
   const backup=await (await operator('backup')).json() as any;assert.equal(backup.tables.meta.find(r=>r.key==='storage_version').value,8);assert.equal((await operator('restore',backup)).status,200);await exported();
-  const legacy=structuredClone(backup),{storedBoardUpdate}=await import('../import-fixture.mjs');legacy.tables.meta.find(r=>r.key==='storage_version').value=7;
+  const legacy=structuredClone(backup),{storedBoardUpdate,version13Board}=await import('../import-fixture.mjs');legacy.tables.meta.find(r=>r.key==='storage_version').value=7;
   const rev=legacy.tables.meta.find(r=>r.key==='revision').value;legacy.tables.snapshot_chunks=[];
-  for(const [kind,data]of [['json',new TextEncoder().encode(rules.canonical(await exported()))],['yjs',storedBoardUpdate(await exported(),true)]] as const)for(let at=0,index=0;at<data.length;at+=32768,index++)legacy.tables.snapshot_chunks.push({snapshot_revision:rev,kind,chunk_index:index,bytes:Buffer.from(data.slice(at,at+32768)).toString('base64')});
+  for(const [kind,data]of [['json',new TextEncoder().encode(rules.canonical(version13Board(await exported())))],['yjs',storedBoardUpdate(version13Board(await exported()),true)]] as const)for(let at=0,index=0;at<data.length;at+=32768,index++)legacy.tables.snapshot_chunks.push({snapshot_revision:rev,kind,chunk_index:index,bytes:Buffer.from(data.slice(at,at+32768)).toString('base64')});
   legacy.tables.edits=[];assert.equal((await operator('restore',legacy)).status,200);assert.deepEqual((await exported()).pages,b.pages);assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,8);
   for(const version of [6,9]){const invalid=structuredClone(backup);invalid.tables.meta.find(r=>r.key==='storage_version').value=version;assert.equal((await operator('restore',invalid)).status,400);}
 });

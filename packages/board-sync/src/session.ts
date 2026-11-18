@@ -10,8 +10,8 @@ import { checkTimerFrame, timerSnapshot, timerInteger, type TimerSnapshot, type 
 export { checkTimerFrame, timerSnapshot, timerInteger } from "./timer.ts";
 export type { TimerSnapshot, TimerFrame, TimerAction, TimerCause } from "./timer.ts";
 import * as Y from "yjs";
-import { type BoardV13 } from "nextphase-board-rules/document.ts";
-import { Adapter } from "./document-adapter.ts";
+import { type BoardV14 } from "nextphase-board-rules/document.ts";
+import { Adapter, type TableOrderHint } from "./document-adapter.ts";
 import { readBoard } from "./codec.ts";
 import { capture, SharedUndo } from "./undo.ts";
 import { normalizeText, textProblem, type CommentOperation, type CommentRequest, type CommentThread } from "./comments.ts";
@@ -419,14 +419,14 @@ export class BoardSession<T = unknown> {
     return requestId;
   }
   private blocked() { return !this.joined || this.recovering ? "join_required" : this.role === "viewer" ? "role_too_low" : null; }
-  edit(board: BoardV13, group?: string, movedPages?: readonly string[], page?: string): string {
+  edit(board: BoardV14, group?: string, movedPages?: readonly string[], page?: string, tableHint?: TableOrderHint): string {
     const blocked = this.blocked(); if (blocked) return blocked;
-    return this.write(board, undefined, group, movedPages, page);
+    return this.write(board, undefined, group, movedPages, page, tableHint);
   }
-  private write(board: BoardV13, direction?: "undo" | "redo", group?: string, movedPages?: readonly string[], page?: string) {
+  private write(board: BoardV14, direction?: "undo" | "redo", group?: string, movedPages?: readonly string[], page?: string, tableHint?: TableOrderHint) {
     const previous = this.board;
     const before = capture(this.doc), vector = Y.encodeStateVector(this.doc);
-    this.adapter.set(board, movedPages, direction ? this.history.pageOrders : undefined);
+    this.adapter.set(board, movedPages, direction ? this.history.pageOrders : undefined, tableHint);
     this.change = { origin: "own" };
     this.history.record(before, capture(this.doc), direction, group, page);
     const touched = board.objects.filter((object) => JSON.stringify(object) !==
@@ -467,7 +467,7 @@ export class BoardSession<T = unknown> {
   private inverse(direction: "undo" | "redo") {
     const blocked = this.blocked(); if (blocked) return blocked;
     const board = this.history.take(capture(this.doc), direction);
-    return typeof board === "string" ? board : this.write(board, direction, undefined, undefined, this.history.page);
+    return typeof board === "string" ? board : this.write(board, direction, undefined, undefined, this.history.page, this.history.tableHint);
   }
   undo() { return this.inverse("undo"); }
   redo() { return this.inverse("redo"); }

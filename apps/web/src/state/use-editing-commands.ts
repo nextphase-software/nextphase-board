@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { Board as SavedBoard, BoardV13 as Board, ItemV13 as Item } from "nextphase-board-rules/document.ts";
+import type { Board as SavedBoard, BoardV14 as Board, ItemV14 as Item } from "nextphase-board-rules/document.ts";
 import { count } from "nextphase-board-rules/document.ts";
 import { catalog } from "../activities/catalog";
 import { activityPreview, insertActivity, readActivity, type Activity, type Preview } from "../activities";
@@ -11,7 +11,7 @@ import { textUnits, type Style } from "nextphase-board-rules/styles.ts";
 import type { View } from "../view";
 import { arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "../arrange";
 import { assignSection, commandObjectLabel, orderInBands, wrapReason, wrapSelection } from "../sections";
-import { isTape, type TapePattern, type ConnectorStyle, type End, objectType, isImage, hasRectangle, hasText, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, isMindNode, type ShapeKeys, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
+import { isTape, type TapePattern, type ConnectorStyle, type End, objectType, isImage, hasRectangle, hasText, isTable, insertAxis, deleteAxis, cellText, cellAt, cellIndex, setCell, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, isMindNode, type ShapeKeys, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
 import { addChild, addSibling, collapse, descendants, hiddenIds, settle, withHiddenDescendants, MAP_WORDS, type MapCommand, type MeasureNode } from "../mind-map";
 import { editingCommandReason } from "../commands";
 import { groupObjects, groupReason, ungroupObjects } from "../group";
@@ -23,7 +23,14 @@ import { copiedSet, copiedSetReason, cascadeCount, connectReason, createConnecto
 
 import type { HostedBoard } from "../team/hosted-board";
 
+import type { TableItem } from "nextphase-board-rules/document.ts";
+import type { TableOrderHint } from "nextphase-board-sync/document-adapter.ts";
+import { anchorCell, boundTable, tableReason, type TableAction, type TableSelection } from "../table";
+
 type Input = {
+  tableSelection?: TableSelection;
+  chooseTable: (selection: TableSelection, table: TableItem, message: (text: string) => void) => void;
+  growTableRows: (table: TableItem) => TableItem;
   pages?: import("../pages").PageNavigation;
   hosted?: HostedBoard;
   tool: string;
@@ -32,7 +39,7 @@ type Input = {
   growHeight: number;
   growAvailable: boolean;
   model: RefObject<Board>;
-  commit: (input: SavedBoard, recordObject?: boolean, orderIds?: readonly string[], opens?: string) => void;
+  commit: (input: SavedBoard, recordObject?: boolean, orderIds?: readonly string[], opens?: string, movedPages?: readonly string[], tableHint?: TableOrderHint) => void;
   historyRef: RefObject<History>;
   updateHistory: (next: History) => void;
   setDrafts: Dispatch<SetStateAction<Record<string, string>>>;
@@ -62,7 +69,7 @@ type Input = {
 const MAP_COMMANDS: readonly string[] = ["Add child", "Add child left", "Add child right", "Add sibling", "Collapse", "Expand"] satisfies MapCommand[];
 
 export function useEditingCommands({
-  pages: navigation, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
+  tableSelection, chooseTable, growTableRows, pages: navigation, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
   setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
   displayedObjects, commandReason, selectionReason, clipboardState, editingState,
   arrangementMembers, lineCount, measureNode, editor, selector, setPanel, setTool, hosted,
@@ -242,7 +249,10 @@ export function useEditingCommands({
       setInline(false);
       const remaining = [...selected].filter((id) => !result.affectedIds.includes(id));
       const removedSelection = remaining.length < selected.size;
-      if ((name === "Undo" || name === "Redo") && isDrawingTool(tool)) select([]);
+      const target = isHistory && result.affectedIds.length === 1 ? result.affectedId : "";
+      const table = [...board.objects, ...previous.objects].find(o => o.id === target && isTable(o));
+      if (table) select(board.objects.some(o => o.id === table.id) ? table.id : "");
+      else if (isHistory && isDrawingTool(tool)) select([]);
       else if (affected.length) select(affected.map((o) => o.id));
       else if (removedSelection || deleting) {
         select(deleting ? [] : remaining);
@@ -265,6 +275,46 @@ export function useEditingCommands({
     } catch (error) {
       setMessage(String(error));
     }
+  }
+  function tableAction(action: TableAction) {
+    if (!tableSelection || commandReason) return;
+    const t = model.current.objects.find(o => o.id === tableSelection.id);
+    if (!t || !isTable(t)) return;
+    const anchor = anchorCell(t, tableSelection), index = cellIndex(t, anchor);
+    let next = t, nextCell = anchor, hint: TableOrderHint | undefined;
+    if (action.at === "clear") {
+      if (!cellText(t, anchor)) return;
+      next = setCell(t, anchor, "");
+    } else {
+      const { axis, at } = action, deleting = at === "delete";
+      const reason = tableReason(t, axis, deleting ? "delete" : "add");
+      if (reason) { setMessage(reason); return; }
+      if (deleting) {
+        next = deleteAxis(t, axis, anchor[axis]);
+        nextCell = cellAt(next, Math.min(index.row, next.rows.length - 1), Math.min(index.column, next.columns.length - 1))!;
+      } else {
+        const id = crypto.randomUUID();
+        next = insertAxis(t, axis, id, at === "end" ? undefined : index[axis] + Number(at === "after"));
+        nextCell = { ...anchor, [axis]: id };
+        hint = { table: t.id, axis, moved: [id] };
+      }
+    }
+    finishTextSession();
+    try {
+      commit({ ...model.current, objects: model.current.objects.map(o => o.id === t.id ? boundTable(next) : o) }, true,
+        undefined, undefined, undefined, hint);
+    } catch (error) { setMessage(String(error)); return; }
+    const saved = model.current.objects.find(o => o.id === t.id);
+    if (saved && isTable(saved) && saved.rows.some(r => r.id === nextCell.row) && saved.columns.some(c => c.id === nextCell.column))
+      chooseTable({ kind: "cell", id: t.id, ...nextCell }, saved, setMessage);
+    scene.current?.focus();
+  }
+  function tableSize(value: Style["textSize"]) {
+    if (commandReason || !tableSelection) return;
+    const t = model.current.objects.find(o => o.id === tableSelection.id);
+    if (!t || !isTable(t) || t.textSize === value) return;
+    commit({ ...model.current, objects: model.current.objects.map(o => o === t ? growTableRows({ ...t, textSize: value }) : o) }, true);
+    scene.current?.focus();
   }
   function arrangementReason(name: ArrangeCommand) {
     if (selectionReason === TIDY_WAIT) return selectionReason;
@@ -302,7 +352,8 @@ export function useEditingCommands({
     } else {
       const positions = new Map(arrangePositions(name, arrangementMembers).map((p) => [p.id, p]));
       commit({ ...current, objects: current.objects.map((o) => positions.has(o.id)
-        ? { ...o, x: positions.get(o.id)!.x, y: positions.get(o.id)!.y } : o) }, true);
+        ? isTable(o) ? boundTable({ ...o, ...positions.get(o.id)! }, displayedObjects.find(d => d.id === o.id)?.displayHeight)
+          : { ...o, x: positions.get(o.id)!.x, y: positions.get(o.id)!.y } : o) }, true);
     }
   }
   function setSection(id: string | null) {
@@ -407,5 +458,5 @@ export function useEditingCommands({
     finishTextSession();setInline(false);commit({...model.current,objects},true);
   }, color: strokeColor, weight: strokeWeight };
   const shapeCommands = { changeShape, changeFill: changeShapeFill, changeBorder: changeShapeBorder, grow };
-  return { connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
+  return { tableAction, tableSize, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
 }

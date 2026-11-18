@@ -1,5 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
+import { isTable } from "nextphase-board-rules/objects/registry.ts";
+
+function liveTableEntry(parent: Y.Map<unknown>, objects: Y.Map<unknown>, key: string) {
+  const entry = parent._item, axis = entry?.parent;
+  if (!entry || entry.deleted || !(axis instanceof Y.Map) || axis.get(entry.parentSub!) !== parent) return false;
+  const axisItem = axis._item, object = axisItem?.parent;
+  if (!axisItem || axisItem.deleted || !(object instanceof Y.Map) || object.get(axisItem.parentSub!) !== axis) return false;
+  const objectItem = object._item;
+  if (!objectItem || objectItem.deleted || objectItem.parent !== objects || objects.get(objectItem.parentSub!) !== object ||
+      !isTable({ type: String(object.get("type")) })) return false;
+  const size = axisItem.parentSub === "columnMap" ? "width" : axisItem.parentSub === "rowMap" ? "height" : undefined;
+  return !!size && (key === size || key === "order");
+}
 
 // Yjs orders concurrent map assignments by client ID. The room instead gives
 // each incoming assignment the next place in its save order, including equal
@@ -31,7 +44,8 @@ export function promote(before: Y.Doc, candidate: Y.Doc, update: Uint8Array): bo
       const item = parent._item;
       const pages = candidate.getMap("board").get("pageMap");
       if (!item || item.deleted || item.parent !== candidate.getMap("objects") &&
-        (!(pages instanceof Y.Map) || item.parent !== pages || !["name", "order"].includes(key))) continue;
+        (!(pages instanceof Y.Map) || item.parent !== pages || !["name", "order"].includes(key)) &&
+        !liveTableEntry(parent, candidate.getMap("objects"), key)) continue;
     }
     const content = struct.content.getContent();
     if (!content.length || struct.content instanceof Y.ContentType) continue;

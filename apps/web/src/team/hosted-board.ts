@@ -7,7 +7,8 @@ import { BoardTimer } from "./timer";
 import { BoardLifecycle, lifecycleNavigation } from "./lifecycle";
 import { BoardHistory, historyNavigation } from "./history";
 import { BoardSession, type Transport, type Role, type SessionEvent, type TimerSnapshot, type TimerFrame, type TimerAction, type VoteProjection, type VoteFrame, type VoteCommand, type SpotlightCommand, type SpotlightFrame, type ReactionId } from "nextphase-board-sync/session.ts";
-import type { BoardV13 } from "nextphase-board-rules/document.ts";
+import type { TableOrderHint } from "nextphase-board-sync/document-adapter.ts";
+import type { BoardV14 } from "nextphase-board-rules/document.ts";
 import type { CommentOperation } from "./comments/rules";
 import { api, ApiError } from "./api";
 import { auth, type AuthSession } from "./auth";
@@ -26,7 +27,7 @@ export type { SpotlightProjection, SpotlightSession, SpotlightOwn, SpotlightActi
 type Attempt = { outcome: Outcome | null; joined: boolean; cancelled: boolean; timer: ReturnType<typeof setTimeout>;
   socket?: WebSocket; acceptance: boolean };
 export type HostedSnapshot = {
-  board?: BoardV13; role?: Role; connected: boolean; workspace: string; workspaceId: string;
+  board?: BoardV14; role?: Role; connected: boolean; workspace: string; workspaceId: string;
   workspaceOwner?: boolean; outcome: Outcome | null; toast: string; toastId: number; generation: number;
 };
 export type PresenceSnapshot = {
@@ -190,12 +191,15 @@ export class HostedBoard {
   page = "";
   pageNotice?: (text: string) => void;
   openPage?: (id: string, following?: boolean) => View | undefined;
-  onPageChange?: (before: BoardV13, after: BoardV13, change: ChangeOrigin, preview: boolean) => void;
+  historyTable?: string;
+  keepTableSelection = false;
+  onTableChange?: HostedBoard["onPageChange"];
+  onPageChange?: (before: BoardV14, after: BoardV14, change: ChangeOrigin, preview: boolean) => void;
   historyPage?: string;
   pageChanged() { this.publishPresence({}); this.voting.pageChanged(); }
   pagePeople(page: string) { return pagePeople(this.presence.self, this.presence.others, page); }
   votePageReason(page: string) { return votingPageReason(this.voting.projection?.session, page); }
-  removedPage(before: BoardV13, after: BoardV13, page: string, change: ChangeOrigin) { return removedPage(before, after, page, change, this.presence.others); }
+  removedPage(before: BoardV14, after: BoardV14, page: string, change: ChangeOrigin) { return removedPage(before, after, page, change, this.presence.others); }
   change: { origin: "own" | "remote" | "reload"; connection?: string } = { origin: "reload" };
   constructor(link: TeamLink, local: () => void) {
     this.link = link;
@@ -432,13 +436,19 @@ export class HostedBoard {
       this.recoveringIds = [];
     } else this.publish({ board: session.board });
   }
-  edit(board: BoardV13, group?: string, movedPages?: readonly string[], page?: string) {
+  edit(board: BoardV14, group?: string, movedPages?: readonly string[], page?: string, tableHint?: TableOrderHint) {
     if (!this.canEdit || !this.session || JSON.stringify(board) === JSON.stringify(this.session.board)) return false;
-    return this.deliberate(() => this.session!.edit(board, group, movedPages, page));
+    return this.deliberate(() => this.session!.edit(board, group, movedPages, page, tableHint));
   }
   inverse(direction: "undo" | "redo") {
     if (!this.canEdit || !this.session) return;
-    const result = this.deliberate(() => { const result = this.session![direction](); this.historyPage = this.session!.requests.has(result) ? this.session!.history.page : undefined; return result; });
+    const result = this.deliberate(() => {
+      const result = this.session![direction]();
+      const history = this.session!.requests.has(result) ? this.session!.history : undefined;
+      this.historyPage = history?.page;
+      this.historyTable = history?.table;
+      return result;
+    });
     if (typeof result === "string") this.toast(result === "nothing_to_undo"
       ? direction === "undo" ? "Nothing to undo." : "Nothing to redo."
       : ["changed_by_others", "undo_invalid"].includes(result)

@@ -3,7 +3,7 @@ export type Corner = "nw" | "ne" | "sw" | "se";
 export type Rectangle = { x: number; y: number; width: number; height: number };
 type Delta = { x: number; y: number };
 export type ResizeMember = Rectangle & { sizeRange?: Range; neededHeight: (width: number) => number };
-type Range = { min: number; max: number };
+type Range = { min: number; max: number; minWidth?: number };
 const clamp = (value: number, range: Range) => Math.max(range.min, Math.min(range.max, value));
 const west = (corner: Corner) => corner === "nw" || corner === "sw";
 const north = (corner: Corner) => corner === "nw" || corner === "ne";
@@ -62,7 +62,7 @@ export function resizeObject(corner: Corner, start: Rectangle, delta: Delta, shi
   if (delta.x === 0 && delta.y === 0) return { ...start };
   const fx = start.x + (west(corner) ? start.width : 0);
   const fy = start.y + (north(corner) ? start.height : 0);
-  const widthRange = { min: Math.min(Math.max(80, sizeRange.min), start.width),
+  const widthRange = { min: Math.min(Math.max(sizeRange.minWidth ?? 80, sizeRange.min), start.width),
     max: Math.min(sizeRange.max, west(corner) ? fx + 1e6 : 1e6 - fx) };
   const heightRange = { min: sizeRange.min,
     max: Math.min(sizeRange.max, north(corner) ? fy + 1e6 : 1e6 - fy) };
@@ -105,9 +105,9 @@ export function resizeSet(corner: Corner, members: readonly ResizeMember[], delt
     min: Math.max(...ranges.map((r) => r.min)), max: Math.min(...ranges.map((r) => r.max)),
   });
   const scale = scales(corner, bounds, delta, shift,
-    overlap(members.map((o) => axisRange(o.x, o.width, fx, Math.min(Math.max(80, o.sizeRange?.min ?? 40), o.width), o.sizeRange?.max ?? 2000))),
+    overlap(members.map((o) => axisRange(o.x, o.width, fx, Math.min(Math.max(o.sizeRange?.minWidth ?? 80, o.sizeRange?.min ?? 40), o.width), o.sizeRange?.max ?? 2000))),
     overlap(members.map((o) => axisRange(o.y, o.height, fy, o.sizeRange?.min ?? 40, o.sizeRange?.max ?? 2000))),
-    (s) => members.every((o) => axisValid(o.x, o.width, fx, Math.min(Math.max(80, o.sizeRange?.min ?? 40), o.width), o.sizeRange?.max ?? 2000, s)),
+    (s) => members.every((o) => axisValid(o.x, o.width, fx, Math.min(Math.max(o.sizeRange?.minWidth ?? 80, o.sizeRange?.min ?? 40), o.width), o.sizeRange?.max ?? 2000, s)),
     (s) => members.every((o) => axisValid(o.y, o.height, fy, o.sizeRange?.min ?? 40, o.sizeRange?.max ?? 2000, s)));
   return members.map((o) => {
     const x = scale.x === 1 ? o.x : fx + (o.x - fx) * scale.x;

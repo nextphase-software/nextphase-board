@@ -25,6 +25,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Full history: some unit tests compare files with earlier commits (git show <commit>:<path>).
+          fetch-depth: 0
           persist-credentials: false
       - id: node
         name: Read the Node version
@@ -62,6 +64,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Full history: some unit tests compare files with earlier commits (git show <commit>:<path>).
+          fetch-depth: 0
           persist-credentials: false
       - id: node
         name: Read the Node version

@@ -783,3 +783,82 @@ alarm. It ran two clock cases per revision using the Node runner's in-memory sto
 The Supabase-backed `npm run test:server:node` and `npm run test:server:workerd` commands remain unrun
 against the fix. Both require the local stack and are reserved for the check run. This includes the
 S259 and S430 acceptance reruns and the Node rerun of S170. Browser checks remain outside this fix round.
+
+### Review fix round 1 — 0011-W1 v1
+
+- Branch `codex/0011-W1-tables`
+- Reviewed revision `9e1167490db666bfcdd90aa14b0536153f933e6b`
+- Validated source and tests `a47e4d7ca1249a2ed607e61c2d9d6744e7a2a22d`
+- Toolchain Node 26.13.0 and npm 11.20.0. Zero added dependencies, services or assets.
+
+| Finding | Cause and fix |
+| --- | --- |
+| F1 | The shared 40 px minimum expanded both add bars. Table-scoped CSS clears the minimums and removes the extra hit area. Each add bar takes its full size from the existing 24 px by table-edge geometry, with an 8 px gap. The grabber rule retains the 28 × 28 px minimum. T-U14 covers both rendered buttons at 50%, 100% and 200% zoom and checks their CSS. |
+| F2 · A2 | The visible cell announcement raised the notice boundary, so the normal context-bar rule placed the cell bar below the table. The authorized A2 amendment routes cell selection text to an always-mounted `.sr-only` status with `role="status"`, `aria-live="polite"` and `aria-atomic="true"`. The existing context-bar positioning rule still calls for a 48 px gap above the drawn table in this state. T-U15 exercises Enter and Arrow Right through the canvas handler and checks the filled and empty cell announcements and the empty visible notice. |
+
+| Command | Result |
+| --- | --- |
+| `node --test --test-reporter=tap --test-name-pattern 'T-U1[245]\|0011-W1 App composition' tests/modules.test.mjs tests/tables.test.mjs` | Four passed, zero failed or skipped. T-U14 and T-U15 reproduced the two failures before the fix. |
+| `npm run typecheck` | Five workspaces passed. |
+| `npm test` | 1,295 passed. Zero failed, skipped or cancelled. |
+| V5 team-off commands below | Web build and license audit passed. Distributed notices match runtime notices v1 byte for byte. |
+| V6 team-on commands below | Fixture and web builds and license audit passed. Distributed notices match runtime notices v3 byte for byte. |
+| `git diff --check 9e11674..a47e4d7` | Passed. |
+
+```sh
+export BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796
+BOARD_TEAM_FEATURES=off npm run build
+npm run audit:licenses
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v1.txt
+npm run build:fixtures
+BOARD_TEAM_FEATURES=on npm run build
+npm run audit:licenses
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt
+```
+
+| Changed file | Lines at the validated source | Change |
+| --- | --- | --- |
+| `apps/web/src/App.tsx` | 24, 56, 180 | Compose the persistent status beside the table buttons |
+| `apps/web/src/scene/table-buttons.tsx` | 6–9 | Screen-reader-only cell status |
+| `apps/web/src/state/use-canvas-input.ts` | 29, 169, 324, 568 | Route keyboard and pointer selection through the table selection hook |
+| `apps/web/src/state/use-editing-commands.ts` | 32, 309 | Use the table selection hook after a table action |
+| `apps/web/src/state/use-geometry-edits.ts` | 23, 121 | Use the table selection hook on cell editor entry |
+| `apps/web/src/state/use-hosted-board.ts` | 17, 50 | Update hosted table selection through the same hook |
+| `apps/web/src/state/use-selection.ts` | 19, 36–42, 58 | Hold the announcement with the cell selection |
+| `apps/web/style.css` | 1654 | Clear the shared size minimums and remove the extended hit area |
+| `tests/modules.test.mjs` | 603, 611, 675 | Pin the revised App substitutions and the 264-line limit |
+| `tests/tables.test.mjs` | 4, 417–433, 445–518 | Share the render harness and add T-U14 and T-U15 |
+
+Browsers could not start in the implementation sandbox. The N3 browser rerun and design
+comparisons remain unrun on this revision, including the N3-S3 y152 measurement.
+The Supabase-backed server suites were outside this review fix round.
+
+#### Revised App.tsx substitutions
+
+These three entries supersede the corresponding entries above. Each gives the 3f4ad48 line number,
+the original line and its replacement. App still has 22 substitutions and 264 lines.
+
+<details>
+<summary>Three revised substitutions</summary>
+
+```json
+[
+  [
+    24,
+    "import { Overlays } from \"./scene/overlays\"; import { ConnectionDots } from \"./scene/connection-dots\"; import { MindMapButtons } from \"./scene/mind-map-buttons\"; import { TidyUpLayer } from \"./scene/tidy-up-layer\"; import { TidyUpBar } from \"./ui/tidy-up-bar\"; import { FindRings } from \"./scene/find-rings\"; import { FindBar } from \"./ui/find-bar\"; import { PagesPanel } from \"./ui/pages-panel\"; import { MoveToPage } from \"./ui/move-to-page\";",
+    "import { Overlays } from \"./scene/overlays\"; import { ConnectionDots } from \"./scene/connection-dots\"; import { MindMapButtons } from \"./scene/mind-map-buttons\"; import { TableButtons, TableCellStatus } from \"./scene/table-buttons\"; import { TidyUpLayer } from \"./scene/tidy-up-layer\"; import { TidyUpBar } from \"./ui/tidy-up-bar\"; import { FindRings } from \"./scene/find-rings\"; import { FindBar } from \"./ui/find-bar\"; import { PagesPanel } from \"./ui/pages-panel\"; import { MoveToPage } from \"./ui/move-to-page\";"
+  ],
+  [
+    56,
+    "    tapeSelection, strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,",
+    "    tableSelection, tableAnnouncement, chooseTable, tableName, tapeSelection, strokeSelection, connectorOnly, connectors, shapeSelection, selected, setSelected, selectionKey, selectedId, item, text,"
+  ],
+  [
+    180,
+    "        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={pages.canvas()} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} page={pages.id} pos={pos} zoom={view.z} />",
+    "        <ConnectionDots dots={dots} connection={connection} objects={displayedObjects} pos={pos} zoom={view.z} /><MindMapButtons board={pages.canvas()} objects={displayedObjects} selected={selected} inline={inline} pos={pos} zoom={view.z} busy={busy} composing={composing} readOnly={readOnly} command={command} /><TableButtons object={resolvedTable} selection={tableSelection} editing={inline} busy={busy || composing || tool !== \"Select\" || tidy.open} readOnly={readOnly} zoom={view.z} pos={pos} size={size} ghost={tableGesture.ghost} action={tableAction} select={chooseTable} focus={tableGesture.focus} /><TableCellStatus announcement={tableAnnouncement} /><TidyUpLayer tidy={tidy} pos={pos} view={view} /><FindRings find={find} page={pages.id} pos={pos} zoom={view.z} />"
+  ]
+]
+```
+
+</details>

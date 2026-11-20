@@ -362,3 +362,39 @@ V9 is reserved for the cloud Checks workflow. Browsers and the Supabase CLI
 were unrun in the implementation sandbox. V10–V13 and the browser regressions
 of V14 are reserved for an independent check run. No separate server test
 runner, push or deployment was performed.
+
+### Review fix round 1 — 0010-W4 v1
+
+Branch `codex/0010-W4-link-to-a-page`. Review base
+`76d40d71060feb5a4d276b14757317498c525e53`. Validated fix source and tests
+`ca654bd63cfad07c6466e469ed0dfbc41a29906b`. Node 26.13.0 and npm 11.20.0.
+Zero dependencies added.
+
+| Finding | Fix | Regression checks |
+| --- | --- | --- |
+| F1 | The initial storage adoption hands off the adopted board and its notice eligibility to the page owner. The startup page value survives placeholder repaints and is consumed once. Failed initial loads discard it before Retry. | P4-U06, P4-U07. P4-U15 covers later board-list choices and Retry. |
+| F2 | The panel uses the baseline measurement and resize signals. Team notice column changes update only the notice offset. | P4-U13 checks 68 px with the notice hidden, 113 px at the same geometry with it shown, and the team column appearing, resizing and disappearing. |
+| F3 | The blocked hosted leave path restores the open page's address with `history.pushState`. Same-board links still use the page owner's `replaceState`. | P4-U14 checks the pushed URL, Stay and the unchanged same-board route. |
+
+| Check | Result | Command and evidence |
+| --- | --- | --- |
+| Focused | Pass | `node --test --test-reporter=tap tests/page-links.test.mjs`. With only the regression tests changed on `76d40d7`, P4-U06, P4-U07, P4-U13 and P4-U14 failed at their behavior assertions. The other 11 checks passed. With the fix, all 15 passed. |
+| V3 | Pass | `npm run typecheck` exited 0 for all five workspace members. |
+| V4 | Pass | `npm test` passed 1,312 of 1,312 checks, including all 15 page-link checks. Zero failures or skips. |
+| V8 | Pass | Inspected all six fix hunks by file. `git diff --name-status` and `git diff --check` passed for `76d40d7..ca654bd` and `b5a5c28..ca654bd`. The cumulative diff has 15 authorized files, including the original record. The path-scoped diff for the App, manifests, lock, server, packages and Supabase was empty. Effect and state hook counts were unchanged. |
+
+The only test file changed was [`tests/page-links.test.mjs`](../../tests/page-links.test.mjs).
+Candidate hunk ranges are 90, 158–159, 164, 167–171, 174, 176, 180, 196,
+199–201, 209, 215–234, 236, 239, 241–258, 269–278, 286–312, 315–326, 329–335,
+338–344, 486, 488–489, 491, 494–495, 502–510, 513, 515–518, 526, 570–571,
+575–576 and 591–615.
+
+On 2026-11-20 (UTC−05:00), typecheck ran 14:09:24–14:09:26 and the
+full unit suite ran 14:09:24–14:09:31. The host log shows zero sleep or
+wake events in those windows. Public-boundary hooks passed. Git reported a
+shared packed-refs lock permission error after committing. The fix commit
+and branch ref were verified.
+
+Browser rechecks and the Supabase CLI were unrun in the implementation
+sandbox. Validation in this round was limited to the named unit checks and
+V3, V4 and V8. The branch remains local.

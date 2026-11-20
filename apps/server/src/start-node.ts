@@ -15,6 +15,8 @@ import { Supabase } from "./supabase.ts";
 import type { Settings } from "./settings.ts";
 import type { Runtime } from "./runtime.ts";
 import { deliver } from "./delivery.ts";
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
 export type NodeOptions = {
   now?: () => number; db?: Supabase; auth?: Auth; backupLimit?: number;
   deliveryIntervalMs?: number;
@@ -110,7 +112,9 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
         if (!current) return;
         clearTimeout(current.timer);
         if (!closing && at !== null && !room.lifecycle.discarded) {
-          current.timer = setTimeout(() => { void current.room.alarm().catch(() => {}); }, Math.max(1, at - now()));
+          // Node treats longer delays as 1 ms. The room rechecks deadlines when woken.
+          const delay = Math.min(MAX_TIMER_MS, Math.max(1, at - now()));
+          current.timer = setTimeout(() => { void current.room.alarm().catch(() => {}); }, delay);
           current.timer.unref();
         }
       },

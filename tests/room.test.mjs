@@ -13,7 +13,8 @@ import { NodeStorage } from "../apps/server/src/node-storage.ts";
 import { startNode } from "../apps/server/src/start-node.ts";
 import { COPY_INTERVAL } from "../packages/board-room/src/copies.ts";
 import { HISTORY_AGE } from "../packages/board-sync/src/history.ts";
-import { meta } from "../packages/board-room/src/storage.ts";
+import { meta, setMeta } from "../packages/board-room/src/storage.ts";
+const NODE_TIMER_LIMIT = 2 ** 31 - 1;
 function fixture() {
   const storage = new NodeStorage(":memory:"), board = crypto.randomUUID(), person = crypto.randomUUID();
   let now = Date.now(), fence = 0, offline = false;
@@ -43,13 +44,16 @@ function edit(doc, title) {
   doc.getMap("board").set("title", title);
   return Buffer.from(Y.encodeStateAsUpdate(doc, vector)).toString("base64");
 }
-test("NB-120 Node shutdown drains a named save with a future room alarm", async (t) => {
-  const dataDir = await mkdtemp(join(tmpdir(), "board-room-shutdown-"));
+async function nodeRoomFixture(t, lifecycleDelay = 0) {
+  const dataDir = await mkdtemp(join(tmpdir(), "board-room-node-"));
   t.after(() => rm(dataDir, { recursive: true, force: true }));
   const initialTime = Date.UTC(2026, 0, 1);
   let now = initialTime, copies = 0;
   const db = {
-    async lifecycle() { await delay(8); return { state: "active", generation: 0 }; },
+    async lifecycle() {
+      if (lifecycleDelay) await delay(lifecycleDelay);
+      return { state: "active", generation: 0 };
+    },
     async board() { return { title: "Room", createdAt: new Date(initialTime).toISOString() }; },
     async role() { return "editor"; },
     async changes() { return { changes: [], latest: 0, lowestKept: 1 }; },
@@ -60,24 +64,30 @@ test("NB-120 Node shutdown drains a named save with a future room alarm", async 
   // Exercise the Node timer and drain with a room whose saves use in-memory SQLite.
   entry.storage.close();
   entry.storage.database = new DatabaseSync(":memory:");
-  // Node converts delays above its signed 32-bit limit to 1 ms. Model that
-  // conversion without emitting a warning every time the alarm is re-armed.
+  const person = { id: crypto.randomUUID(), email: "unit@example.test", expiresAt: initialTime + HISTORY_AGE + 3600000 };
+  return {
+    app, room, entry, copyCount: () => copies,
+    advance(ms) { now += ms; },
+    save(name) { return room.saveVersion(person, { name, description: "", requestId: crypto.randomUUID() }); },
+    async drain() { while (entry.tasks.size) await Promise.allSettled([...entry.tasks]); },
+  };
+}
+test("NB-120 Node shutdown drains a named save with a future room alarm", async (t) => {
+  const { app, room, entry, save, drain, advance, copyCount } = await nodeRoomFixture(t, 8);
+  // Accelerate the far-future alarm to exercise shutdown during an early wake.
   const setTimer = globalThis.setTimeout;
   t.mock.method(globalThis, "setTimeout", (callback, ms, ...args) =>
-    setTimer(callback, ms > 2 ** 31 - 1 ? 1 : ms, ...args));
-  const person = { id: crypto.randomUUID(), email: "unit@example.test", expiresAt: initialTime + HISTORY_AGE + 3600000 };
-  const save = name => room.saveVersion(person, { name, description: "", requestId: crypto.randomUUID() });
-  const drain = async () => { while (entry.tasks.size) await Promise.allSettled([...entry.tasks]); };
+    setTimer(callback, ms >= NODE_TIMER_LIMIT ? 1 : ms, ...args));
   let closing;
   try {
     await save("Initial");
     await drain();
-    assert.equal(copies, 1);
-    now += HISTORY_AGE;
+    assert.equal(copyCount(), 1);
+    advance(HISTORY_AGE);
     await room.alarm();
     await drain();
-    now = initialTime;
-    assert(meta(entry.storage, "history_next_at") - now > 2 ** 31 - 1);
+    advance(-HISTORY_AGE);
+    assert(meta(entry.storage, "history_next_at") - room.env.now() > NODE_TIMER_LIMIT);
 
     const busy = Promise.withResolvers();
     const alarm = room.alarm.bind(room);
@@ -90,10 +100,10 @@ test("NB-120 Node shutdown drains a named save with a future room alarm", async 
     const expired = new Promise(resolve => deadline.addEventListener("abort", () => resolve(false), { once: true }));
     assert.equal(await Promise.race([busy.promise, expired]), true, "expected an alarm with a room task still pending");
     assert(entry.tasks.size > 0);
-    now += COPY_INTERVAL;
+    advance(COPY_INTERVAL);
     closing = app.close();
     const drained = await Promise.race([closing.then(() => true), expired]);
-    assert.equal(copies, 1);
+    assert.equal(copyCount(), 1);
     assert.equal(drained, true,
       "future room alarms kept the shutdown drain pending after a copy interval on the injected clock");
     assert.equal(entry.tasks.size, 0);
@@ -101,6 +111,49 @@ test("NB-120 Node shutdown drains a named save with a future room alarm", async 
     room.env.schedule = async () => {};
     clearTimeout(entry.timer);
     await (closing ?? app.close());
+    room.doc.destroy();
+  }
+});
+test("NB-120 Node caps a 30-day room alarm and re-arms until due", async (t) => {
+  const { app, room, entry, save, drain, advance, copyCount } = await nodeRoomFixture(t);
+  const { storage } = entry;
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const setTimer = t.mock.method(globalThis, "setTimeout");
+  const alarm = t.mock.method(room, "alarm");
+  const armedDelay = () => setTimer.mock.calls.at(-1).arguments[1];
+  const changedRows = () => storage.all("SELECT total_changes() AS count")[0].count;
+  function tick(ms) {
+    advance(ms);
+    t.mock.timers.tick(ms);
+  }
+  try {
+    await save("Initial");
+    await drain();
+    const deadline = room.env.now() + HISTORY_AGE;
+    setMeta(storage, "history_next_at", deadline);
+    await room.env.schedule(deadline);
+    assert.equal(armedDelay(), NODE_TIMER_LIMIT, "the 30-day deadline must fit in a Node timer");
+
+    tick(1000);
+    assert.equal(alarm.mock.callCount(), 0);
+    const before = changedRows();
+    tick(NODE_TIMER_LIMIT - 1000);
+    assert.equal(alarm.mock.callCount(), 1);
+    await alarm.mock.calls[0].result;
+    await drain();
+    assert.equal(changedRows(), before);
+    assert.equal(copyCount(), 1);
+    assert.equal(meta(storage, "history_next_at"), deadline);
+    assert.equal(armedDelay(), deadline - room.env.now());
+
+    tick(deadline - room.env.now());
+    assert.equal(alarm.mock.callCount(), 2);
+    await alarm.mock.calls[1].result;
+    await drain();
+    assert(meta(storage, "history_next_at") > deadline);
+    assert.equal(storage.all("SELECT id FROM versions").length, 0);
+  } finally {
+    await app.close();
     room.doc.destroy();
   }
 });

@@ -719,3 +719,27 @@ phases, room diagnostics, child termination and recovery.
 No dependencies added. Browsers, Supabase CLI and the Node and workerd server
 suites were unrun here. The server suites belong to the later server-only run
 and cloud Checks. Diff checks and the public-boundary hooks passed.
+
+### Fix round 1 (NB-120 F1)
+
+On the same branch, the validated source and test revision is
+`3cef2a684c14943f62c529ed4a1a591cee29f680`, based on `1502b49`. The Node
+adapter caps each room timer at 2,147,483,647 ms. The room rechecks its deadlines
+after a capped wake and schedules the remaining delay. The shutdown guard and
+the Worker's durable alarms use their existing paths.
+
+`NB-120 Node caps a 30-day room alarm and re-arms until due` failed on the
+previous source because it passed 2,592,000,000 ms to `setTimeout`. With the fix,
+mock timers showed zero wakes in the first second. At the cap, the early alarm
+made no SQLite row changes or directory copy, kept the history deadline, and
+re-armed for exactly the remaining time. At the original deadline the history
+checkpoint ran and pruned expired versions.
+
+`npm run typecheck` passed all five workspaces. One full `npm test` run passed
+1,297/1,297 with zero failures or skips. After the source commit,
+`git checkout 1502b49 -- apps/server/src/start-node.ts` reproduced the failure
+with `node --test --test-reporter=tap --test-name-pattern='NB-120 Node caps' tests/room.test.mjs`.
+Restoring only that source file with `git checkout HEAD -- apps/server/src/start-node.ts`
+left a clean worktree. The focused command with pattern `NB-120` passed both
+room tests. No dependencies were added. The Node and workerd server suites
+remain unrun in the sandbox.

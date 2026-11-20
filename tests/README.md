@@ -681,3 +681,41 @@ baseline-negative and A–J checks belong to the independent check run.
 
 - `tables.test.mjs` covers table rules, shared maps, concurrent edits, Undo, canvas helpers and stored-room upgrades.
 - `server/tables.test.ts` contains S425–S430 for both server runners.
+
+## Node server shutdown (0003-B1)
+
+NB-120 ran on `codex/0003-B1-node-stop-hang` from `0252f46`. Validated source
+and tests are at `a37f4c43aa90a64224e7072b5ac56327379ff538`.
+
+Resetting the test clock after a 30-day history advance can leave a room alarm
+beyond Node's maximum timer delay. Node fires that timer after 1 ms. The early
+alarm re-arms and queues another directory-copy check while shutdown is waiting
+for background tasks. The room regression reproduces the pending drain after
+advancing the injected clock by one copy interval, with the copy call count
+still at one. Node now cancels room timers before draining and suppresses re-arms
+during shutdown. Work already in flight still drains. The Worker continues to
+use durable alarms and `waitUntil` for active tasks.
+
+The Node test driver allows 30 seconds each for the shutdown reply and process
+exit. It kills a timed-out child, includes the latest reported board rooms and
+returns the error to the check awaiting the restart. Node shards now count
+toward Checks. `SPEED_CHECKS` remains `80|93|170`. S392 and S77 exercise removal
+responses and are outside the reproduced shutdown path.
+
+| Focused room check | Base source | Fixed source |
+| --- | --- | --- |
+| NB-120 Node shutdown drains a named save with a future room alarm | FAIL, drain stayed pending | PASS, drain emptied |
+
+`npm ci --ignore-scripts` passed on Node 26.13.0 and npm 11.20.0.
+`npm run typecheck` passed all five workspaces. One `npm test` run passed
+1,296/1,296 with zero failures or skips. The focused command was
+`node --test --test-reporter=tap --test-name-pattern='NB-120' tests/room.test.mjs`.
+After the source commit, `git checkout 0252f46 -- apps/server/src/start-node.ts`
+reproduced the named failure with the committed test. Restoring that file with
+`git checkout HEAD -- apps/server/src/start-node.ts` passed the check and left
+the worktree clean. Synthetic IPC checks passed for normal restart, both timeout
+phases, room diagnostics, child termination and recovery.
+
+No dependencies added. Browsers, Supabase CLI and the Node and workerd server
+suites were unrun here. The server suites belong to the later server-only run
+and cloud Checks. Diff checks and the public-boundary hooks passed.

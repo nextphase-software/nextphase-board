@@ -4,9 +4,8 @@ import type { BoardV14 as Board } from 'nextphase-board-rules/document.ts';
 import { addPage, deletePage, duplicatePage, duplicatePageReason, fallbackPage, movePage, movedSet, moveToPage, pageBoard, pageObjects, renamePage, PAGE_LIMIT } from '../pages';
 import { fitView, freeArea, type View } from '../view';
 import { objectBox, unionBoxes } from '../find';
-import { editingCommandReason } from '../commands';
 import {
-  captureStartupPage, takeStartupPage, pageLink, resolvePage, COPY_PAGE_LINK,
+  captureStartupPage, takeStartupAdoption, startupPagePending, pageLink, resolvePage, COPY_PAGE_LINK,
   copiedPageNotice, clipboardRefused, missingPageNotice,
 } from '../page-links.ts';
 import type { ResolvedItem } from '../geometry';
@@ -21,7 +20,6 @@ type Input = {
   openingReason: () => string; editingReason: () => string;
 };
 type Drag = { id: string; y: number; active: boolean; gap: number };
-const readOnlyReason = editingCommandReason({ readOnly: true, composing: false, pointerGesture: false, invalidObjectText: false });
 export type Pages = ReturnType<typeof usePages>;
 export const rememberedPageKey = (board: string) => `nextphase-board/page/v1/${board}`;
 function remembered(board: Board): string {
@@ -43,7 +41,7 @@ export function usePages(input: Input) {
   if (!same) { views.current.clear(); setState({ ...state, boardId: board.boardId, id, open: false, menu: '', editing: '', drag: null, moveOpen: false, go: null }); }
   const currentPage = useRef(id); currentPage.current = id;
   const preview = useRef<{ active: boolean; page?: string }>({ active: false });
-  const arrival = useRef({ board: '', opening: input.hosted, localPlaceholder: input.hosted ? undefined : board,
+  const arrival = useRef({ board: '', opening: input.hosted, localPlaceholder: input.hosted ? undefined : board.boardId,
     addressBoard: '', addressPage: '' });
   // Clear the local-only startup message before hosted chrome is measured.
   if (arrival.current.opening) { arrival.current.opening = false; setMessage(''); }
@@ -74,7 +72,7 @@ export function usePages(input: Input) {
     const leaving = currentPage.current;
     currentPage.current = page.id;
     input.stepPage.current = page.id;
-    setState(s => ({ ...s, boardId: next.boardId, id: page.id }));
+    setState(s => s.boardId === next.boardId && s.id === page.id ? s : { ...s, boardId: next.boardId, id: page.id });
     remember(page.id, next.boardId);
     writeAddress(page.id, next.boardId);
     if (input.team) {
@@ -188,11 +186,11 @@ export function usePages(input: Input) {
   // Focus after React has installed the new row or menu; no DOM state owns pages.
   useEffect(() => {
     const arrived = arrival.current;
-    if (arrived.localPlaceholder && arrived.localPlaceholder !== board) {
+    const adoption = !input.hosted && takeStartupAdoption(board.boardId);
+    if (adoption) {
       arrived.localPlaceholder = undefined;
-      // The command reason exposes writer readiness after the storage load.
-      showOpeningPage(board, takeStartupPage(), input.editingReason() !== readOnlyReason);
-    } else if ((input.hosted ? arrived.board === board.boardId : !arrived.localPlaceholder)
+      showOpeningPage(adoption.board, adoption.value, adoption.showNotice);
+    } else if ((input.hosted ? arrived.board === board.boardId : board.boardId !== arrived.localPlaceholder && !startupPagePending())
       && (arrived.addressBoard !== board.boardId || arrived.addressPage !== id)) {
       writeAddress(id, board.boardId);
     }

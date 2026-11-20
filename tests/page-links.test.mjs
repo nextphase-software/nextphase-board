@@ -87,7 +87,7 @@ async function bundle(contents, ports = {}) {
     plugins: [{ name: 'page-link-test-ports', setup(build) {
       if (ports.hooks) {
         build.onResolve({ filter: /^(react|test-hooks)$/ }, ({ path, importer }) => {
-          if (path === 'test-hooks' || /\/(use-pages|use-panel-layout|team-app)\.tsx?$/.test(importer)) {
+          if (path === 'test-hooks' || /\/(use-pages|use-panel-layout|use-storage-session|team-app)\.tsx?$/.test(importer)) {
             return { path: 'hooks', namespace: 'test' };
           }
         });
@@ -155,23 +155,29 @@ export const auth = {
 `;
 
 function browser(address, clipboard) {
-  const events = new Map(), replacements = [], values = new Map();
+  const events = new Map(), replacements = [], pushes = [], values = new Map();
+  const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
   let url = new URL(address);
   const globals = {
     location: { get href() { return url.href; }, get hash() { return url.hash; }, set hash(value) { url.hash = value; } },
     history: { state: { marker: 'kept' }, replaceState(state, _title, value) {
-      assert.deepEqual(state, this.state);
+      if (typeof value === 'string') assert.deepEqual(state, this.state);
       replacements.push(String(value));
       url = new URL(value, url);
+      this.state = state;
+    }, pushState(state, _title, value) {
+      pushes.push(String(value));
+      url = new URL(value, url);
+      this.state = state;
     } },
     window: { innerWidth: 1440, innerHeight: 900, addEventListener: (key, fn) => events.set(key, fn),
-      removeEventListener: key => events.delete(key) },
+      removeEventListener: key => events.delete(key), sessionStorage: storage, localStorage: storage },
     document: { activeElement: null, querySelector: () => null, addEventListener() {}, removeEventListener() {} },
-    localStorage: { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) },
+    localStorage: storage, sessionStorage: storage, requestAnimationFrame: () => 0, confirm: () => true,
     navigator: { clipboard },
   };
   const restore = installGlobals(globals);
-  return { replacements, values, events, restore, navigate: value => { url = new URL(value, url); } };
+  return { replacements, pushes, values, events, restore, navigate: value => { url = new URL(value, url); } };
 }
 
 function installGlobals(globals) {
@@ -187,10 +193,12 @@ function installGlobals(globals) {
   };
 }
 
-async function pagesHarness(address, { team, clipboard, placeholder } = {}) {
+async function pagesHarness(address, { team, clipboard, placeholder, storage } = {}) {
   const m = await bundle(`
 export { usePages, rememberedPageKey } from './state/use-pages.ts';
-export { discardStartupPage } from './page-links.ts';
+export { useStorageSession } from './state/use-storage-session.ts';
+export { LocalStore, digest } from './storage.ts';
+export { canonical } from 'nextphase-board-rules/document.ts';
 export { editingCommandReason } from './commands.ts';
 export { HostedBoard } from './team/hosted-board.ts';
 export * from 'test-hooks';
@@ -198,26 +206,56 @@ export * from 'test-hooks';
   const b = browser(address, clipboard);
   const initial = placeholder ?? { ...fixture, boardId: otherId, pages: [{ id: otherId, name: 'Page 1' }] };
   const messages = [], focus = [], views = [], commits = [];
-  let pageHook, board = initial;
+  let pageHook, storageHook, board = initial;
   const host = team && new m.HostedBoard(team, () => {});
   let presenceUpdates = 0;
   if (host) host.pageChanged = () => presenceUpdates++;
   const openingView = { x: 4, y: 8, z: 1 };
   const model = { current: board };
+  if (storage) {
+    // Exercise the real storage session and envelope decoding. Hold only its
+    // IndexedDB read so the initial read-only canvas repaint can run first.
+    const pairs = new Map();
+    for (const [key, saved] of storage.boards) {
+      const payload = m.canonical(saved);
+      pairs.set(key, [JSON.stringify({ formatVersion: 1, storageRevision: 1, payload, sha256: await m.digest(payload) }), undefined]);
+    }
+    navigator.locks = { request: async (_name, _options, hold) => hold(storage.owned === false ? null : {}),
+      query: async () => ({ held: [] }) };
+    m.LocalStore.prototype.open = async function () {
+      await storage.ready;
+      if (storage.fail) throw Error('Test storage unavailable');
+      if (storage.damaged) return ['damaged envelope', undefined];
+      return pairs.get(this.key) ?? [undefined, undefined];
+    };
+    m.LocalStore.prototype.refreshList = async () => [];
+  }
+  const revision = { current: 0 }, adapter = { current: null };
+  const pending = { current: { invalid: false, busy: false, composing: false } };
   const h = { ...b, messages, focus, views, commits, host, openingView, key: m.rememberedPageKey,
-    blocked: '', readOnly: false, get pages() { return pageHook; },
+    blocked: '', readOnly: !!storage, get pages() { return pageHook; },
     get presenceUpdates() { return presenceUpdates; },
     get model() { return model.current; },
-    discardStartupPage: m.discardStartupPage,
+    get storage() { return storageHook; },
     refresh() {
-      pageHook = m.render('pages', () => m.usePages({
-        board, model, stepPage: h.stepPage, hosted: !!host, team: host, canEdit: !host || !h.readOnly,
-        commit: next => commits.push(next), finishTextSession() {}, select() {},
-        setMessage: message => messages.push(message), getView: () => views.at(-1) ?? openingView,
-        setView: view => views.push(view), getObjects: () => board.objects,
-        openingReason: () => h.blocked,
-        editingReason: () => m.editingCommandReason({ readOnly: h.readOnly, composing: false, pointerGesture: false, invalidObjectText: false }),
-      }));
+      pageHook = m.render('pages', () => {
+        const pages = m.usePages({
+          board, model, stepPage: h.stepPage, hosted: !!host, team: host, canEdit: !host || !h.readOnly,
+          commit: next => commits.push(next), finishTextSession() {}, select() {},
+          setMessage: message => messages.push(message), getView: () => views.at(-1) ?? openingView,
+          setView: view => views.push(view), getObjects: () => board.objects,
+          openingReason: () => h.blocked,
+          editingReason: () => m.editingCommandReason({ readOnly: h.readOnly, composing: false, pointerGesture: false, invalidObjectText: false }),
+        });
+        if (storage) storageHook = m.useStorageSession({
+          readOnly: h.readOnly, title: board.title, setReadOnly: value => { h.readOnly = value; },
+          setStatus() {}, setMessage: message => messages.push(message), clearHistory() {},
+          load: next => { model.current = board = next; }, model, revision, adapter,
+          select() {}, setInline() {}, setView: view => views.push(view),
+          invalid: false, busy: false, composing: false, pending,
+        });
+        return pages;
+      });
       pageHook.button.current = { focus: () => focus.push('Pages') };
       pageHook.pageMenu.current = { querySelector: () => ({ focus: () => focus.push('first item') }) };
       return pageHook;
@@ -228,6 +266,16 @@ export * from 'test-hooks';
       board = next;
       return h.refresh();
     },
+    repaint() { board = { ...model.current }; h.refresh(); },
+    async waitForStorage() {
+      const deadline = Date.now() + 2000;
+      for (;;) {
+        h.refresh();
+        if (!storageHook.boardFiles.opening) return;
+        assert(Date.now() < deadline, 'storage session did not finish');
+        await new Promise(resolve => setImmediate(resolve));
+      }
+    },
     close() { m.dispose(); b.restore(); },
     stepPage: { current: undefined },
   };
@@ -235,46 +283,65 @@ export * from 'test-hooks';
   return h;
 }
 
-check('06', 'local startup applies once and address changes use replaceState', async () => {
-  const h = await pagesHarness(localAddress(ideas));
-  try {
-    assert.equal(h.replacements.length, 0, 'the placeholder must not write an address');
-    h.values.set(h.key(boardId), boardId);
-    assert.equal(h.deliver(fixture).id, ideas);
-    assert.equal(h.stepPage.current, ideas);
-    assert.equal(h.values.get(h.key(boardId)), ideas);
-    assert.equal(h.replacements.at(-1), localAddress(ideas));
-    assert.deepEqual(h.views, []);
-    h.pages.openPage(boardId); h.refresh();
-    assert.equal(h.replacements.at(-1), localAddress(boardId));
-    h.pages.openPage(ideas); h.refresh();
-    assert.equal(h.replacements.at(-1), localAddress(ideas));
-    const later = { ...fixture, boardId: otherId, pages: [{ id: otherId, name: 'Later' }, fixture.pages[1]] };
-    h.navigate(root + '?board=' + otherId + '&page=' + ideas);
-    assert.equal(h.deliver(later).id, otherId, 'a later board never reads the earlier page value');
-    assert.equal(h.replacements.at(-1), root + '?board=' + otherId + '&page=' + otherId);
-    assert.equal(h.replacements.length, 4);
-    assert.deepEqual(h.commits, []);
-    assert.equal(h.model, later);
-    const source = await readFile(new URL('../apps/web/src/state/use-pages.ts', import.meta.url), 'utf8');
-    assert.equal(source.match(/\buseEffect\(/g).length, 2);
-    assert.doesNotMatch(source, /useLayoutEffect|pushState|location\.hash\s*=/);
-  } finally { h.close(); }
-});
-
-check('07', 'local missing links respect startup notices and failed loads discard the value', async () => {
-  for (const mode of ['normal', 'read-only', 'failed']) {
-    const h = await pagesHarness(localAddress(''));
+check('06', 'local page links wait for storage adoption and reopen the saved page after reload', async () => {
+  let address = localAddress(ideas);
+  for (const visit of ['link', 'reload']) {
+    const ready = Promise.withResolvers();
+    const h = await pagesHarness(address, { storage: { boards: [['original', fixture]], ready: ready.promise } });
     try {
-      h.values.set(h.key(boardId), ideas);
-      h.readOnly = mode === 'read-only';
-      h.messages.push('Load notice');
-      if (mode === 'failed') h.discardStartupPage();
-      assert.equal(h.deliver(fixture).id, mode === 'failed' ? ideas : boardId);
-      assert.equal(h.messages.at(-1), mode === 'normal' ? 'That page no longer exists. You are on “Page 1”.' : 'Load notice');
-      assert.equal(h.replacements.at(-1), localAddress(mode === 'failed' ? ideas : boardId));
+      h.values.set(h.key(boardId), boardId);
+      h.repaint();
+      const writesBeforeLoad = [...h.replacements];
+      ready.resolve();
+      await h.waitForStorage();
+      assert.equal(h.pages.id, ideas, visit);
+      assert.equal(h.stepPage.current, ideas);
+      assert.equal(h.values.get(h.key(boardId)), ideas);
+      assert.deepEqual(writesBeforeLoad, [], 'a placeholder repaint must not write an address');
+      assert.deepEqual(h.replacements.map(url => new URL(url).searchParams.get('page')), [ideas, ideas]);
+      assert.deepEqual(h.views, [{ x: 0, y: 0, z: 1 }]);
+      address = location.href;
+      h.pages.openPage(boardId); h.refresh();
+      assert.equal(h.replacements.at(-1), localAddress(boardId));
+      assert.deepEqual(h.pushes, []);
+      assert.deepEqual(h.commits, []);
     } finally { h.close(); }
   }
+  const source = await readFile(new URL('../apps/web/src/state/use-pages.ts', import.meta.url), 'utf8');
+  assert.equal(source.match(/\buseEffect\(/g).length, 2);
+  assert.doesNotMatch(source, /useLayoutEffect|pushState|location\.hash\s*=/);
+});
+
+check('07', 'missing local page links fix the address after adoption and preserve read-only notices', async () => {
+  const withoutIdeas = { ...fixture, pages: [fixture.pages[0]] };
+  const cases = [
+    ['deleted', ideas, withoutIdeas, true],
+    ['malformed', '%ZZ', fixture, true],
+    ['empty', '', fixture, true],
+    ['never saved', otherId, fixture, true],
+    ['read-only', 'missing', fixture, false],
+  ];
+  for (const [label, page, saved, owned] of cases) {
+    const ready = Promise.withResolvers();
+    const h = await pagesHarness(localAddress(page), { storage: { boards: [['original', saved]], ready: ready.promise, owned } });
+    try {
+      h.values.set(h.key(boardId), ideas);
+      h.repaint();
+      ready.resolve();
+      await h.waitForStorage();
+      assert.equal(h.pages.id, boardId, label);
+      assert.equal(h.messages.at(-1), owned ? 'That page no longer exists. You are on “Page 1”.'
+        : 'Another tab is editing. This board is read-only.', label);
+      assert.equal(h.replacements.at(-1), localAddress(boardId), label);
+    } finally { h.close(); }
+  }
+  const recovery = await pagesHarness(localAddress(ideas), { storage: { boards: [], damaged: true } });
+  try {
+    await recovery.waitForStorage();
+    assert.equal(recovery.pages.id, recovery.model.pages[0].id);
+    assert.equal(location.href, localAddress(recovery.pages.id));
+    assert.match(recovery.messages.at(-1), /^Saved data is unsupported, damaged or inconsistent\./);
+  } finally { recovery.close(); }
 });
 
 check('08', 'first hosted delivery consumes the latest pending value regardless of origin', async () => {
@@ -416,25 +483,39 @@ check('12', 'the real notice renders Retry editing only on a local board', async
   assert.doesNotMatch(hosted, /Retry editing/);
 });
 
-check('13', 'the notice follows column appearance, resize and removal without changing panel position', async () => {
+check('13', 'the hidden notice keeps panel top at 68 while team changes move only the notice', async () => {
   const m = await bundle('export { usePanelLayout } from "./state/use-panel-layout.ts"; export * from "test-hooks";', { hooks: true });
-  let resized, mutated, column, bottom = 115;
+  const resizes = [];
+  let mutated, column, bottom = 115;
   const bars = { getBoundingClientRect: () => ({ bottom: 60 }) };
+  const notice = { hidden: true, getBoundingClientRect: () => ({ height: 37 }) };
   const restore = installGlobals({
     window: { addEventListener() {}, removeEventListener() {} },
-    document: { querySelector: selector => selector === '.notice' ? null : bars },
-    ResizeObserver: class { constructor(callback) { resized = callback; } observe() {} unobserve() {} disconnect() {} },
+    document: { querySelector: selector => selector === '.notice' ? notice : bars },
+    ResizeObserver: class { constructor(callback) { resizes.push(callback); } observe() {} unobserve() {} disconnect() {} },
     MutationObserver: class { constructor(callback) { mutated = callback; } observe() {} disconnect() {} },
   });
   const scene = { current: { parentElement: { querySelector: () => column }, getBoundingClientRect: () => ({ top: 0 }) } };
   const render = () => m.render('layout', () => m.usePanelLayout(scene));
   try {
     assert.deepEqual(render(), { notice: 68, panel: 68 });
+    // A child-list mutation can sample a transient notice before it is hidden
+    // again. The baseline layout measures only on its original resize signals.
+    notice.hidden = false;
+    mutated();
+    notice.hidden = true;
+    assert.deepEqual(render(), { notice: 68, panel: 68 }, 'I7 hidden notice');
+    notice.hidden = false;
+    resizes[0]();
+    assert.deepEqual(render(), { notice: 68, panel: 113 });
     column = { getBoundingClientRect: () => ({ bottom }) };
     mutated();
-    assert.deepEqual(render(), { notice: 123, panel: 68 });
+    assert.deepEqual(render(), { notice: 123, panel: 113 });
     bottom = 160;
-    resized();
+    for (const resize of resizes) resize();
+    assert.deepEqual(render(), { notice: 168, panel: 113 });
+    notice.hidden = true;
+    resizes[0]();
     assert.deepEqual(render(), { notice: 168, panel: 68 });
     column = null;
     mutated();
@@ -442,7 +523,7 @@ check('13', 'the notice follows column appearance, resize and removal without ch
   } finally { m.dispose(); restore(); }
 });
 
-check('14', 'the real team route bypasses leave for same-board links and restarts on the live address', async ({ pageLink }) => {
+check('14', 'hosted leave pushes the active page address while same-board links stay in place', async ({ pageLink }) => {
   const m = await bundle(`
 export { TeamApp } from './team/team-app.tsx';
 export { HostedBoard } from './team/hosted-board.ts';
@@ -486,9 +567,13 @@ export * from 'test-hooks';
     assert.deepEqual(stops, []);
     assert.equal(render().props.leave, null);
     assert.equal(render().key, joined.key);
+    assert.deepEqual(b.pushes, []);
+    const replacements = b.replacements.length;
     hashchange('#/b/' + otherId);
     const question = render();
     assert(question.props.leave);
+    assert.deepEqual(b.pushes, [hostedAddress(ideas)]);
+    assert.equal(b.replacements.length, replacements);
     assert.equal(location.href, hostedAddress(ideas));
     question.props.stay();
     assert.equal(render().props.leave, null);
@@ -502,4 +587,29 @@ export * from 'test-hooks';
     assert.deepEqual(stops, [board]);
     assert.deepEqual(render().props.link, { kind: 'board', board: otherId });
   } finally { m.dispose(); b.restore(); }
+});
+
+check('15', 'board-list choices and Retry never apply a local startup page link', async () => {
+  const later = { ...fixture, boardId: otherId, pages: [{ id: otherId, name: 'Later' }, fixture.pages[1]] };
+  const boards = [['original', fixture], [otherId, later]];
+  const h = await pagesHarness(localAddress(ideas), { storage: { boards } });
+  try {
+    await h.waitForStorage();
+    h.storage.boardFiles.openBoard({ key: otherId, state: 'valid' }, null);
+    await h.waitForStorage();
+    assert.equal(h.pages.id, otherId);
+    assert.equal(location.href, root + '?board=' + otherId + '&page=' + otherId);
+  } finally { h.close(); }
+
+  const storage = { boards, fail: true };
+  const retry = await pagesHarness(localAddress(ideas), { storage });
+  try {
+    await retry.waitForStorage();
+    assert.match(retry.messages.at(-1), /^Storage unavailable\./);
+    storage.fail = false;
+    await retry.storage.reopen();
+    retry.refresh();
+    assert.equal(retry.pages.id, boardId);
+    assert.equal(location.href, localAddress(boardId));
+  } finally { retry.close(); }
 });

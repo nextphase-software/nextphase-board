@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { Page } from 'nextphase-board-rules/document.ts';
+import type { BoardV14, Page } from 'nextphase-board-rules/document.ts';
 
 const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const boardPattern = new RegExp(`^#/b/(${uuid})(?:\\?page=([^&#]*))?$`);
@@ -45,17 +45,27 @@ export const missingPageNotice = (name: string) => `That page no longer exists. 
 export const copiedPageNotice = (name: string, hosted: boolean) =>
   `Link to “${name}” copied.` + (hosted ? '' : ' It opens in this browser only.');
 
-// The object distinguishes a tab that has started with no page value from one
-// that hasn't captured its URL yet. Taking or discarding it leaves it spent.
-let startup: { value?: string } | undefined;
+// Only the storage session can mark the initial board as adopted. A repaint
+// before that adoption must leave the captured link available.
+let startup: { kind: 'waiting'; value?: string }
+  | { kind: 'adopted'; board: BoardV14; value?: string; showNotice: boolean }
+  | { kind: 'spent' }
+  | undefined;
 export function captureStartupPage(address: string) {
-  startup ??= { value: readPageValue(address) };
+  startup ??= { kind: 'waiting', value: readPageValue(address) };
 }
-export function takeStartupPage() {
-  const value = startup?.value;
+export function markStartupAdoption(board: BoardV14, showNotice: boolean) {
+  if (startup?.kind === 'waiting') startup = { kind: 'adopted', board, value: startup.value, showNotice };
+}
+export function startupPagePending() {
+  return startup?.kind === 'waiting' || startup?.kind === 'adopted';
+}
+export function takeStartupAdoption(boardId: string) {
+  const adopted = startup;
+  if (adopted?.kind !== 'adopted' || adopted.board.boardId !== boardId) return;
   discardStartupPage();
-  return value;
+  return adopted;
 }
 export function discardStartupPage() {
-  startup = {};
+  startup = { kind: 'spent' };
 }

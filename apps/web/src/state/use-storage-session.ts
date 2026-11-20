@@ -9,7 +9,7 @@ import type { View } from "../view";
 
 import { boardPictures, readPictures, pictureBytes, PICTURE_LIMIT, tabPictures, type Pictures } from "../image-assets.ts";
 import { decodePicture } from "../images.ts";
-import { discardStartupPage } from "../page-links.ts";
+import { discardStartupPage, markStartupAdoption } from "../page-links.ts";
 
 import type { HostedBoard } from "../team/hosted-board";
 
@@ -121,7 +121,7 @@ export function useStorageSession({
     await s?.tail;
     own?.release(); await own?.task;
   }
-  async function start(boardKey: string, supplied?: Ownership) {
+  async function start(boardKey: string, supplied?: Ownership, initial = false) {
     const token = epoch.current;
     clearHistory(); setReadOnly(true); setSnapshots([]);
     setMessage("Checking local storage and writer ownership…");
@@ -138,7 +138,7 @@ export function useStorageSession({
       });
       if (!alive.current || token !== epoch.current) { s.close(); own?.release(); return; }
       if (boardKey !== "original" && pair.every((raw) => raw === undefined)) {
-        await stop(); return start("original");
+        await stop(); return start("original", undefined, initial);
       }
       currentKey.current = boardKey; setKey(boardKey); remember(boardKey);
       try {
@@ -148,6 +148,7 @@ export function useStorageSession({
         setMessage(own ? "Stored only in this browser profile. Browser storage is not a backup."
           : navigator.locks ? "Another tab is editing. This board is read-only."
           : "Web Locks unavailable. This board is read-only; editing is disabled.");
+        if (initial) markStartupAdoption(model.current, !!own);
       } catch (error) {
         if (!alive.current || token !== epoch.current) return;
         adopt(empty(), false);
@@ -157,6 +158,7 @@ export function useStorageSession({
         }
         setSnapshots(valid); setReadOnly(true);
         setMessage("Saved data is unsupported, damaged or inconsistent. Original records are preserved. " + String(error));
+        if (initial) markStartupAdoption(model.current, false);
       }
       await refresh();
     } catch (error) {
@@ -178,7 +180,7 @@ export function useStorageSession({
       try { choice = localStorage.getItem(OPEN_KEY); } catch {}
     }
     operation.current = true;
-    void start(isBoardKey(choice) ? choice : "original").finally(() => {
+    void start(isBoardKey(choice) ? choice : "original", undefined, true).finally(() => {
       if (!opened.current) discardStartupPage();
       operation.current = false; setOpening(false);
     });

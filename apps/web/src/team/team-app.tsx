@@ -61,7 +61,7 @@ export function TeamApp() {
       }
       if (board?.counts.waiting) {
         const ownLink = board.page ? pageLink(location.href, board.page, board.boardId) : boardLink(location.href, board.boardId);
-        history.replaceState(history.state, "", ownLink);
+        history.pushState(null, "", ownLink);
         leaveHandler.current(() => { board.stop(); active.current = null; location.hash = destination; });
         return;
       }

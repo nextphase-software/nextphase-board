@@ -8,11 +8,6 @@
 # two seconds). Hosted runners are about half as fast as the reference machine those limits were
 # measured on, so these checks are left out here and run on the reference machine at review.
 # Keep the list short and say why in the note.
-#
-# The Node suite is information only for now: stopping the Node server intermittently hangs on
-# hosted Linux runners (restart checks and each file's final close time out), so its jobs report
-# their result without failing the run. It still runs in full on the reference machine at review.
-# Make it count again once that hang is fixed.
 name: Checks
 
 on:
@@ -69,10 +64,9 @@ jobs:
         run: test -z "$(git status --porcelain)" || { git status --short; exit 1; }
 
   server:
-    name: Server suite (${{ matrix.runner }} ${{ matrix.shard }}/3${{ matrix.runner == 'node' && ', information only' || '' }})
+    name: Server suite (${{ matrix.runner }} ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    continue-on-error: ${{ matrix.runner == 'node' }}
     strategy:
       fail-fast: false
       matrix:
@@ -110,8 +104,7 @@ jobs:
         if: always()
         run: |
           {
-            note=""; if [ "${{ matrix.runner }}" = node ]; then note="; information only"; fi
-            echo "### Server suite (${{ matrix.runner }} ${{ matrix.shard }}/3; left out: S${SPEED_CHECKS//|/, S}$note)"
+            echo "### Server suite (${{ matrix.runner }} ${{ matrix.shard }}/3; left out: S${SPEED_CHECKS//|/, S})"
             echo
             sed 's/\x1b\[[0-9;]*m//g' "logs/server-${{ matrix.runner }}.log" | grep -E "^ *(Test Files|Tests|Duration) " | sed 's/^ */- /' || echo "- no result lines"
           } >> "$GITHUB_STEP_SUMMARY"

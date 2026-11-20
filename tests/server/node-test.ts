@@ -179,7 +179,19 @@ process.on("message", async (message: any) => {
       }
     }
     if (value.alarmAll) for (const entry of app.rooms.values()) await entry.room.alarm();
-    if (value.shutdown) { await app.close(); process.send?.({ id: message.id, result: {} }); process.exit(0); }
+    if (value.shutdown) {
+      const reportRooms = () => {
+        const shutdownRooms = [...app.rooms].filter(([, entry]) => entry.tasks.size)
+          .map(([board, entry]) => `${board} (${entry.tasks.size})`);
+        process.send?.({ shutdownRooms });
+      };
+      reportRooms();
+      const report = setInterval(reportRooms, 1000).unref();
+      try { await app.close(); } finally { clearInterval(report); }
+      reportRooms();
+      process.send?.({ id: message.id, result: {} }, (error) => process.exit(error ? 1 : 0));
+      return;
+    }
     result = value.now ? Date.now() + offset : result;
     process.send?.({ id: message.id, result });
   } catch (error) { process.send?.({ id: message.id, error: (error as Error).message }); }

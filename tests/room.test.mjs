@@ -2,9 +2,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { setTimeout as delay } from "node:timers/promises";
 import * as Y from "yjs";
 import { Room } from "../packages/board-room/src/room.ts";
 import { NodeStorage } from "../apps/server/src/node-storage.ts";
+import { startNode } from "../apps/server/src/start-node.ts";
+import { COPY_INTERVAL } from "../packages/board-room/src/copies.ts";
+import { HISTORY_AGE } from "../packages/board-sync/src/history.ts";
 import { meta } from "../packages/board-room/src/storage.ts";
 function fixture() {
   const storage = new NodeStorage(":memory:"), board = crypto.randomUUID(), person = crypto.randomUUID();
@@ -35,6 +43,67 @@ function edit(doc, title) {
   doc.getMap("board").set("title", title);
   return Buffer.from(Y.encodeStateAsUpdate(doc, vector)).toString("base64");
 }
+test("NB-120 Node shutdown drains a named save with a future room alarm", async (t) => {
+  const dataDir = await mkdtemp(join(tmpdir(), "board-room-shutdown-"));
+  t.after(() => rm(dataDir, { recursive: true, force: true }));
+  const initialTime = Date.UTC(2026, 0, 1);
+  let now = initialTime, copies = 0;
+  const db = {
+    async lifecycle() { await delay(8); return { state: "active", generation: 0 }; },
+    async board() { return { title: "Room", createdAt: new Date(initialTime).toISOString() }; },
+    async role() { return "editor"; },
+    async changes() { return { changes: [], latest: 0, lowestKept: 1 }; },
+    async copy() { copies++; },
+  };
+  const app = await startNode({ dataDir, port: 0 }, { db, auth: {}, now: () => now, deliveryIntervalMs: 0 });
+  const room = app.runtime.room(crypto.randomUUID()), entry = app.rooms.get(room.boardId);
+  // Exercise the Node timer and drain with a room whose saves use in-memory SQLite.
+  entry.storage.close();
+  entry.storage.database = new DatabaseSync(":memory:");
+  // Node converts delays above its signed 32-bit limit to 1 ms. Model that
+  // conversion without emitting a warning every time the alarm is re-armed.
+  const setTimer = globalThis.setTimeout;
+  t.mock.method(globalThis, "setTimeout", (callback, ms, ...args) =>
+    setTimer(callback, ms > 2 ** 31 - 1 ? 1 : ms, ...args));
+  const person = { id: crypto.randomUUID(), email: "unit@example.test", expiresAt: initialTime + HISTORY_AGE + 3600000 };
+  const save = name => room.saveVersion(person, { name, description: "", requestId: crypto.randomUUID() });
+  const drain = async () => { while (entry.tasks.size) await Promise.allSettled([...entry.tasks]); };
+  let closing;
+  try {
+    await save("Initial");
+    await drain();
+    assert.equal(copies, 1);
+    now += HISTORY_AGE;
+    await room.alarm();
+    await drain();
+    now = initialTime;
+    assert(meta(entry.storage, "history_next_at") - now > 2 ** 31 - 1);
+
+    const busy = Promise.withResolvers();
+    const alarm = room.alarm.bind(room);
+    room.alarm = () => {
+      if (entry.tasks.size) busy.resolve(true);
+      return alarm();
+    };
+    await save("Retry");
+    const deadline = AbortSignal.timeout(2000);
+    const expired = new Promise(resolve => deadline.addEventListener("abort", () => resolve(false), { once: true }));
+    assert.equal(await Promise.race([busy.promise, expired]), true, "expected an alarm with a room task still pending");
+    assert(entry.tasks.size > 0);
+    now += COPY_INTERVAL;
+    closing = app.close();
+    const drained = await Promise.race([closing.then(() => true), expired]);
+    assert.equal(copies, 1);
+    assert.equal(drained, true,
+      "future room alarms kept the shutdown drain pending after a copy interval on the injected clock");
+    assert.equal(entry.tasks.size, 0);
+  } finally {
+    room.env.schedule = async () => {};
+    clearTimeout(entry.timer);
+    await (closing ?? app.close());
+    room.doc.destroy();
+  }
+});
 test("room serializes concurrent messages, saves receipts atomically and snapshots after 100", async () => {
   const f = fixture(), connection = await f.open(), doc = new Y.Doc();
   Y.applyUpdate(doc, Buffer.from(f.messages[0].update, "base64"));

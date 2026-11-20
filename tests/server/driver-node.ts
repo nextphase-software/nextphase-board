@@ -13,6 +13,7 @@ import type { Context, Driver } from "./driver-types.ts";
 const require = createRequire(new URL("../../apps/server/package.json", import.meta.url));
 const { WebSocket } = require("ws");
 const root = fileURLToPath(new URL("../../", import.meta.url));
+const STOP_TIMEOUT_MS = 30000;
 export async function makeDriver(context: Context): Promise<Driver> {
   const docker = process.env.BOARD_TEST_TARGET === "docker";
   const folder = await mkdtemp(resolve(tmpdir(), "board-server-")), dataDir = resolve(folder, "data");
@@ -23,19 +24,30 @@ export async function makeDriver(context: Context): Promise<Driver> {
   let child: ReturnType<typeof fork> | undefined, url = "", sequence = 0, container = "";
   let image = "", volume = "";
   let deliveryIntervalMs = 0;
+  let shutdownRooms: string[] | undefined;
   const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
   async function start() {
     await writeFile(settingsFile, JSON.stringify(settings), { mode: 0o600 });
-    child = fork(resolve(root, "tests/server/node-test.ts"), [], { env: { ...process.env, BOARD_SETTINGS: settingsFile,
+    const started = child = fork(resolve(root, "tests/server/node-test.ts"), [], { env: { ...process.env, BOARD_SETTINGS: settingsFile,
       BOARD_DELIVERY_INTERVAL_MS: String(deliveryIntervalMs) },
       stdio: ["ignore", "pipe", "pipe", "ipc"] });
     let errors = "";
-    child.stderr?.on("data", (value) => { errors += value; });
+    started.stderr?.on("data", (value) => { errors += value; });
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => reject(Error("Node test server did not start: " + errors.slice(-500))), 15000);
-      child!.once("exit", (code) => { clearTimeout(timer); if (code) reject(Error("Node test server exited: " + errors.slice(-500))); });
-      child!.on("message", (message: any) => {
+      started.once("exit", (code, signal) => {
+        clearTimeout(timer);
+        const error = Error(`Node test server exited (${signal ?? code}): ${errors.slice(-500)}`);
+        reject(error);
+        if (child === started) {
+          child = undefined;
+          for (const request of pending.values()) request.reject(error);
+          pending.clear();
+        }
+      });
+      started.on("message", (message: any) => {
         if (message.ready) { url = `http://127.0.0.1:${message.port}`; clearTimeout(timer); resolve(); }
+        else if (message.shutdownRooms) shutdownRooms = message.shutdownRooms;
         else {
           const request = pending.get(message.id); pending.delete(message.id);
           if (message.error) request?.reject(Error(message.error)); else request?.resolve(message.result);
@@ -44,10 +56,49 @@ export async function makeDriver(context: Context): Promise<Driver> {
     });
   }
   function ipc(value: any): Promise<any> {
+    const running = child;
+    if (!running?.connected) return Promise.reject(Error("Node test server IPC is disconnected"));
     const id = ++sequence;
-    return new Promise((resolve, reject) => { pending.set(id, { resolve, reject }); child!.send({ id, value }); });
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      running.send({ id, value }, (error) => {
+        if (error) { pending.delete(id); reject(error); }
+      });
+    });
   }
-  async function stop() { if (child?.connected) { const old = child; await ipc({ shutdown: true }); await new Promise<void>((r) => old.exitCode !== null ? r() : old.once("exit", () => r())); } }
+  async function stop(restartOnFailure = true) {
+    const old = child;
+    if (!old) return;
+    shutdownRooms = undefined;
+    const { promise: exited, resolve: onExit } = Promise.withResolvers<void>();
+    old.once("exit", onExit);
+    async function waitFor(task: Promise<unknown>, phase: string, limit = STOP_TIMEOUT_MS) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([task, new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            const rooms = shutdownRooms?.join(", ") || (shutdownRooms ? "none" : "unreported");
+            reject(Error(`Node test server timed out after ${limit / 1000} s waiting for ${phase}. Board rooms with pending background tasks: ${rooms}`));
+          }, limit);
+        })]);
+      } finally { clearTimeout(timer); }
+    }
+    try {
+      if (old.connected) await waitFor(ipc({ shutdown: true }), "the shutdown reply");
+      await waitFor(exited, "the child to exit");
+      if (old.exitCode !== 0) throw Error(`Node test server exited during shutdown (${old.signalCode ?? old.exitCode})`);
+    } catch (error) {
+      try {
+        if (old.exitCode === null && old.signalCode === null) old.kill("SIGKILL");
+        await waitFor(exited, "the killed child to exit", 1000);
+        // Keep cleanup and later checks usable, then fail the awaiting check.
+        if (restartOnFailure) await start();
+      } catch (recoveryError) {
+        throw new AggregateError([error, recoveryError], (error as Error).message);
+      }
+      throw error;
+    } finally { old.off("exit", onExit); }
+  }
   async function runDocker() {
     image = "nextphase-board-w1-" + crypto.randomUUID();
     execFileSync("docker", ["build", "--pull=false", "-f", "apps/server/Dockerfile", "-t", image, "."], { cwd: root, stdio: ["ignore", "pipe", "pipe"], maxBuffer: 16777216 });
@@ -137,8 +188,9 @@ export async function makeDriver(context: Context): Promise<Driver> {
     async rows(board, table) { return ipc({ board, rows: table }); },
     async close() {
       if (docker) { execFileSync("docker", ["rm", "-f", container], { stdio: "pipe" }); execFileSync("docker", ["volume", "rm", volume], { stdio: "pipe" }); execFileSync("docker", ["image", "rm", image], { stdio: "pipe" }); }
-      else { await chmod(resolve(dataDir, "restore-fences.sqlite"), 0o600).catch(() => {}); await stop(); }
-      await rm(folder, { recursive: true, force: true });
+      try {
+        if (!docker) { await chmod(resolve(dataDir, "restore-fences.sqlite"), 0o600).catch(() => {}); await stop(false); }
+      } finally { await rm(folder, { recursive: true, force: true }); }
     },
   };
 }

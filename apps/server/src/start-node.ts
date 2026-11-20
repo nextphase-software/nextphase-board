@@ -90,6 +90,7 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
     void task.finally(() => tasks.delete(task)).catch(() => {});
   } };
   const rooms = new Map<string, { room: Room; storage: NodeStorage; connections: Set<Connection>; tasks: Set<Promise<void>>; timer?: ReturnType<typeof setTimeout> }>();
+  let closing = false;
   function roomEntry(board: string) {
     let entry = rooms.get(board);
     if (entry) return entry;
@@ -108,7 +109,7 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
         const current = rooms.get(board);
         if (!current) return;
         clearTimeout(current.timer);
-        if (at !== null && !room.lifecycle.discarded) {
+        if (!closing && at !== null && !room.lifecycle.discarded) {
           current.timer = setTimeout(() => { void current.room.alarm().catch(() => {}); }, Math.max(1, at - now()));
           current.timer.unref();
         }
@@ -206,17 +207,19 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
   return { server, rooms, runtime, fences, socketFor:(connection:Connection)=>socketConnections.get(connection),
     port: (server.address() as { port: number }).port,
     async close() {
+      closing = true;
       clearInterval(deliveryTimer);
-      // Drain an in-flight delivery before closing room storage.
+      // Alarms can enqueue more work while the drain is waiting. Stop their
+      // timers before waiting and ignore re-arms from work already in flight.
+      for (const entry of rooms.values()) clearTimeout(entry.timer);
       while (tasks.size) await Promise.allSettled([...tasks]);
       for (const entry of rooms.values()) {
-        clearTimeout(entry.timer);
         for (const connection of entry.connections) connection.close(1001);
       }
       await new Promise<void>((resolve) => server.close(() => resolve()));
       for (const entry of rooms.values()) await entry.room.ordered(async () => {});
       while (tasks.size) await Promise.allSettled([...tasks]);
-      for (const entry of rooms.values()) { clearTimeout(entry.timer); entry.storage.close(); }
+      for (const entry of rooms.values()) entry.storage.close();
       fenceStorage?.close();
     },
   };

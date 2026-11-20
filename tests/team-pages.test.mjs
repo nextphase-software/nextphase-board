@@ -147,9 +147,12 @@ async function pagesHarness(board, { remembered, hosted = true } = {}) {
 export function useRef(v){const i=cursor++;return slots[i]??(slots[i]={current:v});}export function useState(v){const i=cursor++;if(!(i in slots))slots[i]=typeof v==='function'?v():v;return[slots[i],f=>{const n=typeof f==='function'?f(slots[i]):f;if(n!==slots[i]){slots[i]=n;dirty=true;}}];}export function useEffect(fn,deps){const i=cursor++,old=slots[i];if(!old||!deps||deps.some((d,j)=>d!==old.deps[j]))tasks.push(()=>{old?.cleanup?.();slots[i]={deps,cleanup:fn()};});}`;
   const built=await build({stdin:{contents:'export {usePages} from "./apps/web/src/state/use-pages.ts";export * from "test-react";',resolveDir:new URL('../',import.meta.url).pathname},bundle:true,write:false,format:'esm',platform:'node',plugins:[{name:'hooks',setup(b){b.onResolve({filter:/^(react|test-react)$/},()=>({path:'runtime',namespace:'hooks'}));b.onLoad({filter:/.*/,namespace:'hooks'},()=>({contents:runtime}));}}]});
   const m=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64'));
-  const keys=['document','window','localStorage'],old=keys.map(k=>Object.getOwnPropertyDescriptor(globalThis,k)),values=new Map();
+  const keys=['document','window','localStorage','location','history'],old=keys.map(k=>Object.getOwnPropertyDescriptor(globalThis,k)),values=new Map();
   if(remembered)values.set('nextphase-board/page/v1/'+remembered.board,remembered.page);
   globalThis.window={innerWidth:1440,innerHeight:900};globalThis.document={activeElement:null,querySelector:()=>null,addEventListener(){},removeEventListener(){}};globalThis.localStorage={getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)};
+  const replacements=[];
+  globalThis.location=new URL('https://example.test/?board=original');
+  globalThis.history={replaceState(_state,_title,url){replacements.push(String(url));location.href=url;}};
   const h={board,canEdit:true,model:{current:board},messages:[],commits:[],view:{x:0,y:0,z:1},stops:0,follows:0};
   const team={presence:{self:{person:'own'},others:[{person:'ben',connection:'ben',label:'ben'}]},subscribePresence:()=>()=>{},stopFollowing:()=>h.stops++,pageChanged(){},pagePeople:()=>({shown:[],overflow:0,name:''}),votePageReason:()=>'',removedPage:(...args)=>rules.removedPage(...args,team.presence.others)};
   h.refresh=()=>{for(let n=0;n<10;n++){m.begin();h.pages=m.usePages({board:h.board,model:h.model,stepPage:{current:undefined},hosted,canEdit:h.canEdit,team:hosted?team:undefined,commit:(next,...args)=>{h.commits.push(args);h.model.current=next;h.board=next;},finishTextSession(){},select(){},setMessage:x=>h.messages.push(x),getView:()=>h.view,setView:(v,following)=>{h.view=v;if(following)h.follows++;},getObjects:()=>h.board.objects,openingReason:()=>'',editingReason:()=>''});m.flush();if(!m.changed())return;}throw Error('Unsettled page hook');};
@@ -401,11 +404,14 @@ check(28,'F3 hosted notices obey showNotice and retain Move to page navigation a
   } finally { await h.close(); }
 });
 check(29,'F4 hosted startup leaves board-details layout at its baseline position before and during a solo spotlight',async()=>{
-  const h=await reviewHarness(),{b}=await fixture(),keys=['document','window','localStorage','ResizeObserver'],old=keys.map(k=>Object.getOwnPropertyDescriptor(globalThis,k));
+  const h=await reviewHarness(),{b}=await fixture(),keys=['document','window','localStorage','ResizeObserver','location','history'],old=keys.map(k=>Object.getOwnPropertyDescriptor(globalThis,k));
   const bars={getBoundingClientRect:()=>({bottom:60})};let committedNotice=null;
   globalThis.document={activeElement:null,addEventListener(){},removeEventListener(){},querySelector:selector=>selector==='.notice'?committedNotice:selector==='.file'||selector==='.actions'?bars:null};
   globalThis.window={innerWidth:1280,innerHeight:800,addEventListener(){},removeEventListener(){}};
   globalThis.localStorage={getItem:()=>null,setItem(){}};globalThis.ResizeObserver=class{observe(){}disconnect(){}};
+  const replacements=[];
+  globalThis.location=new URL('https://example.test/');
+  globalThis.history={replaceState(_state,_title,url){replacements.push(String(url));location.href=url;}};
   const input={board:b,model:{current:b},stepPage:{current:undefined},hosted:true,canEdit:false,commit(){},finishTextSession(){},select(){},
     getView:()=>({x:0,y:0,z:1}),setView(){},getObjects:()=>b.objects,openingReason:()=>'',editingReason:()=>''};
   const frame=()=>{

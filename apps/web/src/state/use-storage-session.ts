@@ -9,6 +9,7 @@ import type { View } from "../view";
 
 import { boardPictures, readPictures, pictureBytes, PICTURE_LIMIT, tabPictures, type Pictures } from "../image-assets.ts";
 import { decodePicture } from "../images.ts";
+import { discardStartupPage } from "../page-links.ts";
 
 import type { HostedBoard } from "../team/hosted-board";
 
@@ -177,7 +178,10 @@ export function useStorageSession({
       try { choice = localStorage.getItem(OPEN_KEY); } catch {}
     }
     operation.current = true;
-    void start(isBoardKey(choice) ? choice : "original").finally(() => { operation.current = false; setOpening(false); });
+    void start(isBoardKey(choice) ? choice : "original").finally(() => {
+      if (!opened.current) discardStartupPage();
+      operation.current = false; setOpening(false);
+    });
     const hide = () => {
       epoch.current++; clearHistory(); void stop(); setReadOnly(true);
       const next = incoming.current; incoming.current = null;

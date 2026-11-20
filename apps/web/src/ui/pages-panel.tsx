@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react';
 import type { Pages } from '../find';
 import { ONLY_PAGE } from '../pages';
 import { Icon } from '../icons';
+import { COPY_PAGE_LINK } from '../page-links.ts';
 
 export function menuKeys(event: KeyboardEvent<HTMLElement>, close: () => void) {
   if (!['ArrowUp', 'ArrowDown', 'Home', 'End', 'Enter', ' ', 'Escape'].includes(event.key)) return;
@@ -58,13 +59,14 @@ export function PagesPanel({ pages }: { pages: Pages }) {
             {pages.people(page.id).shown.map(p => <span key={p.person} title={p.label} style={{ background: p.colour }}>{[...p.label][0]?.toUpperCase()}</span>)}
             {pages.people(page.id).overflow > 0 && <span className="pages-people-overflow">+{pages.people(page.id).overflow}</span>}
           </span>}
-          {pages.canEdit && <button className="page-icon page-options" ref={element => { if (element) pages.options.current.set(page.id, element); else pages.options.current.delete(page.id); }}
-            aria-label={`Page options for ${page.name}`} title="Page options" aria-expanded={pages.menu === page.id} aria-haspopup="menu" onClick={() => pages.showMenu(page.id)}><Icon name="page-more" /></button>}
+          <button className="page-icon page-options" ref={element => { if (element) pages.options.current.set(page.id, element); else pages.options.current.delete(page.id); }}
+            aria-label={`Page options for ${page.name}`} title="Page options" aria-expanded={pages.menu === page.id} aria-haspopup="menu" onClick={() => pages.showMenu(page.id)}><Icon name="page-more" /></button>
         </>}
       </li>)}{pages.drag?.active && pages.drag.gap === gaps.length && <li className="page-drop-end" aria-hidden="true" />}</ul>
     </section>
-    {pages.canEdit && menuPage && <div ref={pages.pageMenu} role="menu" aria-label="Page options" className="page-menu" style={{ left: Math.max(12, Math.min(anchor?.left ?? 12, window.innerWidth - 232)), top: (anchor?.bottom ?? 68) + 4 }} onKeyDown={e => menuKeys(e, pages.closeMenu)}>
-      {['Rename page','Duplicate page','separator-1','Move up','Move down','separator-2','Delete page'].map(action => {
+    {menuPage && <div ref={pages.pageMenu} role="menu" aria-label="Page options" className="page-menu" style={{ left: Math.max(12, Math.min(anchor?.left ?? 12, window.innerWidth - 232)), top: (anchor?.bottom ?? 68) + 4 }} onKeyDown={e => menuKeys(e, pages.closeMenu)}>
+      <button role="menuitem" onClick={() => pages.choose(COPY_PAGE_LINK, menuPage.id)}><span>{COPY_PAGE_LINK}</span></button>
+      {pages.canEdit && ['separator-copy','Rename page','Duplicate page','separator-1','Move up','Move down','separator-2','Delete page'].map(action => {
         if (action.startsWith('separator')) return <div key={action} role="separator" />;
         const reason = pages.editingReason || (action === 'Duplicate page' ? pages.duplicateReason(menuPage.id)
           : action === 'Delete page' && (pages.voteReason(menuPage.id) || pages.list.length === 1) ? pages.voteReason(menuPage.id) || ONLY_PAGE : action === 'Move up' && at === 0 || action === 'Move down' && at === pages.list.length - 1 ? 'This page is already ' + (at === 0 ? 'first.' : 'last.') : '');

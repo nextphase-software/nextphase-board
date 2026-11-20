@@ -191,6 +191,12 @@ export class HostedBoard {
   page = "";
   pageNotice?: (text: string) => void;
   openPage?: (id: string, following?: boolean) => View | undefined;
+  onLinkedPage?: (value?: string) => void;
+  pendingPage?: { value?: string };
+  openLinkedPage(value?: string) {
+    if (this.pendingPage) this.pendingPage.value = value;
+    else this.onLinkedPage?.(value);
+  }
   historyTable?: string;
   keepTableSelection = false;
   onTableChange?: HostedBoard["onPageChange"];
@@ -203,6 +209,7 @@ export class HostedBoard {
   change: { origin: "own" | "remote" | "reload"; connection?: string } = { origin: "reload" };
   constructor(link: TeamLink, local: () => void) {
     this.link = link;
+    this.pendingPage = { value: link.kind === "board" ? link.page : undefined };
     this.lifecycle.subscribe(() => this.publish());
     this.trashReturned = link.kind === "board" && lifecycleNavigation.restoredBoard === link.board;
     delete lifecycleNavigation.restoredBoard;

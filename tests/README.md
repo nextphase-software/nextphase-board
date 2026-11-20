@@ -682,6 +682,10 @@ baseline-negative and A–J checks belong to the independent check run.
 - `tables.test.mjs` covers table rules, shared maps, concurrent edits, Undo, canvas helpers and stored-room upgrades.
 - `server/tables.test.ts` contains S425–S430 for both server runners.
 
+`tests/page-links.test.mjs` covers 0010-W4 page addresses, first adoption,
+same-board routing, the page menu and notices. Run just these checks with
+`node --test tests/page-links.test.mjs`, or include them in `npm test`.
+
 ## Node server shutdown (0003-B1)
 
 NB-120 ran on `codex/0003-B1-node-stop-hang` from `0252f46`. Validated source

@@ -8,7 +8,8 @@ import { PresenceLayer } from "./presence-layer";
 import { ReactionTool } from "./reactions-layer";
 import { CommentTool } from "./comments/tool";
 import { CommentsLayer } from "./comments/layer";
-import { parseLink, type TeamLink } from "./links";
+import { boardLink, parseLink, type TeamLink } from "./links";
+import { pageLink } from "../page-links.ts";
 import { words } from "./notices";
 import { SignIn } from "./sign-in";
 import { ShareDialog } from "./share-dialog";
@@ -44,15 +45,23 @@ export function TeamApp() {
     if (active.current?.counts.waiting) setLeave({ opener: document.activeElement, run: () => { setLeave(null); run(); } });
     else run();
   };
+  const restartRoute = () => {
+    setFragment(location.hash);
+    setEpoch(value => value + 1);
+  };
   const leaveHandler = useRef(askLeave);
   leaveHandler.current = askLeave;
   useEffect(() => {
     const change = () => {
       const board = active.current, destination = location.hash;
+      const target = parseLink(destination);
+      if (board && target.kind === "board" && target.board === board.boardId) {
+        board.openLinkedPage(target.page);
+        return;
+      }
       if (board?.counts.waiting) {
-        const ownLink = `#/b/${board.boardId}`;
-        if (destination === ownLink) return;
-        history.pushState(null, "", ownLink);
+        const ownLink = board.page ? pageLink(location.href, board.page, board.boardId) : boardLink(location.href, board.boardId);
+        history.replaceState(history.state, "", ownLink);
         leaveHandler.current(() => { board.stop(); active.current = null; location.hash = destination; });
         return;
       }
@@ -68,7 +77,7 @@ export function TeamApp() {
       queueMicrotask(() => {
         if (accountId.current !== (next?.user.id ?? "")) {
           names.current.clear(); clearNotificationMemory(); delete lifecycleNavigation.restoredBoard; delete lifecycleNavigation.focusWorkspace; delete lifecycleNavigation.unavailable; delete historyNavigation.open; delete historyNavigation.source; delete historyNavigation.returnBoard;
-          active.current?.signedOut(); accountId.current = next?.user.id ?? ""; setEpoch(value => value + 1);
+          active.current?.signedOut(); accountId.current = next?.user.id ?? ""; restartRoute();
         }
         setSession(next); setReady(true);
         if (event === "SIGNED_OUT") {
@@ -86,7 +95,7 @@ export function TeamApp() {
     delete lifecycleNavigation.restoredBoard; delete lifecycleNavigation.focusWorkspace; delete lifecycleNavigation.unavailable;
     names.current.clear();
     active.current?.stop(); active.current = null;
-    setForceGate(local); setSession(null); setEpoch((value) => value + 1);
+    setForceGate(local); setSession(null); restartRoute();
     try { await auth.signOut(local ? { scope: "local" } : undefined); }
     finally { ownSignOut.current = false; }
   }
@@ -102,8 +111,9 @@ export function TeamApp() {
   }
   if (link.kind !== "local") {
     if (!ready) return <TeamPage outcome={null} close={closeBoard} signIn={() => {}} />;
-    return <HostedRoute key={fragment + epoch} forceGate={forceGate} link={link} session={session} active={active} account={account}
-      leave={leave} stay={() => setLeave(null)} names={names.current} close={closeBoard} signInAgain={() => { void signOut(true); }} restart={() => { setForceGate(false); setEpoch((value) => value + 1); }} />;
+    const route = link.kind === "board" ? `#/b/${link.board}` : fragment;
+    return <HostedRoute key={`${route}:${epoch}`} forceGate={forceGate} link={link} session={session} active={active} account={account}
+      leave={leave} stay={() => setLeave(null)} names={names.current} close={closeBoard} signInAgain={() => { void signOut(true); }} restart={() => { setForceGate(false); restartRoute(); }} />;
   }
   return <><App key={fragment} team={{ account, backToFiles: session ? closeBoard : undefined, saveControl: !session
     ? <button onClick={() => setSignIn(true)}>Sign in</button> : undefined }} />
@@ -137,7 +147,10 @@ function HostedRoute({ link, session, active, account, close, signInAgain, resta
     board.updateSession(session); board.start();
     redraw((value) => value + 1);
   }, [session?.user.id]);
-  useEffect(() => () => { unsubscribe.current?.(); hosted.current?.stop(); }, []);
+  useEffect(() => () => {
+    unsubscribe.current?.(); hosted.current?.stop();
+    if (active.current === hosted.current) active.current = null;
+  }, []);
   const board = hosted.current, snapshot = board?.snapshot;
   const waiting = board?.counts.waiting ?? 0;
   useEffect(() => { if (leave && !waiting) stay(); }, [leave, waiting]);

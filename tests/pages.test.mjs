@@ -224,12 +224,15 @@ export function useCallback(fn){cursor++;return fn;}
 export function useEffect(fn,deps){const i=cursor++,old=slots[i];if(!old||!deps||deps.some((x,j)=>!Object.is(x,old.deps?.[j])))pending.push(()=>{old?.cleanup?.();slots[i]={deps,cleanup:fn()};});}`;
   const built=await build({stdin:{contents:'export {usePages} from "./state/use-pages.ts";export {useBoardDocument} from "./state/use-board-document.ts";export {useGeometryEdits} from "./state/use-geometry-edits.ts";export {useEditingCommands} from "./state/use-editing-commands.ts";export {usePageKeys} from "./state/use-page-keys.ts";export {useFind} from "./state/use-find.ts";export {useTidyUp} from "./state/use-tidy-up.ts";export {begin,dirty,flush,dispose} from "test-react";',resolveDir:new URL('../apps/web/src/',import.meta.url).pathname,loader:'ts'},bundle:true,write:false,format:'esm',platform:'node',plugins:[{name:'scheduler',setup(b){b.onResolve({filter:/^(react|test-react)$/},()=>({path:'runtime',namespace:'scheduler'}));b.onLoad({filter:/.*/,namespace:'scheduler'},()=>({contents:runtime,loader:'js'}));}}]});
   const m=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64')+'#'+crypto.randomUUID());
-  const originals=Object.fromEntries(['window','document','localStorage','navigator','Element','HTMLInputElement','HTMLTextAreaElement','HTMLSelectElement'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)])),values=new Map(),listeners=new Map();
+  const originals=Object.fromEntries(['window','document','localStorage','navigator','Element','HTMLInputElement','HTMLTextAreaElement','HTMLSelectElement','location','history'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)])),values=new Map(),listeners=new Map();
   Object.defineProperty(globalThis,'navigator',{configurable:true,value:{platform:'MacIntel'}});
   globalThis.Element=class {};globalThis.HTMLInputElement=class extends Element {};globalThis.HTMLTextAreaElement=class extends Element {};globalThis.HTMLSelectElement=class extends Element {};
   globalThis.window={innerWidth:1440,innerHeight:900,addEventListener(){},removeEventListener(){}};
   globalThis.document={activeElement:null,querySelector:()=>null,addEventListener:(key,fn)=>listeners.set(key,fn),removeEventListener:key=>listeners.delete(key)};
   globalThis.localStorage={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};
+  const replacements=[];
+  globalThis.location=new URL('https://example.test/?board=original');
+  globalThis.history={replaceState(_state,_title,url){replacements.push(String(url));location.href=url;}};
   const h={m,values,listeners,selected:new Set(),view:{x:0,y:0,z:1},messages:[],statuses:[],locked:'',hosted:false,extra:()=>{},events:[]};
   const select=value=>{h.selected=new Set(typeof value==='string'?value?[value]:[]:value);h.events.push('select');};
   const scene=h.scene={current:{clientWidth:1440,clientHeight:900,getBoundingClientRect:()=>({left:0,top:0}),focus(){}}};

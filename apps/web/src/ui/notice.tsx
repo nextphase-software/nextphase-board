@@ -22,7 +22,7 @@ type Props = {
 
 export function Notice({
   showNotice, visibleMessage, invalidFields, busy, tool, readOnly, snapshots, reopen, composing,
-  adopt, setReadOnly, setMessage, pages
+  adopt, setReadOnly, setMessage, pages, hosted
 }: Props) {
   return (
     <aside className="notice" role="status" hidden={!showNotice}>
@@ -42,7 +42,7 @@ export function Notice({
           object. Escape cancels.
         </div>
       )}
-      {readOnly && !snapshots.length && (
+      {!hosted && readOnly && !snapshots.length && (
         <button onClick={reopen}>Retry editing</button>
       )}
       {snapshots.map((s) => (

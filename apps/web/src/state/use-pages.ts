@@ -4,6 +4,11 @@ import type { BoardV14 as Board } from 'nextphase-board-rules/document.ts';
 import { addPage, deletePage, duplicatePage, duplicatePageReason, fallbackPage, movePage, movedSet, moveToPage, pageBoard, pageObjects, renamePage, PAGE_LIMIT } from '../pages';
 import { fitView, freeArea, type View } from '../view';
 import { objectBox, unionBoxes } from '../find';
+import { editingCommandReason } from '../commands';
+import {
+  captureStartupPage, takeStartupPage, pageLink, resolvePage, COPY_PAGE_LINK,
+  copiedPageNotice, clipboardRefused, missingPageNotice,
+} from '../page-links.ts';
 import type { ResolvedItem } from '../geometry';
 import type { HostedBoard } from '../team/hosted-board';
 import type { ChangeOrigin } from '../team/page-presence';
@@ -16,6 +21,7 @@ type Input = {
   openingReason: () => string; editingReason: () => string;
 };
 type Drag = { id: string; y: number; active: boolean; gap: number };
+const readOnlyReason = editingCommandReason({ readOnly: true, composing: false, pointerGesture: false, invalidObjectText: false });
 export type Pages = ReturnType<typeof usePages>;
 export const rememberedPageKey = (board: string) => `nextphase-board/page/v1/${board}`;
 function remembered(board: Board): string {
@@ -37,17 +43,45 @@ export function usePages(input: Input) {
   if (!same) { views.current.clear(); setState({ ...state, boardId: board.boardId, id, open: false, menu: '', editing: '', drag: null, moveOpen: false, go: null }); }
   const currentPage = useRef(id); currentPage.current = id;
   const preview = useRef<{ active: boolean; page?: string }>({ active: false });
-  const arrival = useRef({ board: '', opening: input.hosted });
+  const arrival = useRef({ board: '', opening: input.hosted, localPlaceholder: input.hosted ? undefined : board,
+    addressBoard: '', addressPage: '' });
   // Clear the local-only startup message before hosted chrome is measured.
   if (arrival.current.opening) { arrival.current.opening = false; setMessage(''); }
   const canEdit = input.canEdit !== false;
-  if (input.team) { input.team.page = id; input.team.pageNotice = setMessage; input.team.openPage = (next, following = false) => openPage(next, false, next, following); }
+  if (input.team) {
+    input.team.page = id;
+    input.team.pageNotice = setMessage;
+    input.team.openPage = (next, following = false) => openPage(next, false, next, following);
+    if (arrival.current.board) input.team.onLinkedPage = openLinkedPage;
+  }
   const editReason = () => !canEdit ? 'View only' : input.editingReason();
   input.stepPage.current = id;
-  const focused = useRef({ open: false, menu: '', editing: '', moveOpen: false });
+  const focused = useRef({ open: false, menu: '', editing: '', moveOpen: false, canEdit });
+  const closeEditorMenu = !canEdit && focused.current.canEdit;
   const transitionView = useRef<View | undefined>(undefined); transitionView.current = undefined;
-  function remember(next: string) {
-    try { localStorage.setItem(rememberedPageKey(model.current.boardId), next); } catch { /* Optional browser preference. */ }
+  function remember(next: string, boardId = model.current.boardId) {
+    try { localStorage.setItem(rememberedPageKey(boardId), next); } catch { /* Optional browser preference. */ }
+  }
+  function writeAddress(next: string, boardId = model.current.boardId) {
+    if (input.team?.pendingPage) return;
+    const link = pageLink(location.href, next, input.hosted ? boardId : undefined);
+    history.replaceState(history.state, '', link);
+    arrival.current.addressBoard = boardId;
+    arrival.current.addressPage = next;
+  }
+  function showOpeningPage(next: Board, value: string | undefined, showNotice: boolean) {
+    const { page, missing } = resolvePage(next.pages, value, remembered(next));
+    const leaving = currentPage.current;
+    currentPage.current = page.id;
+    input.stepPage.current = page.id;
+    setState(s => ({ ...s, boardId: next.boardId, id: page.id }));
+    remember(page.id, next.boardId);
+    writeAddress(page.id, next.boardId);
+    if (input.team) {
+      input.team.page = page.id;
+      if (page.id !== leaving) input.team.pageChanged();
+    }
+    if (missing && showNotice) setMessage(missingPageNotice(page.name));
   }
   function openPage(next: string, force = false, fitSource = next, following = false): View | undefined {
     if (!force && input.openingReason() || !model.current.pages.some(p => p.id === next)) return;
@@ -64,11 +98,32 @@ export function usePages(input: Input) {
       target = box ? fitView(box, freeArea(size, palette?.top ?? size.h - 68, navigation?.left), size) : { x: 0, y: 0, z: 1 };
     }
     if (next !== leaving) { input.setView(target, following); transitionView.current = target; }
-    setState(s => ({ ...s, id: next, menu: '', moveOpen: false })); remember(next); input.stepPage.current = next; currentPage.current = next; if (input.team) { input.team.page = next; if (next !== leaving) input.team.pageChanged(); }
+    setState(s => ({ ...s, id: next, menu: '', moveOpen: false }));
+    remember(next);
+    input.stepPage.current = next;
+    currentPage.current = next;
+    if (input.team) {
+      input.team.page = next;
+      if (next !== leaving) input.team.pageChanged();
+    }
+    if (next !== leaving) writeAddress(next);
     return next === leaving ? view : target;
   }
-  function closeList() {
-    if (panel.current?.contains(document.activeElement) || pageMenu.current?.contains(document.activeElement)) button.current?.focus();
+  function openLinkedPage(value?: string) {
+    const current = currentPage.current;
+    if (value !== undefined) {
+      const reason = input.openingReason();
+      if (reason) setMessage(reason);
+      else {
+        const { page, missing } = resolvePage(model.current.pages, value, currentPage.current);
+        if (page.id !== currentPage.current) openPage(page.id);
+        if (missing) setMessage(missingPageNotice(page.name));
+      }
+    }
+    if (currentPage.current === current) writeAddress(current);
+  }
+  function closeList(focus = false) {
+    if (focus || panel.current?.contains(document.activeElement) || pageMenu.current?.contains(document.activeElement)) button.current?.focus();
     setState(s => ({ ...s, open: false, menu: '', editing: '', drag: null }));
   }
   function focusName(next: string) { queueMicrotask(() => names.current.get(next)?.focus()); }
@@ -92,7 +147,18 @@ export function usePages(input: Input) {
     const result = addPage(model.current); commit(result.board, true, undefined, undefined, [result.page.id]); openPage(result.page.id, true);
     setState(s => ({ ...s, open: true, editing: result.page.id, name: result.page.name }));
   }); }
+  async function copyPage(target: string) {
+    const page = model.current.pages.find(p => p.id === target);
+    if (!page) return;
+    const link = pageLink(location.href, page.id, input.hosted ? model.current.boardId : undefined);
+    let write: Promise<void> | undefined;
+    try { write = navigator.clipboard?.writeText(link); } catch { /* The browser refused access. */ }
+    closeList(true);
+    const copied = write && await write.then(() => true, () => false);
+    setMessage(copied ? copiedPageNotice(page.name, input.hosted) : clipboardRefused);
+  }
   function choose(action: string, target: string) {
+    if (action === COPY_PAGE_LINK) { void copyPage(target); return; }
     if (action === 'Delete page' && input.team?.votePageReason(target)) return;
     if (action === 'Rename page') { rename(target); return; }
     step(() => {
@@ -108,6 +174,7 @@ export function usePages(input: Input) {
   }
   // Both popovers share this listener and the single page state owner.
   useEffect(() => {
+    if (!input.hosted) captureStartupPage(location.href);
     const outside = (event: PointerEvent) => {
       const target = event.target as Node, current = latest.current.state;
       if (current.editing && !nameField.current?.contains(target)) latest.current.finishName(true);
@@ -120,13 +187,22 @@ export function usePages(input: Input) {
   }, []);
   // Focus after React has installed the new row or menu; no DOM state owns pages.
   useEffect(() => {
+    const arrived = arrival.current;
+    if (arrived.localPlaceholder && arrived.localPlaceholder !== board) {
+      arrived.localPlaceholder = undefined;
+      // The command reason exposes writer readiness after the storage load.
+      showOpeningPage(board, takeStartupPage(), input.editingReason() !== readOnlyReason);
+    } else if ((input.hosted ? arrived.board === board.boardId : !arrived.localPlaceholder)
+      && (arrived.addressBoard !== board.boardId || arrived.addressPage !== id)) {
+      writeAddress(id, board.boardId);
+    }
     const live = (id: string) => board.pages.some(p => p.id === id);
-    if ((!canEdit && (state.menu || state.editing || state.drag || state.moveOpen)) || state.menu && !live(state.menu) || state.editing && !live(state.editing) || state.drag && !live(state.drag.id)) {
-      setState(s => ({ ...s, menu: !canEdit || !live(s.menu) ? '' : s.menu, editing: !canEdit || !live(s.editing) ? '' : s.editing, drag: !canEdit || s.drag && !live(s.drag.id) ? null : s.drag, moveOpen: canEdit && s.moveOpen })); return;
+    if ((!canEdit && (closeEditorMenu && state.menu || state.editing || state.drag || state.moveOpen)) || state.menu && !live(state.menu) || state.editing && !live(state.editing) || state.drag && !live(state.drag.id)) {
+      setState(s => ({ ...s, menu: closeEditorMenu || !live(s.menu) ? '' : s.menu, editing: !canEdit || !live(s.editing) ? '' : s.editing, drag: !canEdit || s.drag && !live(s.drag.id) ? null : s.drag, moveOpen: canEdit && s.moveOpen })); return;
     }
     if (state.editing && editReason()) { setState(s => ({ ...s, editing: '' })); focusName(state.editing); return; }
     const previous = focused.current;
-    focused.current = { open: state.open, menu: state.menu, editing: state.editing, moveOpen: state.moveOpen };
+    focused.current = { open: state.open, menu: state.menu, editing: state.editing, moveOpen: state.moveOpen, canEdit };
     if (state.editing && state.editing !== previous.editing) { nameField.current?.focus(); nameField.current?.select(); }
     else if (state.menu && state.menu !== previous.menu) pageMenu.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
     else if (state.moveOpen && !previous.moveOpen) moveMenu.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
@@ -153,11 +229,21 @@ export function usePages(input: Input) {
     return !!drag?.active;
   }
   function changed(before: Board, next: Board, change: ChangeOrigin, previewing = false) {
+    const pending = input.team?.pendingPage;
+    if (input.hosted && !previewing && (pending || change.origin === 'reload' && arrival.current.board !== next.boardId)) {
+      arrival.current.board = next.boardId;
+      preview.current.active = false;
+      if (input.team) {
+        input.team.pendingPage = undefined;
+        input.team.onLinkedPage = openLinkedPage;
+      }
+      showOpeningPage(next, pending?.value, true);
+      return;
+    }
     const current = currentPage.current;
     let target: string | undefined;
     if (previewing && !preview.current.active) { preview.current = { active: true, page: current }; target = next.pages.some(p => p.id === current) ? current : next.pages[0].id; }
     else if (!previewing && preview.current.active) { target = next.pages.some(p => p.id === preview.current.page) ? preview.current.page : next.pages[0].id; preview.current.active = false; }
-    else if (input.hosted && change.origin === 'reload' && arrival.current.board !== next.boardId) target = remembered(next);
     else if (change.origin !== 'own') {
       const removed = input.team?.removedPage(before, next, current, change);
       if (removed) { target = removed.page; if (removed.notice) setMessage(removed.notice); }
@@ -167,7 +253,7 @@ export function usePages(input: Input) {
     arrival.current.board = next.boardId;
   }
   return { id, local: true, canEdit, changed, people: (page: string) => input.team?.pagePeople(page) ?? { shown: [], overflow: 0, name: '' },
-    voteReason: (page: string) => input.team?.votePageReason(page) ?? '', list: board.pages, open: same && state.open, menu: canEdit ? state.menu : '', editing: canEdit ? state.editing : '',
+    voteReason: (page: string) => input.team?.votePageReason(page) ?? '', list: board.pages, open: same && state.open, menu: closeEditorMenu ? '' : state.menu, editing: canEdit ? state.editing : '',
     name: state.name, drag: canEdit ? state.drag : null, moveOpen: canEdit && state.moveOpen, go: state.go, get openingReason() { return input.openingReason(); }, get editingReason() { return editReason(); },
     get addReason() { return editReason() || (board.pages.length >= 50 ? PAGE_LIMIT : ''); }, duplicateReason: (target: string) => editReason() || duplicatePageReason(board, target),
     button, panel, names, options, nameField, pageMenu, moveButton, moveMenu,
@@ -176,7 +262,7 @@ export function usePages(input: Input) {
     clickPage: (target: string) => { if (skipClick.current) { skipClick.current = false; return; } clearTimeout(click.current); click.current = setTimeout(() => openPage(target), 200); },
     suppressClick: () => { skipClick.current = true; },
     changeName: (name: string) => setState(s => ({ ...s, name })), beginDrag, dragTo, endDrag,
-    showMenu: (menu: string) => { if (canEdit) setState(s => ({ ...s, menu })); }, closeMenu: () => { options.current.get(state.menu)?.focus(); setState(s => ({ ...s, menu: '' })); },
+    showMenu: (menu: string) => setState(s => ({ ...s, menu })), closeMenu: () => { options.current.get(state.menu)?.focus(); setState(s => ({ ...s, menu: '' })); },
     toggleMove: () => setState(s => ({ ...s, moveOpen: !s.moveOpen })), closeMove: () => { moveButton.current?.focus(); setState(s => ({ ...s, moveOpen: false })); },
     move: (target: string, selected: ReadonlySet<string>) => step(() => {
       if (input.team?.votePageReason(id)) return;

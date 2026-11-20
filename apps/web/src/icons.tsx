@@ -38,6 +38,7 @@ const paths = {
   strike: "M15 5c-1-2-9-3-9 1 0 2 2 3 4 4M5 15c1 3 10 3 10-1 0-2-2-3-5-4M3 10h14",
   Done: "m4.5 10.5 3.5 3.5 7.5-8",
   "Delete content": "m8 16-4-4 7.5-7.5 4 4L8 16Zm0 0h8M6 10l4 4",
+  "Export as CSV": "M10 3.5v9m-3.5-3.5 3.5 3.5 3.5-3.5M4 13.5v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2",
   "Delete axis": "M4 6h12M8 6V4h4v2m-6 0 .7 10h6.6L14 6",
   Delete: "M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6",
 };
@@ -62,7 +63,7 @@ export function Icon({ name }: { name: keyof typeof paths | keyof typeof tableIc
   const kind = SHAPE_KINDS.find(k => k.name === name && !k.key), outline = kind?.outline;
   const polygon = Array.isArray(outline) ? outline.map(([x,y],i) => `${i?'L':'M'}${1+x*18} ${1+y*18}`).join(' ')+'Z' : undefined;
   return <svg width={name === "search" ? 18 : 20} height={name === "search" ? 18 : 20} viewBox="0 0 20 20" fill="none"
-    stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"
+    stroke="currentColor" strokeWidth={name === "Export as CSV" ? 1.6 : 1.75} strokeLinecap="round"
     strokeLinejoin="round" aria-hidden="true" focusable="false">
     {name === "search" && <circle cx="9" cy="9" r="5.5" />}
     {name === 'Tidy up' ? [[2.5,2.5],[11.5,2.5],[2.5,11.5],[11.5,11.5]].map(([x,y],i) => <rect key={i} x={x} y={y} width={6} height={6} rx={1} />)

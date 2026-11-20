@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useRef, useState, type ClipboardEvent, type Dispatch, type DragEvent, type RefObject, type SetStateAction } from "react";
 import type { Board as SavedBoard, BoardV14 as Board, ItemV14 as Item } from "nextphase-board-rules/document.ts";
 import { count } from "nextphase-board-rules/document.ts";
 import { catalog } from "../activities/catalog";
@@ -25,10 +25,13 @@ import type { HostedBoard } from "../team/hosted-board";
 
 import type { TableItem } from "nextphase-board-rules/document.ts";
 import type { TableOrderHint } from "nextphase-board-sync/document-adapter.ts";
-import { anchorCell, boundTable, tableReason, type TableAction, type TableSelection } from "../table";
+import { anchorCell, boundTable, growTable, layoutTable, tableReason, type MeasureCell, type TableAction, type TableSelection } from "../table";
+import { addTableData, isCsvFile, isSpreadsheetData, readCsvFile, readSpreadsheet, tableCsv, tableCsvName,
+  type TableDataAnchor, type TableDataItem } from "../table-csv";
 
 type Input = {
   tableSelection?: TableSelection;
+  tableMeasure: MeasureCell;
   chooseTable: (selection: TableSelection, table: TableItem) => void;
   growTableRows: (table: TableItem) => TableItem;
   pages?: import("../pages").PageNavigation;
@@ -67,9 +70,10 @@ type Input = {
   measureNode: MeasureNode;
 };
 const MAP_COMMANDS: readonly string[] = ["Add child", "Add child left", "Add child right", "Add sibling", "Collapse", "Expand"] satisfies MapCommand[];
+type CopyRecord = { id: number; text: string; state: "pending" | "written" | "refused" };
 
 export function useEditingCommands({
-  tableSelection, chooseTable, growTableRows, pages: navigation, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
+  tableSelection, tableMeasure, chooseTable, growTableRows, pages: navigation, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
   setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
   displayedObjects, commandReason, selectionReason, clipboardState, editingState,
   arrangementMembers, lineCount, measureNode, editor, selector, setPanel, setTool, hosted,
@@ -77,8 +81,9 @@ export function useEditingCommands({
   const pages = navigation ?? { id: model.current.boardId, openingReason: "", openPage: () => undefined, afterHistory: () => {} };
   const [objectClipboard, setObjectClipboard] = useState<Snapshot | null>(null);
   const [templatePreviews, setTemplatePreviews] = useState<Record<string, Preview>>({});
-  const activityState = useRef({ commandReason, view, page: pages.id });
-  activityState.current = { commandReason, view, page: pages.id };
+  const copyRecord = useRef<CopyRecord | null>(null);
+  const latest = useRef({ commandReason, view, page: pages.id, applyTableBatch });
+  latest.current = { commandReason, view, page: pages.id, applyTableBatch };
   async function loadTemplates() {
     if (Object.keys(templatePreviews).length === catalog.length) return;
     const entries = await Promise.all(catalog.map(async (entry) => {
@@ -88,18 +93,18 @@ export function useEditingCommands({
     if (alive.current) setTemplatePreviews(Object.fromEntries(entries.filter((entry) => entry[1])) as Record<string, Preview>);
   }
   async function addActivity(entry: Activity) {
-    if (activityState.current.commandReason) { setMessage(activityState.current.commandReason); return; }
+    if (latest.current.commandReason) { setMessage(latest.current.commandReason); return; }
     let activity;
     try { activity = await readActivity(entry); }
     catch (error) {
       if (alive.current) setMessage(`Could not add “${entry.name}”: ${error instanceof Error ? error.message : String(error)}.`);
       return;
     }
-    if (!alive.current || activityState.current.commandReason) return;
+    if (!alive.current || latest.current.commandReason) return;
     try {
-      const result = insertActivity(model.current, activity, activityState.current.view, {
+      const result = insertActivity(model.current, activity, latest.current.view, {
         w: scene.current!.clientWidth, h: scene.current!.clientHeight,
-      }, activityState.current.page);
+      }, latest.current.page);
       finishTextSession();
       commit(result.board, true);
       select(result.ids);
@@ -111,11 +116,11 @@ export function useEditingCommands({
   }
   function insertStored(name: string, activity: Board) {
     if (!alive.current) return;
-    if (activityState.current.commandReason) { hosted?.toast(activityState.current.commandReason); return; }
+    if (latest.current.commandReason) { hosted?.toast(latest.current.commandReason); return; }
     try {
-      const result = insertActivity(model.current, activity, activityState.current.view, {
+      const result = insertActivity(model.current, activity, latest.current.view, {
         w: scene.current!.clientWidth, h: scene.current!.clientHeight,
-      }, activityState.current.page);
+      }, latest.current.page);
       finishTextSession(); commit(result.board, true); select(result.ids); setPanel(""); setView(result.view);
       scene.current?.focus(); hosted?.toast(`Added “${name}”: ${result.ids.length} objects.`);
     } catch (error) { hosted?.toast(String(error)); }
@@ -125,7 +130,13 @@ export function useEditingCommands({
       snapshot: buildSnapshot(model.current, selected.size ? selected : new Set(model.current.objects.map(o => o.id)), displayedObjects, measureNode) }) };
   function writePlainText(snapshot: Snapshot, copiedMessage: string) {
     const sequence = messageSequence.current;
+    const text = plainText(snapshot), id = (copyRecord.current?.id ?? 0) + 1;
+    copyRecord.current = { id, text, state: "pending" };
+    const settleWrite = (state: CopyRecord["state"]) => {
+      if (copyRecord.current?.id === id) copyRecord.current = { id, text, state };
+    };
     const failed = () => {
+      settleWrite("refused");
       if (alive.current && sequence === messageSequence.current) {
         setMessage(copiedMessage + " Text could not be placed on the system clipboard.");
       }
@@ -133,9 +144,119 @@ export function useEditingCommands({
     try {
       // Start in the command's event handler, while transient activation exists.
       if (!navigator.clipboard?.writeText) failed();
-      else void navigator.clipboard.writeText(plainText(snapshot)).catch(failed);
+      else void navigator.clipboard.writeText(text).then(() => settleWrite("written"), failed);
     } catch { failed(); }
   }
+  function dataExchangeReason(invalidObjectText = clipboardState.invalidObjectText) {
+    return selectionReason === TIDY_WAIT ? TIDY_WAIT : editingCommandReason({
+      ...clipboardState, invalidObjectText, readOnly: clipboardState.readOnly || hosted?.canEdit === false,
+    });
+  }
+  const voting = () => !!hosted?.voting?.mode;
+  const canAddTable = () => !dataExchangeReason() && !voting();
+  const anchorAt = (point = { x: view.x, y: view.y }): TableDataAnchor => ({
+    boardId: model.current.boardId, page: pages.id, point,
+  });
+  function applyTableBatch(anchor: TableDataAnchor, items: readonly TableDataItem[]) {
+    const board = model.current;
+    if (!alive.current || board.boardId !== anchor.boardId || pages.id !== anchor.page ||
+        !board.pages.some(page => page.id === anchor.page) || !canAddTable()) return;
+    const batch = addTableData(board, items, anchor, !!hosted, (table, centre) => {
+      const grown = growTable(table, tableMeasure);
+      const { width, height } = layoutTable(grown, tableMeasure).box;
+      return boundTable({ ...grown, x: centre.x - width / 2, y: centre.y - height / 2 }, height);
+    });
+    if (batch.ids.length) {
+      commit(batch.board, true);
+      const saved = new Set(model.current.objects.map(o => o.id));
+      if (batch.ids.every(id => saved.has(id))) {
+        select(batch.ids);
+        setTool("Select");
+        setPanel("");
+        scene.current?.focus();
+        setMessage(batch.refusal ? batch.success + " " + batch.refusal : batch.success);
+        return;
+      }
+    }
+    if (batch.refusal) setMessage(batch.refusal);
+  }
+  async function readFileBatch(files: readonly File[], anchor: TableDataAnchor) {
+    const items: TableDataItem[] = [];
+    for (const file of files) items.push(await readCsvFile(file));
+    latest.current.applyTableBatch(anchor, items);
+  }
+  function importFiles(files: File[], anchor: TableDataAnchor) {
+    const reason = dataExchangeReason();
+    if (reason) { setMessage(reason); return; }
+    return readFileBatch(files, anchor);
+  }
+  function chooseCsv() {
+    if (!canAddTable()) return;
+    const anchor = anchorAt();
+    const field = document.createElement("input");
+    field.type = "file"; field.multiple = true; field.accept = ".csv,text/csv"; field.hidden = true;
+    const clean = () => field.remove();
+    field.addEventListener("change", () => {
+      const files = Array.from(field.files ?? []);
+      clean();
+      if (!files.length || !alive.current) return;
+      setPanel("");
+      void readFileBatch(files, anchor);
+    }, { once: true });
+    field.addEventListener("cancel", clean, { once: true });
+    document.body.append(field);
+    field.click();
+  }
+  const paste = (next: (event: ClipboardEvent<HTMLDivElement>) => void | Promise<void>) => (event: ClipboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.defaultPrevented || voting()) return next(event);
+    const files = Array.from(event.clipboardData.files);
+    if (files.length) {
+      if (!files.some(isCsvFile)) return next(event);
+      event.preventDefault();
+      return importFiles(files, anchorAt());
+    }
+    if (!canAddTable()) return next(event);
+    const text = event.clipboardData.getData("text/plain");
+    const ownCopy = objectClipboard && copyRecord.current && (copyRecord.current.text === text || copyRecord.current.state === "refused");
+    if (ownCopy || !isSpreadsheetData(text, event.clipboardData.getData("text/html"))) return next(event);
+    event.preventDefault();
+    applyTableBatch(anchorAt(), [readSpreadsheet(text)]);
+  };
+  const drop = (next: (event: DragEvent<HTMLDivElement>) => void | Promise<void>) => (event: DragEvent<HTMLDivElement>) => {
+    if (event.defaultPrevented || voting() || !(event.target instanceof Element) ||
+        !event.currentTarget.contains(event.target) || event.target.closest("input,textarea,[contenteditable]:not([contenteditable=false])")) {
+      return next(event);
+    }
+    const files = Array.from(event.dataTransfer.files);
+    if (!files.some(isCsvFile)) return next(event);
+    event.preventDefault();
+    const bounds = event.currentTarget.getBoundingClientRect();
+    return importFiles(files, anchorAt({
+      x: view.x + (event.clientX - bounds.left - bounds.width / 2) / view.z,
+      y: view.y + (event.clientY - bounds.top - bounds.height / 2) / view.z,
+    }));
+  };
+  function exportAvailability() {
+    const reason = dataExchangeReason(false);
+    const object = selected.size === 1 ? model.current.objects.find(o => selected.has(o.id)) : undefined;
+    return { reason, table: !reason && !voting() && object && isTable(object) ? object : undefined };
+  }
+  const exportState = exportAvailability();
+  const exportTable = Object.assign(() => {
+    const { table } = exportAvailability();
+    if (!table) return false;
+    const url = URL.createObjectURL(new Blob([tableCsv(table)], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = tableCsvName(model.current.title);
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    scene.current?.focus();
+    return true;
+  }, { reason: exportState.reason, disabled: !exportState.table });
+  const tableData = { paste, drop, exportTable, importButton: {
+    shown: hosted?.snapshot.role !== "viewer", disabled: !canAddTable(), choose: chooseCsv,
+  } };
   function clipboardCommand(name: ClipboardCommand) {
     if (selectionReason === TIDY_WAIT) { setMessage(selectionReason); return; }
     const reason = clipboardReason(name, selected, objectClipboard, clipboardState, model.current.objects);
@@ -458,5 +579,5 @@ export function useEditingCommands({
     finishTextSession();setInline(false);commit({...model.current,objects},true);
   }, color: strokeColor, weight: strokeWeight };
   const shapeCommands = { changeShape, changeFill: changeShapeFill, changeBorder: changeShapeBorder, grow };
-  return { tableAction, tableSize, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
+  return { tableData, tableAction, tableSize, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat };
 }

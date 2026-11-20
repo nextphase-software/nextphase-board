@@ -74,10 +74,10 @@ function AxisMenu({ axis, table, action }: { axis: TableAxis; table: TableItem; 
 }
 
 const divider = <span className="divider" aria-hidden="true" />;
-export function TableControls({ table, selection, edit, done, draft, invalid, readOnly, composing, reason, action, size, children }: {
+export function TableControls({ table, selection, edit, done, draft, invalid, readOnly, composing, reason, action, size, exportTable, children }: {
   table: TableItem; selection: TableSelection; edit: () => void; done: () => void; draft?: string; invalid: boolean;
   readOnly: boolean; composing: boolean; reason: string; action: (a: TableAction) => void;
-  size: (value: Style["textSize"]) => void; children?: ReactNode;
+  size: (value: Style["textSize"]) => void; exportTable?: (() => boolean) & { disabled?: boolean; reason?: string }; children?: ReactNode;
 }) {
   const editing = draft !== undefined, mode = tableMode(selection, editing);
   const length = count(draft ?? cellText(table, anchorCell(table, selection)));
@@ -91,6 +91,10 @@ export function TableControls({ table, selection, edit, done, draft, invalid, re
       </select>
       <TableButton name="Add row" icon="Add row" reason={reason || tableReason(table, "row", "add")} action={() => action({ axis: "row", at: "end" })} />
       <TableButton name="Add column" icon="Add column" reason={reason || tableReason(table, "column", "add")} action={() => action({ axis: "column", at: "end" })} />
+      {exportTable && <button className="icon-button" aria-label="Export as CSV" disabled={exportTable.disabled} onClick={exportTable}>
+        <Icon name="Export as CSV" /><span className="tooltip">{exportTable.reason ||
+          (navigator.platform.startsWith("Mac") ? "Export as CSV ⇧⌘E" : "Export as CSV Ctrl+Shift+E")}</span>
+      </button>}
       {divider}{children}
     </>}
   </>;

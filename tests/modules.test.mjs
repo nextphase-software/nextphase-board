@@ -594,8 +594,8 @@ test("the hosted board hook holds exactly one passive effect", () => {
   assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });
 
-// Web modules v43: exact existing-line substitutions from the behaviour baseline.
-test("0011-W1 App composition changes only its recorded substitutions", () => {
+// Web modules v43 and v45: exact existing-line substitutions from the behaviour baseline.
+test("0011-W2 App composition changes only its recorded substitutions", () => {
   const base = execFileSync("git", ["show", "3f4ad48:apps/web/src/App.tsx"], { encoding: "utf8" });
   const substitutions = [
   [
@@ -685,6 +685,30 @@ test("0011-W1 App composition changes only its recorded substitutions", () => {
   [
     "          view={view} itemHeight={itemHeight} text={text} nativeEditor={nativeEditor}",
     "          tableEditorBox={tableEditorBox} view={view} itemHeight={itemHeight} text={text} nativeEditor={nativeEditor}"
+  ],
+  [
+    "  const { tableAction, tableSize, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({",
+    "  const { tableAction, tableSize, tableData, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({"
+  ],
+  [
+    "    pages, tableSelection, chooseTable, growTableRows, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,",
+    "    pages, tableSelection, chooseTable, growTableRows, tableMeasure, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,"
+  ],
+  [
+    "    command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,",
+    "    command, clipboardCommand, exportTable: tableData.exportTable, toggleFormat, model, cancel, scene, busy, composing, select,"
+  ],
+  [
+    "        ref={scene} onPointerDownCapture={images.guardGesture} onPaste={hostedPaste ?? images.paste(() => clipboardCommand(\"Paste\"))} onDragOver={images.dragOver} onDrop={images.drop}",
+    "        ref={scene} onPointerDownCapture={images.guardGesture} onPaste={tableData.paste(hostedPaste ?? images.paste(() => clipboardCommand(\"Paste\")))} onDragOver={images.dragOver} onDrop={tableData.drop(images.drop)}"
+  ],
+  [
+    "          setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles} beginNameEntry={beginNameEntry} finishNameEntry={finishNameEntry}",
+    "          setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles} importTable={tableData.importButton} beginNameEntry={beginNameEntry} finishNameEntry={finishNameEntry}"
+  ],
+  [
+    "          tableSelection={tableSelection} tableDraft={tableEntry.draft?.text} tableResizing={tableGesture.resizing} cellInvalidNotice={cellInvalidNotice} setMessage={setMessage} tableAction={tableAction} tableSize={tableSize} editCell={tableGeometry.editCell} contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}",
+    "          tableSelection={tableSelection} tableDraft={tableEntry.draft?.text} tableResizing={tableGesture.resizing} cellInvalidNotice={cellInvalidNotice} setMessage={setMessage} tableAction={tableAction} tableSize={tableSize} exportTable={tableData.exportTable} editCell={tableGeometry.editCell} contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}"
   ]
 ];
   let expected = base;

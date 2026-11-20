@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { Dispatch, SetStateAction, RefObject } from "react";
+import type { ComponentProps, Dispatch, SetStateAction, RefObject } from "react";
 import { clamp, count, type BoardV14 as Board, type ItemV14 as Item } from "nextphase-board-rules/document.ts";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, colorEntry, type Style } from "nextphase-board-rules/styles.ts";
 import { objectType, hasText, isMindNode, isTable } from "nextphase-board-rules/objects/registry.ts";
@@ -29,6 +29,7 @@ type Props = {
   cellInvalidNotice: string;
   setMessage: (value: string) => void;
   tableAction: (action: TableAction) => void;
+  exportTable: NonNullable<ComponentProps<typeof TableControls>["exportTable"]>;
   tableSize: (size: Style["textSize"]) => void;
   editCell: (table: TableItem, cell: CellAddress) => void;
   moveToPage: React.ReactNode;
@@ -88,7 +89,7 @@ type Props = {
   command: (name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut" | MapCommand) => void;
 };
 
-export function ContextBar({ tableSelection, tableDraft, tableResizing, cellInvalidNotice, setMessage, tableAction, tableSize, editCell,
+export function ContextBar({ tableSelection, tableDraft, tableResizing, cellInvalidNotice, setMessage, tableAction, tableSize, editCell, exportTable,
   moveToPage, tapeSelection, tidy, board, imageCount, imagesOnly, description, strokeSelection, strokeCommands, connectorObjects, connectorCommands, connectorPopup, connectorOnly, connectorCount, duplicateReason, shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
   inline, richText, finishTextSession, setInline, scene, edit, text, colourControl, colourButton,
   selectionReason, colourLabel, swatchOpen, setArrangeFor, setSwatchFor, selectionKey,
@@ -156,7 +157,7 @@ export function ContextBar({ tableSelection, tableDraft, tableResizing, cellInva
           if (cellInvalidNotice) { setMessage(cellInvalidNotice); return; }
           finishTextSession(); setInline(false); scene.current?.focus();
         }} draft={inline ? tableDraft : undefined} invalid={!!cellInvalidNotice} readOnly={readOnly} composing={composing}
-        reason={selectionReason} action={tableAction} size={tableSize}>{arrangeTools}{objectCommands}</TableControls> : tapeSelection.only ? <><TapeControls selection={tapeSelection} commands={strokeCommands} reason={selectionReason} />{moveToPage}{(["Duplicate","Delete"] as const).map(name=><button key={name} className="icon-button" aria-label={name} disabled={!!(name==="Duplicate"?duplicateReason:selectionReason)} onClick={()=>command(name)}><Icon name={name} /><span className="tooltip">{name}</span></button>)}</> : strokeSelection.only ? <StrokeControls moveToPage={moveToPage} selection={strokeSelection} commands={strokeCommands} reason={selectionReason} remove={() => command("Delete")} /> : connectorOnly ? <ConnectorControls moveToPage={moveToPage} objects={connectorObjects} commands={connectorCommands} popup={connectorPopup} count={selected.size} empty={!text} reason={selectionReason} edit={edit} remove={() => command("Delete")} /> : <>
+        reason={selectionReason} action={tableAction} size={tableSize} exportTable={exportTable}>{arrangeTools}{objectCommands}</TableControls> : tapeSelection.only ? <><TapeControls selection={tapeSelection} commands={strokeCommands} reason={selectionReason} />{moveToPage}{(["Duplicate","Delete"] as const).map(name=><button key={name} className="icon-button" aria-label={name} disabled={!!(name==="Duplicate"?duplicateReason:selectionReason)} onClick={()=>command(name)}><Icon name={name} /><span className="tooltip">{name}</span></button>)}</> : strokeSelection.only ? <StrokeControls moveToPage={moveToPage} selection={strokeSelection} commands={strokeCommands} reason={selectionReason} remove={() => command("Delete")} /> : connectorOnly ? <ConnectorControls moveToPage={moveToPage} objects={connectorObjects} commands={connectorCommands} popup={connectorPopup} count={selected.size} empty={!text} reason={selectionReason} edit={edit} remove={() => command("Delete")} /> : <>
       {imagesOnly ? <ImageControls count={imageCount} control={description} /> : <>
       <ShapeControls part="kind" selection={shapeSelection} commands={shapeCommands} reason={selectionReason} popup={shapePopup} />
       {(!shapeSelection.objects.length || connectorCount > 0 || strokeSelection.objects.length > 0 || tapeSelection.objects.length > 0) && <span>{item ? objectType(item.type).label : selected.size + " objects"}</span>}

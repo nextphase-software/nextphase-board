@@ -8,6 +8,7 @@ import type { TeamParts } from "../team/team-app";
 
 type Props = {
   team?: TeamParts;
+  importTable: { shown: boolean; disabled: boolean; choose: () => void };
   beginNameEntry: () => void;
   finishNameEntry: () => void;
   setComposing: Dispatch<SetStateAction<boolean>>;
@@ -34,7 +35,7 @@ type Props = {
 
 export function BoardPanel({
   setComposing, commit, model, title, readOnly, busy, setTitle, setStatus, composing, reopen,
-  setPanel, boardButton, boardFiles, team, beginNameEntry, finishNameEntry
+  setPanel, boardButton, boardFiles, team, beginNameEntry, finishNameEntry, importTable
 }: Props) {
   return (
     <section className="details floating" ref={boardFiles.panelRef}>
@@ -72,6 +73,7 @@ export function BoardPanel({
         <button onClick={boardFiles.saveCopy} disabled={boardFiles.invalid || busy || composing || boardFiles.opening || !!team?.hosted?.history.previewing || !!team?.hosted?.history.locked}>Save a copy to file</button>
         {!team?.hosted && <button ref={boardFiles.fileButton} onClick={() => boardFiles.fileInput.current?.click()}
           disabled={busy || composing || boardFiles.opening}>Open board file…</button>}
+        {importTable.shown && <button disabled={importTable.disabled} onClick={importTable.choose}>Import CSV…</button>}
       </div>
       {team?.hosted && <button data-show-history onClick={event => {
         const opener = event.currentTarget; setPanel("");

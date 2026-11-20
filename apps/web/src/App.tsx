@@ -122,15 +122,15 @@ export function App({ team }: { team?: TeamParts } = {}) {
     selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
     item: resolvedItem, itemHeight, dotsVisible, editorBox,
   });
-  const { tableAction, tableSize, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
-    pages, tableSelection, chooseTable, growTableRows, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
+  const { tableAction, tableSize, tableData, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
+    pages, tableSelection, chooseTable, growTableRows, tableMeasure, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
     arrangementMembers, lineCount, measureNode, editor, selector, setPanel, setTool, hosted: team?.hosted,
   });
   const { pageKeyDown } = usePageKeys({
     page: pages.id, voting: team?.hosted?.voting, chooseImages: images.chooseImages,
-    command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
+    command, clipboardCommand, exportTable: tableData.exportTable, toggleFormat, model, cancel, scene, busy, composing, select,
     setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
   });
   const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, onChange: pages.changed, tables: { selection: tableSelection, entry: tableEntry, choose: chooseTable, setMessage, cancelDrag: tableGesture.cancelDrag, focus: tableGesture.focus, finish: finishTextSession, endComposition: tableEntry.endComposition }, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand("Paste"), composing });
@@ -148,7 +148,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     >
       {team?.hosted && team.banner}
       <div
-        ref={scene} onPointerDownCapture={images.guardGesture} onPaste={hostedPaste ?? images.paste(() => clipboardCommand("Paste"))} onDragOver={images.dragOver} onDrop={images.drop}
+        ref={scene} onPointerDownCapture={images.guardGesture} onPaste={tableData.paste(hostedPaste ?? images.paste(() => clipboardCommand("Paste")))} onDragOver={images.dragOver} onDrop={tableData.drop(images.drop)}
         className={"scene" + (spacePan ? busy ? " grabbing" : " grab" : "")}
         style={{
           cursor: drag.current?.corner ? (drag.current.corner === "nw" || drag.current.corner === "se"
@@ -202,7 +202,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
         <BoardPanel team={team}
           setComposing={setComposing} commit={commit} model={model} title={title} readOnly={readOnly}
           busy={busy} setTitle={setTitle} setStatus={setStatus} composing={composing} reopen={reopen}
-          setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles} beginNameEntry={beginNameEntry} finishNameEntry={finishNameEntry}
+          setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles} importTable={tableData.importButton} beginNameEntry={beginNameEntry} finishNameEntry={finishNameEntry}
         />
       )}
       {panel === "Objects" && (
@@ -222,7 +222,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
         <ContextBar
           tapeSelection={tapeSelection} tidy={tidy} board={pages.canvas()} moveToPage={<MoveToPage pages={pages} selected={selected} reason={duplicateReason} />} description={images.description} imageCount={images.count} imagesOnly={images.only} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
           connectorObjects={connectors} connectorPopup={connectorPopup} connectorOnly={connectorOnly} connectorCount={connectors.length} duplicateReason={duplicateReason} contextBar={contextBar} contextFits={contextFits} contextLeft={contextLeft}
-          tableSelection={tableSelection} tableDraft={tableEntry.draft?.text} tableResizing={tableGesture.resizing} cellInvalidNotice={cellInvalidNotice} setMessage={setMessage} tableAction={tableAction} tableSize={tableSize} editCell={tableGeometry.editCell} contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
+          tableSelection={tableSelection} tableDraft={tableEntry.draft?.text} tableResizing={tableGesture.resizing} cellInvalidNotice={cellInvalidNotice} setMessage={setMessage} tableAction={tableAction} tableSize={tableSize} exportTable={tableData.exportTable} editCell={tableGeometry.editCell} contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
           composing={composing} busy={busy} inline={inline} finishTextSession={finishTextSession}
           setInline={setInline} scene={scene} edit={edit} text={text} colourControl={colourControl}
           colourButton={colourButton} selectionReason={selectionReason} colourLabel={colourLabel}

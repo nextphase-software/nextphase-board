@@ -2,6 +2,7 @@
 import { freshIdentifier, type BoardV14, type ItemV14 } from "nextphase-board-rules/document.ts";
 import { hasRectangle, hasText , isTable, remapTable } from "nextphase-board-rules/objects/registry.ts";
 import { editingCommandReason } from "./commands.ts";
+import { tableTsv } from "./table-csv.ts";
 import { wholeGroups } from "./group.ts";
 import { bandOrder, remapSection } from "./sections.ts";
 import type { DisplayObject } from "./selection.ts";
@@ -65,7 +66,8 @@ export function buildSnapshot(board: BoardV14, selected: ReadonlySet<string>,
 }
 
 export function plainText(snapshot: Snapshot): string {
-  return snapshot.objects.filter(hasText).map((o) => o.text).filter((text) => text !== "").join("\n\n");
+  return snapshot.objects.flatMap(o => isTable(o) ? [tableTsv(o)] : hasText(o) && o.text !== "" ? [o.text] : [])
+    .join("\n\n");
 }
 
 function bounded(position: number, length: number): number {

@@ -12,6 +12,7 @@ type Input = {
   page?: string;
   voting?: BoardVoting;
   chooseImages: () => void;
+  exportTable: () => boolean;
   command: (name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut" | MapCommand) => string | undefined;
   clipboardCommand: (name: ClipboardCommand) => void;
   toggleFormat: (flag: Flag) => void;
@@ -32,7 +33,7 @@ type Input = {
 };
 
 export function usePageKeys({
-  page, voting, chooseImages, command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
+  page, voting, chooseImages, exportTable, command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
   setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
 }: Input) {
   function pageKeyDown(e: React.KeyboardEvent<HTMLElement>) {
@@ -49,6 +50,11 @@ export function usePageKeys({
     }
     if (!nativeText && (e.ctrlKey || e.metaKey) && !e.altKey) {
       const key = e.key.toLowerCase();
+      if (key === "e" && e.shiftKey && e.target === scene.current && !composing && !e.nativeEvent.isComposing) {
+        const mac = navigator.platform.startsWith("Mac");
+        if ((mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey) && exportTable()) e.preventDefault();
+        return;
+      }
       if (key === "k" && e.shiftKey && !composing && !e.nativeEvent.isComposing) { e.preventDefault(); chooseImages(); return; }
       if (key === "z" || (key === "y" && e.ctrlKey && !e.metaKey && !e.shiftKey)) {
         e.preventDefault();

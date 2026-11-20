@@ -686,6 +686,11 @@ baseline-negative and A–J checks belong to the independent check run.
 same-board routing, the page menu and notices. Run just these checks with
 `node --test tests/page-links.test.mjs`, or include them in `npm test`.
 
+`tests/table-csv.test.mjs` covers 0011-W2 CSV and spreadsheet parsing, import
+budgets and placement, clipboard routing and copy, the import and export
+controls, and the real encoded hosted edit size. Run
+`node --test tests/table-csv.test.mjs` or include it in `npm test`.
+
 ## Node server shutdown (0003-B1)
 
 NB-120 ran on `codex/0003-B1-node-stop-hang` from `0252f46`. Validated source

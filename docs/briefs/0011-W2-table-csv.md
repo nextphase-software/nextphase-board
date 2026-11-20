@@ -352,3 +352,117 @@ implementation.
 ## Implementation record
 
 (Append-only; the implementer adds its source validation here.)
+
+
+### Implementation validation
+
+- Branch: `codex/0011-W2-table-csv`
+- Prerequisite base: `784e22974795fa939bd16514e214e10815b6cb9d`
+- Behaviour baseline: `01162634d222c53a53e5b04c6696459d3367e4cc`
+- Validated source and tests: `e88f1d1250120b755b63c4346b20ca9e52e868a9`
+- Toolchain: Node 26.13.0 and npm 11.20.0. Added dependencies, services and assets: none.
+- The public-boundary hooks passed. Git reported a sandbox restriction on
+  `.git/packed-refs.lock` after updating the branch successfully.
+
+Board paste and drop route spreadsheet text and CSV files to table import. Each accepted
+batch uses the live board and the original page and view anchor, then applies in one
+existing commit and Undo step. Copy supplies TSV alongside Board's object clipboard.
+The board panel adds Import CSV… and the Table context bar adds Export as CSV and its
+keyboard route. Both controls use the existing styles.
+
+#### V1–V8
+
+Results apply to the validated source above except for the separate V2 baseline install.
+
+| Check | Command and result |
+| --- | --- |
+| PASS: V1 | Compared each file from `git ls-files '*package.json' '*lock*' '*dependency-inventory*' '*runtime-notices*'` using `git show <revision>:<file>` at the prerequisite base and validated source. All 20 matched byte for byte. |
+| PASS: V2 | `npm ci --ignore-scripts --no-audit --no-fund` exited 0 on the clean candidate and a separate archive of the behaviour baseline. Both installed 118 packages. |
+| PASS: V3 | `npm run typecheck` exited 0 across all 5 workspace members. |
+| PASS: V4 | `npm test` exited 0. All 1,330 passed, including the 18 new X5-U01–X5-U18 checks. Zero failures, cancellations or skips. The module checks confirmed the 25 hooks, the existing effect counts and the exact 264-line App composition. |
+| PASS: V5 | Team-off web build and license audit passed. `cmp` matched the distributed notices to runtime notices v1 byte for byte. |
+| PASS: V6 | Fixture and team-on web builds and license audit passed. `cmp` matched the distributed notices to runtime notices v3 byte for byte. |
+| PASS: V7 | Server build produced both Node and Worker artifacts and the license audit passed. Wrangler 4.156.0 dry run exited 0. It reported 1,398.88 KiB uploaded size (288.72 KiB gzip) and two bindings. |
+| PASS: V8 | Reviewed the hunks and ran `git diff --name-status 784e229..e88f1d1` and `git diff --check 784e229..e88f1d1`. The source commit changes 13 files, including two additions. App changed on the six allowed lines. No CSS or type-only changes were needed. This record is appended in a separate commit. |
+
+V5–V7 commands
+
+```sh
+BOARD_TEAM_FEATURES=off BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+npm run audit:licenses
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v1.txt
+npm run build:fixtures
+BOARD_TEAM_FEATURES=on BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796 npm run build
+npm run audit:licenses
+cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt
+npm run build:server
+npm run audit:licenses
+WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=<scratch-log> npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json
+```
+
+X5-U07 counts the UTF-8 bytes of the actual edit frame, using the sync adapter and
+the production update encoder. Rule 16 refused the fourth and fifth files of the
+dense batch before commit. The three accepted files fit in the edit budget.
+
+| Test batch | Estimate in bytes | Encoded edit in bytes |
+| --- | ---: | ---: |
+| Five 20 × 50 tables, 76 ASCII characters per cell | 1,447,382 | 1,188,582 |
+| One 20 × 50 table with 393,216 input bytes | 781,004 | 658,238 |
+| 5,000 single-character cells | 954,048 | 682,350 |
+
+Run times in UTC
+
+| Check | Start | End |
+| --- | --- | --- |
+| V2 baseline | 2026-11-20T23:45:47Z | 2026-11-20T23:45:49Z |
+| V2 candidate | 2026-11-20T23:53:02Z | 2026-11-20T23:53:04Z |
+| V3 | 2026-11-20T23:53:15Z | 2026-11-20T23:53:18Z |
+| V4 | 2026-11-20T23:53:15Z | 2026-11-20T23:53:24Z |
+| V5 | 2026-11-20T23:53:15Z | 2026-11-20T23:53:17Z |
+| V6 | 2026-11-20T23:53:17Z | 2026-11-20T23:53:18Z |
+| V7 | 2026-11-20T23:53:18Z | 2026-11-20T23:53:21Z |
+
+`pmset -g log` showed zero sleep, wake or dark-wake events in the validation interval.
+
+#### Source and test changes
+
+- `apps/web/src/table-csv.ts` contains CSV and TSV rules, size checks, placement and notices.
+- `apps/web/src/state/use-editing-commands.ts` owns the batch routes, chooser, clipboard copy record
+  and download. `apps/web/src/state/use-page-keys.ts` wires the export shortcut.
+- `apps/web/src/clipboard.ts` includes TSV in the copied object text.
+- `apps/web/src/ui/board-panel.tsx`, `apps/web/src/ui/context-bar.tsx`,
+  `apps/web/src/ui/table-controls.tsx` and `apps/web/src/icons.tsx` render the two controls.
+- `docs/guides/try-board.md` adds the two brief rows.
+- Test ranges at the validated revision: `tests/table-csv.test.mjs` 1–676,
+  `tests/modules.test.mjs` 597–598 and 688–711 (composition), and `tests/README.md` 689–693.
+
+The six App substitutions from 0116263, with the original and replacement lines
+
+```diff
+@@ -125,2 +125,2 @@ export function App({ team }: { team?: TeamParts } = {}) {
+-  const { tableAction, tableSize, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
+-    pages, tableSelection, chooseTable, growTableRows, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
++  const { tableAction, tableSize, tableData, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
++    pages, tableSelection, chooseTable, growTableRows, tableMeasure, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
+@@ -133 +133 @@ export function App({ team }: { team?: TeamParts } = {}) {
+-    command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
++    command, clipboardCommand, exportTable: tableData.exportTable, toggleFormat, model, cancel, scene, busy, composing, select,
+@@ -151 +151 @@ export function App({ team }: { team?: TeamParts } = {}) {
+-        ref={scene} onPointerDownCapture={images.guardGesture} onPaste={hostedPaste ?? images.paste(() => clipboardCommand("Paste"))} onDragOver={images.dragOver} onDrop={images.drop}
++        ref={scene} onPointerDownCapture={images.guardGesture} onPaste={tableData.paste(hostedPaste ?? images.paste(() => clipboardCommand("Paste")))} onDragOver={images.dragOver} onDrop={tableData.drop(images.drop)}
+@@ -205 +205 @@ export function App({ team }: { team?: TeamParts } = {}) {
+-          setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles} beginNameEntry={beginNameEntry} finishNameEntry={finishNameEntry}
++          setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles} importTable={tableData.importButton} beginNameEntry={beginNameEntry} finishNameEntry={finishNameEntry}
+@@ -225 +225 @@ export function App({ team }: { team?: TeamParts } = {}) {
+-          tableSelection={tableSelection} tableDraft={tableEntry.draft?.text} tableResizing={tableGesture.resizing} cellInvalidNotice={cellInvalidNotice} setMessage={setMessage} tableAction={tableAction} tableSize={tableSize} editCell={tableGeometry.editCell} contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
++          tableSelection={tableSelection} tableDraft={tableEntry.draft?.text} tableResizing={tableGesture.resizing} cellInvalidNotice={cellInvalidNotice} setMessage={setMessage} tableAction={tableAction} tableSize={tableSize} exportTable={tableData.exportTable} editCell={tableGeometry.editCell} contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
+```
+
+#### Unrun and escalation
+
+- V9 server suites are assigned to the cloud Checks workflow. V10–V14, including
+  browser scenarios, captures, baseline-negative checks and A–J/N3, are assigned to
+  the independent check run. Browsers and the Supabase CLI were unavailable in this sandbox.
+- The graph connector required approval in a session without approvals. The local graph
+  CLI provided structural discovery at the prerequisite base.
+- No contract escalation. No deployment or publication.

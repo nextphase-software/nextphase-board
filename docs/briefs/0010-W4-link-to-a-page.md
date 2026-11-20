@@ -320,3 +320,45 @@ implementation.
 - Repairs to separately tracked baseline failures.
 
 ## Implementation record
+
+### Source validation on 2026-11-20
+
+- Branch `codex/0010-W4-link-to-a-page`.
+- Prerequisite commit `b5a5c28b4c99d586511d8a0764dd3491fa768d7b`.
+- Behaviour baseline `7de5c1413bbcf0ed8b48834e768aa74075510a1c`.
+- Validated source and tests `6e689c9153ed40541a35f9223af702b243d49276`.
+- Toolchain Node 26.13.0 and npm 11.20.0. Dependencies added: zero.
+
+| Check | Result | Command and evidence |
+| --- | --- | --- |
+| V1 | Pass | Byte-compared the two Git revisions. All 20 inputs match, including six manifests, the package lock, five contract locks, five inventories and three runtime notice files. |
+| V2 | Pass | `npm ci --ignore-scripts --no-audit --no-fund` installed 118 packages on the clean candidate and 118 in a separate archive of the behaviour baseline. Both exited 0. |
+| V3 | Pass | `npm run typecheck` exited 0 for all five workspace members. |
+| V4 | Pass | `npm test` passed 1,311 of 1,311 checks, including all 14 new `P4-U01`–`P4-U14` checks and the existing module, import, effects and App composition guards. Zero failures or skips. The existing page and route tests passed with their assertions unchanged. |
+| V5 | Pass | `BOARD_TEAM_FEATURES=off npm run build` with the validation settings above built one web app. `npm run audit:licenses` exited 0 and `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v1.txt` matched. |
+| V6 | Pass | `npm run build:fixtures` and `BOARD_TEAM_FEATURES=on npm run build` with the validation settings above built the disposable fixtures and team web app. `npm run audit:licenses` exited 0 and `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt` matched. |
+| V7 | Pass | `npm run build:server` built the Node and Worker servers. `npm run audit:licenses` passed. `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` exited 0, producing three scratch files with two Durable Object bindings. |
+| V8 | Pass | Reviewed the hunks and ran `git diff --name-status b5a5c28..6e689c9` and `git diff --check b5a5c28..6e689c9`. The source commit has two added and twelve modified files within the brief. A path-scoped `git diff --exit-code` confirmed the App, packages, server and Supabase files match the prerequisite. `use-pages.ts` has two passive effects and `use-panel-layout.ts` has one. No type-only or CSS changes were needed. |
+
+Run windows (UTC−05:00) were 13:31:58–13:32:00 for the baseline install and
+13:39:34–13:39:36 for the candidate install. Typecheck ran 13:39:50–13:39:53,
+the full unit suite 13:39:50–13:39:58, and the builds, audits and dry run
+13:39:50–13:39:55. The host log reports zero sleep or wake events in those windows.
+
+Changed test paths and candidate line ranges:
+
+| File | Lines | Change |
+| --- | --- | --- |
+| [`tests/page-links.test.mjs`](../../tests/page-links.test.mjs) | 1–505 | New page-link checks with isolated hook, route and render harnesses. |
+| [`tests/pages.test.mjs`](../../tests/pages.test.mjs) | 227, 233–235 | Isolated address and recording `replaceState` fake. |
+| [`tests/team-pages.test.mjs`](../../tests/team-pages.test.mjs) | 150, 153–155, 407, 412–414 | Isolated address and recording `replaceState` fakes, including the hosted layout harness. |
+| [`tests/README.md`](../../tests/README.md) | 685–688 | Coverage and command for the new test file. |
+
+The public-boundary hooks passed on the source commit. Git reported that it
+could not lock the shared packed refs after committing. The source commit
+and branch ref were present and verified. No milestone escalation was needed.
+
+V9 is reserved for the cloud Checks workflow. Browsers and the Supabase CLI
+were unrun in the implementation sandbox. V10–V13 and the browser regressions
+of V14 are reserved for an independent check run. No separate server test
+runner, push or deployment was performed.

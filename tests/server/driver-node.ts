@@ -5,15 +5,33 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { createInterface } from "node:readline";
 import { NodeStorage } from "../../apps/server/src/node-storage.ts";
 import { initialize } from "../../packages/board-room/src/storage.ts";
 import { decodeBackup, replace } from "../../packages/board-room/src/backups.ts";
 import { peer } from "./peer.ts";
 import type { Context, Driver } from "./driver-types.ts";
+import type { ServerWarning } from "./server-warnings.ts";
 const require = createRequire(new URL("../../apps/server/package.json", import.meta.url));
 const { WebSocket } = require("ws");
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const STOP_TIMEOUT_MS = 30000;
+const STDERR_TAIL_LENGTH = 500;
+const expectedWarnings = [{
+  name: "ExperimentalWarning",
+  messagePrefix: "localStorage is not available because --localstorage-file was not provided",
+  reason: "Node 26 web storage probe from supabase-js; the server never uses localStorage",
+}];
+const pendingWarnings: ServerWarning[] = [];
+
+export function peekServerWarnings(): readonly ServerWarning[] {
+  return pendingWarnings;
+}
+
+export function takeServerWarnings(): ServerWarning[] {
+  return pendingWarnings.splice(0);
+}
+
 export async function makeDriver(context: Context): Promise<Driver> {
   const docker = process.env.BOARD_TEST_TARGET === "docker";
   const folder = await mkdtemp(resolve(tmpdir(), "board-server-")), dataDir = resolve(folder, "data");
@@ -32,12 +50,21 @@ export async function makeDriver(context: Context): Promise<Driver> {
       BOARD_DELIVERY_INTERVAL_MS: String(deliveryIntervalMs) },
       stdio: ["ignore", "pipe", "pipe", "ipc"] });
     let errors = "";
-    started.stderr?.on("data", (value) => { errors += value; });
+    started.stderr?.setEncoding("utf8").on("data", (value: string) => {
+      errors = (errors + value).slice(-STDERR_TAIL_LENGTH);
+    });
+    for (const stream of [started.stderr, started.stdout]) {
+      if (!stream) continue;
+      createInterface({ input: stream, crlfDelay: Infinity }).on("line", (line) => {
+        console.error(`[test server ${started.pid}] ${line}`);
+      });
+    }
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(Error("Node test server did not start: " + errors.slice(-500))), 15000);
-      started.once("exit", (code, signal) => {
+      const timer = setTimeout(() => reject(Error("Node test server did not start: " + errors)), 15000);
+      // Wait for the pipes to drain so the exit error includes the final stderr.
+      started.once("close", (code, signal) => {
         clearTimeout(timer);
-        const error = Error(`Node test server exited (${signal ?? code}): ${errors.slice(-500)}`);
+        const error = Error(`Node test server exited (${signal ?? code}): ${errors}`);
         reject(error);
         if (child === started) {
           child = undefined;
@@ -48,7 +75,12 @@ export async function makeDriver(context: Context): Promise<Driver> {
       started.on("message", (message: any) => {
         if (message.ready) { url = `http://127.0.0.1:${message.port}`; clearTimeout(timer); resolve(); }
         else if (message.shutdownRooms) shutdownRooms = message.shutdownRooms;
-        else {
+        else if (message.warning) {
+          const warning: ServerWarning = message.warning;
+          if (!expectedWarnings.some(({ name, messagePrefix }) => warning.name === name && warning.message.startsWith(messagePrefix))) {
+            pendingWarnings.push(warning);
+          }
+        } else {
           const request = pending.get(message.id); pending.delete(message.id);
           if (message.error) request?.reject(Error(message.error)); else request?.resolve(message.result);
         }
@@ -70,8 +102,8 @@ export async function makeDriver(context: Context): Promise<Driver> {
     const old = child;
     if (!old) return;
     shutdownRooms = undefined;
-    const { promise: exited, resolve: onExit } = Promise.withResolvers<void>();
-    old.once("exit", onExit);
+    const { promise: closed, resolve: onClose } = Promise.withResolvers<void>();
+    old.once("close", onClose);
     async function waitFor(task: Promise<unknown>, phase: string, limit = STOP_TIMEOUT_MS) {
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
@@ -85,19 +117,19 @@ export async function makeDriver(context: Context): Promise<Driver> {
     }
     try {
       if (old.connected) await waitFor(ipc({ shutdown: true }), "the shutdown reply");
-      await waitFor(exited, "the child to exit");
+      await waitFor(closed, "the child to exit");
       if (old.exitCode !== 0) throw Error(`Node test server exited during shutdown (${old.signalCode ?? old.exitCode})`);
     } catch (error) {
       try {
         if (old.exitCode === null && old.signalCode === null) old.kill("SIGKILL");
-        await waitFor(exited, "the killed child to exit", 1000);
+        await waitFor(closed, "the killed child to exit", 1000);
         // Keep cleanup and later checks usable, then fail the awaiting check.
         if (restartOnFailure) await start();
       } catch (recoveryError) {
         throw new AggregateError([error, recoveryError], (error as Error).message);
       }
       throw error;
-    } finally { old.off("exit", onExit); }
+    } finally { old.off("close", onClose); }
   }
   async function runDocker() {
     image = "nextphase-board-w1-" + crypto.randomUUID();

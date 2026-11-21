@@ -8,6 +8,9 @@ import { readFile } from "node:fs/promises";
 import { Supabase } from "../../apps/server/src/supabase.ts";
 import { startNode } from "../../apps/server/src/start-node.ts";
 import { checkSettings } from "../../apps/server/src/settings.ts";
+process.on("warning", ({ name, message }) => {
+  process.send?.({ warning: { name, message } });
+});
 const settings = checkSettings(JSON.parse(await readFile(process.env.BOARD_SETTINGS!, "utf8")));
 let fixedNow: number | null = null;
 let offset = 0, unreachable: string[] = [];
@@ -72,6 +75,7 @@ process.on("message", async (message: any) => {
   try {
     let result: any = {};
     const value = message.value;
+    if (value.overflowTimer) setTimeout(() => {}, 2 ** 31).unref();
     if(value.failLifecycle!==undefined)failLifecycle=value.failLifecycle;
     if(value.holdRoom!==undefined)holdRoom=value.holdRoom;
     if(value.releaseRoom){holdRoom='';for(const release of heldRoom)release();heldRoom.clear();}

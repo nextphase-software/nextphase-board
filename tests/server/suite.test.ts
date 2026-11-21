@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { test, beforeAll, afterAll, afterEach, inject } from "vitest";
+import { test, beforeAll, afterAll, afterEach, inject, vi } from "vitest";
 import assert from "node:assert/strict";
 import * as Y from "yjs";
 import { makeDriver } from "board-test-driver";
@@ -29,9 +29,9 @@ afterAll(async () => {
   if (driver) await driver.close();
   console.log("SUMMARY " + JSON.stringify({ runner, checks: pass + fail, pass, fail, measures }));
 });
-function check(id: number, name: string, fn: () => Promise<void>) {
-  if (runner === "docker" ? id < 51 : id >= 51 || runner === "workerd" && [37, 43].includes(id)) return;
-  test(`S${id} ${name}`, async () => {
+function check(id: number, name: string, fn: () => Promise<void>, nodeOnly = false) {
+  if (!nodeOnly && (runner === "docker" ? id < 51 : id >= 51 || runner === "workerd" && [37, 43].includes(id))) return;
+  test.skipIf(nodeOnly && runner !== "node")(`S${id} ${name}`, async () => {
     try { await fn(); pass++; console.log(`PASS: S${id} ${name}`); }
     catch (error) { fail++; console.log(`FAIL: S${id} ${name}`); throw error; }
   });
@@ -640,3 +640,14 @@ check(53, "Docker restart preserves the board and permits another saved edit", a
   assert.equal((await edit(next, "After restart")).saved.revision, 2); await other.peer.next("update");
 });
 check(54, "self-hosted Supabase accepts ES256 and refuses HS256", signatures);
+check(431, "captures the Node test server's timer overflow warning", async () => {
+  const { peekServerWarnings, takeServerWarnings } = await import("board-test-driver");
+  assert.deepEqual(await driver.control({ overflowTimer: true }), {});
+  await vi.waitFor(() => {
+    const warnings = peekServerWarnings();
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0].name, "TimeoutOverflowWarning");
+    assert.match(warnings[0].message, /\b2147483648\b/);
+  });
+  takeServerWarnings();
+}, true);

@@ -208,7 +208,12 @@ export function useEditingCommands({
     field.click();
   }
   const paste = (next: (event: ClipboardEvent<HTMLDivElement>) => void | Promise<void>) => (event: ClipboardEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget || event.defaultPrevented || voting()) return next(event);
+    if (event.defaultPrevented || voting()) return next(event);
+    const { target, currentTarget } = event;
+    if (target !== currentTarget && (!(target instanceof Element) || !currentTarget.contains(target) ||
+        target.closest("input,textarea,[contenteditable]:not([contenteditable=false])"))) {
+      return next(event);
+    }
     const files = Array.from(event.clipboardData.files);
     if (files.length) {
       if (!files.some(isCsvFile)) return next(event);

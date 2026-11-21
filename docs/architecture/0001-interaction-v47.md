@@ -38,7 +38,7 @@ event unchanged (local image paste and drop, local and hosted object paste, thei
 
 | Event | Condition | Route |
 | --- | --- | --- |
-| paste | target is not the canvas element itself, or the event was already handled | today (a text field's own paste stays native) |
+| paste | the event was already handled, or its target is outside the canvas element or is a text field (a `textarea`, an `input` or editable text) | today (a text field's own paste stays native) |
 | drop | the event was already handled, or its target is a text field (a `textarea`, an `input` or editable text) | today |
 | paste | `clipboardData.files` holds at least one CSV file | **table import** of all those files (non-CSV files in it refused); the event is consumed |
 | paste | `clipboardData.files` holds files, none of them CSV (whatever the text values) | today |
@@ -46,6 +46,8 @@ event unchanged (local image paste and drop, local and hosted object paste, thei
 | paste | anything else | today |
 | drop | target is the canvas element or anything inside it (the scene's handles, add bars and other parts), and `dataTransfer.files` holds at least one CSV file | **table import** of all those files at the drop point, computed from the canvas element's rectangle (`currentTarget`) and the view, as the image drop computes it; the event is consumed |
 | drop | no CSV file | today (image drops unchanged) |
+
+Amendment A1 (0011-W2 review v1): a paste reaches the table rows when its target is the canvas element or any element inside it other than a text field, because a browser delivers ⌘V to the element holding the document's selection.
 
 A **table import** or **table paste** that finds the data-exchange reason non-empty adds nothing and shows that
 reason as the board notice (for a table paste the event goes to today's route instead, which shows today's

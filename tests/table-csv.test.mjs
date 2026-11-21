@@ -366,7 +366,7 @@ test("X5-U11 routes each paste and drop once, preserving native targets and file
   const h = await commandHarness(), png = file("photo.png", ""), csvFile = file("tasks.csv", "a,b");
   const input = new SyntheticElement(h.surface, true), child = new SyntheticElement(h.surface);
   for (const [action, args] of [
-    ["paste", { target: child, files: [csvFile] }], ["paste", { handled: true, files: [csvFile] }],
+    ["paste", { target: new SyntheticElement(), files: [csvFile] }], ["paste", { handled: true, files: [csvFile] }],
     ["paste", { files: [png], text: "a\tb" }], ["paste", { text: "ordinary" }],
     ["drop", { target: input, files: [csvFile] }], ["drop", { target: new SyntheticElement(), files: [csvFile] }],
     ["drop", { handled: true, files: [csvFile] }], ["drop", { files: [png] }],
@@ -673,4 +673,32 @@ test("X5-U18 shares the export gate with the exact canvas shortcut and leaves bo
   assert.deepEqual(h.messages, []);
   await new Promise(resolve => setTimeout(resolve, 5));
   assert.deepEqual(revoked, Array(3).fill("blob:table"));
+});
+
+test("X5-U19 imports spreadsheet text and CSV files from nested canvas targets while preserving field paste", async (t) => {
+  await csv();
+  replaceProperty(t, globalThis, "Element", SyntheticElement);
+  const h = await commandHarness();
+  const status = new SyntheticElement(h.surface), textarea = new SyntheticElement(h.surface, true);
+  const text = "a\tb\nc\td";
+  const paste = (e) => h.render().tableData.paste(fallback => { h.fallbacks.push(fallback); })(e);
+
+  const sheetPaste = event(h, { target: status, text });
+  await paste(sheetPaste);
+  assert.deepEqual(tables(h.props.model.current).map(matrix), [[["a", "b"], ["c", "d"]]]);
+  assert.equal(sheetPaste.prevented, 1);
+
+  const fieldPaste = event(h, { target: textarea, text });
+  await paste(fieldPaste);
+  assert.equal(h.fallbacks.length, 1);
+  assert.equal(h.fallbacks[0], fieldPaste);
+  assert.equal(fieldPaste.prevented, 0);
+  assert.equal(h.commits.length, 1);
+
+  const filePaste = event(h, { target: status, files: [file("nested.csv", "e,f")] });
+  await paste(filePaste);
+  assert.deepEqual(tables(h.props.model.current).map(matrix), [[["a", "b"], ["c", "d"]], [["e", "f"]]]);
+  assert.equal(filePaste.prevented, 1);
+  assert.equal(h.messages.at(-1), "Added a 2 × 1 table from “nested.csv”.");
+  assert.equal(h.fallbacks.length, 1);
 });

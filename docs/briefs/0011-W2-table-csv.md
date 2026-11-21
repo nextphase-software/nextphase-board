@@ -466,3 +466,35 @@ The six App substitutions from 0116263, with the original and replacement lines
 - The graph connector required approval in a session without approvals. The local graph
   CLI provided structural discovery at the prerequisite base.
 - No contract escalation. No deployment or publication.
+
+### Review fix round 1 — 0011-W2 v1
+
+- Branch: `codex/0011-W2-table-csv`.
+- Reviewed revision: `0d8064242cbe12f62900977a653fbd1ff95e1c23`.
+- Validated fix source and tests: `2738c6ee0a8a6d17ae2b98190ae678061a43e784`.
+- Toolchain: Node 26.13.0 and npm 11.20.0. Added dependencies: none.
+
+F1 and Amendment A1 allow the table paste route to handle events delivered to
+non-field elements inside the canvas. The route forwards text-field, outside and
+already-handled events unchanged to the existing handler.
+
+| Check | Command and result |
+| --- | --- |
+| X5-U19 | `node --test --test-name-pattern=X5-U19 tests/table-csv.test.mjs`. Before the fix, 0 passed and 1 failed on `0d80642` with only the new test added. The nested spreadsheet paste created zero tables. After the fix, 1 passed and 0 failed. The test also exercises native textarea fallback and CSV file paste on a nested target. |
+| PASS: V3 | `npm run typecheck` passed across all 5 workspaces. |
+| PASS: V4 | `npm test` passed all 1,331 tests, including all 19 X5 tests. Zero failures, cancellations or skips. |
+| Named tests | `node --test --test-reporter=tap tests/table-csv.test.mjs tests/clipboard.test.mjs tests/images.test.mjs tests/strokes.test.mjs tests/pages.test.mjs tests/connectors.test.mjs tests/page-links.test.mjs tests/tables.test.mjs tests/modules.test.mjs` passed all 250 tests across 9 files. |
+| PASS: V8 | Reviewed all fix hunks and ran `git diff --name-status` and `git diff --check` for `0d80642..2738c6e` and `784e229..2738c6e`. The fix changes 3 files. `App.tsx` keeps 264 lines and the original 6 substitutions. The two existing paste handlers and the package, room, server and Supabase trees have no fix changes. |
+
+V3 ran from 00:21:33 to 00:21:36 UTC, the named tests from 00:21:33 to 00:21:37
+UTC, and V4 from 00:21:33 to 00:21:42 UTC on 2026-11-21. The host power log
+showed no sleep, wake or dark-wake during validation.
+
+The fix changes `apps/web/src/state/use-editing-commands.ts`,
+`docs/architecture/0001-interaction-v47.md` and `tests/table-csv.test.mjs`
+(line 369 for the X5-U11 outside-canvas case and lines 678–704 for X5-U19).
+
+The public-boundary hooks passed. Git reported a sandbox restriction on
+`.git/packed-refs.lock` during background maintenance, and the branch advanced
+successfully. Browser acceptance remains for the independent check run. Browsers
+and the Supabase CLI were unrun in this sandbox. No contract escalation.

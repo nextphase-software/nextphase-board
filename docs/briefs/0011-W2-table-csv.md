@@ -498,3 +498,37 @@ The public-boundary hooks passed. Git reported a sandbox restriction on
 `.git/packed-refs.lock` during background maintenance, and the branch advanced
 successfully. Browser acceptance remains for the independent check run. Browsers
 and the Supabase CLI were unrun in this sandbox. No contract escalation.
+
+### Review fix round 2 — 0011-W2 v1
+
+- Branch: `codex/0011-W2-table-csv`.
+- Reviewed revision: `fa173c231ad3950547dace33dfbd883b5f22a649`.
+- Validated fix source and tests: `9840151d4a0c5e7c6c2d41175ea1b1631ad672c1`.
+- Toolchain: Node 26.13.0 and npm 11.20.0. Added dependencies: none.
+
+F2 and Amendment A2 extend the brief's file list with
+`apps/web/src/state/use-images.ts` and `apps/web/src/state/use-hosted-board.ts`.
+Both paste handlers and the table paste route use the same target rule, defined
+in `apps/web/src/table-csv.ts` and used by `apps/web/src/state/use-editing-commands.ts`.
+`docs/architecture/0001-interaction-v47.md` and
+`docs/architecture/0001-web-modules-v45.md` record Amendment A2.
+
+| Check | Command and result |
+| --- | --- |
+| X5-U20–X5-U22 | `node --test --test-name-pattern='X5-U2[0-2]' tests/table-csv.test.mjs`. On `fa173c2` with only the test changes, 0 passed and 3 failed. The local and hosted copies did not paste, and the hosted viewer received no notice. On the fix, 3 passed and 0 failed. The local and hosted tests also verify that textarea paste stays native. |
+| PASS: V3 | `npm run typecheck` passed across all 5 workspaces. |
+| PASS: V4 | `npm test` passed all 1,334 tests, including all 22 X5 tests. Zero failures, cancellations or skips. |
+| Named tests | `node --test --test-reporter=tap tests/table-csv.test.mjs tests/clipboard.test.mjs tests/images.test.mjs tests/strokes.test.mjs tests/pages.test.mjs tests/connectors.test.mjs tests/page-links.test.mjs tests/tables.test.mjs tests/modules.test.mjs` passed all 253 tests across 9 files. |
+| PASS: V8 | Reviewed all fix hunks and ran `git diff --name-status` and `git diff --check` for `fa173c2..9840151` and `784e229..9840151`. The fix changes 7 files. `App.tsx` keeps 264 lines and the original 6 substitutions. The 25-hook inventory and effect counts passed, with 3 effects in `use-images.ts`, 1 in `use-hosted-board.ts` and 0 in `use-editing-commands.ts`. The package, room, server and Supabase trees have no fix changes. |
+
+V3 ran from 00:42:22 to 00:42:25 UTC, the named tests from 00:42:21 to 00:42:26
+UTC, and V4 from 00:42:21 to 00:42:33 UTC on 2026-11-21. The host power log
+showed no sleep, wake or dark-wake during validation.
+
+Changed test ranges in `tests/table-csv.test.mjs`: 272–273 and 292 (hook
+harness), and 708–791 (paste harness and X5-U20–X5-U22).
+
+The public-boundary hooks passed. Git reported a sandbox restriction on
+`.git/packed-refs.lock` during background maintenance, and the branch advanced
+successfully. Browser acceptance remains for the independent check run. Browsers
+and the Supabase CLI were unrun in this sandbox. No contract escalation.

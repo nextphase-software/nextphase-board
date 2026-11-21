@@ -20,6 +20,13 @@ export type TableDataItem = Parsed | Refused;
 export type TableDataAnchor = { boardId: string; page: string; point: Point };
 type PlaceTable = (table: TableItem, centre: Point) => TableItem;
 
+export function isCanvasPasteTarget({ target, currentTarget }: { target: EventTarget | null; currentTarget: Element }) {
+  if (target === currentTarget) return true;
+  const element = target as Element | null;
+  return typeof element?.closest === "function" && currentTarget.contains(element) &&
+    !element.closest("textarea,input,[contenteditable]:not([contenteditable=false])");
+}
+
 export function isSpreadsheetData(text: string, html: string) {
   return text !== "" && (text.includes("\t") || /<table[\s>]/i.test(html));
 }

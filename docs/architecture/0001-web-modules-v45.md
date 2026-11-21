@@ -36,6 +36,8 @@ effect; `use-page-keys.ts` and the screen parts keep theirs), and the team modul
   `commit(next, true)` followed by `select`, `setTool("Select")`, `setPanel("")`, canvas focus and `setMessage`
   (the success text only when the commit took). The download uses a `Blob`, an object URL and a temporary
   `<a download>`, as `saveCopy` does.
+- `state/use-images.ts` and `state/use-hosted-board.ts`: their paste handlers use amendment A1's target rule
+  (amendment A2); nothing else changes.
 - `clipboard.ts`: `plainText` includes each copied table as `table-csv.ts`'s tab-separated text, in object
   order, joined as today.
 - `state/use-page-keys.ts`: ⇧⌘E / Ctrl+Shift+E on the canvas (v47 "Keys") calls the new input `exportTable` and

@@ -49,6 +49,8 @@ event unchanged (local image paste and drop, local and hosted object paste, thei
 
 Amendment A1 (0011-W2 review v1): a paste reaches the table rows when its target is the canvas element or any element inside it other than a text field, because a browser delivers ⌘V to the element holding the document's selection.
 
+Amendment A2 (0011-W2 review v2): Board's existing paste handlers (local object and image paste, hosted paste) use the same target rule, so a paste that the table rows hand to "today" reaches them.
+
 A **table import** or **table paste** that finds the data-exchange reason non-empty adds nothing and shows that
 reason as the board notice (for a table paste the event goes to today's route instead, which shows today's
 outcome: for example a viewer's paste shows `Read-only: editing commands are unavailable.`; for a table import it

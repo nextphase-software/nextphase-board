@@ -6,6 +6,7 @@ import type { HostedBoard } from "../team/hosted-board";
 import { isTable, cellText } from "nextphase-board-rules/objects/registry.ts";
 import type { TableItem } from "nextphase-board-rules/document.ts";
 import { rebaseComposition, validTableSelection, type TableSelection, type TableEntry } from "../table";
+import { isCanvasPasteTarget } from "../table-csv";
 
 type Input = { hosted?: HostedBoard; model: RefObject<BoardV14>; load: (board: BoardV14) => void;
   setBoard: Dispatch<SetStateAction<BoardV14>>; setReadOnly: Dispatch<SetStateAction<boolean>>;
@@ -94,7 +95,7 @@ export function useHostedBoard({ hosted, model, load, setBoard, setTitle, setRea
   // preview handoff reasserts Pan after that ordinary cancellation chooses Select.
   }, [hosted, hosted?.history.panEpoch]);
   return hosted ? (event: ClipboardEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget || event.defaultPrevented || composing) return;
+    if (!isCanvasPasteTarget(event) || event.defaultPrevented || composing) return;
     event.preventDefault();
     if (!event.clipboardData.files.length) paste();
   } : undefined;

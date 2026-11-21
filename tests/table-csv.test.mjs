@@ -269,6 +269,8 @@ function webHarness() {
     stdin: {
       contents: [
         'export { useEditingCommands } from "./state/use-editing-commands.ts";',
+        'export { useImages } from "./state/use-images.ts";',
+        'export { useHostedBoard } from "./state/use-hosted-board.ts";',
         'export { usePageKeys } from "./state/use-page-keys.ts";',
         'export { TableControls } from "./ui/table-controls.tsx";',
         'export { BoardPanel } from "./ui/board-panel.tsx";',
@@ -287,6 +289,7 @@ function webHarness() {
         contents: [
           "let frame, cursor;",
           "export function render(slots, call) { frame = slots; cursor = 0; return call(); }",
+          "export function useEffect() {}",
           "export function useRef(initial) { const i = cursor++; return frame[i] ??= { current: initial }; }",
           "export function useState(initial) { const slot = useRef(initial); return [slot.current, next => {",
           '  slot.current = typeof next === "function" ? next(slot.current) : next;',
@@ -701,4 +704,88 @@ test("X5-U19 imports spreadsheet text and CSV files from nested canvas targets w
   assert.equal(filePaste.prevented, 1);
   assert.equal(h.messages.at(-1), "Added a 2 × 1 table from “nested.csv”.");
   assert.equal(h.fallbacks.length, 1);
+});
+
+function canvasPaste(h) {
+  const commands = h.render(), paste = () => commands.clipboardCommand("Paste");
+  const { hosted, model } = h.props;
+  const next = h.hooks.render([], () => hosted
+    ? h.hooks.useHostedBoard({ hosted, model, paste, composing: false })
+    : h.hooks.useImages({
+      ...h.props, board: model.current, pending: { current: { busy: false } },
+      isAlive: () => true,
+    }).paste(paste));
+  return commands.tableData.paste(next);
+}
+
+test("X5-U20 nested local paste creates a copy of Board's object and leaves textarea paste native", async (t) => {
+  await csv();
+  replaceProperty(t, globalThis, "Element", SyntheticElement);
+  replaceProperty(t, navigator, "clipboard", { async writeText() {} });
+  const r = await rules(), board = r.add(await blank(), "sticky", 0, 0);
+  const [sticky] = board.objects;
+  sticky.text = "Board note";
+  const h = await commandHarness(board);
+  h.props.displayedObjects = [{ ...sticky, displayHeight: sticky.height }];
+  h.props.selected = new Set([sticky.id]);
+  h.render().clipboardCommand("Copy");
+
+  const paste = canvasPaste(h);
+  const fieldPaste = event(h, { target: new SyntheticElement(h.surface, true), text: "x\ty" });
+  await paste(fieldPaste);
+  assert.equal(fieldPaste.prevented, 0);
+  assert.equal(h.props.model.current, board);
+
+  const objectPaste = event(h, { target: new SyntheticElement(h.surface), text: sticky.text });
+  await paste(objectPaste);
+  const copy = h.props.model.current.objects.find(object => object.id !== sticky.id);
+  assert.equal(copy?.text, sticky.text);
+  assert.equal(objectPaste.prevented, 1);
+  assert.equal(h.commits.length, 1);
+  assert.equal(h.messages.at(-1), "Pasted 1 object.");
+  r.validate(h.props.model.current);
+});
+
+test("X5-U21 nested hosted paste uses Board's own table copy and leaves textarea paste native", async (t) => {
+  await csv();
+  replaceProperty(t, globalThis, "Element", SyntheticElement);
+  const writes = [];
+  replaceProperty(t, navigator, "clipboard", { async writeText(text) { writes.push(text); } });
+  const r = await rules(), empty = r.add(await blank(), "table", 0, 0);
+  const table = fill(empty.objects[0], [["a", "b"], ["c", "d"]]);
+  const board = { ...empty, objects: [table] };
+  const h = await commandHarness(board);
+  h.props.displayedObjects = [{ ...table, displayHeight: table.height }];
+  h.props.hosted = { canEdit: true, snapshot: { role: "editor" }, voting: { mode: false }, history: { panEpoch: 0 } };
+  h.props.selected = new Set([table.id]);
+  h.render().clipboardCommand("Copy");
+  assert.deepEqual(writes, ["a\tb\nc\td"]);
+
+  const paste = canvasPaste(h);
+  const fieldPaste = event(h, { target: new SyntheticElement(h.surface, true), text: "x\ty" });
+  await paste(fieldPaste);
+  assert.equal(fieldPaste.prevented, 0);
+  assert.equal(h.props.model.current, board);
+
+  const objectPaste = event(h, { target: new SyntheticElement(h.surface), text: writes[0] });
+  await paste(objectPaste);
+  assert.deepEqual(tables(h.props.model.current).map(matrix), [matrix(table), matrix(table)]);
+  assert.equal(objectPaste.prevented, 1);
+  assert.equal(h.commits.length, 1);
+  assert.equal(h.messages.at(-1), "Pasted 1 object.");
+  r.validate(h.props.model.current);
+});
+
+test("X5-U22 nested hosted viewer paste reaches the read-only refusal", async (t) => {
+  await csv();
+  replaceProperty(t, globalThis, "Element", SyntheticElement);
+  const h = await commandHarness();
+  const board = h.props.model.current;
+  h.props.hosted = { canEdit: false, snapshot: { role: "viewer" }, voting: { mode: false }, history: { panEpoch: 0 } };
+  h.props.clipboardState.readOnly = true;
+  const e = event(h, { target: new SyntheticElement(h.surface), text: "a\tb" });
+  await canvasPaste(h)(e);
+  assert.deepEqual(h.messages, ["Read-only: editing commands are unavailable."]);
+  assert.equal(e.prevented, 1);
+  assert.equal(h.props.model.current, board);
 });

@@ -26,7 +26,7 @@ import type { HostedBoard } from "../team/hosted-board";
 import type { TableItem } from "nextphase-board-rules/document.ts";
 import type { TableOrderHint } from "nextphase-board-sync/document-adapter.ts";
 import { anchorCell, boundTable, growTable, layoutTable, tableReason, type MeasureCell, type TableAction, type TableSelection } from "../table";
-import { addTableData, isCsvFile, isSpreadsheetData, readCsvFile, readSpreadsheet, tableCsv, tableCsvName,
+import { addTableData, isCanvasPasteTarget, isCsvFile, isSpreadsheetData, readCsvFile, readSpreadsheet, tableCsv, tableCsvName,
   type TableDataAnchor, type TableDataItem } from "../table-csv";
 
 type Input = {
@@ -208,12 +208,7 @@ export function useEditingCommands({
     field.click();
   }
   const paste = (next: (event: ClipboardEvent<HTMLDivElement>) => void | Promise<void>) => (event: ClipboardEvent<HTMLDivElement>) => {
-    if (event.defaultPrevented || voting()) return next(event);
-    const { target, currentTarget } = event;
-    if (target !== currentTarget && (!(target instanceof Element) || !currentTarget.contains(target) ||
-        target.closest("input,textarea,[contenteditable]:not([contenteditable=false])"))) {
-      return next(event);
-    }
+    if (event.defaultPrevented || voting() || !isCanvasPasteTarget(event)) return next(event);
     const files = Array.from(event.clipboardData.files);
     if (files.length) {
       if (!files.some(isCsvFile)) return next(event);

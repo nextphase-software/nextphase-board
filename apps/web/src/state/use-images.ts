@@ -5,6 +5,7 @@ import { isImage } from "nextphase-board-rules/objects/registry.ts";
 import { boardPictures, readPictures, storePicture, tabPictures } from "../image-assets.ts";
 import { addImages, decodePicture, describeImage, descriptionDraft, IMAGE_ACCEPT, IMAGE_REASONS, importReason, platformPaste, prepareImage, refusalNotice, type PreparedImage } from "../images.ts";
 import { signature } from "../image-assets.ts";
+import { isCanvasPasteTarget } from "../table-csv.ts";
 import type { LocalStore } from "../storage.ts";
 import type { View } from "../view.ts";
 
@@ -136,7 +137,7 @@ export function useImages(input: Input) {
     if (signatures.some(Boolean)) await importFiles(files, centre()); else paste();
   }
   const paste = (objectPaste: () => void) => (event: ClipboardEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget || event.defaultPrevented || latest.current.composing) return;
+    if (!isCanvasPasteTarget(event) || event.defaultPrevented || latest.current.composing) return;
     event.preventDefault(); return pasted(Array.from(event.clipboardData.files), objectPaste);
   };
   function dragOver(event: DragEvent<HTMLDivElement>) { event.preventDefault(); }

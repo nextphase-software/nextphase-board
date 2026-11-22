@@ -454,3 +454,152 @@ Pro zones) are the only outside facts relied on. No unresolved product decision 
 ## Implementation record
 
 (Append-only; the implementer adds its source validation here.)
+
+### Implementation on 2026-11-22
+
+Branch `codex/0012-W3-team-images-gifs`. Prerequisite base `48de14acf258e4c8b50570d41736751bba8abead`.
+Behaviour baseline `ea0e2d4250eb193c5a2dd1f9b45bf12bef9c4491`.
+Validated source and tests `bf2b1836a48e67b7b6dd34a8202f7a99cd2a45f4`. Node 26.13.0 and npm 11.20.0.
+Added dependencies, out-of-list type changes and escalation conditions encountered: zero.
+
+#### Source validation
+
+Each row below applies to the validated source SHA above. All commands exited 0.
+For both web builds the synthetic environment was
+`BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796`.
+
+| Result | Command and evidence |
+| --- | --- |
+| PASS: V1 | Byte-compared each tracked package manifest, lock, dependency inventory and runtime notices file with `git show 48de14a:<path>`. All 20 matched (6 manifests, 6 locks, 5 inventories, 3 notices). |
+| PASS: V2 | `npm ci --ignore-scripts --no-audit --no-fund` installed 118 packages on the clean source commit and 118 on an independent archive of ea0e2d4. |
+| PASS: V3 | `npm run typecheck` passed all five workspace members. |
+| PASS: V4 | `npm test` passed 1,382 of 1,382, with zero failures, skips or cancellations. The 29 new groups comprise GIF X7-U01–U06, web X7-U07–U19 and room X7-U20–U29. |
+| PASS: V5 | `BOARD_TEAM_FEATURES=off npm run build` and `npm run audit:licenses` passed. Distributed notices matched runtime notices v1 byte for byte. |
+| PASS: V6 | `npm run build:fixtures`, `BOARD_TEAM_FEATURES=on npm run build` and `npm run audit:licenses` passed. Distributed notices matched runtime notices v3 byte for byte. |
+| PASS: V7 | `npm run build:server` built Node and Worker. `npm run audit:licenses` and `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` passed. The dry run reported 1,412.33 KiB (292.28 KiB gzip) and the two existing Durable Object bindings. |
+| PASS: V8 | Inspected the hunks, ran `git diff --name-status 48de14a..bf2b183` and `git diff --check 48de14a..bf2b183`, and matched the paths to the brief. 57 files, 10 added and 47 modified, 1,626 insertions and 114 deletions. App matched all ten substitutions byte for byte and retained 264 lines. Counts were 27 state hooks, 20 scene parts, 56 team modules and 34 screen parts. All 26 previous hook effect counts matched the base. Playback has one effect, canvas input two, hosted board one and images three. State-to-scene imports: zero. |
+
+X7-U23 filled 52,428,800 bytes, admitted exactly one of two concurrent uploads for the last
+1,000 bytes and restored the 69,913,252-byte backup within Node's 100,663,296-byte limit.
+X7-U24 traced the aggregate-size refusal ahead of any payload read and after both recovery
+gates. X7-U28 traced both restore marks and exactly one cleanup. X7-U29 joined the Worker
+client and Durable Object request handlers in memory, with JSON parsing disabled on the raw
+requests. The room stored a 1,048,576-byte part and a one-byte tail and returned the original bytes.
+
+The implementation tests used memory-backed SQLite and browser API substitutes. V9's Node
+and workerd server suites (`npm run test:server:node`, `npm run test:server:workerd`),
+their two speed checks and V10–V14 were unrun here. S431–S441 are registered on both runners.
+The independent check run owns browser scenarios, capture comparison, baseline discrimination
+and regression acceptance. Product exclusions above continue to apply. Publication and merge
+remain with the maintainer.
+
+#### Validation receipts
+
+Times are UTC on 2026-11-22. The log column gives the command output's SHA-256 prefix.
+The power log contained zero sleep, dark-wake or wake events across the installation and validation windows.
+
+| Command | Start | End | Log SHA-256 prefix |
+| --- | --- | --- | --- |
+| Baseline clean install | 14:45:34.682 | 14:45:37.466 | `61e658736305581d` |
+| Candidate clean install | 15:00:02.120 | 15:00:04.374 | `1cd9e26314b87e0e` |
+| Typecheck | 14:58:44.338 | 14:58:45.150 | `6401c42ca0f07cac` |
+| Full unit suite | 14:58:45.150 | 14:58:52.552 | `ae93c04137734f13` |
+| Team-off build | 14:58:57.751 | 14:58:57.985 | `f487d01a47264543` |
+| Team-off audit | 14:58:57.985 | 14:58:58.092 | `7bf914273592848e` |
+| Fixtures build | 14:58:58.092 | 14:58:58.322 | `d10037338e529c19` |
+| Team-on build | 14:58:58.322 | 14:58:58.560 | `f487d01a47264543` |
+| Team-on audit | 14:58:58.560 | 14:58:58.668 | `7bf914273592848e` |
+| Server build | 14:58:58.668 | 14:58:58.892 | `c8fbd0d3d1c9e3b3` |
+| Server audit | 14:58:58.892 | 14:58:59.025 | `7bf914273592848e` |
+| Wrangler dry run | 14:58:59.025 | 14:59:00.890 | `93a98f13b3e45af7` |
+
+#### App composition
+
+These ten substitutions account for the whole App.tsx diff. Line numbers refer to ea0e2d4.
+
+| ea0e2d4 line | Before (exact, once in the file) | After |
+| --- | --- | --- |
+| 2 | `import { ImageNames } from "./scene/image-body";` | `import { ImageNames } from "./scene/image-body"; import { useGifPlayback } from "./state/use-gif-playback"; import { GifMarks } from "./scene/gif-marks";` |
+| 62 | `readOnly: readOnly \|\| !!team?.hosted,` | `readOnly, hosted: team?.hosted,` |
+| 101 | `pointerMove, pointerUp, doubleClick,` | `pointerMove, pointerUp, doubleClick, hovered, pressedPlay, pointerLeave,` |
+| 108 | `textEditing: !!textSession.current, invalidObjectText,` | `textEditing: !!textSession.current, invalidObjectText, animated: images.animated, bitmaps: images.bitmaps,` |
+| 125 | `  const exporter = useExport({` | `  const gif = useGifPlayback({ objects: displayedObjects, selected, animated: images.animated, bitmaps: images.bitmaps, pressedPlay, setMessage }); const exporter = useExport({` |
+| 136 | `paste: () => clipboardCommand("Paste"), composing });` | `paste: () => clipboardCommand("Paste"), pasteFiles: (files) => void images.pasted(files, () => clipboardCommand("Paste")), composing });` |
+| 170 | `onLostPointerCapture={lostPointerCapture}` | `onLostPointerCapture={lostPointerCapture} onPointerLeave={pointerLeave}` |
+| 173 | `bitmaps={images.bitmaps} connection` | `bitmaps={images.bitmaps} loading={images.loading} playing={gif.playing} connection` |
+| 175 | `        <Overlays` | `        <GifMarks objects={displayedObjects} animated={images.animated} bitmaps={images.bitmaps} selected={selected} hovered={hovered} pos={pos} zoom={view.z} /><Overlays` |
+| 198 | `busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen}` | `busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen} importing={images.importing}` |
+
+#### Existing test dispositions
+
+Line numbers in this table refer to the prerequisite base.
+
+| Files and lines | Disposition and reason |
+| --- | --- |
+| `tests/team-import.test.mjs` 86, `tests/team-pages.test.mjs` 127, 204, 207, `tests/comments.test.mjs` 299, `tests/workshop-timer.test.mjs` 41, `tests/workshop-voting.test.mjs` 70 | Current room, upgrade or backup assertions now require layout 9. |
+| Under `tests/server/` — `history.test.ts` 53, `mentions.test.ts` 183, `shared.test.ts` 603, 610, 620, 897, `spotlight.test.ts` 185, `team-pages.test.ts` 135, 178, 182, `timer.test.ts` 72, `voting.test.ts` 86 | Current room, upgrade or backup assertions now require layout 9. |
+| `tests/mentions.test.mjs` 56, `tests/team-pages.test.mjs` 208, `tests/server/team-pages.test.ts` 183 | Future-layout rejection now uses 10. The low rejected version remains 6. |
+| `tests/mentions.test.mjs` 54, `tests/comments.test.mjs` 281, 283, `tests/presence.test.mjs` 120, 123, 126 | Preserved the layout 7/8 seeds and initialize-only assertions. Loading performs the upgrade. |
+| `tests/team-pages.test.mjs` 205–206, `tests/server/team-pages.test.ts` 179–181 and S429's legacy document fixtures | Preserved the legacy inputs. The post-load assertions are covered above. |
+| `tests/server/tables.test.ts` 306, `tests/server/driver-workerd.ts` 109–110, `tests/server/node-test.ts` 158–159 | Preserved the supplied fixture value or removal of the existing version key. |
+| `tests/server/history.test.ts` 189–190 | Preserved both test-runner limits and the oversized backup/restore assertions. |
+| `tests/server/history.test.ts` S192, `tests/server/mentions.test.ts` S160 | Added the two picture tables to the literal inventories. |
+| `tests/server/suite.test.ts` S39 | Renamed the check and asserted `asset_missing` for the same edit without an upload. |
+| `tests/board-history.test.mjs` 136, `tests/mentions.test.mjs` 167, `tests/workshop-spotlight.test.mjs` 199 | Exported the settings fixture required by the transport import. |
+| `tests/server/node-test.ts` wrapper and control | Forwarded both raw picture calls. The backup limit control reaches the runtime and open rooms, and newly opened rooms inherit it. |
+
+The new files are loaded within their named unit checks. Both Vitest configurations include
+the eleven new server checks. Existing board-file and template import refusals keep their assertions.
+
+#### Changed test lines
+
+Source-revision lines from the zero-context diff, including each runner configuration:
+
+| File | Changed lines in bf2b183 |
+| --- | --- |
+| `tests/README.md` | 761–767 |
+| `tests/board-history.test.mjs` | 136 |
+| `tests/comments.test.mjs` | 299 |
+| `tests/gif.test.mjs` | 1–87 |
+| `tests/mentions.test.mjs` | 56, 167 |
+| `tests/modules.test.mjs` | 191, 198, 249, 261, 560, 566, 603, 741–751 |
+| `tests/room-pictures.test.mjs` | 1–255 |
+| `tests/server/history.test.ts` | 53, 193 |
+| `tests/server/mentions.test.ts` | 183, 189 |
+| `tests/server/node-test.ts` | 67, 94–97 |
+| `tests/server/pictures.test.ts` | 1–188 |
+| `tests/server/shared.test.ts` | 603, 610, 620, 897 |
+| `tests/server/spotlight.test.ts` | 185 |
+| `tests/server/suite.test.ts` | 464, 469 |
+| `tests/server/team-pages.test.ts` | 135, 178, 182–183 |
+| `tests/server/timer.test.ts` | 72 |
+| `tests/server/voting.test.ts` | 86 |
+| `tests/team-import.test.mjs` | 86 |
+| `tests/team-pages.test.mjs` | 127, 204, 207–208 |
+| `tests/team-pictures.test.mjs` | 1–268 |
+| `tests/workshop-spotlight.test.mjs` | 199 |
+| `tests/workshop-timer.test.mjs` | 41 |
+| `tests/workshop-voting.test.mjs` | 70 |
+| `vitest.node.config.ts` | 6 |
+| `vitest.workerd.config.ts` | 18 |
+
+#### Files changed
+
+The source commit contains the following paths. This implementation record adds only
+`docs/briefs/0012-W3-team-images-and-gifs.md` in the following commit.
+
+| Directory | Files |
+| --- | --- |
+| `.` | `vitest.node.config.ts`, `vitest.workerd.config.ts` |
+| `apps/server/src` | `app.ts`, `runtime.ts`, `start-node.ts`, `worker-room.ts`, `worker-runtime.ts`, `worker.ts` |
+| `apps/server/src/routes` | `common.ts`, `operator.ts`, `pictures.ts` |
+| `apps/web` | `style.css` |
+| `apps/web/src` | `App.tsx`, `gif.ts`, `images.ts` |
+| `apps/web/src/scene` | `board-drawing.tsx`, `gif-marks.tsx`, `image-body.tsx` |
+| `apps/web/src/state` | `use-canvas-input.ts`, `use-editing-commands.ts`, `use-gif-playback.ts`, `use-hosted-board.ts`, `use-images.ts` |
+| `apps/web/src/team` | `hosted-board.ts`, `pictures.ts` |
+| `apps/web/src/ui` | `notice.tsx`, `palette.tsx` |
+| `docs/guides` | `try-board.md` |
+| `packages/board-room/src` | `backups.ts`, `edits.ts`, `history.ts`, `pictures.ts`, `room.ts`, `storage.ts` |
+| `tests` | `README.md`, `board-history.test.mjs`, `comments.test.mjs`, `gif.test.mjs`, `mentions.test.mjs`, `modules.test.mjs`, `room-pictures.test.mjs`, `team-import.test.mjs`, `team-pages.test.mjs`, `team-pictures.test.mjs`, `workshop-spotlight.test.mjs`, `workshop-timer.test.mjs`, `workshop-voting.test.mjs` |
+| `tests/server` | `history.test.ts`, `mentions.test.ts`, `node-test.ts`, `pictures.test.ts`, `shared.test.ts`, `spotlight.test.ts`, `suite.test.ts`, `team-pages.test.ts`, `timer.test.ts`, `voting.test.ts` |

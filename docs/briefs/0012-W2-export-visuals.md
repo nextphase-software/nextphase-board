@@ -360,3 +360,123 @@ is needed to implement this contract, and no unresolved product decision is dele
 ## Implementation record
 
 (Append-only; the implementer adds its source validation here.)
+
+### Implementation on 2026-11-21
+
+- Branch `codex/0012-W2-export-visuals`. Prerequisite base `c656a67dec8b7a776f007ed0d452af1dc0f296cb`.
+  Behaviour baseline `b3afc2c`. Source and tests checked at `8a6a2bf5addd80a6b73a51115beffd6bd960708b`.
+- Node 26.13.0 and npm 11.20.0. Dependencies added: zero. Type-only changes outside the named files: zero.
+- The corrected interaction v48 keeps choices across boards for the lifetime of the tab.
+- Escalated at V4. `F1-U13` in `tests/find.test.mjs` requires byte equality with the old Spotlight
+  source after stripping just the Find guard. Web modules v46 requires an additional Export guard
+  there, and this brief excludes changes to that test. `P1-U63` in `tests/workshop-spotlight.test.mjs`
+  runs the comments callback in a DOM-free VM without an `Element` global, and the new guard raises
+  `ReferenceError` there. Both tests passed on the behaviour baseline. The source revision awaits
+  resolution of the Find test disposition and a DOM-free-compatible comments guard.
+
+#### V1–V8
+
+- PASS V1. Enumerated paths with `git ls-tree -r` and byte-compared both revisions with `git show`.
+  All 20 tracked artifacts matched: six package manifests, the root lockfile, five inventory versions,
+  five dependency lock versions and three runtime notices versions.
+- PASS V2. `npm ci --ignore-scripts --no-audit --no-fund` exited 0 on the clean source commit and
+  on an independent `git archive b3afc2c` checkout. Each installed 118 packages.
+- PASS V3. `npm run typecheck` exited 0 in all five workspaces.
+- FAIL V4. `npm test` exited 1 with 1,351 passed, 2 failed and 0 skipped of 1,353 tests.
+  All 19 new checks, `X6-U01` through `X6-U19`, passed. The two failures are recorded above.
+  The focused confirmation on the behaviour baseline ran
+  `node --test --test-reporter=spec --test-name-pattern='F1-U13|P1-U63' tests/find.test.mjs tests/workshop-spotlight.test.mjs`
+  with the repository Git metadata available. Both passed.
+- PASS V5. Team-off `npm run build`, `npm run audit:licenses` and
+  `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v1.txt` exited 0.
+- PASS V6. `npm run build:fixtures`, team-on `npm run build`, `npm run audit:licenses` and
+  `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt` exited 0.
+  Both web builds used the synthetic endpoint and key settings in the validation commands above.
+- PASS V7. `npm run build:server` built the Node and Worker artifacts with verified notices.
+  `npm run audit:licenses` and
+  `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json`
+  exited 0. The Wrangler dry run ended before deployment.
+- PASS V8. `git diff --name-status c656a67..8a6a2bf`, `git diff --check c656a67..8a6a2bf` and hunk
+  inspection found exactly the 22 source, test and guide paths authorized by the brief. App remains
+  264 lines with the six substitutions below. Module counts are 26 state hooks, 34 screen parts and
+  19 scene parts. Effect counts are unchanged and the new hook has zero effects.
+
+V2–V7 command windows in UTC (all on 2026-11-22):
+
+| Commands | Start–end |
+| --- | --- |
+| Baseline install | 00:33:10–00:33:14 |
+| Candidate install | 00:35:49–00:35:52 |
+| Typecheck | 00:36:02–00:36:06 |
+| Full unit suite | 00:36:02–00:36:13 |
+| Team-off build, audit and notices comparison | 00:36:02–00:36:04 |
+| Fixture build | 00:36:04–00:36:05 |
+| Team-on build, audit and notices comparison | 00:36:05–00:36:06 |
+| Server build and audit | 00:36:06–00:36:07 |
+| Wrangler dry run | 00:36:07–00:36:10 |
+| Baseline confirmation of the two failures | 00:36:30–00:36:30 |
+
+`pmset -g log` showed the last sleep and wake before these checks at 18:47:12 and 18:47:47
+(UTC−05:00) on 2026-11-21. No sleep or wake event overlapped the runs.
+
+Unrun: V9 from cloud Checks and V10–V15 from the independent check run, including browser drawing,
+capture comparisons, the negative-control run, the scenario regressions, real Chrome and WebKit
+stage and encoder behavior, and the WebKit canvas limits. The Supabase CLI and local team stack
+were not run in the implementation sandbox.
+
+#### App.tsx substitutions
+
+Before and after each replacement, at its original line number.
+
+Line 22:
+
+```diff
+-import { useEditorPlacement } from "./state/use-editor-placement";
++import { useEditorPlacement } from "./state/use-editor-placement"; import { useExport } from "./state/use-export"; import { drawExport } from "./scene/export-drawing";
+```
+
+Line 38:
+
+```diff
+-import { BoardQuestion } from "./ui/board-question";
++import { BoardQuestion } from "./ui/board-question"; import { ExportDialog } from "./ui/export-dialog";
+```
+
+Line 125:
+
+```diff
+-  const { tableAction, tableSize, tableData, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
++  const exporter = useExport({ page: pages.id, board: pages.canvas(tidy.board), objects: displayedObjects, objectLayouts, selected, tableSelection, bitmaps: images.bitmaps, hosted: team?.hosted, busy, composing, tidyOpen: tidy.open, setMessage, scene, setPanel, boardButton, draw: drawExport }); const { tableAction, tableSize, tableData, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
+```
+
+Line 133:
+
+```diff
+-    command, clipboardCommand, exportTable: tableData.exportTable, toggleFormat, model, cancel, scene, busy, composing, select,
++    command, clipboardCommand, openExport: exporter.open, toggleFormat, model, cancel, scene, busy, composing, select,
+```
+
+Line 205:
+
+```diff
+-          setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles} importTable={tableData.importButton} beginNameEntry={beginNameEntry} finishNameEntry={finishNameEntry}
++          setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles} importTable={tableData.importButton} exportButton={exporter.button} beginNameEntry={beginNameEntry} finishNameEntry={finishNameEntry}
+```
+
+Line 253:
+
+```diff
+-      <BoardQuestion {...boardQuestion} />
++      <BoardQuestion {...boardQuestion} /><ExportDialog {...exporter.dialog} />
+```
+
+#### Test-file line ranges
+
+These are the changed ranges in the source revision.
+
+| Path | Lines |
+| --- | --- |
+| `tests/README.md` | 19–24 |
+| `tests/board-export.test.mjs` | 1–815 |
+| `tests/modules.test.mjs` | 119, 132, 191, 196, 248, 256, 600–601, 715–738 |
+| `tests/table-csv.test.mjs` | 597, 599, 631, 633–634, 640, 642, 647, 651, 654, 656–684, 688–689 |

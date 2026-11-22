@@ -631,3 +631,18 @@ The power log recorded zero sleep or wake events during validation.
 Files changed in this round: `tests/server/pictures.test.ts` and this append-only record. Dependencies
 added: zero. The Node and workerd server suites and browser checks were unrun in this sandbox.
 S432 on the fix revision awaits the workerd runner.
+
+### Review fix round 2 — 0012-W3 v1
+
+Branch `codex/0012-W3-team-images-gifs`. Amendment A1 was validated at
+`fda1e438a5094da9c5fd5e59e5d98a5ae9e66260` from `b148c4a`.
+Both Part 1 rows now direct the reader to add a sticky with the Sticky tool and Shift-click the GIF.
+
+| Check | Result on fda1e43 |
+| --- | --- |
+| PASS: V4 | Ran `npm test` once. All 1,382 tests passed, with zero failures, skips or cancellations. |
+| PASS: V8 | `git diff --name-status b148c4a..fda1e43` listed the guide and brief. `git diff --check b148c4a..fda1e43` passed. Both cells matched A1 exactly, both links resolved, and the brief contained the requested amendment sentence. |
+
+V4 ran on 2026-11-22 from 15:58:38.438 to 15:58:48.737 UTC with zero recorded sleep or wake events.
+Its log SHA-256 prefix was `dfb02cf895100887`. Browser validation was unrun in this sandbox.
+Added dependencies: zero.

@@ -648,3 +648,18 @@ Both Part 1 rows now direct the reader to add a sticky with the Sticky tool and 
 V4 ran on 2026-11-22 from 15:58:38.438 to 15:58:48.737 UTC with zero recorded sleep or wake events.
 Its log SHA-256 prefix was `dfb02cf895100887`. Browser validation was unrun in this sandbox.
 Added dependencies: zero.
+
+### Review fix round 3 — 0012-W3 v1
+
+Branch `codex/0012-W3-team-images-gifs`. Amendment A2 was validated at
+`de11e864c9c677a0ace8d25619ecf44e2181ac3d` from `b66356d`.
+Both Part 1 rows now direct the reader to click the empty canvas, click the sticky, then Shift-click the GIF.
+
+| Check | Result on de11e86 |
+| --- | --- |
+| PASS: V4 | Ran `npm test` once. All 1,382 tests passed, with zero failures, skips or cancellations. |
+| PASS: V8 | `git diff --name-status b66356d..de11e86` listed the guide and brief. `git diff --check b66356d..de11e86` passed. Both cells matched A2 exactly and both links resolved. The only other edit was the A2 sentence immediately after A1. |
+
+V4 ran on 2026-11-22 from 16:31:31.810 to 16:31:40.119 UTC with zero recorded sleep or wake events.
+Its log SHA-256 prefix was `3b9be761ec2c8871`. Browser validation was unrun in this fix round.
+Added dependencies: zero.

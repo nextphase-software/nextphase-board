@@ -484,3 +484,27 @@ These are the changed ranges in the source revision.
 | `tests/board-export.test.mjs` | 1–815 |
 | `tests/modules.test.mjs` | 119, 132, 191, 196, 248, 256, 600–601, 715–738 |
 | `tests/table-csv.test.mjs` | 597, 599, 631, 633–634, 640, 642, 647, 651, 654, 656–684, 688–689 |
+
+### Review fix round 1 — 0012-W2 v1
+
+- Branch `codex/0012-W2-export-visuals`. Prerequisite base `c656a67`, behaviour baseline
+  `b3afc2c` and validated fix source `a868906baa70d652ea76aef6ad003d90e1d7ea53`.
+- Amendment A1 updates F1-U13 in `tests/find.test.mjs` (lines 213–216). It checks the guard counts,
+  requires one at the start of each reactions capture handler and strips both guard lines before
+  the Spotlight baseline comparison. The comments guard uses its existing event target, so
+  P1-U63 runs in its DOM-free harness. The fix also records A1 in this brief.
+- Node 26.13.0 and npm 11.20.0. Dependencies added: zero.
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Focused | `node --test --test-reporter=spec --test-name-pattern='F1-U13|P1-U63|X6-U19' tests/find.test.mjs tests/workshop-spotlight.test.mjs tests/board-export.test.mjs` | 3 passed, 0 failed on the fix tree before commit. All three passed again in V4. |
+| V3 | `npm run typecheck` | PASS across all five workspaces. |
+| V4 | `npm test` | PASS with 1,353 passed, 0 failed and 0 skipped, including all 19 export checks. |
+| V8 | `git diff --name-status` and `git diff --check` for `c656a67..a868906` and `c26a238..a868906`, plus hunk inspection | PASS. Three fix paths and 24 milestone paths. App keeps the exact six substitutions and its 264 lines. Module counts remain 26 state hooks, 34 screen parts and 19 scene parts. Effect counts are unchanged and the export hook has zero effects. |
+
+V3 ran 00:41:35–00:41:37 UTC and V4 ran 00:41:35–00:41:44 UTC on 2026-11-22.
+`pmset -g log` showed no sleep or wake events during either run. The last sleep and wake were
+18:47:12 and 18:47:47 (UTC−05:00) on 2026-11-21.
+
+V1, V2 and V5–V7 were outside the fix-round rerun scope. Browsers, Supabase and the independent
+V9–V15 checks were unrun in this round.

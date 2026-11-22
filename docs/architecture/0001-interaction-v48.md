@@ -240,4 +240,4 @@ Viewers: no Export…, ⇧⌘E shows the export reason, the table bar's Export a
 
 A PDF with selectable or searchable text; vector PDF; SVG; a scale, size or DPI choice; metadata the app adds;
 several pages in one file; exporting part of a table; a right-click Export selection; remembering choices across
-reloads or boards; a success notice.
+reloads; a success notice.

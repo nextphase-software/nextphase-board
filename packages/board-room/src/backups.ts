@@ -14,6 +14,8 @@ const metaKeys = ["storage_version","board_id","last_edit_at","revision","waterm
 const names = Object.keys(tables).filter((table) => !["waiting", "tickets", "workshop_timer", "workshop_vote", "workshop_vote_ballots"].includes(table));
 export function backup(env: RoomEnvironment, board: string): Envelope {
   if (meta(env.storage, "restore_pending") || meta(env.storage, "explicit_recovery_pending")) throw new RoomError(503, "restore_pending");
+  const total = Number(env.storage.all("SELECT SUM(length(data)) AS total FROM picture_parts")[0].total);
+  if (4 * Math.ceil(total / 3) > env.backupLimit) throw new RoomError(413, "backup_too_large");
   const output = { format: "nextphase-board-room-backup" as const, version: 1 as const,
     boardId: board, createdAt: new Date(env.now()).toISOString(), tables: {} as Record<string, Row[]> };
   for (const name of names) {
@@ -30,8 +32,12 @@ export function decodeBackup(value: unknown, board: string): Envelope {
     envelope.boardId !== board || typeof envelope.createdAt !== "string" || !envelope.tables ||
     !Array.isArray(envelope.tables.meta)) throw new RoomError(400, "bad_request");
   const version = envelope.tables.meta.find((row) => row && row.key === "storage_version")?.value;
-  const accepted = names;
-  if (version !== 7 && version !== 8 || Object.keys(envelope.tables).sort().join() !== [...accepted].sort().join()) {
+  const legacy = version === 7 || version === 8;
+  const pictureNames = ["pictures", "picture_parts"];
+  const accepted = legacy && pictureNames.every(name => !(name in envelope.tables))
+    ? names.filter(name => !pictureNames.includes(name)) : names;
+  if (!legacy && version !== 9 || legacy && pictureNames.some(name => name in envelope.tables &&
+    (!Array.isArray(envelope.tables[name]) || envelope.tables[name].length > 0)) || Object.keys(envelope.tables).sort().join() !== [...accepted].sort().join()) {
     throw new RoomError(400, "bad_request");
   }
   const decoded = { ...envelope, tables: {} as Record<string, Row[]> };

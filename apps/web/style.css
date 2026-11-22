@@ -1696,3 +1696,27 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
 .export-dialog .export-static { font-size: 14px; color: #57535d; }
 .export-dialog .board-question-actions { margin-top: 22px; }
 .export-dialog .primary:focus { outline: 3px solid #7051cf; outline-offset: 3px; }
+
+.gif-badge, .gif-play {
+  position: absolute;
+  pointer-events: none;
+  background: #1e1c22cc;
+}
+.gif-badge {
+  color: white;
+  font: 700 10px/1 system-ui, sans-serif;
+  letter-spacing: .02em;
+  padding: 3px 5px;
+  border-radius: 4px;
+  transform: translateX(-100%);
+}
+.gif-play { width: 40px; height: 40px; border-radius: 50%; }
+.gif-play::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 12px;
+  border-style: solid;
+  border-width: 8px 0 8px 13px;
+  border-color: transparent transparent transparent white;
+}

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useImages } from "./state/use-images"; import { ImageNames } from "./scene/image-body";
+import { useImages } from "./state/use-images"; import { ImageNames } from "./scene/image-body"; import { useGifPlayback } from "./state/use-gif-playback"; import { GifMarks } from "./scene/gif-marks";
 import { screenPoint } from "./view";
 import { useSessionStatus } from "./state/use-session-status";
 import { useGestureState } from "./state/use-gesture-state";
@@ -59,7 +59,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
   const { cellInvalidNotice, invalidObjectText, invalidFields, invalid, pending } = useValidity({
     board, drafts, title, composing, busy: gestureBusy, cellDraft: tableEntry.draft?.text,
   });
-  const images = useImages({ page: pages.id, board, model, selected, readOnly: readOnly || !!team?.hosted, busy: gestureBusy, composing, invalidObjectText, pending,
+  const images = useImages({ page: pages.id, board, model, selected, readOnly, hosted: team?.hosted, busy: gestureBusy, composing, invalidObjectText, pending,
     commit, finishTextSession, select, setTool, setPanel: (value) => setPanel(value), setInline, setComposing, setMessage, scene,
     getView: () => view, getStore: () => store.current, isAlive: () => alive.current, barVisible: () => size.w >= 768 && contextFits || panel === "Objects" });
   const busy = images.busy; const {
@@ -98,14 +98,14 @@ export function App({ team }: { team?: TeamParts } = {}) {
     setStatus, setTool, setPanel, setInline, editor, lineCount, measureNode,
   });
   const {
-    tableGesture, preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick,
+    tableGesture, preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick, hovered, pressedPlay, pointerLeave,
     pointerCancel, lostPointerCapture,
   } = useCanvasInput({
     page: pages.id, tableSelection, chooseTable, tableGeometry, tableAction: (action) => tableAction(action), voting: team?.hosted?.voting, drawing, tidy, find, connectorStyle, shapeSession, model, commit, setBoard, clearHistory, finishTextSession, setView, trackPointer,
     setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
     scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
     selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
-    handlesVisible, handlePoints, objectLayouts, displayedObjects, edit, textEditing: !!textSession.current, invalidObjectText,
+    handlesVisible, handlePoints, objectLayouts, displayedObjects, edit, textEditing: !!textSession.current, invalidObjectText, animated: images.animated, bitmaps: images.bitmaps,
   });
   const {
     commandReason, undoReason, redoReason, selectionReason, duplicateReason, clipboardState,
@@ -122,7 +122,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
     item: resolvedItem, itemHeight, dotsVisible, editorBox,
   });
-  const exporter = useExport({ page: pages.id, board: pages.canvas(tidy.board), objects: displayedObjects, objectLayouts, selected, tableSelection, bitmaps: images.bitmaps, hosted: team?.hosted, busy, composing, tidyOpen: tidy.open, setMessage, scene, setPanel, boardButton, draw: drawExport }); const { tableAction, tableSize, tableData, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
+  const gif = useGifPlayback({ objects: displayedObjects, selected, animated: images.animated, bitmaps: images.bitmaps, pressedPlay, setMessage }); const exporter = useExport({ page: pages.id, board: pages.canvas(tidy.board), objects: displayedObjects, objectLayouts, selected, tableSelection, bitmaps: images.bitmaps, hosted: team?.hosted, busy, composing, tidyOpen: tidy.open, setMessage, scene, setPanel, boardButton, draw: drawExport }); const { tableAction, tableSize, tableData, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
     pages, tableSelection, chooseTable, growTableRows, tableMeasure, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
@@ -133,7 +133,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     command, clipboardCommand, openExport: exporter.open, toggleFormat, model, cancel, scene, busy, composing, select,
     setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
   });
-  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, onChange: pages.changed, tables: { selection: tableSelection, entry: tableEntry, choose: chooseTable, setMessage, cancelDrag: tableGesture.cancelDrag, focus: tableGesture.focus, finish: finishTextSession, endComposition: tableEntry.endComposition }, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand("Paste"), composing });
+  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, onChange: pages.changed, tables: { selection: tableSelection, entry: tableEntry, choose: chooseTable, setMessage, cancelDrag: tableGesture.cancelDrag, focus: tableGesture.focus, finish: finishTextSession, endComposition: tableEntry.endComposition }, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand("Paste"), pasteFiles: (files) => void images.pasted(files, () => clipboardCommand("Paste")), composing });
   const nativeEditor = <ContentField
     tableEntry={tableEntry} tableName={tableName} cellInvalidNotice={cellInvalidNotice} setMessage={setMessage} editCell={tableGeometry.editCell} changeCell={tableGeometry.changeCell} finishCellComposition={tableGeometry.finishCellComposition} editor={editor} inline={inline} text={text} readOnly={readOnly} busy={busy} item={item}
     selectedId={selectedId} composing={composing} beginTextSession={beginTextSession}
@@ -167,12 +167,12 @@ export function App({ team }: { team?: TeamParts } = {}) {
         onPointerUp={pointerUp}
         onDoubleClick={doubleClick}
         onPointerCancel={pointerCancel}
-        onLostPointerCapture={lostPointerCapture}
+        onLostPointerCapture={lostPointerCapture} onPointerLeave={pointerLeave}
       >
         <BoardDrawing
-          tableSelection={tableSelection} tableCell={tableEntry.draft?.cell} tableGesture={tableGesture} faded={find.faded} bitmaps={images.bitmaps} connection={connection} preview={preview} size={size} view={view} board={pages.canvas(tidy.board)} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
+          tableSelection={tableSelection} tableCell={tableEntry.draft?.cell} tableGesture={tableGesture} faded={find.faded} bitmaps={images.bitmaps} loading={images.loading} playing={gif.playing} connection={connection} preview={preview} size={size} view={view} board={pages.canvas(tidy.board)} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
         />
-        <Overlays
+        <GifMarks objects={displayedObjects} animated={images.animated} bitmaps={images.bitmaps} selected={selected} hovered={hovered} pos={pos} zoom={view.z} /><Overlays
           selectedGroups={selectedGroups} pos={pos} view={view} handlesVisible={handlesVisible}
           handlePoints={handlePoints} spacePan={spacePan} selectionBox={selectionBox} tool={tool}
         />
@@ -195,7 +195,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
       <span id="selection-reason" className="sr-only">{selectionReason}</span>{duplicateReason !== selectionReason && <span id="duplicate-reason" className="sr-only">{duplicateReason}</span>}
       {(!team?.hosted || !!visibleMessage) && <Notice pages={pages} hosted={!!team?.hosted}
         showNotice={showNotice} visibleMessage={visibleMessage} invalidFields={invalidFields}
-        busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen}
+        busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen} importing={images.importing}
         composing={composing} adopt={adopt} setReadOnly={setReadOnly} setMessage={setMessage}
       />}
       {panel === "Board" && (

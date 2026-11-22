@@ -31,6 +31,8 @@ type Props = {
   tableSelection?: TableSelection;
   tableCell?: CellSelection;
   faded: ReadonlySet<string>;
+  loading?: ReadonlySet<string>;
+  playing?: { id: string; bitmap: ImageBitmap };
   bitmaps: ReadonlyMap<string, ImageBitmap>;
   connection?: ConnectionDrag;
   preview: (Rectangle & StrokeKeys) | (Rectangle & TapeKeys) | { mapDrag: MapDrag } | null;
@@ -43,7 +45,7 @@ type Props = {
   movingIds: readonly string[];
 };
 
-export function BoardDrawing({ tableGesture, tableSelection, tableCell, faded, bitmaps, connection, preview, size, view, board, objectLayouts, selected, inline, movingIds, stageRef, only }: Props) {
+export function BoardDrawing({ tableGesture, tableSelection, tableCell, faded, bitmaps, loading, playing, connection, preview, size, view, board, objectLayouts, selected, inline, movingIds, stageRef, only }: Props) {
   const rectangles = new Map(board.objects.filter(hasRectangle).map((o) => [o.id, { ...o, displayHeight: objectLayouts.get(o.id)!.height }]));
   const targets = dropTargets(board, new Set(movingIds), true, objectLayouts);
   const sections = new Set([...targets.values()].filter((id) => id !== null));
@@ -62,7 +64,7 @@ export function BoardDrawing({ tableGesture, tableSelection, tableCell, faded, b
           const fade = (body: React.ReactNode) => faded.has(o.id) ? <Group key={o.id + pass} opacity={0.4}>{body}</Group> : body;
           if (hasEnds(o)) return fade(<ConnectorBody key={o.id + pass} object={o} layout={connection?.reconnect?.id === o.id ? reconnectPreview(o, connection.reconnect.end, connection.pointer, connection.side ?? "auto", rectangles, () => layout.connector!.labelBox.width - 24) : layout.connector!}
             selected={selected.has(o.id)} inline={inline} zoom={view.z} pass={pass === 1 ? "line" : "label"} />);
-          if (isImage(o)) return fade(<ImageBody key={o.id} object={o} bitmap={bitmaps.get(o.asset)} selected={selected.has(o.id)} zoom={view.z} />);
+          if (isImage(o)) return fade(<ImageBody key={o.id} object={o} bitmap={playing?.id === o.id ? playing.bitmap : bitmaps.get(o.asset)} loading={loading?.has(o.asset)} selected={selected.has(o.id)} zoom={view.z} />);
           if (isTable(o)) return fade(<TableBody key={o.id} object={o} layout={layout.table!}
             selection={tableSelection?.id === o.id ? tableSelection : undefined} editing={tableCell}
             border={tableSelection?.id === o.id ? tableGesture.border : undefined} zoom={view.z} selected={selected.has(o.id)} />);

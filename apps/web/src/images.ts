@@ -49,10 +49,16 @@ export function addImages(board: BoardV14, images: readonly PreparedImage[], cen
   }));
   return { ...board, objects: bandOrder([...board.objects, ...objects], page).map((o, order) => ({ ...o, order })) };
 }
-export function refusalNotice(refused: readonly { name: string; reason: string }[]): string {
+export const PASTE_NOT_LOADED = "Could not paste the image: it has not loaded yet.";
+export const HOSTED_REASONS = { offline: "you are offline", too_large: "it is larger than 20 MiB", full: "this board already holds 50 MiB of pictures", refused: "the server did not accept it" };
+export function fileNames(refused: readonly { name: string }[]): string {
   const names = refused.slice(0, 3).map((r) => r.name || "Clipboard image");
   const text = names.length <= 1 ? names[0] : names.slice(0, -1).join(", ") + " and " + names.at(-1);
-  return "Could not add " + text + (refused.length > 3 ? " and " + (refused.length - 3) + " more" : "") + ": " +
+  return text + (refused.length > 3 ? " and " + (refused.length - 3) + " more" : "");
+}
+export function addingNotice(files: readonly { name: string }[]) { return "Adding " + fileNames(files) + "…"; }
+export function refusalNotice(refused: readonly { name: string; reason: string }[]): string {
+  return "Could not add " + fileNames(refused) + ": " +
     [...new Set(refused.map((r) => r.reason))].join("; ") + ".";
 }
 export async function decodePicture(picture: Picture): Promise<ImageBitmap> {

@@ -50,7 +50,7 @@ function maximalBoard(): BoardV13 {
 }
 
 check(169,'atomic initial/imported capture and idempotent current-layout restart',async()=>{
-  let value=await list();assert.equal(value.versions.length,1);assert.equal(value.versions[0].reason,'initial');assert.equal(value.versions[0].revision,0);assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,8);
+  let value=await list();assert.equal(value.versions.length,1);assert.equal(value.versions[0].reason,'initial');assert.equal(value.versions[0].revision,0);assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,9);
   await driver.wake(f.a);assert.deepEqual((await list()).versions,value.versions);
   const document={...empty(),title:'Import'};
   const imported=await ok(`/workspaces/${f.workspace}/boards`,'owner','POST',{title:'Import',document},201);
@@ -190,7 +190,7 @@ check(191,'whole serialized backup counts base64/metadata and explicitly refuses
   const response=await driver.request(`/operator/boards/${f.a}/restore`,{method:'POST',headers:{'Board-Operator-Key':context.operatorKey,'Content-Type':'application/json'},body:' '.repeat(16777217)});assert.equal(response.status,413);
 });
 check(192,'inventory reports every room/history row and independent fence without global bound claim',async()=>{
-  await list();await save();const tables:any={};for(const table of ['workshop_vote','workshop_vote_ballots','workshop_timer','meta','edits','receipts','waiting','snapshot_chunks','grants','identifiers','threads','comments','comment_ids','comment_counts','mention_targets','mention_pending','tickets','versions','version_chunks','history_requests','history_intent_chunks']){
+  await list();await save();const tables:any={};for(const table of ['pictures','picture_parts','workshop_vote','workshop_vote_ballots','workshop_timer','meta','edits','receipts','waiting','snapshot_chunks','grants','identifiers','threads','comments','comment_ids','comment_counts','mention_targets','mention_pending','tickets','versions','version_chunks','history_requests','history_intent_chunks']){
     const all=await rows(table);const serializedRowBytes=all.map(row=>{
       let binaryBytes=0;const serial=Object.fromEntries(Object.entries(row).map(([key,value]:[string,any])=>{
         if(value&&typeof value==='object'&&typeof value.bytes==='number'){binaryBytes+=4*Math.ceil(value.bytes/3);return[key,''];}return[key,value];

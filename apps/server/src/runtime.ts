@@ -19,6 +19,8 @@ export interface RoomClient {
   create(document: BoardV12): Promise<void>;
   ticket(person: Person): Promise<{ ticket: string; expiresAt: number }>;
   rename(person: Person, title: string): Promise<{ id: string; title: string; revision: number }>;
+  storePicture(person: Person, hash: string, bytes: Uint8Array, type: import("nextphase-board-room/pictures.ts").PictureType, width: number, height: number): Promise<"created" | "exists" | "full">;
+  readPicture(person: Person, hash: string): Promise<{ type: string; bytes: Uint8Array<ArrayBuffer> } | null>;
   export(person: Person): Promise<string>;
   deliverNotices(): Promise<void>;
   discussion(person: Person, commentId: string, occurrence?: string): Promise<any>;
@@ -28,6 +30,7 @@ export interface RoomClient {
   restoreToTime?(bookmark: string): Promise<unknown>;
 }
 export interface Runtime {
+  backupLimit: number;
   now(): number;
   fenceGeneration(board:string):Promise<number>;
   auth: Auth;

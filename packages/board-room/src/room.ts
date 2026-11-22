@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { readPicture, storePicture, type PictureType } from "./pictures.ts";
 import { Reactions } from "./reactions.ts";
 import { Spotlight } from "./spotlight.ts";
 import { WorkshopVoting, resetVoting } from "./voting.ts";
@@ -102,7 +103,7 @@ export class Room {
       try {
         const prepared = await this.history.prepare(board);
         storage.transaction(() => {
-          setMeta(storage, "storage_version", 8);
+          setMeta(storage, "storage_version", 9);
           resetTimer(storage);
           resetVoting(storage);
           storage.exec("INSERT INTO meta VALUES ('board_id', ?)", this.boardId);
@@ -134,6 +135,7 @@ export class Room {
       snapshot(storage, this.doc, this.board, meta(storage, "revision"));
       if (legacy) setMeta(storage, "storage_version", 8);
     });
+    if (meta(storage, "storage_version") === 8) storage.transaction(() => setMeta(storage, "storage_version", 9));
     this.voting.validate();
     this.initialized = true;
     try {
@@ -307,6 +309,21 @@ export class Room {
       this.comments.snapshot(connection);
       await this.presence.relay(connection);
       await this.schedule();
+    });
+  }
+  storePicture(person: Person, hash: string, data: Uint8Array, type: PictureType, width: number, height: number) {
+    return this.ordered(async () => {
+      await this.refresh();
+      const grant = await this.access.lookup(person.id, this.boardId);
+      if (rank(grant.role) < rank("editor")) throw new RoomError(403, "role_too_low", "editor");
+      return storePicture(this.env.storage, this.board, this.env.now(), hash, data, type, width, height);
+    });
+  }
+  readPicture(person: Person, hash: string) {
+    return this.ordered(async () => {
+      await this.refresh();
+      await this.access.lookup(person.id, this.boardId);
+      return readPicture(this.env.storage, hash);
     });
   }
   export(person: Person) {

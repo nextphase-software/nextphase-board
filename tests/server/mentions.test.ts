@@ -180,13 +180,13 @@ check(159,'current initialization rollback and current backup validation precede
   assert(!(await helper('proxy')).some((r:any)=>r.name==='clear_board_mentions'));
  }
  const meta=await rows('meta');await assert.rejects(driver.control({board:f.a,failInitialization:true}),/initialization rollback/);assert.deepEqual(await rows('meta'),meta);
- await driver.wake(f.a);const reopened=await peer();assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,8);
+ await driver.wake(f.a);const reopened=await peer();assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,9);
  assert.equal((await operator('restore',envelope)).status,200);await peer();assert.deepEqual(JSON.parse(String((await rows('comments'))[0].mentions)),m.mentions);assert.equal((await rows('mention_targets')).length,0);assert.equal((await notices()).length,0);
 });
 check(160,'inventory measures every current store and identifies lifetime-growing history separately',async()=>{
  const c=await peer(),m=await mention();await action(c,start(m.text,m.mentions));await deliver();
  const envelope=await(await operator('backup')).json() as any;measures.tables={};
- for(const table of ['workshop_vote','workshop_vote_ballots','workshop_timer','meta','edits','receipts','waiting','snapshot_chunks','grants','identifiers','threads','comments','comment_ids','comment_counts','tickets','mention_targets','mention_pending']){
+ for(const table of ['pictures','picture_parts','workshop_vote','workshop_vote_ballots','workshop_timer','meta','edits','receipts','waiting','snapshot_chunks','grants','identifiers','threads','comments','comment_ids','comment_counts','tickets','mention_targets','mention_pending']){
   const data=envelope.tables[table]??await rows(table);measures.tables[table]={rows:data,serializedBytes:new TextEncoder().encode(JSON.stringify(data)).length};
  }
  assert.equal(measures.tables.workshop_timer.rows.length,1);assert(measures.tables.workshop_timer.serializedBytes<=1026);assert(!('workshop_timer' in (await (await operator('backup')).json()).tables));

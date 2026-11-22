@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import type { PictureType } from "nextphase-board-room/pictures.ts";
 import { Room } from "nextphase-board-room/room.ts";
 import { BACKUP_LIMIT, errorBody, RoomError, type Connection, type Attachment } from "nextphase-board-room/protocol.ts";
 import type { RoomEnvironment } from "nextphase-board-room/interfaces.ts";
@@ -73,6 +74,20 @@ export class WorkerRoom {
         this.state.acceptWebSocket(pair[1]);
         await room.connected(connection(pair[1]));
         return new Response(null, { status: 101, webSocket: pair[0] });
+      }
+      if (url.pathname === "/picture-store" || url.pathname === "/picture-read") {
+        const headers = request.headers;
+        const room = await this.getRoom(headers.get("x-board")!);
+        const caller = atob(headers.get("x-person")!.replaceAll("-", "+").replaceAll("_", "/"));
+        const person = JSON.parse(new TextDecoder().decode(Uint8Array.from(caller, char => char.charCodeAt(0))));
+        const hash = headers.get("x-picture-hash")!;
+        if (url.pathname === "/picture-read") {
+          const picture = await room.readPicture(person, hash);
+          return picture ? new Response(picture.bytes, { headers: { "Content-Type": picture.type } }) : new Response(null, { status: 204 });
+        }
+        const result = await room.storePicture(person, hash, new Uint8Array(await request.arrayBuffer()),
+          headers.get("x-picture-type") as PictureType, Number(headers.get("x-picture-width")), Number(headers.get("x-picture-height")));
+        return Response.json({ result });
       }
       const { board, value } = await request.json() as { board: string; value: any };
       if(url.pathname==='/lifecycle-floor') {

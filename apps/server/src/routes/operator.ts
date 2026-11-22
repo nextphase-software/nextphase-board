@@ -20,7 +20,7 @@ export function operators(app: ServerApp, runtime: Runtime) {
       return c.json({ personId: person, disabled: action === "disable", removal: await removal(runtime, person) });
     });
   }
-  app.post("/operator/boards/:board/restore", async (c) => c.json(await runtime.room(id(c, "board")).restore(await body(c, 16777216))));
+  app.post("/operator/boards/:board/restore", async (c) => c.json(await runtime.room(id(c, "board")).restore(await body(c, runtime.backupLimit))));
   app.post("/operator/boards/:board/restore-to-time", async (c) => {
     const room = runtime.room(id(c, "board"));
     if (!room.restoreToTime) throw new RoomError(404, "not_found");

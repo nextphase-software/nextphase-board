@@ -3,7 +3,7 @@ import { ledgerRecord } from "./lifecycle.ts";
 import { Auth } from "./auth.ts";
 import { Supabase } from "./supabase.ts";
 import type { Runtime, RoomClient } from "./runtime.ts";
-import { RoomError } from "nextphase-board-room/protocol.ts";
+import { base64, bytes, BACKUP_LIMIT, RoomError } from "nextphase-board-room/protocol.ts";
 export type WorkerEnv = {
   ROOMS: DurableObjectNamespace; FENCES: DurableObjectNamespace;
   SUPABASE_URL: string; SUPABASE_ISSUER?: string; SUPABASE_SERVICE_KEY: string;
@@ -36,7 +36,31 @@ export function workerRuntime(env: WorkerEnv): Runtime {
       if (!response.ok) throw new RoomError(response.status, result.error.reason, result.error.needed);
       return result;
     }
-    return { admitLifecycle: value => call("admit-lifecycle", value), fenceLifecycle: (row, ready) => call("fence-lifecycle", { row, ready }), versions: person => call("versions", { person }), version: (person, id) => call("version", { person, id }),
+    function pictureCall(action: string, person: Parameters<RoomClient["export"]>[0], hash: string, headers: Record<string, string> = {}, body?: ArrayBuffer) {
+      const caller = base64(bytes(JSON.stringify(person))).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+      return stub(env, "ROOMS", board).fetch("http://room/" + action, {
+        method: "POST", body, headers: { "x-board": board, "x-person": caller, "x-picture-hash": hash, ...headers },
+      }).then(async response => {
+        if (!response.ok) {
+          const { error } = await response.json() as { error: { reason: string; needed?: string } };
+          throw new RoomError(response.status, error.reason, error.needed);
+        }
+        return response;
+      });
+    }
+    return {
+      async storePicture(person, hash, data, type, width, height) {
+        const body = data.buffer instanceof ArrayBuffer && data.byteOffset === 0 && data.length === data.buffer.byteLength ? data.buffer : data.slice().buffer;
+        const response = await pictureCall("picture-store", person, hash, {
+          "x-picture-type": type, "x-picture-width": String(width), "x-picture-height": String(height),
+        }, body);
+        return (await response.json() as { result: "created" | "exists" | "full" }).result;
+      },
+      async readPicture(person, hash) {
+        const response = await pictureCall("picture-read", person, hash);
+        return response.status === 204 ? null : { type: response.headers.get("Content-Type")!, bytes: new Uint8Array(await response.arrayBuffer()) };
+      },
+      admitLifecycle: value => call("admit-lifecycle", value), fenceLifecycle: (row, ready) => call("fence-lifecycle", { row, ready }), versions: person => call("versions", { person }), version: (person, id) => call("version", { person, id }),
       saveVersion: (person, value) => call("save-version", { person, input: value }),
       nameVersion: (person, id, value) => call("name-version", { person, id, input: value }),
       restoreVersion: (person, id, value) => call("restore-version", { person, id, input: value }),
@@ -51,7 +75,7 @@ export function workerRuntime(env: WorkerEnv): Runtime {
         return result;
       } };
   }
-  const runtime: Runtime = { now: Date.now, async fenceGeneration(board){
+  const runtime: Runtime = { backupLimit: BACKUP_LIMIT, now: Date.now, async fenceGeneration(board){
       const response=await stub(env,"FENCES",board).fetch("http://fence/read",{method:"POST"});
       if(!response.ok)throw new RoomError(503,"service_unavailable");
       const independent=(await response.json() as {generation:number}).generation;

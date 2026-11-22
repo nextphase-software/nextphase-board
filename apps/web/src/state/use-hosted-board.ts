@@ -23,8 +23,8 @@ type Input = { hosted?: HostedBoard; model: RefObject<BoardV14>; load: (board: B
     endComposition: () => void;
   };
   onChange?: (before: BoardV14, after: BoardV14, change: HostedBoard["change"], preview: boolean) => void;
-  select: (value: string) => void; paste: () => void; composing: boolean };
-export function useHostedBoard({ hosted, model, load, setBoard, setTitle, setReadOnly, setDrafts, setTool, setInline, select, paste, composing, tables, onChange = () => {} }: Input) {
+  select: (value: string) => void; paste: () => void; pasteFiles?: (files: File[]) => void; composing: boolean };
+export function useHostedBoard({ hosted, model, load, setBoard, setTitle, setReadOnly, setDrafts, setTool, setInline, select, paste, pasteFiles, composing, tables, onChange = () => {} }: Input) {
   if (hosted) {
     hosted.onPageChange = onChange;
     hosted.keepTableSelection = !!tables?.selection;
@@ -98,5 +98,6 @@ export function useHostedBoard({ hosted, model, load, setBoard, setTitle, setRea
     if (!isCanvasPasteTarget(event) || event.defaultPrevented || composing) return;
     event.preventDefault();
     if (!event.clipboardData.files.length) paste();
+    else pasteFiles?.(Array.from(event.clipboardData.files));
   } : undefined;
 }

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { cleanPictures, markPictures, validatePictures } from "./pictures.ts";
 import * as Y from 'yjs';
 import { readBoard } from 'nextphase-board-sync/codec.ts';
 import { Adapter } from 'nextphase-board-sync/document-adapter.ts';
@@ -17,7 +18,7 @@ import { snapshot } from './snapshots.ts';
 // Allow metadata for 50 pages before canonical checks
 // apply the inherited 2 MiB budget without pages/page.
 const STORED_DOCUMENT_LIMIT = 2162688;
-type Prepared = { data: Uint8Array; sha256: string };
+type Prepared = { board: Board; data: Uint8Array; sha256: string };
 type Reference = { chunks: number; bytes: number; sha256: string };
 type Intent = { phase: 'intent' | 'reserved' | 'replaced'; selected: Reference; replaced: Reference;
   version: Version; actor: string; expectedRevision: number; oldGeneration: number; generation: number; carryGeneration?: number;
@@ -33,7 +34,7 @@ export function documentBytes(rows: Row[], board: string): { board: Board; data:
   if (data.length > STORED_DOCUMENT_LIMIT) throw Error('document_too_large');
   let at = 0; for (const row of rows) { data.set(row.bytes as Uint8Array, at); at += (row.bytes as Uint8Array).length; }
   const text = new TextDecoder().decode(data), value = validate(JSON.parse(text));
-  if (![10, 11, 12, 13, 14].includes(value.schemaVersion) || value.boardId !== board || value.objects.some(o => o.type === 'image') || canonical(value) !== text) throw Error('bad_document');
+  if (![10, 11, 12, 13, 14].includes(value.schemaVersion) || value.boardId !== board || canonical(value) !== text) throw Error('bad_document');
   return { board: value, data };
 }
 export class History {
@@ -42,7 +43,7 @@ export class History {
   get env() { return this.host.env; }
   get s() { return this.env.storage; }
   async prepare(board: Board): Promise<Prepared> {
-    const data = bytes(canonical(board)); return { data, sha256: await this.env.hash(data) };
+    const data = bytes(canonical(board)); return { board, data, sha256: await this.env.hash(data) };
   }
   prune() {
     const keep = this.s.all('SELECT id FROM versions WHERE captured_at > ? ORDER BY ordinal DESC LIMIT ?', this.env.now() - HISTORY_AGE, HISTORY_LIMIT);
@@ -60,7 +61,9 @@ export class History {
       this.s.exec('INSERT INTO version_chunks VALUES (?, ?, ?)', id, index, prepared.data.slice(at, at + HISTORY_CHUNK));
     setMeta(this.s, 'history_ordinal', ordinal); setMeta(this.s, 'history_revision', revision);
     setMeta(this.s, 'history_capture_sha256', prepared.sha256); setMeta(this.s, 'history_capture_bytes', prepared.data.length);
+    markPictures(this.s, prepared.board, ordinal);
     this.prune();
+    if (reason !== 'before_restore') cleanPictures(this.s, prepared.board, capturedAt);
     return { id, ordinal, capturedAt, revision, generation, reason, name, description, actor, namedBy: name || description ? actor : null, sourceName };
   }
   async automatic(reason: 'checkpoint' | 'last_close') {
@@ -84,7 +87,10 @@ export class History {
     await this.host.lifecycle.active();
     this.s.transaction(() => {
       if (!same) this.capture(prepared, meta(this.s, 'revision'), meta(this.s, 'restore_generation'), reason);
-      this.prune();
+      else {
+        this.prune();
+        cleanPictures(this.s, this.host.board, now);
+      }
       if (reason === 'checkpoint') setMeta(this.s, 'history_next_at', next + (Math.floor((now - next) / HISTORY_INTERVAL) + 1) * HISTORY_INTERVAL);
     });
   }
@@ -249,12 +255,12 @@ export class History {
       try {
         this.s.transaction(() => {
           const before = this.capture(replaced, intent.expectedRevision, intent.oldGeneration, 'before_restore');
-          const restored = this.capture(selected, intent.expectedRevision + 1, intent.generation, 'restored', intent.actor, '', '', versionHeading(intent.version));
           keepAnchors(this.env, upgrade(replaced.board), restoredBoard);
           this.s.exec('DELETE FROM waiting'); this.s.exec('DELETE FROM tickets'); this.s.exec('DELETE FROM edits');
           snapshot(this.s, adapter.doc, restoredBoard, intent.expectedRevision + 1);
           setMeta(this.s, 'revision', intent.expectedRevision + 1); setMeta(this.s, 'restore_generation', intent.generation);
           setMeta(this.s, 'last_edit_at', this.env.now());
+          const restored = this.capture(selected, intent.expectedRevision + 1, intent.generation, 'restored', intent.actor, '', '', versionHeading(intent.version));
           intent.result = { requestId: String(row!.request_id), revision: intent.expectedRevision + 1, generation: intent.generation, beforeVersionId: before.id, restoredVersionId: restored.id };
           intent.phase = 'replaced';
           this.result(String(row!.person_id), String(row!.request_id), String(row!.digest), 'restore', intent);
@@ -283,6 +289,7 @@ export class History {
 
 export async function validateHistoryBackup(env: RoomEnvironment, tables: Record<string, Row[]>, board: string) {
   const get = (key: string) => tables.meta.find(r => r.key === key)?.value;
+  if (get('storage_version') === 9) await validatePictures(env, tables);
   if (new Set(tables.meta.map(r => r.key)).size !== tables.meta.length || get('board_id') !== board) throw Error('bad_meta');
   for (const key of ['revision','restore_generation','watermark','last_edit_at','mention_order','mention_cleanup']) if (!historyInteger(get(key))) throw Error('bad_meta');
   if (![0,1].includes(Number(get('mention_cleanup')))) throw Error('bad_meta');
@@ -312,7 +319,7 @@ export async function validateHistoryBackup(env: RoomEnvironment, tables: Record
       if (Number(r.revision)>Number(snapshots.at(-1))) Y.applyUpdate(doc,r.update);
     }
     const head=readBoard(doc, get('storage_version') === 7); validate(head); canonical(head);
-    if (head.boardId!==board || ![10,11,12,13,14].includes(head.schemaVersion) || head.objects.some(o=>o.type==='image'||identity.get(o.id)!==o.generation)) throw Error('bad_head');
+    if (head.boardId!==board || ![10,11,12,13,14].includes(head.schemaVersion) || head.objects.some(o=>get('storage_version') !== 9 && o.type==='image'||identity.get(o.id)!==o.generation)) throw Error('bad_head');
   } finally {doc.destroy();}
   if (tables.snapshot_chunks.some(r=>!['json','yjs'].includes(String(r.kind)))) throw Error('bad_snapshot');
   const comments = new Map(tables.comments.map(r=>[r.id,r])), threads = new Map(tables.threads.map(r=>[r.id,r]));

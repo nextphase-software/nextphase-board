@@ -5,6 +5,7 @@ import { BoardSpotlight } from "./spotlight";
 import { BoardVoting } from "./voting";
 import { BoardTimer } from "./timer";
 import { BoardLifecycle, lifecycleNavigation } from "./lifecycle";
+import { BoardPictures } from "./pictures";
 import { BoardHistory, historyNavigation } from "./history";
 import { BoardSession, type Transport, type Role, type SessionEvent, type TimerSnapshot, type TimerFrame, type TimerAction, type VoteProjection, type VoteFrame, type VoteCommand, type SpotlightCommand, type SpotlightFrame, type ReactionId } from "nextphase-board-sync/session.ts";
 import type { TableOrderHint } from "nextphase-board-sync/document-adapter.ts";
@@ -37,6 +38,7 @@ export class HostedBoard {
   readonly reactions = new BoardReactions(this);
   sendReaction(reaction: ReactionId, x: number, y: number) { return this.snapshot.connected && !this.stopped && !this.ended && !!this.session?.react(reaction, x, y); }
   readonly lifecycle = new BoardLifecycle();
+  readonly pictures = new BoardPictures(() => this.boardId);
   readonly history = new BoardHistory(this);
   readonly timer = new BoardTimer(this);
   readonly spotlight=new BoardSpotlight(this);

@@ -196,7 +196,7 @@ async function hostedController() {
     const result=await build({entryPoints:[fileURLToPath(new URL('../apps/web/src/team/hosted-board.ts',import.meta.url))],bundle:true,write:false,format:'esm',platform:'node',plugins:[{name:'spotlight-unit-ports',setup(b){
       b.onLoad({filter:/\/team\/api\.ts$/},()=>({contents:"export function api(){throw Error('Unexpected HTTP request');} export class ApiError extends Error {}",loader:'js'}));
       b.onLoad({filter:/\/team\/auth\.ts$/},()=>({contents:'export const auth={};',loader:'js'}));
-      b.onLoad({filter:/\/team\/config\.ts$/},()=>({contents:"export const socketOrigin='ws://127.0.0.1';",loader:'js'}));
+      b.onLoad({filter:/\/team\/config\.ts$/},()=>({contents:"export const socketOrigin='ws://127.0.0.1'; export const settings={serverUrl:''};",loader:'js'}));
     }}]});
     const folder=await mkdtemp(join(tmpdir(),'board-spotlight-unit-'));
     try { const path=join(folder,'host.mjs');await writeFile(path,result.outputFiles[0].text);return await import(pathToFileURL(path).href); }

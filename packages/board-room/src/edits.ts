@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { held } from "./pictures.ts";
 import * as Y from "yjs";
 import { readBoard } from "nextphase-board-sync/codec.ts";
 import { canonical, validate, type BoardV14 } from "nextphase-board-rules/document.ts";
@@ -51,7 +52,10 @@ export function evaluate(doc: Y.Doc, before: BoardV14, update: Uint8Array, stora
         return { kind: "refused", reason: "identifier_reused" };
       }
     }
-    if (after.objects.some(isImage)) return { kind: "refused", reason: "images_not_supported" };
+    const previousAssets = new Map(before.objects.filter(isImage).map(o => [o.id, o.asset]));
+    for (const image of after.objects.filter(isImage)) {
+      if (previousAssets.get(image.id) !== image.asset && !held(storage, image.asset)) return { kind: "refused", reason: "asset_missing" };
+    }
     retained = true;
     return { kind: "complete", doc: candidate, board: after, changed, identifiers,
       update: Y.encodeStateAsUpdate(candidate, Y.encodeStateVector(doc)) };

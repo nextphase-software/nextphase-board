@@ -296,7 +296,7 @@ test("a fresh room creates storage version 8 with no threads", async () => {
   try {
     const room = new Room(randomUUID(), { storage, lifecycle: { lifecycle: async () => ({ state: "active", generation: 0 }) }, hash: async value => { const { createHash } = await import("node:crypto"); return createHash("sha256").update(value).digest("hex"); }, randomId: randomUUID, now: () => 0, connections: () => [], schedule: async () => {},
       access: { board: async () => ({ title: "Comments", createdAt: new Date(0).toISOString() }), changes: async () => ({ latest: 0, lowestKept: 1, changes: [] }) }, fence: async () => 0 });
-    await room.load(); assert.equal(meta(storage, "storage_version"), 8); assert.deepEqual(storage.all("SELECT * FROM threads"), []);
+    await room.load(); assert.equal(meta(storage, "storage_version"), 9); assert.deepEqual(storage.all("SELECT * FROM threads"), []);
   } finally { storage.close(); }
 });
 

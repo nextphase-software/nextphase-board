@@ -64,6 +64,7 @@ app.runtime.room = (board) => {
     finally { entry.storage.exec = exec; }
     if (failCreate === "after") throw Error("Create reply unavailable");
   }, rename: (p, title) => room.rename(p, title), ticket: (p) => room.ticket(p), export: (p) => room.export(p), backup: () => room.backup(), restore: (v) => room.restore(v),
+    storePicture: (...args) => room.storePicture(...args), readPicture: (p, hash) => room.readPicture(p, hash),
     discussion: (p, id, occurrence) => room.discussion(p, id, occurrence), deliverNotices: () => room.deliverNotices(),
     changed: () => unreachable.includes(board) ? Promise.reject(Error("Room unavailable")) : room.changed() };
 };
@@ -90,7 +91,10 @@ process.on("message", async (message: any) => {
     if (value.fixedNow !== undefined) fixedNow = value.fixedNow;
     if (value.offset !== undefined) offset = value.offset;
     if (value.unreachable) unreachable = value.unreachable;
-    if (value.backupLimit !== undefined) for (const entry of app.rooms.values()) entry.room.env.backupLimit = value.backupLimit;
+    if (value.backupLimit !== undefined) {
+      app.runtime.backupLimit = value.backupLimit;
+      for (const entry of app.rooms.values()) entry.room.env.backupLimit = value.backupLimit;
+    }
     if (value.board) {
       // Resolve the room through the same lazy factory as production.
       original(value.board);

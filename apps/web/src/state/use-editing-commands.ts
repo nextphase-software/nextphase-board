@@ -15,6 +15,8 @@ import { isTape, type TapePattern, type ConnectorStyle, type End, objectType, is
 import { addChild, addSibling, collapse, descendants, hiddenIds, settle, withHiddenDescendants, MAP_WORDS, type MapCommand, type MeasureNode } from "../mind-map";
 import { editingCommandReason } from "../commands";
 import { groupObjects, groupReason, ungroupObjects } from "../group";
+import { tabPictures } from "../image-assets.ts";
+import { PASTE_NOT_LOADED } from "../images.ts";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "../clipboard";
 
 import { TIDY_WAIT } from "../tidy-up";
@@ -263,6 +265,7 @@ export function useEditingCommands({
     if (reason) { setMessage(reason); return; }
     try {
       if (name === "Paste") {
+        if (objectClipboard!.objects.some(o => "asset" in o && !tabPictures.has(o.asset))) { setMessage(PASTE_NOT_LOADED); return; }
         const result = buildPaste(model.current, objectClipboard!, {
           centerX: view.x, centerY: view.y, zoom: view.z,
           width: scene.current!.clientWidth, height: scene.current!.clientHeight,

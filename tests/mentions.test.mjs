@@ -53,7 +53,7 @@ test('M-U05 current initialization rollback, idempotence and future-layout refus
   assert.throws(()=>initialize(s),/initialization rollback/);assert.deepEqual(s.all("SELECT name FROM sqlite_master WHERE type='table'"),[]);
   s.exec=execute;initialize(s);assert.equal(meta(s,'storage_version'),0);setMeta(s,'storage_version',8);
   const before=s.all('SELECT * FROM sqlite_master ORDER BY name');initialize(s);assert.deepEqual(s.all('SELECT * FROM sqlite_master ORDER BY name'),before);
-  setMeta(s,'storage_version',9);assert.throws(()=>initialize(s),/storage_unsupported/);
+  setMeta(s,'storage_version',10);assert.throws(()=>initialize(s),/storage_unsupported/);
  } finally{s.close();}
 });
 test('M-U06 shared scheduler enumerates all board IDs and retains delivery concurrency and access pass',async()=>{
@@ -164,7 +164,7 @@ async function hostedMentionHarness() {
   const result=await build({stdin:{contents:`export {HostedBoard} from './apps/web/src/team/hosted-board.ts'; export {CommentsLayer} from './apps/web/src/team/comments/layer.tsx'; export {setRequest,ApiError} from './apps/web/src/team/api.ts'; export {renderToStaticMarkup} from 'react-dom/server'; export {createElement} from 'react';`,resolveDir:fileURLToPath(new URL('../',import.meta.url)),loader:'ts'},bundle:true,write:false,format:'esm',platform:'node',jsx:'automatic',banner:{js:"import {createRequire} from 'node:module'; const require=createRequire(import.meta.url);"},plugins:[{name:'mention-test-ports',setup(b){
    b.onLoad({filter:/\/team\/api\.ts$/},()=>({contents:`let request; export function setRequest(next){request=next;} export function api(...args){return request(...args);} export class ApiError extends Error {constructor(status,reason){super(reason);this.status=status;this.reason=reason;}}`,loader:'js'}));
    b.onLoad({filter:/\/team\/auth\.ts$/},()=>({contents:'export const auth={};',loader:'js'}));
-   b.onLoad({filter:/\/team\/config\.ts$/},()=>({contents:`export const socketOrigin='ws://127.0.0.1';`,loader:'js'}));
+   b.onLoad({filter:/\/team\/config\.ts$/},()=>({contents:`export const socketOrigin='ws://127.0.0.1'; export const settings={serverUrl:''};`,loader:'js'}));
   }}]});
   const folder=await mkdtemp(join(tmpdir(),'board-mention-unit-'));
   try{const path=join(folder,'hosted.mjs');await writeFile(path,result.outputFiles[0].text);return await import(pathToFileURL(path).href);}finally{await rm(folder,{recursive:true,force:true});}

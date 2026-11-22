@@ -188,13 +188,14 @@ test("every screen part begins with the Apache-2.0 licence header", () => {
   }
 });
 
-test("scene parts contain exactly the nineteen modules named through 0012-W2 v1", () => {
+test("scene parts contain exactly the twenty modules named through 0012-W3 v1", () => {
   assert.deepEqual(sceneParts, [
     "board-drawing.tsx",
     "connection-dots.tsx",
     "connector-body.tsx",
     "export-drawing.tsx",
     "find-rings.tsx",
+    "gif-marks.tsx",
     "image-body.tsx",
     "inline-editor.tsx",
     "mind-map-buttons.tsx",
@@ -245,7 +246,7 @@ test("screen and scene guard detects equality and inequality in both operand ord
   }
 });
 
-test("state contains exactly the twenty-six hooks named through 0012-W2 v1", () => {
+test("state contains exactly the twenty-seven hooks named through 0012-W3 v1", () => {
   assert.deepEqual(files(new URL("state/", source)).sort(), [
     "use-board-document.ts",
     "use-canvas-input.ts",
@@ -257,6 +258,7 @@ test("state contains exactly the twenty-six hooks named through 0012-W2 v1", () 
     "use-find.ts",
     "use-geometry-edits.ts",
     "use-gesture-state.ts",
+    "use-gif-playback.ts",
     "use-hosted-board.ts",
     "use-images.ts",
     "use-messages.ts",
@@ -555,13 +557,13 @@ test("production runners contain none of the test driver names", () => {
 });
 
 
-test("team modules and imports follow web modules v37", () => {
+test("team modules and imports follow web modules through 0012-W3 v1", () => {
   const team = new URL("team/", source);
   const names = files(team).sort();
   assert.deepEqual(names, ["api.ts", "auth.ts", "comments/card.tsx", "comments/icons.tsx", "comments/layer.tsx", "comments/mention-editor.tsx",
     "comments/panel.tsx", "comments/rules.ts", "comments/tool.tsx", "config.ts", "dialog.tsx", "history-panel.tsx", "history-rules.ts", "history.ts", "home-card.tsx", "home-import.tsx", "home-lists.ts",
     "home-menu.tsx", "home-rules.ts", "home.tsx", "hosted-board.ts", "import.ts", "lifecycle-rules.ts", "lifecycle.ts", "links.ts",
-    "notices.ts", "notification-navigation.ts", "notifications.tsx", "page-presence.ts", "pages.tsx", "people.tsx", "presence-layer.tsx", "presence.ts", "reactions-layer.tsx", "reactions-rules.ts", "reactions.ts", "roles.ts", "share-dialog.tsx", "sign-in.tsx", "spotlight-layer.tsx", "spotlight-rules.ts", "spotlight.ts", "team-app.tsx", "templates-rules.ts", "templates-section.tsx", "templates.ts", "timer-panel.tsx", "timer-rules.ts", "timer.ts", "trash.tsx", "voting-card.tsx", "voting-overlay.tsx", "voting-rules.ts", "voting.ts", "workshop-panel.tsx"]);
+    "notices.ts", "notification-navigation.ts", "notifications.tsx", "page-presence.ts", "pages.tsx", "people.tsx", "pictures.ts", "presence-layer.tsx", "presence.ts", "reactions-layer.tsx", "reactions-rules.ts", "reactions.ts", "roles.ts", "share-dialog.tsx", "sign-in.tsx", "spotlight-layer.tsx", "spotlight-rules.ts", "spotlight.ts", "team-app.tsx", "templates-rules.ts", "templates-section.tsx", "templates.ts", "timer-panel.tsx", "timer-rules.ts", "timer.ts", "trash.tsx", "voting-card.tsx", "voting-overlay.tsx", "voting-rules.ts", "voting.ts", "workshop-panel.tsx"]);
   for (const name of names) {
     const content = readFileSync(new URL(name, team), "utf8");
     assert.equal(content.split("\n")[0], "// SPDX-License-Identifier: Apache-2.0", name);
@@ -598,7 +600,7 @@ test("the hosted board hook holds exactly one passive effect", () => {
 });
 
 // Web modules v43, v45 and v46: exact existing-line substitutions from the behaviour baseline.
-test("0012-W2 App composition changes only its recorded substitutions", () => {
+test("0012-W3 App composition changes only its recorded substitutions", () => {
   const base = execFileSync("git", ["show", "3f4ad48:apps/web/src/App.tsx"], { encoding: "utf8" });
   const substitutions = [
   [
@@ -736,7 +738,17 @@ test("0012-W2 App composition changes only its recorded substitutions", () => {
   [
     "      <BoardQuestion {...boardQuestion} />",
     "      <BoardQuestion {...boardQuestion} /><ExportDialog {...exporter.dialog} />"
-  ]
+  ],
+  ["import { ImageNames } from \"./scene/image-body\";", "import { ImageNames } from \"./scene/image-body\"; import { useGifPlayback } from \"./state/use-gif-playback\"; import { GifMarks } from \"./scene/gif-marks\";"],
+  ["readOnly: readOnly || !!team?.hosted,", "readOnly, hosted: team?.hosted,"],
+  ["pointerMove, pointerUp, doubleClick,", "pointerMove, pointerUp, doubleClick, hovered, pressedPlay, pointerLeave,"],
+  ["textEditing: !!textSession.current, invalidObjectText,", "textEditing: !!textSession.current, invalidObjectText, animated: images.animated, bitmaps: images.bitmaps,"],
+  ["  const exporter = useExport({", "  const gif = useGifPlayback({ objects: displayedObjects, selected, animated: images.animated, bitmaps: images.bitmaps, pressedPlay, setMessage }); const exporter = useExport({"],
+  ["paste: () => clipboardCommand(\"Paste\"), composing });", "paste: () => clipboardCommand(\"Paste\"), pasteFiles: (files) => void images.pasted(files, () => clipboardCommand(\"Paste\")), composing });"],
+  ["onLostPointerCapture={lostPointerCapture}", "onLostPointerCapture={lostPointerCapture} onPointerLeave={pointerLeave}"],
+  ["bitmaps={images.bitmaps} connection", "bitmaps={images.bitmaps} loading={images.loading} playing={gif.playing} connection"],
+  ["        <Overlays", "        <GifMarks objects={displayedObjects} animated={images.animated} bitmaps={images.bitmaps} selected={selected} hovered={hovered} pos={pos} zoom={view.z} /><Overlays"],
+  ["busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen}", "busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen} importing={images.importing}"]
 ];
   let expected = base;
   for (const [from, to] of substitutions) {

@@ -8,6 +8,8 @@ export interface Storage {
 }
 // The same SQL and columns are used by node:sqlite and Durable Object SQLite.
 export const tables: Record<string, string[]> = {
+  pictures: ["hash", "type", "bytes", "width", "height", "parts", "uploaded_at", "captured_ordinal"],
+  picture_parts: ["hash", "part", "data"],
   workshop_vote: ["singleton","status","session_id","session_version","prompt","budget","targets","page","totals"],
   workshop_vote_ballots: ["person_id","session_id","version","colour","targets"],
   workshop_timer: ["singleton", "status", "duration_ms", "ends_at_server_ms", "remaining_ms", "version", "timer_id", "last_actor"],
@@ -30,9 +32,11 @@ export const tables: Record<string, string[]> = {
   history_intent_chunks: ["person_id", "request_id", "kind", "chunk_index", "bytes"],
   tickets: ["digest", "person_id", "token_expires_at", "expires_at", "label"],
 };
-export const binaryColumns: Record<string, string> = { edits: "update", waiting: "update", snapshot_chunks: "bytes", version_chunks: "bytes", history_intent_chunks: "bytes" };
+export const binaryColumns: Record<string, string> = { picture_parts: "data", edits: "update", waiting: "update", snapshot_chunks: "bytes", version_chunks: "bytes", history_intent_chunks: "bytes" };
 export function initialize(storage: Storage) {
   const statements = [
+    'CREATE TABLE IF NOT EXISTS pictures (hash TEXT PRIMARY KEY, type TEXT NOT NULL, bytes INTEGER NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL, parts INTEGER NOT NULL, uploaded_at INTEGER NOT NULL, captured_ordinal INTEGER)',
+    'CREATE TABLE IF NOT EXISTS picture_parts (hash TEXT NOT NULL, part INTEGER NOT NULL, data BLOB NOT NULL, PRIMARY KEY(hash, part))',
     'CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL)',
     'CREATE TABLE IF NOT EXISTS edits (revision INTEGER PRIMARY KEY, person_id TEXT NOT NULL, request_id TEXT NOT NULL, "update" BLOB NOT NULL)',
     "CREATE TABLE IF NOT EXISTS receipts (person_id TEXT, request_id TEXT, digest TEXT NOT NULL, revision INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'edit', PRIMARY KEY(person_id, request_id))",
@@ -60,7 +64,7 @@ export function initialize(storage: Storage) {
     storage.exec("CREATE TABLE IF NOT EXISTS workshop_vote_ballots (person_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, version INTEGER NOT NULL, colour TEXT NOT NULL, targets TEXT NOT NULL)");
     if (!storage.all("PRAGMA table_info(workshop_vote)").some(row => row.name === "page")) storage.exec("ALTER TABLE workshop_vote ADD COLUMN page TEXT");
     const version = meta(storage, "storage_version");
-    if (version !== 0 && version !== 7 && version !== 8) throw Error("storage_unsupported");
+    if (version !== 0 && version !== 7 && version !== 8 && version !== 9) throw Error("storage_unsupported");
   });
 }
 export function meta(storage: Storage, key: string): number {

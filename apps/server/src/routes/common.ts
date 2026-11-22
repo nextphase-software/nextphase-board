@@ -10,7 +10,12 @@ export function id(context: ServerContext, name: string) {
   if (!value || !uuid.test(value)) throw new RoomError(404, "not_found");
   return value;
 }
-export async function body(context: ServerContext, limit = 1048576) {
+export function hashId(context: ServerContext) {
+  const hash = context.req.param("hash");
+  if (!hash || !/^[0-9a-f]{64}$/.test(hash)) throw new RoomError(404, "not_found");
+  return hash;
+}
+export async function bytes(context: ServerContext, limit: number) {
   const reader = context.req.raw.body?.getReader();
   const chunks: Uint8Array[] = [];
   let length = 0;
@@ -24,7 +29,11 @@ export async function body(context: ServerContext, limit = 1048576) {
   const bytes = new Uint8Array(length);
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-  try { return JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>; }
+  return bytes;
+}
+export async function body(context: ServerContext, limit = 1048576) {
+  const data = await bytes(context, limit);
+  try { return JSON.parse(new TextDecoder().decode(data)) as Record<string, unknown>; }
   catch { throw new RoomError(400, "bad_request"); }
 }
 export function shape(value: Record<string, unknown>, fields: string[]) {

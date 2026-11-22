@@ -63,7 +63,7 @@ export function Palette({
         disabled={readOnly || busy || composing} onClick={() => { if (panel !== "Templates") void loadTemplates(); toggle("Templates"); }}>
         <Icon name="Templates" /><span className="tooltip">Templates</span>
       </button>}
-      {!team?.hosted && <ImageButton picker={imagePicker} />}
+      {(!team?.hosted || team.hosted.snapshot.role !== "viewer") && <ImageButton picker={imagePicker} />}
       {team?.reactionTool && team.hosted && <team.reactionTool hosted={team.hosted} tool={tool} setTool={setTool} scene={scene} />}
       {team?.commentTool && <team.commentTool tool={tool} setTool={setTool} scene={scene} disabled={busy || composing || !!team?.hosted?.history.previewing || !!team?.hosted?.history.locked} />}
     </nav>

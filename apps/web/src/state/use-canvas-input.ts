@@ -6,7 +6,7 @@ import { expandSelection, pressSelection, toggleGroup } from "../group";
 import { nearestHandle, type Corner } from "../resize";
 import type { View } from "../view";
 import { drawRectangle, dropped, placeObject, withMembers } from "../sections";
-import { isTape, isTable, table, type TapePattern, isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, isMindNode, type ShapePaint, type ConnectorStyle } from "nextphase-board-rules/objects/registry.ts";
+import { isImage, isTape, isTable, table, type TapePattern, isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, isMindNode, type ShapePaint, type ConnectorStyle } from "nextphase-board-rules/objects/registry.ts";
 import type { Drag, NodeDrop, ResizeStart } from "../gesture";
 import { branchIds, dropTarget, MAP_WORDS } from "../mind-map";
 
@@ -25,6 +25,7 @@ import { hitBorder, hitCell, tableGhost, tableKey, tableBorders, type TableActio
 import type { CellAddress } from "nextphase-board-rules/objects/registry.ts";
 
 type Input = {
+  animated?: ReadonlySet<string>; bitmaps?: ReadonlyMap<string, ImageBitmap>;
   tableSelection?: TableSelection;
   chooseTable: (selection: TableSelection, table: TableItem) => void;
   tableGeometry: {
@@ -84,11 +85,18 @@ export function useCanvasInput({
   setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
   scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
   selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
-  handlesVisible, handlePoints, objectLayouts, displayedObjects, edit, textEditing, invalidObjectText,
+  handlesVisible, handlePoints, objectLayouts, displayedObjects, edit, textEditing, invalidObjectText, animated, bitmaps,
 }: Input) {
   const tableDrag = useRef<{ object: TableItem; border: TableBorder; layout: TableLayout } | null>(null);
   const ghost = useRef<TableGhost | null>(null);
   const [hoverAxis, setHoverAxis] = useState<TableBorder["axis"]>();
+  const [hover, setHover] = useState({ key: "", id: "" });
+  const [pressedPlay, setPressedPlay] = useState({ id: "", sequence: 0 });
+  const hoverAllowed = !!animated?.size && tool === "Select" && !busy && !drag.current && !inline && !textEditing;
+  const hoverKey = hoverAllowed ? [model.current.boardId, page, tool, view.x, view.y, view.z].join("/") : "";
+  const hovered = hoverAllowed && hover.key === hoverKey ? hover.id : "";
+  if (hover.id && (!hoverAllowed || hover.key !== hoverKey)) setHover({ key: hoverKey, id: "" });
+  const pointerLeave = () => { if (hover.id) setHover({ key: hoverKey, id: "" }); };
   const tableTarget = displayedObjects.find(o => o.id === tableSelection?.id);
   const selectedTable = tableTarget && isTable(tableTarget) ? tableTarget : undefined;
   const tapeEnd = useRef<{object:TapeItem & { page: string };end:number;pointer:number}|null>(null);
@@ -243,6 +251,15 @@ export function useCanvasInput({
       return;
     }
     const p = point(e);
+    if (hovered && e.isPrimary && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && !voting?.mode) {
+      const hit = hitObject(displayedObjects, p, view.z);
+      if (hit && hit.id === hovered && isImage(hit) && animated?.has(hit.asset) && !selected.has(hit.id) &&
+          bitmaps?.get(hit.asset)?.width === hit.pixelWidth && bitmaps?.get(hit.asset)?.height === hit.pixelHeight &&
+          hit.width * view.z >= 56 && hit.height * view.z >= 56 &&
+          Math.hypot(p.x - hit.x - hit.width / 2, p.y - hit.y - hit.height / 2) * view.z <= 20) {
+        setPressedPlay(previous => ({ id: hit.id, sequence: previous.sequence + 1 }));
+      }
+    }
     if(voting?.pointerDown(e,hitObject(displayedObjects,p,view.z))){scene.current?.focus();e.currentTarget.setPointerCapture(e.pointerId);e.preventDefault();return;}
     finishTextSession();
     if (inline && selectedTable) setInline(false);
@@ -361,6 +378,10 @@ export function useCanvasInput({
   function pointerMove(e: React.PointerEvent<HTMLDivElement>) {
     trackPointer(e);
     const d = drag.current;
+    const hit = hoverAllowed && e.buttons === 0 && animated?.size ? hitObject(displayedObjects, point(e), view.z) : undefined;
+    const id = hit && isImage(hit) && animated?.has(hit.asset) && !selected.has(hit.id) &&
+      bitmaps?.get(hit.asset)?.width === hit.pixelWidth && bitmaps?.get(hit.asset)?.height === hit.pixelHeight ? hit.id : "";
+    if (id !== hovered) setHover({ key: hoverKey, id });
     if(!d&&voting?.pointerMove(e,hitObject(displayedObjects,point(e),view.z)))return;
     if (!d) {
       const border = !readOnly && !inline && tool === "Select" && !spacePanRef.current && selectedTable?.tableLayout
@@ -608,5 +629,5 @@ export function useCanvasInput({
     ? tableBorders(selectedTable, selectedTable.tableLayout).find(b => b.id === tableDrag.current?.border.id) : undefined;
   const cursorAxis = tableDrag.current?.border.axis ?? (!readOnly && !inline && !busy && selectedTable && tool === "Select" ? hoverAxis : undefined);
   const drawingCursor = cursorAxis ? cursorAxis === "row" ? "row-resize" : "col-resize" : inkCursor;
-  return { tableGesture: { ghost: ghost.current, border, resizing: !!tableDrag.current || !!drag.current?.corner, cancelDrag: () => { if (tableDrag.current || selectedTable && drag.current?.corner) cancel(); }, focus: () => scene.current?.focus() }, preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick, pointerCancel, lostPointerCapture };
+  return { hovered, pressedPlay, pointerLeave, tableGesture: { ghost: ghost.current, border, resizing: !!tableDrag.current || !!drag.current?.corner, cancelDrag: () => { if (tableDrag.current || selectedTable && drag.current?.corner) cancel(); }, focus: () => scene.current?.focus() }, preview, drawingCursor, dots, dotsVisible, connection, cancel, sceneKeyDown, pointerDown, pointerMove, pointerUp, doubleClick, pointerCancel, lostPointerCapture };
 }

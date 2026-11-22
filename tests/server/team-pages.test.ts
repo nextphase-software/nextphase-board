@@ -132,7 +132,7 @@ async function legacySeed(b:any) {
 check(420,'storage-7 old shared map and vote convert once without edit metadata',async()=>{
   const b=await seed(),before=await versions(),receipts=await rows('receipts');await legacySeed(b);
   const c=await join(),{codec}=await modules();assert.deepEqual(codec.readBoard(c.doc),await exported());assert(!c.doc.getMap('board').has('pages'));assert(c.doc.getMap('board')._map.has('pages'));
-  assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,8);assert.equal((await rows('workshop_vote'))[0].status,'idle');assert.deepEqual(await rows('workshop_vote_ballots'),[]);assert.deepEqual(await rows('edits'),[]);assert.deepEqual(await rows('receipts'),receipts);assert.deepEqual(await versions(),before);
+  assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,9);assert.equal((await rows('workshop_vote'))[0].status,'idle');assert.deepEqual(await rows('workshop_vote_ballots'),[]);assert.deepEqual(await rows('edits'),[]);assert.deepEqual(await rows('receipts'),receipts);assert.deepEqual(await versions(),before);
   await driver.wake(f.a);assert.deepEqual((await exported()).pages,b.pages);
   const fresh=await join();assert.equal((await answer(fresh,await send(fresh,x=>x,d=>d.getMap('board').set('pages',b.pages)))).reason,'invalid_update');
 });
@@ -175,10 +175,10 @@ check(424,'history and backups retain all pages; storage-7 backup upgrades and 6
   const c=await join(),{pages,rules}=await modules();await answer(c,await send(c,x=>pages.renamePage(x,x.pages[1].id,'Changed')));
   const head=(await versions()).head;await ok(`/boards/${f.a}/versions/${saved.version.id}/restore`,'owner','POST',{requestId:crypto.randomUUID(),expectedRevision:head.revision,expectedGeneration:head.generation});assert.deepEqual((await exported()).pages,b.pages);
   const operator=async(action:string,value?:unknown)=>driver.request(`/operator/boards/${f.a}/${action}`,{method:'POST',headers:{'Board-Operator-Key':context.operatorKey,'Content-Type':'application/json'},...(value?{body:JSON.stringify(value)}:{})});
-  const backup=await (await operator('backup')).json() as any;assert.equal(backup.tables.meta.find(r=>r.key==='storage_version').value,8);assert.equal((await operator('restore',backup)).status,200);await exported();
+  const backup=await (await operator('backup')).json() as any;assert.equal(backup.tables.meta.find(r=>r.key==='storage_version').value,9);assert.equal((await operator('restore',backup)).status,200);await exported();
   const legacy=structuredClone(backup),{storedBoardUpdate,version13Board}=await import('../import-fixture.mjs');legacy.tables.meta.find(r=>r.key==='storage_version').value=7;
   const rev=legacy.tables.meta.find(r=>r.key==='revision').value;legacy.tables.snapshot_chunks=[];
   for(const [kind,data]of [['json',new TextEncoder().encode(rules.canonical(version13Board(await exported())))],['yjs',storedBoardUpdate(version13Board(await exported()),true)]] as const)for(let at=0,index=0;at<data.length;at+=32768,index++)legacy.tables.snapshot_chunks.push({snapshot_revision:rev,kind,chunk_index:index,bytes:Buffer.from(data.slice(at,at+32768)).toString('base64')});
-  legacy.tables.edits=[];assert.equal((await operator('restore',legacy)).status,200);assert.deepEqual((await exported()).pages,b.pages);assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,8);
-  for(const version of [6,9]){const invalid=structuredClone(backup);invalid.tables.meta.find(r=>r.key==='storage_version').value=version;assert.equal((await operator('restore',invalid)).status,400);}
+  legacy.tables.edits=[];assert.equal((await operator('restore',legacy)).status,200);assert.deepEqual((await exported()).pages,b.pages);assert.equal((await rows('meta')).find(r=>r.key==='storage_version').value,9);
+  for(const version of [6,10]){const invalid=structuredClone(backup);invalid.tables.meta.find(r=>r.key==='storage_version').value=version;assert.equal((await operator('restore',invalid)).status,400);}
 });

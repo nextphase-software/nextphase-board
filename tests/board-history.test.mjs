@@ -133,7 +133,7 @@ async function webHarness(hook = false) {
   const result=await build({stdin:{contents:`export {HostedBoard} from './apps/web/src/team/hosted-board.ts'; export {setRequest,ApiError} from './apps/web/src/team/api.ts'; ${hook ? "export {useHostedBoard} from './apps/web/src/state/use-hosted-board.ts';" : "export {HistoryPanel} from './apps/web/src/team/history-panel.tsx'; export {renderToStaticMarkup} from 'react-dom/server'; export {createElement} from 'react';"}`,resolveDir:fileURLToPath(new URL('../',import.meta.url)),loader:'ts'},bundle:true,write:false,format:'esm',platform:'node',jsx:'automatic',banner:{js:"import {createRequire} from 'node:module'; const require=createRequire(import.meta.url);"},plugins:[{name:'history-unit-ports',setup(b){
     b.onLoad({filter:/\/team\/api\.ts$/},()=>({contents:`let request; export function setRequest(next){request=next;} export function api(...args){return request(...args);} export class ApiError extends Error {constructor(status,reason){super(reason);this.status=status;this.reason=reason;}}`,loader:'js'}));
     b.onLoad({filter:/\/team\/auth\.ts$/},()=>({contents:'export const auth={};',loader:'js'}));
-    b.onLoad({filter:/\/team\/config\.ts$/},()=>({contents:`export const socketOrigin='ws://127.0.0.1';`,loader:'js'}));
+    b.onLoad({filter:/\/team\/config\.ts$/},()=>({contents:`export const socketOrigin='ws://127.0.0.1'; export const settings={serverUrl:''};`,loader:'js'}));
     if(hook)b.onResolve({filter:/^react$/},()=>({path:'react',namespace:'history-hooks'}));
     if(hook)b.onLoad({filter:/.*/,namespace:'history-hooks'},()=>({contents:'export const useEffect = callback => callback();',loader:'js'}));
   }}]});

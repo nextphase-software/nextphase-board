@@ -124,7 +124,7 @@ check(15,'storage-7 old-shape room converts once to 8 with idle vote and no edit
     f.storage.exec("INSERT INTO workshop_vote VALUES (1,'running',?,1,'Legacy vote',3,'[]',NULL)",crypto.randomUUID());
     f.storage.exec('DELETE FROM snapshot_chunks');
     f.storage.exec("INSERT INTO snapshot_chunks VALUES (0,'yjs',0,?)",storedBoardUpdate(version13Board(b),true));f.storage.exec("INSERT INTO snapshot_chunks VALUES (0,'json',0,?)",new TextEncoder().encode(s.canonical(version13Board(b))));setMeta(f.storage,'storage_version',7);
-    f.room.initialized=false;await f.room.load();assert.equal(meta(f.storage,'storage_version'),8);assert.equal(f.room.doc.getMap('board').has('pages'),false);assert(f.room.doc.getMap('board')._map.has('pages'));assert.deepEqual(f.room.board,b);assert.equal(f.room.voting.snapshot().status,'idle');assert.deepEqual(f.storage.all('SELECT * FROM workshop_vote_ballots'),[]);assert.deepEqual(current(),before);assert.equal(meta(f.storage,'revision'),0);
+    f.room.initialized=false;await f.room.load();assert.equal(meta(f.storage,'storage_version'),9);assert.equal(f.room.doc.getMap('board').has('pages'),false);assert(f.room.doc.getMap('board')._map.has('pages'));assert.deepEqual(f.room.board,b);assert.equal(f.room.voting.snapshot().status,'idle');assert.deepEqual(f.storage.all('SELECT * FROM workshop_vote_ballots'),[]);assert.deepEqual(current(),before);assert.equal(meta(f.storage,'revision'),0);
     f.room.initialized=false;await f.room.load();assert.deepEqual(f.room.board,b);assert.deepEqual(current(),before);
   }finally{f.close();}
 });
@@ -201,11 +201,11 @@ check(20,'room voting filters start targets to its page, refunds a moved target 
 check(21,'history and storage-8 and legacy-7 backups restore every page',async()=>{
   const {s,b}=await fixture(),f=await roomFixture(b);try{
     const person={id:crypto.randomUUID(),email:'owner@example.test',expiresAt:9999999};const version=(await f.room.versions(person)).versions[0];await f.room.restoreVersion(person,version.id,{requestId:crypto.randomUUID(),expectedRevision:0,expectedGeneration:0});assert.deepEqual(f.room.board.pages,b.pages);
-    const backup=await f.room.backup();assert.equal(backup.tables.meta.find(r=>r.key==='storage_version').value,8);await f.room.restore(backup);assert.deepEqual(JSON.parse(await f.room.export(person)).pages,b.pages);
+    const backup=await f.room.backup();assert.equal(backup.tables.meta.find(r=>r.key==='storage_version').value,9);await f.room.restore(backup);assert.deepEqual(JSON.parse(await f.room.export(person)).pages,b.pages);
     const old=structuredClone(backup),{storedBoardUpdate,version13Board}=await load('tests/import-fixture.mjs'),revision=old.tables.meta.find(r=>r.key==='revision').value;old.tables.meta.find(r=>r.key==='storage_version').value=7;old.tables.edits=[];
     old.tables.snapshot_chunks=[{snapshot_revision:revision,kind:'json',chunk_index:0,bytes:Buffer.from(s.canonical(version13Board(f.room.board))).toString('base64')},{snapshot_revision:revision,kind:'yjs',chunk_index:0,bytes:Buffer.from(storedBoardUpdate(version13Board(f.room.board),true)).toString('base64')}];
-    await f.room.restore(old);assert.deepEqual(JSON.parse(await f.room.export(person)).pages,b.pages);assert.equal((await f.room.backup()).tables.meta.find(r=>r.key==='storage_version').value,8);
-    for(const version of [6,9]){const bad=structuredClone(backup);bad.tables.meta.find(r=>r.key==='storage_version').value=version;await assert.rejects(f.room.restore(bad));}
+    await f.room.restore(old);assert.deepEqual(JSON.parse(await f.room.export(person)).pages,b.pages);assert.equal((await f.room.backup()).tables.meta.find(r=>r.key==='storage_version').value,9);
+    for(const version of [6,10]){const bad=structuredClone(backup);bad.tables.meta.find(r=>r.key==='storage_version').value=version;await assert.rejects(f.room.restore(bad));}
   }finally{f.close();}
 });
 check(22,'Undo of a first-page move writes only its guarded order value',async()=>{

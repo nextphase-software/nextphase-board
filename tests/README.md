@@ -758,3 +758,10 @@ Restoring only that source file with `git checkout HEAD -- apps/server/src/start
 left a clean worktree. The focused command with pattern `NB-120` passed both
 room tests. No dependencies were added. The Node and workerd server suites
 remain unrun in the sandbox.
+
+## 0012-W3 team pictures and GIF playback
+
+`npm test` includes `gif.test.mjs` (GIF parsing and frame composition),
+`team-pictures.test.mjs` (transport, import, loading and playback) and
+`room-pictures.test.mjs` (headers, storage, history, edits and backups).
+Both server runner suites include `server/pictures.test.ts` (S431–S441).

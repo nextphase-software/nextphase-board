@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { meta } from "nextphase-board-room/storage.ts";
 import { Room } from "nextphase-board-room/room.ts";
-import { BACKUP_LIMIT, RoomError, type Attachment, type Connection } from "nextphase-board-room/protocol.ts";
+import { RoomError, type Attachment, type Connection } from "nextphase-board-room/protocol.ts";
 import { NodeStorage } from "./node-storage.ts";
 import { createApp } from "./app.ts";
 import { Auth } from "./auth.ts";
@@ -106,7 +106,7 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
       fence: () => recoveryGeneration(board, storage, db, fences), raiseFence: (minimum) => fences.raise(board, minimum),
       hash: async (value) => createHash("sha256").update(value).digest("hex"), randomTicket: () => randomBytes(32).toString("base64url"),
       randomId: randomUUID, verify: (token) => auth.verify(token), connections: () => [...connections],
-      backupLimit: options.backupLimit ?? BACKUP_LIMIT,
+      backupLimit: runtime.backupLimit,
       async schedule(at) {
         const current = rooms.get(board);
         if (!current) return;
@@ -124,7 +124,7 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
     return entry;
   }
   const upgrades = new WeakMap<Request, { board: string; attachment: Attachment }>();
-  const runtime: Runtime = { now, async fenceGeneration(board) {
+  const runtime: Runtime = { backupLimit: options.backupLimit ?? 100_663_296, now, async fenceGeneration(board) {
       const independent=await fences.read(board),entry=rooms.get(board);
       if(entry)return Math.max(independent,meta(entry.storage,"restore_generation"));
       const file=resolve(settings.dataDir,"boards",board+".sqlite");

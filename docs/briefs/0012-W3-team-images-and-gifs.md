@@ -603,3 +603,29 @@ The source commit contains the following paths. This implementation record adds 
 | `packages/board-room/src` | `backups.ts`, `edits.ts`, `history.ts`, `pictures.ts`, `room.ts`, `storage.ts` |
 | `tests` | `README.md`, `board-history.test.mjs`, `comments.test.mjs`, `gif.test.mjs`, `mentions.test.mjs`, `modules.test.mjs`, `room-pictures.test.mjs`, `team-import.test.mjs`, `team-pages.test.mjs`, `team-pictures.test.mjs`, `workshop-spotlight.test.mjs`, `workshop-timer.test.mjs`, `workshop-voting.test.mjs` |
 | `tests/server` | `history.test.ts`, `mentions.test.ts`, `node-test.ts`, `pictures.test.ts`, `shared.test.ts`, `spotlight.test.ts`, `suite.test.ts`, `team-pages.test.ts`, `timer.test.ts`, `voting.test.ts` |
+
+### Server-only fix round 1 — 0012-W3 v1
+
+Branch `codex/0012-W3-team-images-gifs`, previous tip `712e9cc0228504400f98989bd1ba78ae54c56c4d`,
+validated test revision `f6069b56cd2ba255b02b777b85626d4fbd75c939`. Node 26.13.0 and npm 11.20.0.
+
+S432 received HTTP 200 on workerd, then its deep comparison tried to enumerate the 20 MiB typed array
+and raised `RangeError: Too many properties to enumerate`. In `tests/server/pictures.test.ts`,
+`assertPictureBytes` checks the response body's byte length and compares SHA-256 digests using
+the existing `hash` helper. All seven picture-body comparisons use it, across S431, S432, S437
+(two sites), S439, S440 and S441. S432 retains its status, part count, part size and upload-limit assertions.
+
+| Result on f6069b5 | Command and evidence | UTC on 2026-11-22 | Log SHA-256 prefix |
+| --- | --- | --- | --- |
+| PASS: V3 | `npm run typecheck` passed all 5 workspaces. | 15:33:03.509–15:33:05.066 | `6401c42ca0f07cac` |
+| PASS: V4 | `npm test` passed 1,382/1,382 with zero skipped, cancelled or failed. | 15:33:15.383–15:33:24.249 | `a20c15beeb6534cf` |
+| PASS: V8 | `git diff --name-status` and `git diff --check` passed for `712e9cc..f6069b5` (1 test file) and `48de14a..f6069b5` (58 authorized paths including the prior record). App.tsx matched the ten substitutions and 264 lines. Module and effect counts matched v47. | 15:33:15.383–15:33:17.388 | `1f1c01cfc592a86f` |
+
+The named command `node --test --test-reporter=tap tests/gif.test.mjs tests/team-pictures.test.mjs tests/room-pictures.test.mjs`
+passed 29/29 (6 GIF, 13 web and 10 room). An isolated Node check of the committed comparison helper
+passed 3/3 cases: matching 20 MiB, one byte missing and a changed final byte at the same length.
+The power log recorded zero sleep or wake events during validation.
+
+Files changed in this round: `tests/server/pictures.test.ts` and this append-only record. Dependencies
+added: zero. The Node and workerd server suites and browser checks were unrun in this sandbox.
+S432 on the fix revision awaits the workerd runner.

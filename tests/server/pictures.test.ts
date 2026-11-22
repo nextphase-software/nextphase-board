@@ -34,6 +34,11 @@ function picture(length = 32, tag = 1) {
 async function hash(data: Uint8Array<ArrayBuffer>) {
   return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", data)), b => b.toString(16).padStart(2,"0")).join("");
 }
+async function assertPictureBytes(response: Response, expected: Uint8Array<ArrayBuffer>) {
+  const actual = new Uint8Array(await response.arrayBuffer());
+  assert.equal(actual.byteLength, expected.byteLength);
+  assert.equal(await hash(actual), await hash(expected));
+}
 const root = () => "/boards/" + f.a;
 function request(path: string, role = "editor", method = "GET", body?: BodyInit, origin = context.origin) {
   return driver.request(path, { method, body, headers: { Authorization: "Bearer " + f.people[role].token, Origin: origin,
@@ -94,12 +99,12 @@ check(431,"store, renew and privately read exact bytes",async()=>{
   assert.equal((await rows("pictures")).length,1);assert.equal((await rows("picture_parts")).length,1);
   const r=await get(key);assert.equal(r.status,200);assert.equal(r.headers.get("Content-Type"),"image/gif");
   assert.equal(r.headers.get("Content-Length"),String(data.length));assert.equal(r.headers.get("Cache-Control"),"private, max-age=31536000, immutable");
-  assert.equal(r.headers.get("X-Content-Type-Options"),"nosniff");assert.deepEqual(new Uint8Array(await r.arrayBuffer()),data);
+  assert.equal(r.headers.get("X-Content-Type-Options"),"nosniff");await assertPictureBytes(r, data);
 });
 check(432,"twenty 1 MiB parts and the streamed upload ceiling",async()=>{
   const data=picture(20*MiB), key=await hash(data);await ok(put(data),201);
   const parts=await rows("picture_parts");assert.equal(parts.length,20);assert(parts.every(p=>p.data.bytes===MiB));
-  const r=await get(key);assert.equal(r.status,200);assert.deepEqual(new Uint8Array(await r.arrayBuffer()),data);
+  const r=await get(key);assert.equal(r.status,200);await assertPictureBytes(r, data);
   await refused(put(picture(20*MiB+1),"editor",key),413,"body_too_large");assert.equal((await rows("pictures")).length,1);
 });
 check(433,"path, role, body, header and hash refusals in order",async()=>{
@@ -144,7 +149,7 @@ check(437,"verified restore before fencing and per-runner full-board backups",as
     const bad=structuredClone(backup);change(bad.tables);const before=await driver.control({board:f.a,fences:true});
     await refused(operator("restore",bad),400,"bad_request");assert.deepEqual(await driver.control({board:f.a,fences:true}),before);
   }
-  await ok(operator("restore",backup));assert.deepEqual(new Uint8Array(await (await get(key)).arrayBuffer()),data);
+  await ok(operator("restore",backup));await assertPictureBytes(await get(key), data);
   f=await helper("removal-fixture");await restoreMissing();await ok(operator("restore",await ok(operator("backup"))));
   f=await helper("removal-fixture");
   if(runner==="workerd"){await ok(put(picture(12*MiB+1)),201);await refused(operator("backup"),413,"backup_too_large");return;}
@@ -156,7 +161,7 @@ check(437,"verified restore before fencing and per-runner full-board backups",as
     const restored=await driver.request("/operator"+root()+"/restore",{method:"POST",headers:{"Board-Operator-Key":context.operatorKey,"Content-Type":"application/json"},body:text});
     assert.equal(restored.status,200);
     for(const [n,tag] of [[20*MiB,1],[20*MiB,2],[10*MiB,3]]){
-      const expected=picture(n,tag);assert.deepEqual(new Uint8Array(await (await get(await hash(expected))).arrayBuffer()),expected);
+      const expected=picture(n,tag);await assertPictureBytes(await get(await hash(expected)), expected);
     }
   }finally{await driver.control({backupLimit:16*MiB});}
 });
@@ -169,13 +174,13 @@ check(438,"new and restored version-8 rooms load as layout 9",async()=>{
 check(439,"Trash retains pictures until purge",async()=>{
   const data=picture(),key=await hash(data);await ok(put(data),201);await lifecycle("move",0);
   await refused(get(key),404,"not_found");await refused(put(data),404,"not_found");await lifecycle("restore",1);
-  assert.deepEqual(new Uint8Array(await (await get(key)).arrayBuffer()),data);await lifecycle("move",1);await lifecycle("delete",2);
+  await assertPictureBytes(await get(key), data);await lifecycle("move",1);await lifecycle("delete",2);
   const inventory=await driver.control({board:f.a,inventory:true});assert.deepEqual(runner==="node"?inventory.files:inventory.tables,[]);
 });
 check(440,"restored image versions serve their bytes",async()=>{
   const data=picture(),key=await hash(data);await ok(put(data),201);const c=await join();await edit(c,b=>addImage(b,key));const {version}=await save();
   await edit(c,b=>({...b,objects:[],retiredGenerations:[...b.retiredGenerations,b.objects[0].generation]}));await restoreVersion(version.id);
-  assert.equal((await ok(request(root()+"/export"))).objects[0].asset,key);assert.deepEqual(new Uint8Array(await (await get(key)).arrayBuffer()),data);
+  assert.equal((await ok(request(root()+"/export"))).objects[0].asset,key);await assertPictureBytes(await get(key), data);
 });
 check(441,"authenticated picture GET and preflight use the allowed origin",async()=>{
   const data=picture(),key=await hash(data);await ok(put(data),201);const path=asset(key);
@@ -183,6 +188,6 @@ check(441,"authenticated picture GET and preflight use the allowed origin",async
   assert.equal(pre.status,204);assert.match(pre.headers.get("Access-Control-Allow-Methods")!,/PUT/);assert.match(pre.headers.get("Access-Control-Allow-Headers")!,/Content-Type/i);
   for(const origin of [context.origin,"https://other.example"]){
     const r=await request(path,"viewer","GET",undefined,origin);assert.equal(r.status,200);assert.equal(r.headers.get("Access-Control-Allow-Origin"),origin===context.origin?origin:null);
-    assert.deepEqual(new Uint8Array(await r.arrayBuffer()),data);
+    await assertPictureBytes(r, data);
   }
 });

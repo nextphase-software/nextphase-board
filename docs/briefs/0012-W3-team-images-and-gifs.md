@@ -137,7 +137,7 @@ Part 1 (local):
 
 | Feature | Try this | You should see |
 | --- | --- | --- |
-| [Animated GIFs](../briefs/0012-W3-team-images-and-gifs.md) | Click Image (or press Cmd+Shift+K / Ctrl+Shift+K) and pick an animated GIF. Click the empty canvas, hover the GIF, then click its play button. Add a sticky with the Sticky tool, then Shift-click the GIF so both are selected | Unselected, the GIF shows its first frame with a small "GIF" label; hovering shows a round play button; once it is the only thing selected it plays in a loop; with the sticky also selected it stops on its first frame |
+| [Animated GIFs](../briefs/0012-W3-team-images-and-gifs.md) | Click Image (or press Cmd+Shift+K / Ctrl+Shift+K) and pick an animated GIF. Click the empty canvas, hover the GIF, then click its play button. Add a sticky with the Sticky tool, click the empty canvas, click the sticky, then Shift-click the GIF so both are selected | Unselected, the GIF shows its first frame with a small "GIF" label; hovering shows a round play button; once it is the only thing selected it plays in a loop; with the sticky also selected it stops on its first frame |
 
 Part 2 (team mode):
 
@@ -146,6 +146,8 @@ Part 2 (team mode):
 | [Pictures on team boards](../briefs/0012-W3-team-images-and-gifs.md) | Ana (owner), Ben (editor) and Mia (viewer) open the same team board. Ben clicks Image and picks a photo and an animated GIF. Mia copies an image in another app and presses Cmd+V (Ctrl+V) on the canvas. Ana selects the GIF. Ben deletes the photo and presses Cmd+Z (Ctrl+Z) | Ben sees "Adding …" and then both pictures; Ana and Mia see them appear, briefly as a grey "Loading image…" box. Mia has no Image button and her paste adds nothing. Only Ana's screen plays the GIF. Undo brings the photo back for everyone |
 
 Amendment A1 (0012-W3 fix round 2): the Part 1 row drops "press Escape to finish typing", which does not end a sticky's text session.
+
+Amendment A2 (0012-W3 fix round 3): after adding the sticky, the row clicks the empty canvas and the sticky before the Shift-click, because a Shift-click while the sticky's text editor is open does not add the GIF to the selection.
 
 Not allowed:
 - a dependency, font, image file, service, service migration, object store binding or import exception;

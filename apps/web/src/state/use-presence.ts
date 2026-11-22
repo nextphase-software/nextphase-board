@@ -42,6 +42,7 @@ export function usePresence({ hosted, scene, selected, view, size, setFollowView
       if (event.relatedTarget === null) { pointer.current = null; send(); }
     };
     const keys = (event: KeyboardEvent) => {
+      if (event.target instanceof Element && event.target.closest(".export-dialog")) return;
       if (event.target instanceof Element && event.target.closest('.find-bar')) return;
       if (event.isComposing || event.target instanceof Element && event.target.closest(".team-dialog")) return;
       const mac = /Mac|iPhone|iPad/.test(navigator.platform);

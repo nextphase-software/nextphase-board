@@ -43,6 +43,7 @@ export function ReactionTool({ hosted, tool, setTool, scene }: {
   }, [!!r.wheel]);
   useLayoutEffect(() => {
     const key = (e: KeyboardEvent) => {
+      if (e.target instanceof Element && e.target.closest(".export-dialog")) return;
       if (e.target instanceof Element && e.target.closest('.find-bar')) return;
       if (e.isComposing || composing.current) return;
       if (e.key === 'Escape' && (r.wheel || r.armed)) {
@@ -115,6 +116,7 @@ export function ReactionsLayer({ hosted, scene, view, size, page }: { hosted: Ho
     };
     const double = (e: MouseEvent) => { if (r.armed && !r.spaceHeld) { e.preventDefault(); e.stopImmediatePropagation(); } };
     const key = (e: KeyboardEvent) => {
+      if (e.target instanceof Element && e.target.closest(".export-dialog")) return;
       if (e.isComposing || e.target !== canvas) return;
       if (e.code === 'Space') r.spaceHeld = true;
       if (r.armed && e.key === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); if (!e.repeat) r.send(view.x, view.y); }

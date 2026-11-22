@@ -1681,3 +1681,18 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
 .table-menu-heading { font: 600 12px/1.4 var(--np-font); color: #525d6c; padding: 8px 10px 6px; }
 .context .table-menu[hidden], .table-menu-button[aria-expanded="true"] .tooltip { display: none; }
 .context:has(.table-menu:not([hidden])) { z-index: 6; }
+
+.export-dialog { width: min(440px, calc(100% - 24px)); }
+.export-dialog h2 { margin-bottom: 18px; }
+.export-dialog fieldset,
+.export-dialog .export-area { border: 0; margin: 0 0 16px; padding: 0; }
+.export-dialog legend,
+.export-dialog .export-area > label { display: block; margin: 0 0 8px; padding: 0; font-size: 13px; font-weight: 600; }
+.export-dialog .export-options { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; }
+.export-dialog .export-options label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.export-dialog .export-options label:has(input:disabled) { color: #a19da8; cursor: default; }
+.export-dialog .export-options input { accent-color: #7051cf; width: 16px; height: 16px; margin: 0; }
+.export-dialog .export-area select { width: 100%; border: 1px solid #d9d6df; border-radius: 8px; padding: 8px 10px; font-size: 14px; background: white; color: #29272e; }
+.export-dialog .export-static { font-size: 14px; color: #57535d; }
+.export-dialog .board-question-actions { margin-top: 22px; }
+.export-dialog .primary:focus { outline: 3px solid #7051cf; outline-offset: 3px; }

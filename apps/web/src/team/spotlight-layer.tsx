@@ -32,6 +32,7 @@ export function SpotlightLayer({hosted}:{hosted:HostedBoard}){
     const up=()=>{gesture=false;safety();};
     const start=()=>{composing=true;safety();};const end=()=>{composing=false;safety();};
     const key=(e:KeyboardEvent)=>{
+      if (e.target instanceof Element && e.target.closest(".export-dialog")) return;
       if (e.target instanceof Element && e.target.closest('.find-bar')) return;
       if(hosted.reactions.ownsEvent(e))return;
       if(e.isComposing||e.target instanceof Element&&e.target.closest('.team-dialog,[role=menu],[role=dialog],input,textarea,select,[contenteditable=true],.inline,.context'))return;

@@ -116,7 +116,7 @@ test("the import guards catch each forbidden form", () => {
   }
 });
 
-test("screen parts contain exactly the thirty-three screen modules named through 0011-W1 v1", () => {
+test("screen parts contain exactly the thirty-four screen modules named through 0012-W2 v1", () => {
   assert.deepEqual(screenParts, [
     "arrange-controls.tsx",
     "board-panel.tsx",
@@ -129,6 +129,7 @@ test("screen parts contain exactly the thirty-three screen modules named through
     "content-field.tsx",
     "context-bar.tsx",
     "drawing-tools.tsx",
+    "export-dialog.tsx",
     "file-bar.tsx",
     "find-bar.tsx",
     "format-preview.tsx",
@@ -187,11 +188,12 @@ test("every screen part begins with the Apache-2.0 licence header", () => {
   }
 });
 
-test("scene parts contain exactly the eighteen modules named through 0011-W1 v1", () => {
+test("scene parts contain exactly the nineteen modules named through 0012-W2 v1", () => {
   assert.deepEqual(sceneParts, [
     "board-drawing.tsx",
     "connection-dots.tsx",
     "connector-body.tsx",
+    "export-drawing.tsx",
     "find-rings.tsx",
     "image-body.tsx",
     "inline-editor.tsx",
@@ -243,7 +245,7 @@ test("screen and scene guard detects equality and inequality in both operand ord
   }
 });
 
-test("state contains exactly the twenty-five hooks named through web modules v41", () => {
+test("state contains exactly the twenty-six hooks named through 0012-W2 v1", () => {
   assert.deepEqual(files(new URL("state/", source)).sort(), [
     "use-board-document.ts",
     "use-canvas-input.ts",
@@ -251,6 +253,7 @@ test("state contains exactly the twenty-five hooks named through web modules v41
     "use-context-bar.ts",
     "use-editing-commands.ts",
     "use-editor-placement.ts",
+    "use-export.ts",
     "use-find.ts",
     "use-geometry-edits.ts",
     "use-gesture-state.ts",
@@ -594,8 +597,8 @@ test("the hosted board hook holds exactly one passive effect", () => {
   assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });
 
-// Web modules v43 and v45: exact existing-line substitutions from the behaviour baseline.
-test("0011-W2 App composition changes only its recorded substitutions", () => {
+// Web modules v43, v45 and v46: exact existing-line substitutions from the behaviour baseline.
+test("0012-W2 App composition changes only its recorded substitutions", () => {
   const base = execFileSync("git", ["show", "3f4ad48:apps/web/src/App.tsx"], { encoding: "utf8" });
   const substitutions = [
   [
@@ -709,6 +712,30 @@ test("0011-W2 App composition changes only its recorded substitutions", () => {
   [
     "          tableSelection={tableSelection} tableDraft={tableEntry.draft?.text} tableResizing={tableGesture.resizing} cellInvalidNotice={cellInvalidNotice} setMessage={setMessage} tableAction={tableAction} tableSize={tableSize} editCell={tableGeometry.editCell} contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}",
     "          tableSelection={tableSelection} tableDraft={tableEntry.draft?.text} tableResizing={tableGesture.resizing} cellInvalidNotice={cellInvalidNotice} setMessage={setMessage} tableAction={tableAction} tableSize={tableSize} exportTable={tableData.exportTable} editCell={tableGeometry.editCell} contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}"
+  ],
+  [
+    "import { useEditorPlacement } from \"./state/use-editor-placement\";",
+    "import { useEditorPlacement } from \"./state/use-editor-placement\"; import { useExport } from \"./state/use-export\"; import { drawExport } from \"./scene/export-drawing\";"
+  ],
+  [
+    "import { BoardQuestion } from \"./ui/board-question\";",
+    "import { BoardQuestion } from \"./ui/board-question\"; import { ExportDialog } from \"./ui/export-dialog\";"
+  ],
+  [
+    "  const { tableAction, tableSize, tableData, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({",
+    "  const exporter = useExport({ page: pages.id, board: pages.canvas(tidy.board), objects: displayedObjects, objectLayouts, selected, tableSelection, bitmaps: images.bitmaps, hosted: team?.hosted, busy, composing, tidyOpen: tidy.open, setMessage, scene, setPanel, boardButton, draw: drawExport }); const { tableAction, tableSize, tableData, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({"
+  ],
+  [
+    "    command, clipboardCommand, exportTable: tableData.exportTable, toggleFormat, model, cancel, scene, busy, composing, select,",
+    "    command, clipboardCommand, openExport: exporter.open, toggleFormat, model, cancel, scene, busy, composing, select,"
+  ],
+  [
+    "          setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles} importTable={tableData.importButton} beginNameEntry={beginNameEntry} finishNameEntry={finishNameEntry}",
+    "          setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles} importTable={tableData.importButton} exportButton={exporter.button} beginNameEntry={beginNameEntry} finishNameEntry={finishNameEntry}"
+  ],
+  [
+    "      <BoardQuestion {...boardQuestion} />",
+    "      <BoardQuestion {...boardQuestion} /><ExportDialog {...exporter.dialog} />"
   ]
 ];
   let expected = base;

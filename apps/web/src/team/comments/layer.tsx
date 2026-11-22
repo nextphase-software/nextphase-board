@@ -129,6 +129,7 @@ function ActiveCommentsLayer({ hosted, board, page, openPage, objects, view, siz
     const canvas = scene.current;
     if (!canvas) return;
     const keys = (event: globalThis.KeyboardEvent) => {
+      if (event.target instanceof Element && event.target.closest(".export-dialog")) return;
       if (commentInputBlocked(hosted.surface, hosted.history)) return;
       const target = event.target as Element;
       if (target.closest('.find-bar')) return;

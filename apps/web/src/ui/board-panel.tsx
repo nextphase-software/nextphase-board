@@ -8,6 +8,7 @@ import type { TeamParts } from "../team/team-app";
 
 type Props = {
   team?: TeamParts;
+  exportButton?: { shown: boolean; disabled: boolean; open: (button: HTMLButtonElement) => void };
   importTable: { shown: boolean; disabled: boolean; choose: () => void };
   beginNameEntry: () => void;
   finishNameEntry: () => void;
@@ -35,7 +36,7 @@ type Props = {
 
 export function BoardPanel({
   setComposing, commit, model, title, readOnly, busy, setTitle, setStatus, composing, reopen,
-  setPanel, boardButton, boardFiles, team, beginNameEntry, finishNameEntry, importTable
+  setPanel, boardButton, boardFiles, team, beginNameEntry, finishNameEntry, importTable, exportButton
 }: Props) {
   return (
     <section className="details floating" ref={boardFiles.panelRef}>
@@ -71,6 +72,7 @@ export function BoardPanel({
       <small>{count(title)} / 120 · nonblank name required</small>
       <div className="board-file-commands">
         <button onClick={boardFiles.saveCopy} disabled={boardFiles.invalid || busy || composing || boardFiles.opening || !!team?.hosted?.history.previewing || !!team?.hosted?.history.locked}>Save a copy to file</button>
+        {exportButton?.shown && <button disabled={exportButton.disabled} onClick={event => exportButton.open(event.currentTarget)}>Export…</button>}
         {!team?.hosted && <button ref={boardFiles.fileButton} onClick={() => boardFiles.fileInput.current?.click()}
           disabled={busy || composing || boardFiles.opening}>Open board file…</button>}
         {importTable.shown && <button disabled={importTable.disabled} onClick={importTable.choose}>Import CSV…</button>}

@@ -19,7 +19,7 @@ import { useViewport } from "./state/use-viewport";
 import { useSceneSize } from "./state/use-scene-size";
 import { useSelection } from "./state/use-selection";
 import { useObjectLayouts } from "./state/use-object-layouts"; import { useTidyUp } from "./state/use-tidy-up"; import { useFind } from "./state/use-find"; import { usePages } from "./state/use-pages";
-import { useEditorPlacement } from "./state/use-editor-placement";
+import { useEditorPlacement } from "./state/use-editor-placement"; import { useExport } from "./state/use-export"; import { drawExport } from "./scene/export-drawing";
 import { BoardDrawing } from "./scene/board-drawing";
 import { Overlays } from "./scene/overlays"; import { ConnectionDots } from "./scene/connection-dots"; import { MindMapButtons } from "./scene/mind-map-buttons"; import { TableButtons, TableCellStatus } from "./scene/table-buttons"; import { TidyUpLayer } from "./scene/tidy-up-layer"; import { TidyUpBar } from "./ui/tidy-up-bar"; import { FindRings } from "./scene/find-rings"; import { FindBar } from "./ui/find-bar"; import { PagesPanel } from "./ui/pages-panel"; import { MoveToPage } from "./ui/move-to-page";
 import { InlineEditor } from "./scene/inline-editor";
@@ -35,7 +35,7 @@ import { ContextBar } from "./ui/context-bar";
 import { Palette } from "./ui/palette";
 import { ZoomControls } from "./ui/zoom-controls";
 import { InformationControls } from "./ui/information-controls";
-import { BoardQuestion } from "./ui/board-question";
+import { BoardQuestion } from "./ui/board-question"; import { ExportDialog } from "./ui/export-dialog";
 import { NavigationPanel } from "./ui/navigation-panel";
 import type { TeamParts } from "./team/team-app";
 import { useHostedBoard } from "./state/use-hosted-board";
@@ -122,7 +122,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
     item: resolvedItem, itemHeight, dotsVisible, editorBox,
   });
-  const { tableAction, tableSize, tableData, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
+  const exporter = useExport({ page: pages.id, board: pages.canvas(tidy.board), objects: displayedObjects, objectLayouts, selected, tableSelection, bitmaps: images.bitmaps, hosted: team?.hosted, busy, composing, tidyOpen: tidy.open, setMessage, scene, setPanel, boardButton, draw: drawExport }); const { tableAction, tableSize, tableData, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
     pages, tableSelection, chooseTable, growTableRows, tableMeasure, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
@@ -130,7 +130,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
   });
   const { pageKeyDown } = usePageKeys({
     page: pages.id, voting: team?.hosted?.voting, chooseImages: images.chooseImages,
-    command, clipboardCommand, exportTable: tableData.exportTable, toggleFormat, model, cancel, scene, busy, composing, select,
+    command, clipboardCommand, openExport: exporter.open, toggleFormat, model, cancel, scene, busy, composing, select,
     setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
   });
   const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, onChange: pages.changed, tables: { selection: tableSelection, entry: tableEntry, choose: chooseTable, setMessage, cancelDrag: tableGesture.cancelDrag, focus: tableGesture.focus, finish: finishTextSession, endComposition: tableEntry.endComposition }, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand("Paste"), composing });
@@ -202,7 +202,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
         <BoardPanel team={team}
           setComposing={setComposing} commit={commit} model={model} title={title} readOnly={readOnly}
           busy={busy} setTitle={setTitle} setStatus={setStatus} composing={composing} reopen={reopen}
-          setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles} importTable={tableData.importButton} beginNameEntry={beginNameEntry} finishNameEntry={finishNameEntry}
+          setPanel={setPanel} boardButton={boardButton} boardFiles={boardFiles} importTable={tableData.importButton} exportButton={exporter.button} beginNameEntry={beginNameEntry} finishNameEntry={finishNameEntry}
         />
       )}
       {panel === "Objects" && (
@@ -250,7 +250,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
         busy={busy} composing={composing} setView={setView} view={view} panel={panel}
         navButton={navButton} toggle={toggle}
       />
-      <BoardQuestion {...boardQuestion} />
+      <BoardQuestion {...boardQuestion} /><ExportDialog {...exporter.dialog} />
       <InformationControls
         infoButton={infoButton} panel={panel} busy={busy} composing={composing} toggle={toggle}
       />

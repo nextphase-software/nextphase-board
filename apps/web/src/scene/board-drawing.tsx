@@ -2,6 +2,8 @@
 import type { ConnectionDrag } from "../connection-drag";
 import { reconnectPreview } from "../connectors";
 import { Group, Layer, Stage } from "react-konva";
+import type { Ref } from "react";
+import type Konva from "konva";
 import type { BoardV12 as Board } from "nextphase-board-rules/document.ts";
 import type { View } from "../view";
 import { bandOrder, dropTargets } from "../sections";
@@ -23,6 +25,8 @@ import { TableBody, TableGhostBody } from "./table-body";
 import type { CellSelection, TableSelection, TableGhost, TableBorder, TableLayout } from "../table";
 
 type Props = {
+  stageRef?: Ref<Konva.Stage>;
+  only?: ReadonlySet<string>;
   tableGesture: { ghost: TableGhost | null; border?: TableBorder };
   tableSelection?: TableSelection;
   tableCell?: CellSelection;
@@ -39,21 +43,21 @@ type Props = {
   movingIds: readonly string[];
 };
 
-export function BoardDrawing({ tableGesture, tableSelection, tableCell, faded, bitmaps, connection, preview, size, view, board, objectLayouts, selected, inline, movingIds }: Props) {
+export function BoardDrawing({ tableGesture, tableSelection, tableCell, faded, bitmaps, connection, preview, size, view, board, objectLayouts, selected, inline, movingIds, stageRef, only }: Props) {
   const rectangles = new Map(board.objects.filter(hasRectangle).map((o) => [o.id, { ...o, displayHeight: objectLayouts.get(o.id)!.height }]));
   const targets = dropTargets(board, new Set(movingIds), true, objectLayouts);
   const sections = new Set([...targets.values()].filter((id) => id !== null));
   const hidden = hiddenIds(board.objects), drag = preview && "mapDrag" in preview ? preview.mapDrag : undefined;
-  const map = (pass: "lines" | "over") => <MindMapLayer key={pass} pass={pass} objects={board.objects} hidden={hidden} selected={selected} drag={drag} view={view} size={size} />;
+  const map = (pass: "lines" | "over") => <MindMapLayer only={only} key={pass} pass={pass} objects={board.objects} hidden={hidden} selected={selected} drag={drag} view={view} size={size} />;
   return (
-    <Stage width={size.w} height={size.h} listening={false}>
+    <Stage ref={stageRef} width={size.w} height={size.h} listening={false}>
       <Layer
         x={size.w / 2 - view.x * view.z}
         y={size.h / 2 - view.y * view.z}
         scaleX={view.z}
         scaleY={view.z}
       >
-        {[0, 1, 1, 2].flatMap((band, pass) => [...pass === 3 ? [map("lines")] : [], ...bandOrder(board.objects).filter((o) => orderBand(o) === band && !hidden.has(o.id)).map((o) => {
+        {[0, 1, 1, 2].flatMap((band, pass) => [...pass === 3 ? [map("lines")] : [], ...bandOrder(board.objects).filter((o) => orderBand(o) === band && !hidden.has(o.id) && (!only || only.has(o.id))).map((o) => {
           const layout = objectLayouts.get(o.id)!;
           const fade = (body: React.ReactNode) => faded.has(o.id) ? <Group key={o.id + pass} opacity={0.4}>{body}</Group> : body;
           if (hasEnds(o)) return fade(<ConnectorBody key={o.id + pass} object={o} layout={connection?.reconnect?.id === o.id ? reconnectPreview(o, connection.reconnect.end, connection.pointer, connection.side ?? "auto", rectangles, () => layout.connector!.labelBox.width - 24) : layout.connector!}

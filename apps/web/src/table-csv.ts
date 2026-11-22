@@ -214,8 +214,14 @@ export function tableTsv(table: TableKeys) {
   return writeRows(table, "\t", text => quote(text, /[\t\r\n"]/)).join("\n");
 }
 
+export const csvField = (text: string) => quote(formulaText(text), /[,\r\n"]/);
+
+export function tableCsvBody(table: TableKeys) {
+  return writeRows(table, ",", csvField).join("\r\n") + "\r\n";
+}
+
 export function tableCsv(table: TableKeys) {
-  return "\uFEFF" + writeRows(table, ",", text => quote(formulaText(text), /[,\r\n"]/)).join("\r\n") + "\r\n";
+  return "\uFEFF" + tableCsvBody(table);
 }
 
 export function tableCsvName(title: string) {

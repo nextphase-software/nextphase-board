@@ -16,6 +16,12 @@ still run normally; never bypass them.
 
 ## Reference commands and coverage
 
+`board-export.test.mjs` covers 0012-W2's export choices, keys, role and image gates,
+drawing inputs, picture bounds, scale, grid, JPEG frame checks, PDF and CSV bytes,
+dialog markup, focus and downloads. Run it with `npm test` or
+`node --test tests/board-export.test.mjs`. The checks import their subjects dynamically
+for the independent baseline, and use browser-free harnesses for the dialog and drawing.
+
 `find.test.mjs` covers 0010-W1's searchable displayed objects, matching and reading order,
 object boxes, current/removed/restored result navigation, counters, fading and section labels,
 and the Find state and key boundaries. `view.test.mjs` covers its zoom steps and free-area,

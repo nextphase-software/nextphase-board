@@ -76,6 +76,7 @@ export function useFind({ board, pages, allDisplayedObjects, boardId, displayedO
   latest.current = { show, composing, tidy };
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
+      if (event.target instanceof Element && event.target.closest(".export-dialog")) return;
       const mac = /Mac|iPhone|iPad/.test(navigator.platform);
       if (event.key.toLowerCase() !== 'f' || event.altKey || !(mac ? event.metaKey : event.ctrlKey)) return;
       event.preventDefault(); event.stopPropagation();

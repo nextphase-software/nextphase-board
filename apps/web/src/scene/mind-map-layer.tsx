@@ -17,8 +17,9 @@ function curve(from: Box, to: Box, right: boolean): number[] {
 
 // Branch lines in the connectors' band ("lines"); the map frame, the drop
 // outline and the dashed preview curve above the nodes ("over").
-export function MindMapLayer({ pass, objects, hidden, selected, drag, view, size }: {
+export function MindMapLayer({ pass, objects, hidden, selected, drag, view, size, only }: {
   pass: "lines" | "over"; objects: readonly Item[]; hidden: ReadonlySet<string>; selected: ReadonlySet<string>;
+  only?: ReadonlySet<string>;
   drag?: MapDrag; view: View; size: { w: number; h: number };
 }) {
   const nodes = new Map(objects.filter(isMindNode).filter((o) => !hidden.has(o.id)).map((o) => [o.id, o]));
@@ -26,7 +27,7 @@ export function MindMapLayer({ pass, objects, hidden, selected, drag, view, size
     const sides = outerSides(objects);
     return <Group>{[...nodes.values()].flatMap((node) => {
       const parent = node.parent === null ? undefined : nodes.get(node.parent);
-      if (!parent || drag && !drag.root && drag.node === node.id) return [];
+      if (!parent || only && (!only.has(node.id) || !only.has(parent.id)) || drag && !drag.root && drag.node === node.id) return [];
       return [<Line key={node.id} points={curve(parent, node, sides.get(node.id) !== "left")} bezier
         stroke="#6b6b6b" strokeWidth={3.5} lineCap="round" listening={false} />];
     })}</Group>;

@@ -594,9 +594,9 @@ test("X5-U17 renders both new controls with their exact order, roles and platfor
   const bar = controls({ exportTable });
   assert.match(bar, /aria-label="Add column".*aria-label="Export as CSV".*<button>Arrange/);
   assert.match(bar, /aria-label="Export as CSV"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"/);
-  assert.match(bar, /class="tooltip">Export as CSV ⇧⌘E/);
+  assert.match(bar, /class="tooltip">Export as CSV<\/span>/);
   Object.defineProperty(navigator, "platform", { configurable: true, value: "Win32" });
-  assert.match(controls({ exportTable }), /class="tooltip">Export as CSV Ctrl\+Shift\+E/);
+  assert.match(controls({ exportTable }), /class="tooltip">Export as CSV<\/span>/);
   assert.doesNotMatch(controls({}), /Export as CSV/);
   assert.doesNotMatch(controls({ exportTable, readOnly: true }), /Export as CSV/);
   const blocked = Object.assign(exportTable, { disabled: true, reason: "Apply or cancel Tidy up first." });
@@ -628,13 +628,45 @@ test("X5-U18 shares the export gate with the exact canvas shortcut and leaves bo
   replaceProperty(t, URL, "createObjectURL", blob => { blobs.push(blob); return "blob:table"; });
   replaceProperty(t, URL, "revokeObjectURL", url => revoked.push(url));
   const controls = () => h.render().tableData.exportTable;
-  const key = (extras = {}) => {
+  // The table bar keeps its direct download and all its existing gates.
+  assert(!controls().disabled);
+  assert.equal(controls()(), true);
+  assert.equal(controls()(), true);
+  assert.equal(links.length, 2);
+  assert.equal(links[0].download, "CSV check table.csv");
+  assert.equal(blobs[0].type, "text/csv;charset=utf-8");
+  assert.deepEqual(new Uint8Array(await blobs[0].arrayBuffer()), encoder.encode(m.tableCsv(table)));
+  h.props.selected = new Set();
+  assert.equal(controls()(), false);
+  h.props.selected = new Set([table.id, "extra"]);
+  assert.equal(controls()(), false);
+  h.props.selected = new Set([table.id]);
+  for (const state of ["readOnly", "composing", "pointerGesture"]) {
+    h.props.clipboardState = { ...editable, [state]: true };
+    assert(controls().disabled);
+    assert.equal(controls()(), false);
+  }
+  h.props.clipboardState = { ...editable };
+  h.props.selectionReason = "Apply or cancel Tidy up first.";
+  assert.equal(controls()(), false);
+  h.props.selectionReason = "";
+  h.props.hosted = { canEdit: true, snapshot: { role: "editor" }, voting: { mode: true } };
+  assert.equal(controls()(), false);
+  h.props.hosted.voting.mode = false;
+  assert.equal(controls()(), true);
+  h.props.hosted.snapshot.role = "viewer";
+  h.props.hosted.canEdit = false;
+  assert.equal(controls()(), false);
+
+  // The shortcut delegates to the dialog, regardless of the selection.
+  h.props.hosted = undefined;
+  let calls = 0;
+  const key = (extras = {}, opened = true) => {
     const e = { key: "E", target: h.surface, nativeEvent: {}, shiftKey: true, metaKey: true, ctrlKey: false,
       altKey: false, prevented: 0, preventDefault() { this.prevented++; }, ...extras };
-    h.hooks.usePageKeys({ ...h.props, voting: h.props.hosted?.voting, exportTable: controls() }).pageKeyDown(e);
+    h.hooks.usePageKeys({ ...h.props, openExport: () => { calls++; return opened; } }).pageKeyDown(e);
     return e.prevented;
   };
-  assert(!controls().disabled);
   assert.equal(key(), 1);
   assert.equal(key({ key: "e" }), 1);
   assert.equal(key({ target: new SyntheticElement(h.surface) }), 0);
@@ -644,33 +676,17 @@ test("X5-U18 shares the export gate with the exact canvas shortcut and leaves bo
   assert.equal(key({ altKey: true }), 0);
   assert.equal(key({ shiftKey: false }), 0);
   assert.equal(key({ nativeEvent: { isComposing: true } }), 0);
-  assert.equal(links.length, 2);
-  assert.equal(links[0].download, "CSV check table.csv");
-  assert.equal(blobs[0].type, "text/csv;charset=utf-8");
-  assert.deepEqual(new Uint8Array(await blobs[0].arrayBuffer()), encoder.encode(m.tableCsv(table)));
+  assert.equal(calls, 2);
   h.props.selected = new Set();
-  assert.equal(key(), 0);
+  assert.equal(key(), 1);
   h.props.selected = new Set([table.id, "extra"]);
-  assert.equal(key(), 0);
-  h.props.selected = new Set([table.id]);
-  for (const state of ["readOnly", "composing", "pointerGesture"]) {
-    h.props.clipboardState = { ...editable, [state]: true };
-    assert(controls().disabled);
-    assert.equal(key(), 0);
-  }
-  h.props.clipboardState = { ...editable };
-  h.props.selectionReason = "Apply or cancel Tidy up first.";
-  assert.equal(key(), 0);
-  h.props.selectionReason = "";
-  h.props.hosted = { canEdit: true, snapshot: { role: "editor" }, voting: { mode: true } };
-  assert.equal(key(), 0);
-  h.props.hosted.voting.mode = false;
+  assert.equal(key(), 1);
+  assert.equal(key({}, false), 0);
   Object.defineProperty(navigator, "platform", { configurable: true, value: "Linux" });
   assert.equal(key(), 0);
   assert.equal(key({ ctrlKey: true, metaKey: false }), 1);
-  h.props.hosted.snapshot.role = "viewer";
-  h.props.hosted.canEdit = false;
-  assert.equal(key({ ctrlKey: true, metaKey: false }), 0);
+  assert.equal(calls, 6);
+  assert.equal(links.length, 3);
   assert.equal(h.props.model.current, b);
   assert.deepEqual(h.commits, []);
   assert.deepEqual(h.messages, []);

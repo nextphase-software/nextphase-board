@@ -210,7 +210,10 @@ test('F1-U13 hosted listeners each add only the find-bar guard to the baseline',
     const path='apps/web/src/'+file,source=readFileSync(new URL('../'+path,import.meta.url),'utf8');
     const guard=file==='team/comments/layer.tsx'?"      if (target.closest('.find-bar')) return;\n":`      if (${variable}.target instanceof Element && ${variable}.target.closest('.find-bar')) return;\n`;
     assert.equal(source.split(guard).length,2,file);
-    if(file==='team/spotlight-layer.tsx') assert.equal(source.replace(guard,''),execFileSync('git',['show','4f53e7f:'+path],{encoding:'utf8'}),file);
+    const exportGuard=file==='team/comments/layer.tsx'?'      if (target.closest(".export-dialog")) return;\n':`      if (${variable}.target instanceof Element && ${variable}.target.closest(".export-dialog")) return;\n`;
+    assert.equal(source.split(exportGuard).length-1,file==='team/reactions-layer.tsx'?2:1,file);
+    if(file==='team/reactions-layer.tsx') assert.equal(source.split('    const key = (e: KeyboardEvent) => {\n'+exportGuard).length-1,2,file);
+    if(file==='team/spotlight-layer.tsx') assert.equal(source.replace(guard,'').replace(exportGuard,''),execFileSync('git',['show','4f53e7f:'+path],{encoding:'utf8'}),file);
   }
 });
 

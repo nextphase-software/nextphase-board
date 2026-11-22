@@ -75,6 +75,7 @@ Implementation record below.
 | 16 | `tests/table-csv.test.mjs` (only the expectations the dispositions name) |
 | 17 | `tests/README.md` (the new test file) |
 | 18 | `docs/guides/try-board.md` (two rows, below) |
+| 19 | `tests/find.test.mjs` (F1-U13 only, Amendment A1) |
 
 Type-only changes in other web files are allowed where the compiler needs them, with no behaviour change;
 the record lists them. **Every package, the room and the server do not change.**
@@ -144,12 +145,15 @@ This inventory authorizes expectation changes, not additional historical runs.
 | Other `tests/table-csv.test.mjs` checks | Unchanged; they must pass as written (`tableCsv` keeps its bytes) |
 | `tests/images.test.mjs` and `tests/pages.test.mjs` `usePageKeys` harnesses | Unchanged; they pass no export input and never press ⇧⌘E, and must pass as written |
 | Tests of Find, presence, spotlight, reactions and comments keys | Unchanged; they must pass as written (only targets inside an open dialog are newly ignored) |
+| `tests/find.test.mjs` F1-U13 | Assert one Export dialog guard line in each of `team/comments/layer.tsx`, `team/spotlight-layer.tsx` and `state/use-presence.ts`, and two in `team/reactions-layer.tsx`, one in each capture-phase keydown handler. Remove both guard lines from the spotlight listener before comparing it byte for byte with the baseline. Keep every other F1-U13 expectation. |
 | `tests/modules.test.mjs` | The three module-list tests name the new hook, screen part and scene part and say "through 0012-W2 v1"; "0011-W2 App composition" is renamed "0012-W2 App composition" with web modules v46's six substitutions added after the earlier ones; every other module check (effects, imports, team list, line budget) unchanged and must pass |
 | The 0011-W2 scenario N5 | Rerun under V14 as written except: in N5-S5 the bar click and its file `CSV check table.csv` (and the import round trip from it) are unchanged, and the two ⇧⌘E steps (after clicking one cell, and after clicking `Note`) now open the Export dialog: choosing CSV, Tables and Export gives `There are no tables to export.` and no file each time; the tooltip on hover (N5-S5, N5-S8) and on focus (N5-S7) reads `Export as CSV`; N5-S3's panel order is `Save a copy to file`, `Export…`, `Open board file…`, `Import CSV…`, `Reopen`; in N5-S7 the Tab path through the panel stops once more, on `Export…`, between `Save a copy to file` and `Open board file…`; in N5-S8 Ana's `Import CSV…` is after `Export…`; in N5-S9 Mia's ⇧⌘E now shows `Only owners and editors can export this board.` (no dialog, nothing changes) |
 | The 0011-W1 scenario N3 | Rerun under V14 only, as written: its bar checks look for each named button; N3-S1's bar list is unchanged from 0011-W2's reading; its table and ghost drawing is unchanged (the canvas passes no new prop to `BoardDrawing`) |
 | Earlier scenario tools for the board panel and board files | Not rerun. When run, for local boards and hosted owners and editors only: the panel gains `Export…` right after `Save a copy to file` (52 px more for every button after it: 0006-W4 T1-S1's geometry), and a keyboard path from `Save a copy to file` takes one more Tab (0006-W2 P45). A hosted viewer's panel is unchanged, and 0006-W1 X1-S7's viewer `Save a copy to file` keeps its behaviour. 0012-W1's image drawing cases keep their results |
 | Historical check tools (earlier scenario tools) | Not rerun except the regression runs named under validation |
 | Local shell: A–J | Only differences allowed: `Export…` in a board-panel checkpoint and the table tooltip text, if A–J shows either; the check run names each differing checkpoint and its cause |
+
+Amendment A1 (0012-W2 fix round 1): F1-U13 counts the Export dialog guard (twice in reactions-layer.tsx, once in each other listener file) and compares the spotlight listener with both guards removed.
 
 The record lists every changed line range under `tests/`.
 

@@ -166,6 +166,12 @@ S51–S54 run only with the Docker target. Each executed S check prints one PASS
 FAIL line; each suite ends with a JSON SUMMARY including measured storage and
 fanout values. Test clocks, faults and rewinds live only in the test bootstraps.
 
+The Node driver forwards the test server's stdout and stderr to the suite log
+as `[test server <pid>] <line>`. Unexpected child warnings fail the check or
+file teardown with `Test server warning during this check: <name>: <message>`.
+The expected-warnings list in `tests/server/driver-node.ts` matches warnings
+by name and message prefix. Expected warnings still appear in the log.
+
 ## Workspace discovery checks (0003-W3)
 
 `tests/lists.test.mjs` covers cursor validation, ASCII title order and saved-state
@@ -765,3 +771,9 @@ remain unrun in the sandbox.
 `team-pictures.test.mjs` (transport, import, loading and playback) and
 `room-pictures.test.mjs` (headers, storage, history, edits and backups).
 Both server runner suites include `server/pictures.test.ts` (S431–S441).
+
+## Node test server warnings
+
+S442 in `server/suite.test.ts` verifies that the driver captures the test
+server's `TimeoutOverflowWarning`. It runs only on Node and is skipped on
+workerd and Docker.

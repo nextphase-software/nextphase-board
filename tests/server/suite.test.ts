@@ -640,7 +640,7 @@ check(53, "Docker restart preserves the board and permits another saved edit", a
   assert.equal((await edit(next, "After restart")).saved.revision, 2); await other.peer.next("update");
 });
 check(54, "self-hosted Supabase accepts ES256 and refuses HS256", signatures);
-check(431, "captures the Node test server's timer overflow warning", async () => {
+check(442, "captures the Node test server's timer overflow warning", async () => {
   const { peekServerWarnings, takeServerWarnings } = await import("board-test-driver");
   assert.deepEqual(await driver.control({ overflowTimer: true }), {});
   await vi.waitFor(() => {

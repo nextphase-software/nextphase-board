@@ -9,6 +9,11 @@
 # measured on, so these checks are left out here and run on the reference machine at review.
 # Keep the list short and say why in the note.
 name: Checks
+# Each run's title in the Actions list says what it checks and where, for example
+# "Tests and builds · codex/0011-W2-table-csv" or "Tests and builds · main · started by hand".
+# The commit is shown under the title.
+run-name: >-
+  Tests and builds · ${{ github.ref_name }}${{ github.event_name == 'workflow_dispatch' && ' · started by hand' || '' }}
 
 on:
   push:

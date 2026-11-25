@@ -26,17 +26,36 @@ for (const [name, input, index] of [
   const { FILE_REASONS } = await import("../apps/web/src/board-file.ts");
   await refused(importBoard, input(), FILE_REASONS[index]);
 });
-for (const version of [1, 2, 3]) test(`team import refuses pictures in file version ${version} before decoding or sending`, async () => {
-  const { importBoard, PICTURES_REASON } = await import("../apps/web/src/team/import.ts");
+const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAC0lEQVR4nGNgQAYAAA4AAamRc7EAAAAASUVORK5CYII=", "base64");
+for (const version of [1, 2, 3]) test(`team import checks pictures in file version ${version} before sending`, async t => {
+  const { importBoard } = await import("../apps/web/src/team/import.ts");
   const { canonical } = await import("../packages/board-rules/src/document.ts");
   const { writeBoardFile } = await import("../apps/web/src/board-file.ts");
-  const bytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2, 0, 0, 0, 2]).buffer;
+  const bytes = new Uint8Array(png).buffer;
   const hash = createHash("sha256").update(new Uint8Array(bytes)).digest("hex"), board = imageBoard(hash);
   const raw = version === 1 ? envelope(canonical(board)) : version === 2 ?
     envelope(JSON.stringify({ document: canonical(board), assets: [{ sha256: hash, mime: "image/png", pixelWidth: 2, pixelHeight: 2, base64: Buffer.from(bytes).toString("base64") }] }), {fileVersion: 2}) : await writeBoardFile(board, undefined,
     new Map([[hash, { bytes, mime: "image/png", pixelWidth: 2, pixelHeight: 2 }]]));
-  assert.equal(PICTURES_REASON, "it holds pictures or videos, which team boards can't hold yet");
-  await refused(importBoard, file(raw), PICTURES_REASON);
+  if (version === 1) { await refused(importBoard, file(raw), "a picture is unavailable"); return; }
+  const previousDecoder = globalThis.createImageBitmap;
+  globalThis.createImageBitmap = async blob => {
+    assert.equal(blob.type, "image/png");
+    if (!Buffer.from(await blob.arrayBuffer()).equals(png)) throw Error("Decode failed");
+    return { width: 2, height: 2, close() {} };
+  };
+  t.after(() => { if (previousDecoder) globalThis.createImageBitmap = previousDecoder; else delete globalThis.createImageBitmap; });
+  const result = await importBoard(file(raw), async () => assert.fail("A staged import sent its board early"));
+  assert.deepEqual(result.document, board);
+  assert.equal(result.title, board.title);
+  assert.deepEqual(result.media.map(({ blob, ...entry }) => entry), [{ hash, type: "image/png", bytes: png.length }]);
+  assert.deepEqual(Buffer.from(await result.media[0].blob.arrayBuffer()), png);
+  if (version === 2) {
+    const header = png.subarray(0, 24), sha256 = createHash("sha256").update(header).digest("hex");
+    const damaged = envelope(JSON.stringify({ document: canonical(imageBoard(sha256)), assets: [
+      { sha256, mime: "image/png", pixelWidth: 2, pixelHeight: 2, base64: header.toString("base64") },
+    ] }), { fileVersion: 2 });
+    await refused(importBoard, file(damaged), "it is damaged");
+  }
 });
 test("team import refuses a document of 2097153 canonical bytes without sending", async () => {
   const { importBoard } = await import("../apps/web/src/team/import.ts");

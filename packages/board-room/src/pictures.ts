@@ -15,6 +15,7 @@ export const VIDEO_BYTES = 52_428_800, BOARD_VIDEO_BYTES = 104_857_600, UPLOAD_I
 const videoTypes = ["video/mp4", "video/quicktime", "video/webm"] as const;
 export type VideoType = typeof videoTypes[number];
 export type AssetType = PictureType | VideoType;
+export type AssetEntry = { hash: string; type: AssetType; bytes: number };
 export const isVideoType = (type: unknown): type is VideoType => videoTypes.includes(type as VideoType);
 export const isPictureType = (type: unknown): type is PictureType => types.includes(type as PictureType);
 
@@ -85,6 +86,12 @@ export function held(storage: Storage, hash: string) {
   const row = storage.all("SELECT * FROM pictures WHERE hash = ?", hash)[0];
   return row && complete(row, storage.all("SELECT part, length(data) AS length FROM picture_parts WHERE hash = ? ORDER BY part", hash)) ? row : undefined;
 }
+export function assetEntries(storage: Storage, hashes: string[]): AssetEntry[] {
+  return hashes.flatMap(hash => {
+    const row = held(storage, hash);
+    return row ? [{ hash, type: row.type as AssetType, bytes: Number(row.bytes) }] : [];
+  });
+}
 
 function assets(board: Board) { return new Set(board.objects.flatMap(assetsOf)); }
 
@@ -108,9 +115,9 @@ export function cleanPictures(storage: Storage, board: Board, now: number, uploa
     if (!staged.has(String(row.hash))) storage.exec("DELETE FROM picture_parts WHERE hash = ?", row.hash);
   }
 }
-export function storePicture(s: Storage, board: Board, now: number, hash: string, data: Uint8Array, type: PictureType, width: number, height: number, uploads?: VideoUploads) {
+export function storePicture(s: Storage, board: Board | undefined, now: number, hash: string, data: Uint8Array, type: PictureType, width: number, height: number, uploads?: VideoUploads) {
   return s.transaction(() => {
-    cleanPictures(s, board, now, uploads);
+    if (board) cleanPictures(s, board, now, uploads);
     if (held(s, hash)) {
       s.exec("UPDATE pictures SET uploaded_at = ? WHERE hash = ?", now, hash);
       return "exists" as const;
@@ -119,17 +126,24 @@ export function storePicture(s: Storage, board: Board, now: number, hash: string
     for (const row of s.all("SELECT hash FROM pictures WHERE type LIKE 'image/%'")) total += Number(held(s, String(row.hash))?.bytes ?? 0);
     if (total > BOARD_BYTES) return "full" as const;
     remove(s, hash);
-    s.exec("INSERT INTO pictures VALUES (?, ?, ?, ?, ?, ?, ?, NULL)", hash, type, data.length, width, height, Math.ceil(data.length / PART_BYTES), now);
-    for (let at = 0; at < data.length; at += PART_BYTES) {
-      s.exec("INSERT INTO picture_parts VALUES (?, ?, ?)", hash, at / PART_BYTES, data.slice(at, at + PART_BYTES));
-    }
+    writeAsset(s, now, hash, data, type, width, height);
     return "created" as const;
   });
+}
+export function writeAsset(s: Storage, now: number, hash: string, data: Uint8Array, type: AssetType, width: number, height: number) {
+  s.exec("INSERT INTO pictures VALUES (?, ?, ?, ?, ?, ?, ?, NULL)", hash, type, data.length, width, height, Math.ceil(data.length / PART_BYTES), now);
+  for (let at = 0; at < data.length; at += PART_BYTES) {
+    s.exec("INSERT INTO picture_parts VALUES (?, ?, ?)", hash, at / PART_BYTES, data.slice(at, at + PART_BYTES));
+  }
 }
 function join(rows: Row[], bytes: number) {
   const data = new Uint8Array(bytes);
   for (const row of rows) data.set(row.data as Uint8Array, Number(row.part) * PART_BYTES);
   return data;
+}
+export function readAsset(s: Storage, hash: string) {
+  const row = held(s, hash);
+  return row ? { type: row.type as AssetType, bytes: join(s.all("SELECT part, data FROM picture_parts WHERE hash = ? ORDER BY part", hash), Number(row.bytes)) } : null;
 }
 export function readPicture(s: Storage, hash: string) {
   const row = held(s, hash);
@@ -192,12 +206,13 @@ export class VideoUploads {
   private cycle = 0;
   stagingKeys() { return [...this.entries].flatMap(entry => entry.key ? [entry.key] : []); }
   private staged() { return [...this.entries].reduce((n, entry) => n + entry.staged, 0); }
-  invalidate(status: 404 | 503) {
+  invalidate(status: 404 | 410 | 503) {
     this.cycle++;
-    for (const entry of this.entries) entry.cancel(status === 404 ? new RoomError(404, "not_found") : unavailable());
+    for (const entry of this.entries) entry.cancel(status === 404 ? new RoomError(404, "not_found")
+      : status === 410 ? new RoomError(410, "upload_expired") : unavailable());
   }
 
-  async store(room: UploadRoom, hash: string, type: VideoType, body: ReadableStream<Uint8Array>, authorize: () => Promise<void>): Promise<VideoResult> {
+  async store(room: UploadRoom, hash: string, type: VideoType, body: ReadableStream<Uint8Array>, authorize: (bytes?: number) => Promise<void>, importing = false): Promise<VideoResult> {
     const { env } = room, s = env.storage, reader = body.getReader(), digest = env.hasher();
     let settle!: (stored: boolean) => void, interrupt!: (reason: RoomError) => void;
     const settled = new Promise<boolean>(resolve => { settle = resolve; });
@@ -242,7 +257,7 @@ export class VideoUploads {
         entry.generation = room.generation;
         check();
         s.transaction(() => {
-          cleanPictures(s, room.board, env.now(), this);
+          if (!importing) cleanPictures(s, room.board, env.now(), this);
           if (!held(s, hash)) {
             owner = [...this.entries].find(other => other.hash === hash && other.key);
             if (!owner && videoTotal(s) + this.staged() >= BOARD_VIDEO_BYTES) return;
@@ -276,9 +291,9 @@ export class VideoUploads {
       check();
       if (owner && !await owner.settled) throw unavailable();
       return room.ordered(async () => {
-        check(); await authorize(); check();
+        check(); await authorize(bytes); check();
         return s.transaction((): VideoResult => {
-          cleanPictures(s, room.board, env.now(), this);
+          if (!importing) cleanPictures(s, room.board, env.now(), this);
           const existing = held(s, hash);
           if (existing) {
             removeStaging();

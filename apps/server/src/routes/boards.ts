@@ -5,7 +5,35 @@ import { validTitle } from "../cursor.ts";
 import { RoomError } from "nextphase-board-room/protocol.ts";
 import { boardDetails } from "../supabase.ts";
 import type { Runtime } from "../runtime.ts";
-import { authorize, body, id, shape, type ServerApp } from "./common.ts";
+import type { Person } from "nextphase-board-room/protocol.ts";
+import { authorize, body, id, shape, uuid, type ServerApp } from "./common.ts";
+
+async function finishImport(runtime: Runtime, workspace: string, board: string, person: Person, document: BoardV14) {
+  const room = runtime.room(board);
+  const token = await room.claimImport(person, workspace, document);
+  const cleanup = async () => {
+    const results = await Promise.allSettled([runtime.db.discardImport(board, workspace), runtime.removeRoom(board)]);
+    if (results.some(result => result.status === "rejected")) throw new RoomError(503, "creation_cleanup_failed");
+  };
+  let details;
+  try {
+    details = boardDetails(await runtime.db.rpc("create_board", { workspace, person: person.id, title: document.title, board }));
+  } catch (error) {
+    if (error instanceof RoomError && ["not_found", "role_too_low", "import_in_progress"].includes(error.message)) {
+      await room.releaseImport(token).catch(() => {});
+      throw error;
+    }
+    await cleanup();
+    throw new RoomError(503, "service_unavailable");
+  }
+  try { await room.create(document, person, token); }
+  catch (error) {
+    await cleanup();
+    if (error instanceof RoomError && ["room_exists", "upload_expired"].includes(error.message)) throw error;
+    throw new RoomError(503, "service_unavailable");
+  }
+  return details;
+}
 export function boards(app: ServerApp, runtime: Runtime) {
   app.post("/workspaces/:workspace/boards", async (c) => {
     const workspace = id(c, "workspace"), person = c.get("person");
@@ -13,9 +41,12 @@ export function boards(app: ServerApp, runtime: Runtime) {
     const value = await body(c, 13631488);
     const keys = value && typeof value === "object" && !Array.isArray(value) ? Object.keys(value) : [];
     const imported = keys.includes("document");
-    shape(value, imported ? ["title", "document"] : keys.length ? ["title"] : []);
+    const staged = imported && keys.includes("import");
+    shape(value, staged ? ["title", "document", "import"] : imported ? ["title", "document"] : keys.length ? ["title"] : []);
     const title = keys.length ? value.title : "Untitled";
     if (!validTitle(title)) throw new RoomError(400, "bad_request");
+    const importId = value.import;
+    if (staged && (typeof importId !== "string" || !uuid.test(importId))) throw new RoomError(400, "bad_request");
     let document: BoardV14 | undefined;
     if (imported) {
       try {
@@ -23,6 +54,11 @@ export function boards(app: ServerApp, runtime: Runtime) {
         if (board.schemaVersion !== 13 && board.schemaVersion !== 14 && board.schemaVersion !== 15) throw Error();
         document = upgrade(board);
       } catch { throw new RoomError(400, "invalid_document"); }
+      if (staged && typeof importId === "string") {
+        const normalized = { ...document, boardId: importId, title };
+        try { canonical(normalized); } catch { throw new RoomError(400, "document_too_large"); }
+        return c.json(await finishImport(runtime, workspace, importId, person, normalized), 201);
+      }
       try {
         canonical(document);
         // UUIDs have the same byte length; check the stored title before creating a row.

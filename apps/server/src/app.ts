@@ -8,12 +8,14 @@ import type { Runtime, AppVariables } from "./runtime.ts";
 import { accessRoutes } from "./routes/access.ts";
 import { mentions } from "./routes/mentions.ts";
 import { lists } from "./routes/lists.ts";
-import { pictureRoutes } from "./routes/pictures.ts";
+import { assetSizeRoutes, pictureRoutes } from "./routes/pictures.ts";
 import { historyRoutes } from "./routes/history.ts";
 import { boards } from "./routes/boards.ts";
 import { invitations } from "./routes/invitations.ts";
 import { operators } from "./routes/operator.ts";
 import { templateRoutes } from "./routes/templates.ts";
+import { importRoutes } from "./routes/imports.ts";
+import { templateMediaRoutes } from "./routes/template-media.ts";
 export function createApp(runtime: Runtime) {
   const app = new Hono<{ Variables: AppVariables }>();
   app.onError((error, c) => {
@@ -45,9 +47,12 @@ export function createApp(runtime: Runtime) {
   lifecycleRoutes(app, runtime);
   boards(app, runtime);
   pictureRoutes(app, runtime);
+  assetSizeRoutes(app, runtime);
   historyRoutes(app, runtime);
   lists(app, runtime);
   templateRoutes(app, runtime);
+  importRoutes(app, runtime);
+  templateMediaRoutes(app, runtime);
   mentions(app, runtime);
   accessRoutes(app, runtime);
   invitations(app, runtime);

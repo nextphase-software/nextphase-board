@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { api, ApiError } from "./api.ts";
-import { limitReason, parseTemplate, parseTemplates, templateBoard, templateNotice, validName, validDescription, type Template } from "./templates-rules.ts";
+import { limitReason, parseTemplate, parseTemplateDetail, parseTemplates, templateBoard, templateNotice, validName, validDescription, type AssetEntry, type Template, type TemplateDetail } from "./templates-rules.ts";
+import { boardDownload, mediaOf, openTemplateUpload, runTemplateSave, stageTemplate, templateAdds } from "./media-transfer.ts";
 import type { Snapshot } from "../clipboard.ts";
+import type { TemplateCommands } from "../activities.ts";
+import type { HostedBoard } from "./hosted-board.ts";
 
 type Details = { name: string; description: string };
 type Outcome = "done" | "refused" | "failed";
@@ -12,15 +15,17 @@ export class Templates {
   canSave = false;
   newId = "";
   pending = false;
+  progress: number | undefined;
   error = "";
   private listeners = new Set<() => void>();
   private active = true;
   private sequence = 0;
+  private transferring?: AbortController;
   constructor(readonly workspace: string, readonly workspaceName: string, readonly board: string,
     readonly toast: (text: string) => void, private request: typeof api = api) {}
   subscribe(listener: () => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
   private publish() { if (this.active) for (const listener of this.listeners) listener(); }
-  stop() { this.active = false; this.sequence++; this.listeners.clear(); }
+  stop() { this.active = false; this.sequence++; this.transferring?.abort(); this.listeners.clear(); }
   private get path() { return `/workspaces/${this.workspace}/templates`; }
   async open() {
     try {
@@ -46,8 +51,8 @@ export class Templates {
     this.publish();
   }
   private refused(error: unknown) { return error instanceof ApiError && [403, 404].includes(error.status); }
-  async read(template: Template): Promise<Template | null> {
-    try { const value = parseTemplate(await this.request(this.path + "/" + template.id)); return this.active ? value : null; }
+  async read(template: Template): Promise<TemplateDetail | null> {
+    try { const value = parseTemplateDetail(await this.request(this.path + "/" + template.id)); return this.active ? value : null; }
     catch (error) {
       if (!this.active) return null;
       if (this.refused(error)) { this.toast(templateNotice("gone", template.name)); await this.refresh(); }
@@ -55,7 +60,17 @@ export class Templates {
       return null;
     }
   }
-  async change(action: "save" | "edit" | "replace" | "delete", details: Details, template?: Template, objects?: Snapshot["objects"]): Promise<Outcome> {
+  async add(template: Template, hosted: HostedBoard, commands: TemplateCommands) {
+    const runner = templateAdds(hosted);
+    if (runner.adding) return;
+    const fresh = await this.read(template);
+    if (!fresh || !this.active || runner.adding) return;
+    const insert = () => commands.insertStored(fresh.name, templateBoard(fresh.objects));
+    if (!mediaOf(fresh.objects).length) insert();
+    else await runner.add(fresh, commands.closeTemplates, insert);
+  }
+  async change(action: "save" | "edit" | "replace" | "delete", details: Details, template?: Template, objects?: Snapshot["objects"],
+    media: AssetEntry[] = [], hosted?: HostedBoard): Promise<Outcome> {
     if (this.pending) return "failed";
     this.pending = true; this.error = ""; this.publish();
     try {
@@ -65,7 +80,26 @@ export class Templates {
       if (action === "save" || action === "replace") templateBoard(objects);
       const body = action === "save" ? { ...details, sourceBoard: this.board, objects }
         : action === "edit" ? details : action === "replace" ? { sourceBoard: this.board, objects } : undefined;
-      const result = await this.request(this.path + (template ? "/" + template.id : ""), action === "save" ? "POST" : action === "delete" ? "DELETE" : "PATCH", body);
+      const path = this.path + (template ? "/" + template.id : "");
+      const method = action === "save" ? "POST" : action === "delete" ? "DELETE" : "PATCH";
+      let result;
+      if (media.length && hosted) {
+        const transfer = this.transferring = new AbortController();
+        this.progress = 0; this.publish();
+        const saved = await runTemplateSave(media, {
+          open: (assets, signal) => openTemplateUpload(this.workspace, assets, signal),
+          download: boardDownload(hosted.pictures),
+          stage: (id, hash, blob, progress, signal) => stageTemplate(this.workspace, id, hash, blob, progress, signal),
+          save: upload => this.request(path, method, { ...body, upload }),
+        }, value => { this.progress = value; this.publish(); }, transfer.signal);
+        if (!saved.ok) {
+          if (!this.active) return "failed";
+          if ("limit" in saved && saved.limit) { this.toast(limitReason(this.workspaceName)); await this.refresh(); return "refused"; }
+          this.error = `Couldn't ${action === "replace" ? "replace" : "save"} the template: ${saved.reason}. Try again.`;
+          return "failed";
+        }
+        result = saved.value;
+      } else result = await this.request(path, method, body);
       const saved = action === "delete" ? template! : parseTemplate(result);
       if (!this.active) return "done";
       if (action === "save") this.newId = saved.id;
@@ -82,6 +116,6 @@ export class Templates {
       }
       this.error = `Couldn't ${action === "replace" ? "replace" : action === "delete" ? "delete" : "save"} the template. Try again.`;
       return "failed";
-    } finally { this.pending = false; this.publish(); }
+    } finally { this.pending = false; this.progress = undefined; this.transferring = undefined; this.publish(); }
   }
 }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import { readPicture, storePicture, readVideo, VideoUploads, type VideoType, type PictureType } from "./pictures.ts";
+import { assetEntries, held, isPictureType, isVideoType, readPicture, storePicture, readVideo, VideoUploads, type AssetEntry, type AssetType, type VideoType, type PictureType } from "./pictures.ts";
+import { isImage, isVideo } from "nextphase-board-rules/objects/registry.ts";
 import { Reactions } from "./reactions.ts";
 import { Spotlight } from "./spotlight.ts";
 import { WorkshopVoting, resetVoting } from "./voting.ts";
@@ -19,9 +20,22 @@ import { EditSession } from "./edit-session.ts";
 import type { RoomEnvironment } from "./interfaces.ts";
 import { base64, bytes, MESSAGE_LIMIT, rank, RoomError, send, type Attachment, type Connection, type Person } from "./protocol.ts";
 import { loadDocument, newestSnapshot, snapshot } from "./snapshots.ts";
-import { initialize, meta, setMeta } from "./storage.ts";
+import { initialize, meta, setMeta, type Storage } from "./storage.ts";
+import { stagingDeadline, stagingEntry, stagingMeta, stagingOwner, StagingExpired, STAGING_LEASE, type Lease, type Staging } from "./template-store.ts";
 import { consumeTicket, issueTicket } from "./tickets.ts";
 import { Presences, currentAttachment, endPresence } from "./presence.ts";
+
+export type ImportStaging = Staging & { id: string; claim: Lease | null; finishing?: true };
+export const readImport = (storage: Storage) => stagingMeta<ImportStaging>(storage, "import");
+export const importDeadline = (staging: ImportStaging) => stagingDeadline(staging, staging.claim);
+
+export function requireHeldMedia(objects: readonly { type: string }[], typeOf: (hash: string) => unknown) {
+  for (const object of objects) {
+    const missing = isVideo(object) ? !isVideoType(typeOf(object.asset)) || typeOf(object.poster) !== "image/jpeg"
+      : isImage(object) && !isPictureType(typeOf(object.asset));
+    if (missing) throw new RoomError(400, "asset_missing");
+  }
+}
 
 export class Room {
   readonly uploads = new VideoUploads();
@@ -46,7 +60,7 @@ export class Room {
   constructor(boardId: string, env: RoomEnvironment) {
     this.boardId = boardId;
     this.env = env;
-    initialize(env.storage);
+    if (!env.storage.all("SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta'").length || !readImport(env.storage)) initialize(env.storage);
     this.access = new Access(env.storage, env.access, env.connections);
     this.edits = new EditSession(env, this.access, this);
     this.presence = new Presences(env, boardId, () => this.voting.running());
@@ -74,13 +88,133 @@ export class Room {
     this.tail = result.catch(() => {});
     return result;
   }
-  create(document: BoardV13 | BoardV14) {
+  private importing() { return readImport(this.env.storage); }
+  private requireBoard() {
+    if (this.importing()) throw new RoomError(404, "not_found");
+  }
+  private async touchImport(staging: ImportStaging) {
+    staging.touched = this.env.now();
+    setMeta(this.env.storage, "import", JSON.stringify(staging));
+    await this.env.schedule(importDeadline(staging));
+  }
+  private checkImportTime(staging: ImportStaging) {
+    const now = this.env.now();
+    if (this.lifecycle.discarded || importDeadline(staging) <= now ||
+      staging.finishing && staging.claim && staging.claim.until <= now) throw new StagingExpired();
+  }
+  private async importAdmission(person: Person, workspace: string) {
+    const staging = this.importing();
+    if (!staging) {
+      if (meta(this.env.storage, "storage_version")) throw new StagingExpired();
+      this.lifecycle.discarded = true;
+      throw new StagingExpired(true);
+    }
+    try { this.checkImportTime(staging); }
+    catch (error) { if (!this.lifecycle.discarded) await this.env.schedule(importDeadline(staging)); throw error; }
+    stagingOwner(staging, person, workspace);
+    return staging;
+  }
+  openImport(person: Person, workspace: string, assets: AssetEntry[]) {
+    return this.ordered(async () => {
+      if (this.lifecycle.discarded || meta(this.env.storage, "storage_version") || this.importing()) throw new RoomError(409, "room_exists");
+      await this.touchImport({ id: this.boardId, workspace, person: person.id, assets, touched: this.env.now(), lease: null, claim: null });
+    });
+  }
+  beginImport(person: Person, workspace: string, hash: string) {
+    return this.ordered(async () => {
+      const staging = await this.importAdmission(person, workspace);
+      if (staging.lease || staging.claim) throw new RoomError(409, "upload_in_progress");
+      stagingEntry(staging, hash);
+      const token = this.env.randomId();
+      staging.lease = { token, until: this.env.now() + STAGING_LEASE };
+      await this.touchImport(staging);
+      return token;
+    });
+  }
+  endImport(person: Person, workspace: string, token: string) {
+    return this.ordered(async () => {
+      const staging = await this.importAdmission(person, workspace);
+      if (staging.lease?.token === token) {
+        staging.lease = null;
+        await this.touchImport(staging);
+      }
+    });
+  }
+  private async uploadAdmission(person: Person, workspace: string, token: string) {
+    const staging = await this.importAdmission(person, workspace);
+    if (!staging.lease || staging.lease.token !== token) throw new RoomError(409, "upload_in_progress");
+    return staging;
+  }
+  stageImportPicture(person: Person, workspace: string, token: string, hash: string, data: Uint8Array, type: PictureType, width: number, height: number) {
+    return this.ordered(async () => {
+      const staging = await this.uploadAdmission(person, workspace, token);
+      try {
+        stagingEntry(staging, hash, type, data.length);
+        return storePicture(this.env.storage, undefined, this.env.now(), hash, data, type, width, height, this.uploads);
+      } finally {
+        staging.lease = null;
+        await this.touchImport(staging);
+      }
+    });
+  }
+  async stageImportVideo(person: Person, workspace: string, token: string, hash: string, type: VideoType, body: ReadableStream<Uint8Array>) {
+    try {
+      return await this.uploads.store(this, hash, type, body, async bytes => {
+        const staging = await this.uploadAdmission(person, workspace, token);
+        stagingEntry(staging, hash, type, bytes);
+      }, true);
+    } finally {
+      await this.endImport(person, workspace, token).catch(() => {});
+    }
+  }
+  private checkMedia(board: BoardV13 | BoardV14) {
+    requireHeldMedia(board.objects, hash => held(this.env.storage, hash)?.type);
+  }
+  claimImport(person: Person, workspace: string, document: BoardV13 | BoardV14) {
+    return this.ordered(async () => {
+      if (meta(this.env.storage, "storage_version")) throw new RoomError(409, "import_in_progress");
+      const staging = await this.importAdmission(person, workspace);
+      if (staging.lease || staging.claim) throw new RoomError(409, "import_in_progress");
+      try { this.checkMedia(document); }
+      catch (error) { await this.touchImport(staging); throw error; }
+      const token = this.env.randomId();
+      staging.claim = { token, until: this.env.now() + STAGING_LEASE };
+      staging.finishing = true;
+      await this.touchImport(staging);
+      return token;
+    });
+  }
+  releaseImport(token: string) {
+    return this.ordered(async () => {
+      const staging = this.importing();
+      if (staging?.claim?.token !== token || staging.claim.until <= this.env.now()) return;
+      staging.claim = null;
+      delete staging.finishing;
+      await this.touchImport(staging);
+    });
+  }
+  create(document: BoardV13 | BoardV14, importer?: Person, token?: string) {
     return this.ordered(async () => {
       if (meta(this.env.storage, "storage_version")) throw new RoomError(409, "room_exists");
-      await this.load(document);
+      const staging = this.importing();
+      if (!staging) {
+        if (importer) throw new StagingExpired();
+        await this.load(document);
+        return;
+      }
+      if (staging.finishing && staging.claim && staging.claim.until <= this.env.now()) throw new StagingExpired();
+      if (!importer || staging.person !== importer.id || !staging.claim || staging.claim.token !== token) throw new RoomError(409, "import_in_progress");
+      this.checkImportTime(staging);
+      this.checkMedia(document);
+      await this.loadBoard(document, staging);
+      await this.schedule();
     });
   }
   async load(document?: BoardV13 | BoardV14) {
+    this.requireBoard();
+    await this.loadBoard(document);
+  }
+  private async loadBoard(document?: BoardV13 | BoardV14, staged?: ImportStaging) {
     await this.lifecycle.active();
     this.closeLegacy();
     initialize(this.env.storage);
@@ -104,6 +238,7 @@ export class Room {
       try {
         const prepared = await this.history.prepare(board);
         storage.transaction(() => {
+          if (staged) this.checkImportTime(staged);
           setMeta(storage, "storage_version", 9);
           resetTimer(storage);
           resetVoting(storage);
@@ -120,6 +255,10 @@ export class Room {
           setMeta(storage, "history_next_at", this.env.now() + HISTORY_INTERVAL);
           for (const object of board.objects) {
             storage.exec("INSERT INTO identifiers VALUES (?, ?, 0)", object.id, object.generation);
+          }
+          if (staged) {
+            storage.exec("UPDATE pictures SET uploaded_at = ?", this.env.now());
+            storage.exec("DELETE FROM meta WHERE key = 'import'");
           }
         });
       } finally { adapter.destroy(); }
@@ -233,6 +372,7 @@ export class Room {
     try { this.env.background.run(task); } catch { /* Background failures never affect replies. */ }
   }
   saved(alarm = false) {
+    this.requireBoard();
     if(this.initialized&&!this.lifecycle.discarded){try{this.voting.reconcileTargets();}catch{/* Voting revalidates before every protected projection. */}}
     if (this.lifecycle.discarded || this.access.locked || !this.copies || !this.env.storage.all("SELECT value FROM meta WHERE key = 'last_edit_at'").length) return;
     this.copies.offer({ boardId: this.boardId, title: this.board.title,
@@ -270,7 +410,7 @@ export class Room {
     return this.ordered(async () => {
       // Only ticket issuance creates a room. An upgrade with no stored ticket
       // never needs a board lookup, even for a never-opened board ID.
-      if (!meta(this.env.storage, "storage_version")) throw new RoomError(401, "ticket_invalid");
+      if (this.importing() || !meta(this.env.storage, "storage_version")) throw new RoomError(401, "ticket_invalid");
       try { await this.lifecycle.active(); } catch (error) { if (error instanceof RoomError && error.status === 404) throw new RoomError(401, "ticket_invalid"); throw error; }
       await this.load();
       const storedTicket = this.env.storage.all("SELECT * FROM tickets WHERE digest = ?",await this.env.hash(bytes(ticket)))[0];
@@ -342,6 +482,13 @@ export class Room {
       return readPicture(this.env.storage, hash);
     });
   }
+  assetSizes(person: Person, hashes: string[]) {
+    return this.ordered(async () => {
+      await this.refresh();
+      await this.access.lookup(person.id, this.boardId);
+      return assetEntries(this.env.storage, hashes);
+    });
+  }
   export(person: Person) {
     return this.ordered(async () => {
       await this.refresh();
@@ -351,6 +498,7 @@ export class Room {
   }
   changed() {
     return this.ordered(async () => {
+      this.requireBoard();
       // Delivery must not initialize a board that nobody has opened.
       if (!meta(this.env.storage, "storage_version")) {
         return (await this.env.access.changes(this.boardId, 0)).latest;
@@ -363,6 +511,7 @@ export class Room {
   }
   deliverNotices() {
     return this.ordered(async () => {
+      this.requireBoard();
       if (!meta(this.env.storage, "storage_version") || !meta(this.env.storage, "mention_cleanup")) return;
       await this.refresh(true);
       if (this.access.locked) throw new RoomError(503, this.access.reason);
@@ -385,6 +534,7 @@ export class Room {
   }
   message(connection: Connection, text: string) {
     return this.ordered(async () => {
+      this.requireBoard();
       try { await this.load(); }
       catch (error) {
         if (this.spotlight.refuseLoadFailure(connection,text,error))return;
@@ -453,8 +603,10 @@ export class Room {
     await this.spotlight.expire();
     this.env.storage.exec("DELETE FROM tickets WHERE expires_at <= ?", this.env.now());
   }
-  scheduleSpotlight(){return this.schedule();}
-  private async schedule(historyRetry = false) {
+  scheduleSpotlight(){this.requireBoard();return this.schedule();}
+  async schedule(historyRetry = false) {
+    const staging = this.importing();
+    if (staging) { await this.env.schedule(importDeadline(staging)); return; }
     const historyAt = meta(this.env.storage, "history_next_at");
     const deadlines = [historyRetry ? Math.max(historyAt, this.env.now() + 1000) : historyAt, ...this.env.connections().map((connection) => connection.attachment().expiresAt)];
     const spotlightAt=this.spotlight.deadline();if(spotlightAt!==null)deadlines.push(spotlightAt);
@@ -474,6 +626,7 @@ export class Room {
   }
   closed(connection: Connection, code: number = 1006, reason: string = "") {
     return this.ordered(async () => {
+      this.requireBoard();
       this.spotlight.closed(connection,code,reason);
       if (this.lifecycle.discarded || this.access.locked) return;
       await this.load();
@@ -487,6 +640,22 @@ export class Room {
   }
   alarm() {
     return this.ordered(async () => {
+      const staging = this.importing();
+      if (staging) {
+        if (this.lifecycle.discarded) return;
+        if (importDeadline(staging) > this.env.now()) { await this.schedule(); return; }
+        if (staging.finishing) {
+          try {
+            if (!this.env.access.discardImport) throw new StagingExpired();
+            await this.env.access.discardImport(this.boardId, staging.workspace);
+          } catch {
+            await this.touchImport(staging);
+            return;
+          }
+        }
+        await this.discardStaging();
+        return { discard: true as const };
+      }
       await this.load();
       await this.expire();
       try { await this.timer.normalize(); } catch { await this.env.schedule(this.env.now()+1000); return; }
@@ -501,21 +670,33 @@ export class Room {
     });
   }
   lifecyclePause() {
+    this.requireBoard();
     this.spotlight.end("lifecycle");
     this.copies?.suspend();
     this.closeAll(4403);
     this.env.storage.exec("DELETE FROM tickets"); this.env.storage.exec("DELETE FROM waiting");
   }
   admitLifecycle(request: LifecycleRequest) {
+    if (this.importing()) return Promise.reject(new RoomError(404, "not_found"));
     if (request.operation === "move" && this.history.active()) return Promise.reject(new RoomError(503,"restore_pending"));
     return this.ordered(() => this.lifecycle.admit(request));
   }
   fenceLifecycle(row: Lifecycle, ready = false) { return this.ordered(async () => {
+    this.requireBoard();
     if (ready || row.state !== "active") this.uploads.invalidate(ready ? 503 : 404);
     await (ready ? this.lifecycle.accessReady(row) : this.lifecycle.fence(row));
   }); }
-  discardLifecycle() { return this.ordered(async () => { this.uploads.invalidate(503); this.lifecycle.freeze(); this.lifecycle.discarded = true; await this.env.schedule(null); }); }
+  private async discardStaging() {
+    this.uploads.invalidate(410);
+    this.lifecycle.discarded = true;
+    await this.env.schedule(null);
+  }
+  discardLifecycle() { return this.ordered(async () => {
+    if (this.importing()) { await this.discardStaging(); return; }
+    this.uploads.invalidate(503); this.lifecycle.freeze(); this.lifecycle.discarded = true; await this.env.schedule(null);
+  }); }
   historyPause(actor: string) {
+    this.requireBoard();
     this.spotlight.end("recovery");
     this.copies?.suspend();
     for (const peer of this.env.connections()) send(peer, { kind: "history_restoring", actor });
@@ -530,6 +711,7 @@ export class Room {
   backup() { return this.ordered(async () => { await this.load(); return backup(this.env, this.boardId); }); }
   restore(value: unknown) {
     return this.ordered(async () => {
+      this.requireBoard();
       await this.lifecycle.active();
       const envelope = decodeBackup(value, this.boardId);
       try { await validateHistoryBackup(this.env, envelope.tables, this.boardId); } catch { throw new RoomError(400, "bad_request"); }
@@ -552,6 +734,7 @@ export class Room {
   }
   lock(reserve?: () => Promise<number>) {
     return this.ordered(async () => {
+      this.requireBoard();
       await this.lifecycle.active();
       this.spotlight.end("recovery");
       this.uploads.invalidate(503);

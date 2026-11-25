@@ -9,6 +9,7 @@ const bindings = env as any;
 export async function makeDriver(context: Context): Promise<Driver> {
   const rooms = new Set<string>();
   const roomStub = (board: string) => { rooms.add(board); return bindings.ROOMS.get(bindings.ROOMS.idFromName(board)); };
+  const templateStub = (upload: string) => bindings.TEMPLATE_MEDIA.get(bindings.TEMPLATE_MEDIA.idFromName(upload));
   return {
     runner: "workerd",
     request: (path, init) => {
@@ -25,6 +26,13 @@ export async function makeDriver(context: Context): Promise<Driver> {
       return result;
     },
     async control(value) {
+      if (value.board && value.importCommand) {
+        const reply = await roomStub(String(value.board)).fetch("http://room/import-" + value.importCommand, {
+          method: "POST", body: JSON.stringify({ board: value.board, value: { ...value, importer: value.person } }),
+        });
+        if (!reply.ok) throw Error(await reply.text());
+        return reply.json();
+      }
       if (value.heldRoomCount) return runInDurableObject(bindings.CONTROLS.get(bindings.CONTROLS.idFromName('controls')), (instance:any) => instance.held.size);
       if (value.board && value.reactions) return runInDurableObject(roomStub(String(value.board)), async (instance:any) => {
         const v = value.reactions as any;
@@ -135,6 +143,7 @@ export async function makeDriver(context: Context): Promise<Driver> {
       const control = bindings.CONTROLS.get(bindings.CONTROLS.idFromName("controls"));
       const response = await control.fetch("http://controls/", { method: "POST", body: JSON.stringify(value) });
       const result = await response.json();
+      if (value.templateAlarm) await runInDurableObject(templateStub(String(value.templateAlarm)), async (instance: any) => instance.alarm());
       if (value.board && value.alarm) await runInDurableObject(roomStub(String(value.board)), async (instance: any) => instance.alarm());
       if (value.alarmAll) for (const board of rooms) await runInDurableObject(roomStub(board), async (instance: any) => instance.alarm());
       if (value.now) return Date.now() + ((result as any).offset ?? 0);
@@ -156,11 +165,16 @@ export async function makeDriver(context: Context): Promise<Driver> {
       });
       await evictDurableObject(stub);
     },
-    async rows(board, table) {
-      return runInDurableObject(roomStub(board), async (instance: any) => {
-        const room = await instance.getRoom(board);
+    async rows(board, table, store) {
+      return runInDurableObject(store ? templateStub(board) : roomStub(board), async (instance: any) => {
+        if (!/^[a-z_]+$/.test(table)) throw Error("Invalid test table");
+        const sql = instance.state?.storage.sql;
+        const storage = sql ? null : (await instance.getRoom(board)).env.storage;
+        if (sql && !sql.exec("SELECT 1 FROM sqlite_master WHERE name = ?", table).toArray().length) return [];
         // Read progress without waiting behind a held recovery operation.
-        return room.env.storage.all(`SELECT * FROM "${table}"`).map((row: any) => Object.fromEntries(
+        const query = `SELECT * FROM "${table}"`;
+        const rows = sql ? sql.exec(query).toArray() : storage.all(query);
+        return rows.map((row: any) => Object.fromEntries(
           Object.entries(row).map(([key, value]) => [key, value instanceof Uint8Array ? { bytes: value.byteLength } : value])));
       });
     },

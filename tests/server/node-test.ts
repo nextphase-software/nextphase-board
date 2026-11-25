@@ -2,6 +2,7 @@
 import { deliver } from "../../apps/server/src/delivery.ts";
 import { access } from "node:fs/promises";
 import { resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { Room } from "../../packages/board-room/src/room.ts";
 import { RoomError } from "../../packages/board-room/src/protocol.ts";
 import { readFile } from "node:fs/promises";
@@ -13,7 +14,7 @@ process.on("warning", ({ name, message }) => {
 });
 const settings = checkSettings(JSON.parse(await readFile(process.env.BOARD_SETTINGS!, "utf8")));
 let fixedNow: number | null = null;
-let offset = 0, unreachable: string[] = [];
+let offset = Number(process.env.BOARD_TEST_CLOCK_OFFSET ?? 0), unreachable: string[] = [];
 let failTimer = "", failVoting = "";
 let failCreate = "", failCheckpoint = "", failHistory = "", failLifecycle = "";
 let holdRoom = ""; const heldRoom = new Set<() => void>();
@@ -54,7 +55,11 @@ app.runtime.room = (board) => {
       return result;
     };
   }
-  return { admitLifecycle: r => failLifecycle==='before' ? Promise.reject(new RoomError(503,r.operation==='move'?'move_failed':'restore_failed')) : room.admitLifecycle(r), fenceLifecycle: (r, ready) => failLifecycle==='room' ? Promise.reject(new RoomError(503,'service_unavailable')) : room.fenceLifecycle(r, ready), versions: p => room.versions(p), version: (p,id) => room.version(p,id), saveVersion: (p,v) => room.saveVersion(p,v), nameVersion: (p,id,v) => room.nameVersion(p,id,v), restoreVersion: (p,id,v) => room.restoreVersion(p,id,v), async create(document) {
+  return { openImport: (...args) => room.openImport(...args), beginImport: (...args) => room.beginImport(...args),
+    endImport: (...args) => room.endImport(...args), stageImportPicture: (...args) => room.stageImportPicture(...args),
+    stageImportVideo: (...args) => room.stageImportVideo(...args), claimImport: (...args) => room.claimImport(...args),
+    releaseImport: (...args) => room.releaseImport(...args), assetSizes: (...args) => room.assetSizes(...args),
+    admitLifecycle: r => failLifecycle==='before' ? Promise.reject(new RoomError(503,r.operation==='move'?'move_failed':'restore_failed')) : room.admitLifecycle(r), fenceLifecycle: (r, ready) => failLifecycle==='room' ? Promise.reject(new RoomError(503,'service_unavailable')) : room.fenceLifecycle(r, ready), versions: p => room.versions(p), version: (p,id) => room.version(p,id), saveVersion: (p,v) => room.saveVersion(p,v), nameVersion: (p,id,v) => room.nameVersion(p,id,v), restoreVersion: (p,id,v) => room.restoreVersion(p,id,v), async create(document, importer, token) {
     if (failCreate === "before") throw Error("Create unavailable");
     const entry = app.rooms.get(board)!;
     if (failCreate === "exists") await entry.room.ordered(() => entry.room.load());
@@ -63,7 +68,7 @@ app.runtime.room = (board) => {
       if (sql.startsWith("INSERT INTO snapshot_chunks")) throw Error("Snapshot write unavailable");
       exec(sql, ...values);
     };
-    try { await room.create(document); }
+    try { await room.create(document, importer, token); }
     finally { entry.storage.exec = exec; }
     if (failCreate === "after") throw Error("Create reply unavailable");
   }, rename: (p, title) => room.rename(p, title), ticket: (p) => room.ticket(p), export: (p) => room.export(p), backup: () => room.backup(), restore: (v) => room.restore(v),
@@ -84,7 +89,7 @@ process.on("message", async (message: any) => {
     if(value.scheduled)await deliver(app.runtime);
     if(value.lifecycleStatus){result=await db.lifecycle(value.board);process.send?.({id:message.id,result});return;}
     if(value.inventory){
-      const files=[];for(const suffix of ['', '-wal','-shm']){try{await access(resolve(settings.dataDir,'boards',value.board+'.sqlite'+suffix));files.push(suffix);}catch{}}
+      const files=[];for(const suffix of ['', '-wal','-shm']){try{await access(resolve(settings.dataDir,value.store ? 'template-media' : 'boards',value.board+'.sqlite'+suffix));files.push(suffix);}catch{}}
       result={files,loaded:app.rooms.has(value.board),timer:!!app.rooms.get(value.board)?.timer};process.send?.({id:message.id,result});return;
     }
     if (value.failVoting !== undefined) failVoting=value.failVoting;
@@ -95,6 +100,22 @@ process.on("message", async (message: any) => {
     if (value.failCreate !== undefined) failCreate = value.failCreate;
     if (value.fixedNow !== undefined) fixedNow = value.fixedNow;
     if (value.offset !== undefined) offset = value.offset;
+    if (value.readOnlyRows) {
+      const table = String(value.readOnlyRows), path = resolve(settings.dataDir, value.store ? "template-media" : "boards", value.board + ".sqlite");
+      if (!/^[a-z_]+$/.test(table)) throw Error("Invalid test table");
+      try { await access(path); }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        process.send?.({ id: message.id, result: [] }); return;
+      }
+      const db = new DatabaseSync(path, { readOnly: true });
+      try {
+        const exists = db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(table);
+        const rows = exists ? db.prepare(`SELECT * FROM "${table}"`).all() : [];
+        result = rows.map(row => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v instanceof Uint8Array ? { bytes: v.byteLength } : v])));
+      } finally { db.close(); }
+      process.send?.({ id: message.id, result }); return;
+    }
     if (value.unreachable) unreachable = value.unreachable;
     if (value.backupLimit !== undefined) {
       app.runtime.backupLimit = value.backupLimit;
@@ -104,6 +125,14 @@ process.on("message", async (message: any) => {
       // Resolve the room through the same lazy factory as production.
       original(value.board);
       const entry = app.rooms.get(value.board)!;
+      if (value.importCommand) {
+        const room = entry.room;
+        if (value.importCommand === "begin") result = await room.beginImport(value.person, value.workspace, value.hash);
+        if (value.importCommand === "end") await room.endImport(value.person, value.workspace, value.token);
+        if (value.importCommand === "claim") result = await room.claimImport(value.person, value.workspace, value.document);
+        if (value.importCommand === "create") await room.create(value.document, value.person, value.token);
+        process.send?.({ id: message.id, result }); return;
+      }
       if (value.reactions) {
         const v = value.reactions;
         if (v.reconstruct) await entry.room.ordered(async () => { entry.room = new Room(value.board, entry.room.env); });
@@ -181,7 +210,7 @@ process.on("message", async (message: any) => {
       if (value.rows) result = entry.storage.all(`SELECT * FROM "${value.rows}"`).map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v instanceof Uint8Array ? { bytes: v.byteLength } : v])));
       if (value.raiseFence) result = await entry.room.lock();
       if (value.fileSnapshot) entry.storage.exec("VACUUM INTO ?", value.fileSnapshot);
-      if (value.alarm) await entry.room.alarm();
+      if (value.alarm && (await entry.room.alarm())?.discard) await app.runtime.removeRoom(value.board);
       if (value.reload) {
         for (const connection of entry.connections) connection.close(1001);
         clearTimeout(entry.timer); entry.storage.close(); app.rooms.delete(value.board);

@@ -2,6 +2,7 @@
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
 import { api, ApiError } from "./api";
 import { importBoard } from "./import";
+import { finishImport, openImport, runImport, stageImport } from "./media-transfer";
 
 export type HomeImportHandle = { pick: (workspace: string) => void };
 export function HomeImport({ ref, visible, workspace, menu, creating, creation, setCreating, notify, children }: {
@@ -12,11 +13,12 @@ export function HomeImport({ ref, visible, workspace, menu, creating, creation, 
 }) {
   const button = useRef<HTMLButtonElement>(null), input = useRef<HTMLInputElement>(null);
   const destination = useRef(""), alive = useRef(true);
+  const transferring = useRef<AbortController | null>(null);
   const [importing, setImporting] = useState(false);
   useEffect(() => {
     const node = input.current!, cancel = () => button.current?.focus();
     node.addEventListener("cancel", cancel);
-    return () => { alive.current = false; node.removeEventListener("cancel", cancel); };
+    return () => { alive.current = false; transferring.current?.abort(); node.removeEventListener("cancel", cancel); };
   }, []);
   function pick(id: string) {
     if (creation.current) return;
@@ -32,8 +34,20 @@ export function HomeImport({ ref, visible, workspace, menu, creating, creation, 
     setCreating(true); setImporting(true);
     notify(`Importing “${file.name}”…`, true);
     try {
-      const reply = await importBoard(file, (body) => api<{ id: string }>(`/workspaces/${destination.current}/boards`, "POST", body));
-      if (alive.current) location.hash = "#/b/" + reply.id;
+      const workspace = destination.current;
+      const reply = await importBoard(file, (body) => api<{ id: string }>(`/workspaces/${workspace}/boards`, "POST", body));
+      if (!alive.current) return;
+      if ("media" in reply) {
+        const controller = transferring.current = new AbortController();
+        const { media, ...body } = reply;
+        const result = await runImport(media, {
+          open: (assets, signal) => openImport(workspace, assets, signal),
+          stage: (id, hash, blob, progress, signal) => stageImport(workspace, id, hash, blob, progress, signal),
+          finish: id => finishImport(workspace, body, id, controller.signal),
+        }, percent => { if (alive.current) notify(`Importing “${file.name}”… ${percent}%`, true); }, controller.signal);
+        if (!result.ok) throw Error(result.reason);
+        if (alive.current) location.hash = "#/b/" + result.value.id;
+      } else location.hash = "#/b/" + reply.id;
     } catch (error) {
       if (alive.current) {
         const reason = error instanceof ApiError ? error.reason.replaceAll("_", " ")
@@ -41,6 +55,7 @@ export function HomeImport({ ref, visible, workspace, menu, creating, creation, 
         notify(`Couldn't import “${file.name}”: ${reason}.`, false);
       }
     } finally {
+      transferring.current = null;
       creation.current = false;
       if (alive.current) {
         setImporting(false); setCreating(false);

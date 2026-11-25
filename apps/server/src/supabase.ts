@@ -32,6 +32,8 @@ export class Supabase implements AccessSource, BoardRows {
   async rpc<T = any>(name: string, parameters: Record<string, unknown>): Promise<T> {
     const { data, error } = await this.client.schema("nextphase_board").rpc(name, parameters);
     if (error) {
+      if (name === "create_board" && error.message === "board_exists") throw new RoomError(409, "import_in_progress");
+      if (name === "create_board" && error.message === "role_too_low") throw new RoomError(403, "role_too_low", error.details);
       const statuses: Record<string, number> = { owner_row_immutable: 409, guest_has_grants: 409,
         account_disabled: 403, person_not_found: 404,
         service_unavailable:503, lifecycle_pending:503, restore_pending:503, move_failed:503, restore_failed:503,
@@ -55,6 +57,9 @@ export class Supabase implements AccessSource, BoardRows {
     if (error) throw new RoomError(503, "service_unavailable");
     const authority = await this.client.schema("nextphase_board").from("board_lifecycle").delete().eq("board_id", id).eq("state", "active").eq("cycle", 0);
     if (authority.error) throw new RoomError(503, "service_unavailable");
+  }
+  async discardImport(board: string, workspace: string): Promise<void> {
+    await this.rpc("discard_import", { board, workspace });
   }
   async board(id: string): Promise<BoardDetails | null> {
     const row = (await this.rows("boards", { id }))[0];
@@ -96,22 +101,24 @@ export class Supabase implements AccessSource, BoardRows {
     return { templates: value.templates.map(templateRow), limit: 25, canSave: value.canSave };
   }
   async getTemplate(person: string, workspace: string, template: string) {
-    return templateRow(await this.templateCall("get_template", { person, workspace, template }));
+    const row = await this.templateCall<RecordRow>("get_template", { person, workspace, template });
+    return { template: templateRow(row), store: row.store as string | null };
   }
   async saveTemplate(person: string, workspace: string, board: string, details: { name: string; description: string },
-    content: ReturnType<typeof templateObjects>, creatorLabel: string) {
+    content: ReturnType<typeof templateObjects>, creatorLabel: string, store?: string) {
     return templateRow(await this.templateCall("save_template", { person, workspace, board, ...details, objects: content.objects,
-      object_count: content.objectCount, content_bytes: content.contentBytes, creator_label: creatorLabel, source_title: "" }));
+      object_count: content.objectCount, content_bytes: content.contentBytes, creator_label: creatorLabel, source_title: "", ...(store ? { store } : {}) }));
   }
   async updateTemplateDetails(person: string, workspace: string, template: string, details: { name: string; description: string }) {
     return templateRow(await this.templateCall("update_template_details", { person, workspace, template, ...details }));
   }
-  async replaceTemplate(person: string, workspace: string, template: string, board: string, content: ReturnType<typeof templateObjects>) {
-    return templateRow(await this.templateCall("replace_template", { person, workspace, template, board, objects: content.objects,
-      object_count: content.objectCount, content_bytes: content.contentBytes, source_title: "" }));
+  async replaceTemplate(person: string, workspace: string, template: string, board: string, content: ReturnType<typeof templateObjects>, store?: string) {
+    const row = await this.templateCall<RecordRow>("replace_template", { person, workspace, template, board, objects: content.objects,
+      object_count: content.objectCount, content_bytes: content.contentBytes, source_title: "", ...(store ? { store } : {}) });
+    return { template: templateRow(row), previousStore: row.previousStore as string | null };
   }
   async deleteTemplate(person: string, workspace: string, template: string) {
-    await this.templateCall("delete_template", { person, workspace, template });
+    return (await this.templateCall<{ store: string | null }>("delete_template", { person, workspace, template })).store;
   }
   async activeRows(rows:RecordRow[]):Promise<RecordRow[]> {
     const states=await Promise.all(rows.map(row=>this.lifecycle(String(row.id))));

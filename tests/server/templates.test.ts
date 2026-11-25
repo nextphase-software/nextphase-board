@@ -135,7 +135,7 @@ check(385, "25 cap and concurrent inserts under workspace lock", async () => {
   assert.equal(replies.filter(r => r.status === 201).length, 2); assert.equal(replies.filter(r => r.status === 409).length, 3); assert.equal((await rows()).length, 25);
 });
 check(386, "get exact shape and path ids never disclose other workspace", async () => {
-  const t = await save(); assert.deepEqual(await ok(path(t.id)), t);
+  const t = await save(), { media, ...detail } = await ok(path(t.id)); assert.deepEqual(detail, t); assert.deepEqual(media, []);
   const own = f.workspace, other = await helper("fixture"); f.workspace = other.workspace;
   await refused(path(t.id), "owner", "GET", undefined, 404, "not_found"); f.workspace = own;
   for (const id of [crypto.randomUUID(), "unknown"]) await refused(path(id), "owner", "GET", undefined, 404, "not_found");

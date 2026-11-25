@@ -778,6 +778,16 @@ Both server runner suites include `server/pictures.test.ts` (S431–S441).
 for playback and controls, and `room-videos.test.mjs` for streamed room storage, edits and backups.
 Both server suites include `server/videos.test.ts` (S443–S452).
 
+## 0012-W6 team imports and templates with pictures
+
+`npm test` includes `room-imports.test.mjs` for staged imports, template stores and the
+Node restore marker, and `team-media.test.mjs` for the web transfers, progress and failure
+states. Neither unit file needs a running Supabase stack.
+
+Both server runner suites include `server/imports.test.ts` (S453–S466). Node also runs
+S467, which restarts the runner on its existing data folder and checks that the marked
+import is erased without a request to its room.
+
 ## Node test server warnings
 
 S442 in `server/suite.test.ts` verifies that the driver captures the test

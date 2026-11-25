@@ -11,6 +11,7 @@ export type TemplateCommands = {
   addActivity: (entry: Activity) => void;
   snapshot: () => { title: string; selected: boolean; snapshot: Snapshot | null };
   insertStored: (name: string, board: BoardV14) => void;
+  closeTemplates: () => void;
   commandReason: string; selected: boolean; objectCount: number;
 };
 export type Box = { left: number; top: number; right: number; bottom: number };

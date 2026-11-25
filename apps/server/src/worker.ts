@@ -4,8 +4,11 @@ import { createApp } from "./app.ts";
 import type { Room } from "nextphase-board-room/room.ts";
 import { meta } from "nextphase-board-room/storage.ts";
 import { markExplicitRecovery } from "nextphase-board-room/timer.ts";
-import { RoomError } from "nextphase-board-room/protocol.ts";
-import { WorkerRoom } from "./worker-room.ts";
+import { errorBody, RoomError } from "nextphase-board-room/protocol.ts";
+import { StagingExpired, TemplateStore } from "nextphase-board-room/template-store.ts";
+import type { AssetType } from "nextphase-board-room/pictures.ts";
+import { callerFrom, WorkerRoom } from "./worker-room.ts";
+import { WorkerStorage } from "./worker-storage.ts";
 import { workerRuntime, stub, type WorkerEnv } from "./worker-runtime.ts";
 import { deliver } from "./delivery.ts";
 type FenceState = { generation: number; recoveryGeneration: number };
@@ -23,8 +26,10 @@ async function recoveryFence(env: WorkerEnv, board: string, recover = false) {
 export class BoardRoom extends WorkerRoom {
   private checkedRoom?: Room;
   private checkingRecovery?: Promise<void>;
-  async getRoom(board?: string) {
-    const room = await super.getRoom(board);
+  async getRoom(board?: string, stagingAction = false) {
+    const state = this.stagingState();
+    const room = await super.getRoom(board, stagingAction);
+    if (state.staging || !state.loaded && stagingAction) return room;
     // Check once per reconstructed Room, before any load can resume history.
     // Keep ordinary reads of an already-open room outside its potentially held queue.
     if (this.checkedRoom !== room) {
@@ -56,6 +61,68 @@ export class BoardRoom extends WorkerRoom {
       room.access.locked = true;
       return (await recoveryFence(this.env, room.boardId, true)).generation;
     });
+  }
+}
+export class TemplateMedia {
+  private store?: TemplateStore;
+  protected readonly state: DurableObjectState;
+  constructor(state: DurableObjectState) { this.state = state; }
+  protected now() { return Date.now(); }
+  private async getStore() {
+    if (!this.store) {
+      this.store = new TemplateStore({ storage: new WorkerStorage(this.state.storage), now: () => this.now(), randomId: () => crypto.randomUUID(),
+        schedule: async at => { if (at === null) await this.state.storage.deleteAlarm(); else await this.state.storage.setAlarm(at); } });
+      await this.store.reopen();
+    }
+    return this.store;
+  }
+  private async erase() {
+    await this.store?.discard();
+    await this.state.storage.deleteAlarm();
+    await this.state.storage.deleteAll();
+    this.store = undefined;
+  }
+  async fetch(request: Request) {
+    try {
+      const path = new URL(request.url).pathname;
+      if (path === "/discard") { await this.erase(); return Response.json({}); }
+      const store = await this.getStore(), headers = request.headers;
+      if (path === "/inventory") {
+        const inventory = await store.inventory();
+        if (!Array.isArray(inventory)) await this.erase();
+        return Response.json(Array.isArray(inventory) ? inventory : []);
+      }
+      if (path === "/read") {
+        const value = await store.read(headers.get("x-picture-hash")!);
+        if (!value) {
+          if (!Array.isArray(await store.inventory())) await this.erase();
+          return new Response(null, { status: 204 });
+        }
+        return new Response(value.bytes, { headers: { "Content-Type": value.type, "Content-Length": String(value.bytes.length) } });
+      }
+      if (path === "/stage") {
+        const value = await store.stage(callerFrom(headers), headers.get("x-workspace")!, headers.get("x-upload-token")!,
+          headers.get("x-picture-hash")!, headers.get("x-picture-type") as AssetType, new Uint8Array(await request.arrayBuffer()),
+          Number(headers.get("x-picture-width")), Number(headers.get("x-picture-height")));
+        return Response.json(value);
+      }
+      const value = await request.json() as any;
+      switch (path) {
+        case "/open": await store.open(value.person, value.workspace, value.assets); return Response.json({});
+        case "/begin": return Response.json(await store.begin(value.person, value.workspace, value.hash));
+        case "/end": await store.end(value.person, value.workspace, value.token); return Response.json({});
+        case "/commit": return Response.json(await store.commit(value.person, value.workspace));
+        default: throw new RoomError(404, "not_found");
+      }
+    } catch (error) {
+      if (error instanceof StagingExpired && error.discard) await this.erase();
+      const failure = error instanceof RoomError ? error : new RoomError(503, "service_unavailable");
+      return Response.json(errorBody(failure), { status: failure.status });
+    }
+  }
+  async alarm() {
+    if (!this.store && !this.state.storage.sql.exec("SELECT 1 FROM sqlite_master WHERE name='meta'").toArray().length) return;
+    if ((await (await this.getStore()).alarm())?.discard) await this.erase();
   }
 }
 export class RestoreFence {

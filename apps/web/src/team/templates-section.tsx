@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useLayoutEffect, useId, useRef, useState, type ButtonHTMLAttributes, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import { isImage, isVideo } from "nextphase-board-rules/objects/registry.ts";
 import { activityPreview, type Preview, type TemplateCommands } from "../activities.ts";
 import type { Snapshot } from "../clipboard.ts";
 import type { HostedBoard } from "./hosted-board.ts";
 import { Templates } from "./templates.ts";
-import { contentBytes, menuIndex, points, saveLabel, saveReason, templateBoard, templateSnapshot, validDescription, validName, type Template } from "./templates-rules.ts";
+import { assetSizes, checkedSizes, mediaOf, templateAdds } from "./media-transfer.ts";
+import { contentBytes, menuIndex, pictureLine, points, saveLabel, saveReason, templateBoard, templateSnapshot, TEMPLATE_MEDIA_BYTES, validDescription, validName, type AssetEntry, type Template } from "./templates-rules.ts";
 
 type DialogState = { action: "save" | "edit" | "replace" | "delete"; template?: Template;
   source?: { pageName?: string; title: string; selected: boolean; snapshot: Snapshot | null } };
@@ -37,14 +39,16 @@ export function TemplatesSection({ hosted, commands, disabled }: { hosted: Hoste
   const controllerRef = useRef<Templates | null>(null);
   if (!controllerRef.current) controllerRef.current = new Templates(hosted.snapshot.workspaceId, hosted.snapshot.workspace, hosted.boardId, text => hosted.toast(text));
   const controller = controllerRef.current, [, redraw] = useState(0);
+  const adds = templateAdds(hosted);
   const save = useRef<HTMLButtonElement>(null), group = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ template: Template; opener: HTMLButtonElement } | null>(null);
   const [dialog, setDialog] = useState<DialogState | null>(null);
   useEffect(() => {
-    const off = controller.subscribe(() => redraw(n => n + 1));
+    const update = () => redraw(n => n + 1);
+    const off = controller.subscribe(update), offAdds = adds.subscribe(update);
     void controller.open();
-    return () => { off(); controller.stop(); };
-  }, [controller]);
+    return () => { off(); offAdds(); controller.stop(); };
+  }, [controller, adds]);
   const returnFocus = (template?: Template) => {
     const more = template && [...group.current?.querySelectorAll<HTMLButtonElement>(".team-template-more") ?? []].find(b => b.dataset.template === template.id);
     const target = template ? more : save.current;
@@ -84,8 +88,8 @@ export function TemplatesSection({ hosted, commands, disabled }: { hosted: Hoste
         const by = `By ${template.creatorLabel} · from ${template.sourceTitle}`;
         return <article className={"template-card" + (controller.newId === template.id ? " team-template-new" : "")} key={template.id}>
           <div className="template-preview"><PreviewImage preview={activityPreview(templateBoard(template.objects).objects)} />
-            <button className="add-template primary" aria-label={"Add template: " + template.name} disabled={disabled}
-              onClick={() => { void controller.read(template).then(fresh => { if (fresh) commands.insertStored(fresh.name, templateBoard(fresh.objects)); }); }}>Add template</button>
+            <button className="add-template primary" aria-label={"Add template: " + template.name} disabled={disabled || adds.adding}
+              onClick={() => { void controller.add(template, hosted, commands); }}>Add template</button>
             {template.canManage && <button className="team-template-more" data-template={template.id}
               aria-label={"More options: " + template.name} aria-haspopup="menu" aria-expanded={menu?.template.id === template.id}
               onKeyDown={event => { if (event.key === "ArrowDown") { event.preventDefault(); setMenu({ template, opener: event.currentTarget }); } }}
@@ -99,7 +103,7 @@ export function TemplatesSection({ hosted, commands, disabled }: { hosted: Hoste
       })}</div>}
     {menu && <TemplateMenu opener={menu.opener} selected={commands.selected} choose={choose}
       close={focus => { setMenu(null); if (focus) returnFocus(menu.template); }} />}
-    {dialog && <TemplateDialog key={dialog.action + (dialog.template?.id ?? "")} state={dialog} controller={controller} close={closeDialog} />}
+    {dialog && <TemplateDialog key={dialog.action + (dialog.template?.id ?? "")} state={dialog} controller={controller} hosted={hosted} close={closeDialog} />}
   </div>;
 }
 function TemplateMenu({ opener, selected, choose, close }: { opener: HTMLButtonElement; selected: boolean;
@@ -129,32 +133,51 @@ function TemplateMenu({ opener, selected, choose, close }: { opener: HTMLButtonE
     <hr role="separator" /><button role="menuitem" tabIndex={-1} className="error" onClick={() => choose("delete")}>Delete…</button>
   </div>, document.body);
 }
-function TemplateDialog({ state, controller, close }: { state: DialogState; controller: Templates; close: (deleted?: boolean) => void }) {
+function TemplateDialog({ state, controller, hosted, close }: { state: DialogState; controller: Templates; hosted: HostedBoard; close: (deleted?: boolean) => void }) {
   const node = useRef<HTMLDialogElement>(null), id = useId();
   const [name, setName] = useState(state.template?.name ?? ""), [description, setDescription] = useState(state.template?.description ?? "");
   const [touched, setTouched] = useState(false);
+  const [sizes, setSizes] = useState<AssetEntry[] | null>();
   const form = state.action === "save" || state.action === "edit", objects = state.source?.snapshot?.objects;
+  const media = mediaOf(objects ?? []);
+  const bytes = sizes?.reduce((sum, item) => sum + item.bytes, 0);
+  const pictureHint = media.length ? pictureLine({
+    pictures: new Set(objects?.filter(isImage).map(object => object.asset)).size,
+    videos: new Set(objects?.filter(isVideo).map(object => object.asset)).size,
+  }, bytes) : "";
   let preview: Preview | undefined, contentError = "";
   if (objects) {
     try { preview = activityPreview(templateBoard(objects).objects); }
     catch { contentError = contentBytes(objects) > 262144 ? "This is too large for a template. Select fewer objects." : "Couldn't save the template. Try again."; }
   } else if (state.action === "save" || state.action === "replace") contentError = "Couldn't save the template. Try again.";
+  if (sizes === null) contentError = `Couldn't ${state.action === "replace" ? "replace" : "save"} the template: a picture on this board couldn't be loaded. Try again.`;
+  if (bytes !== undefined && bytes > TEMPLATE_MEDIA_BYTES) contentError = "This is too large for a template. Select fewer objects.";
   const pending = controller.pending;
-  const valid = (!form || validName(name) && validDescription(description)) && !contentError;
+  const valid = (!form || validName(name) && validDescription(description)) && !contentError && (!media.length || !!sizes);
   useEffect(() => {
     const dialog = node.current!; dialog.showModal();
     (dialog.querySelector<HTMLElement>(form ? "input" : "button"))?.focus();
+    const request = new AbortController();
+    if (media.length) {
+      const timer = setTimeout(() => { request.abort(); setSizes(null); }, 60_000);
+      void assetSizes(hosted.boardId, media.map(entry => entry.hash), request.signal).then(result => {
+        clearTimeout(timer);
+        if (!request.signal.aborted) setSizes(result.kind === "ok" ? checkedSizes(objects!, result.assets) : null);
+      });
+      return () => { clearTimeout(timer); request.abort(); dialog.close(); };
+    }
     return () => { dialog.close(); };
   }, []);
   const submit = async () => {
     setTouched(true);
     if (!valid || pending) return;
-    const outcome = await controller.change(state.action, { name, description }, state.template, objects);
+    const outcome = await controller.change(state.action, { name, description }, state.template, objects, sizes ?? [], hosted);
     if (outcome !== "failed") close(state.action === "delete" && outcome === "done");
   };
   const title = state.action === "save" ? "Save as template" : state.action === "edit" ? "Edit template details"
     : `${state.action === "replace" ? "Replace" : "Delete"} “${state.template!.name}”?`;
-  const action = state.action === "save" ? "Save template" : state.action === "edit" ? "Save changes" : state.action === "replace" ? "Replace content" : "Delete template";
+  const action = controller.progress !== undefined ? `${state.action === "replace" ? "Replacing" : "Saving"}… ${controller.progress}%`
+    : state.action === "save" ? "Save template" : state.action === "edit" ? "Save changes" : state.action === "replace" ? "Replace content" : "Delete template";
   return <dialog ref={node} className="board-question team-template-dialog" aria-labelledby={id + "-title"}
     onCancel={event => { event.preventDefault(); if (!pending) close(); }}
     onKeyDown={event => { event.stopPropagation(); if (event.key === "Escape") { event.preventDefault(); if (!pending) close(); } }}>
@@ -178,6 +201,7 @@ function TemplateDialog({ state, controller, close }: { state: DialogState; cont
       </> : <p>{state.action === "replace"
         ? `Its content becomes the ${objects?.length ?? 0} selected objects. Its name, description and creator stay. Boards that already used it keep their copies.`
         : `${controller.workspaceName} will no longer see it in Templates. Boards that already used it keep their copies. This can’t be undone.`}</p>}
+      {pictureHint && <p className="team-template-hint">{pictureHint}</p>}
       {(contentError || controller.error) && <p className="team-template-error" role="alert">{contentError || controller.error}</p>}
       <div className="board-question-actions"><button type="button" disabled={pending} onClick={() => close()}>Cancel</button>
         <button type="submit" className={state.action === "delete" ? "error" : "primary"} disabled={pending || !valid}>{action}</button></div>

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { PictureType, VideoType } from "nextphase-board-room/pictures.ts";
-import { Room } from "nextphase-board-room/room.ts";
+import { Room, importDeadline, type ImportStaging } from "nextphase-board-room/room.ts";
+import { StagingExpired } from "nextphase-board-room/template-store.ts";
 import { BACKUP_LIMIT, errorBody, RoomError, type Connection, type Attachment } from "nextphase-board-room/protocol.ts";
 import type { RoomEnvironment } from "nextphase-board-room/interfaces.ts";
 import { WorkerStorage } from "./worker-storage.ts";
@@ -8,6 +9,10 @@ import { workerRuntime, stub, type WorkerEnv } from "./worker-runtime.ts";
 export function connection(socket: WebSocket): Connection {
   return { attachment: () => socket.deserializeAttachment() as Attachment,
     attach: (value) => socket.serializeAttachment(value), send: (text) => socket.send(text), close: (code) => socket.close(code) };
+}
+export function callerFrom(headers: Headers) {
+  const caller = atob(headers.get("x-person")!.replaceAll("-", "+").replaceAll("_", "/"));
+  return JSON.parse(new TextDecoder().decode(Uint8Array.from(caller, char => char.charCodeAt(0))));
 }
 export function roomEnvironment(state: DurableObjectState, env: WorkerEnv, board: string): RoomEnvironment {
   const runtime = workerRuntime(env);
@@ -59,7 +64,18 @@ export class WorkerRoom {
     } };
     return environment;
   }
-  async getRoom(board?: string) {
+  protected stagingState() {
+    const sql = this.state.storage?.sql;
+    if (!sql) return { loaded: !!this.room };
+    if (!sql.exec("SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta'").toArray().length) return { loaded: false };
+    const rows = sql.exec<{ key: string; value: string | number }>("SELECT key,value FROM meta WHERE key IN ('import','storage_version')").toArray();
+    const loaded = rows.some(row => row.key === "storage_version");
+    const raw = rows.find(row => row.key === "import")?.value;
+    return { loaded, staging: !loaded && typeof raw === "string" ? JSON.parse(raw) as ImportStaging : undefined };
+  }
+  async getRoom(board?: string, _stagingAction = false) {
+    const staging = this.stagingState().staging;
+    board ??= staging?.id;
     if (!board) {
       try {
         board = this.state.storage.sql.exec<{ value: string }>("SELECT value FROM meta WHERE key = 'board_id'").toArray()[0]?.value;
@@ -69,8 +85,23 @@ export class WorkerRoom {
     if (!this.room) {
       this.discarded = false;
       this.room = new Room(board, this.environment(board));
+      if (staging) await this.room.ordered(() => this.room!.schedule());
     }
     return this.room;
+  }
+  private async erase() {
+    const room = this.room;
+    if (room) await room.discardLifecycle();
+    while (this.tasks.size) await Promise.allSettled([...this.tasks]);
+    const discard = async () => {
+      for (const socket of this.state.getWebSockets()) socket.close(4403);
+      this.discarded = true;
+      this.room = undefined;
+      await this.state.storage.deleteAlarm();
+      await this.state.storage.deleteAll();
+      if (this.state.storage.sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '_cf_%'").toArray().length) throw Error("Discard not confirmed");
+    };
+    if (room) await room.ordered(discard); else await discard();
   }
   protected reserveTimeRecovery(room: Room) { return room.lock(); }
   async fetch(request: Request) {
@@ -85,12 +116,23 @@ export class WorkerRoom {
         await room.connected(connection(pair[1]));
         return new Response(null, { status: 101, webSocket: pair[0] });
       }
-      if (url.pathname === "/picture-store" || url.pathname === "/picture-read" || url.pathname === "/video-read" || url.pathname === "/video-store") {
+      if (["/picture-store", "/picture-read", "/video-read", "/video-store", "/import-picture", "/import-video"].includes(url.pathname)) {
         const headers = request.headers;
-        const room = await this.getRoom(headers.get("x-board")!);
-        const caller = atob(headers.get("x-person")!.replaceAll("-", "+").replaceAll("_", "/"));
-        const person = JSON.parse(new TextDecoder().decode(Uint8Array.from(caller, char => char.charCodeAt(0))));
+        const importing = url.pathname.startsWith("/import-");
+        const room = await this.getRoom(headers.get("x-board")!, importing);
+        const person = callerFrom(headers);
         const hash = headers.get("x-picture-hash")!;
+        const type = headers.get("x-picture-type")!;
+        if (importing) {
+          const workspace = headers.get("x-workspace")!, token = headers.get("x-upload-token")!;
+          if (url.pathname === "/import-video") {
+            if (!request.body) throw new RoomError(400, "unsupported_picture");
+            return Response.json(await room.stageImportVideo(person, workspace, token, hash, type as VideoType, request.body));
+          }
+          const result = await room.stageImportPicture(person, workspace, token, hash, new Uint8Array(await request.arrayBuffer()),
+            type as PictureType, Number(headers.get("x-picture-width")), Number(headers.get("x-picture-height")));
+          return Response.json({ result });
+        }
         if (url.pathname === "/video-store") {
           if (!request.body) throw new RoomError(400, "unsupported_picture");
           return Response.json(await room.storeVideo(person, hash, headers.get("x-picture-type") as VideoType, request.body));
@@ -112,33 +154,32 @@ export class WorkerRoom {
       }
       const { board, value } = await request.json() as { board: string; value: any };
       if(url.pathname==='/lifecycle-floor') {
+        if (this.stagingState().staging) throw new RoomError(404, "not_found");
         const exists=this.state.storage.sql.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='meta'").toArray().length;
         const floor=exists?this.state.storage.sql.exec<{value:number}>("SELECT value FROM meta WHERE key='restore_generation'").toArray()[0]?.value??0:0;
         return Response.json({generation:Number(floor)});
       }
       if (url.pathname === "/discard") {
         if (value?.generation !== undefined) {
+          if (this.stagingState().staging) throw new RoomError(404, "not_found");
           const env=roomEnvironment(this.state,this.env,board);
           const current=await env.fence();
           if(current<value.generation && await env.raiseFence(value.generation-1)!==value.generation) throw new RoomError(503,"service_unavailable");
         }
-        const room = this.room;
-        if (room) await room.discardLifecycle();
-        while (this.tasks.size) await Promise.allSettled([...this.tasks]);
-        const discard = async () => {
-          for (const socket of this.state.getWebSockets()) socket.close(4403);
-          this.discarded = true;
-          this.room = undefined;
-          await this.state.storage.deleteAlarm();
-          await this.state.storage.deleteAll();
-          if (this.state.storage.sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '_cf_%'").toArray().length) throw Error("Discard not confirmed");
-        };
-        if (room) await room.ordered(discard); else await discard();
+        await this.erase();
         return Response.json({});
       }
-      const room = await this.getRoom(board);
+      if (url.pathname === "/restart" && this.stagingState().staging) throw new RoomError(404, "not_found");
+      const room = await this.getRoom(board, url.pathname.startsWith("/import-"));
       let result: unknown;
       switch (url.pathname) {
+        case "/import-open": await room.openImport(value.person, value.workspace, value.assets); result = {}; break;
+        case "/import-begin": result = await room.beginImport(value.person, value.workspace, value.hash); break;
+        case "/import-end": await room.endImport(value.person, value.workspace, value.token); result = {}; break;
+        case "/import-claim": result = await room.claimImport(value.person, value.workspace, value.document); break;
+        case "/import-release": await room.releaseImport(value.token); result = {}; break;
+        case "/import-create": await room.create(value.document, value.importer, value.token); result = {}; break;
+        case "/asset-sizes": result = await room.assetSizes(value.person, value.hashes); break;
         case "/admit-lifecycle": result = await room.admitLifecycle(value); break;
         case "/fence-lifecycle": await room.fenceLifecycle(value.row, value.ready); result = {}; break;
         case "/versions": result = await room.versions(value.person); break;
@@ -168,6 +209,7 @@ export class WorkerRoom {
       }
       return Response.json(result);
     } catch (error) {
+      if (error instanceof StagingExpired && error.discard) await this.erase();
       const failure = error instanceof RoomError ? error : new RoomError(503, "service_unavailable");
       return Response.json(errorBody(failure), { status: failure.status });
     }
@@ -186,5 +228,15 @@ export class WorkerRoom {
     socket.close(code === 1006 ? 1001 : code);
   }
   async webSocketError(socket: WebSocket) { if (!this.discarded) await (await this.getRoom()).closed(connection(socket),1011,"error"); socket.close(1011); }
-  async alarm() { if (!this.discarded) await (await this.getRoom()).alarm(); }
+  async alarm() {
+    if (this.discarded) return;
+    const { staging } = this.stagingState();
+    if (staging && !this.room && !staging.finishing) {
+      const deadline = importDeadline(staging);
+      if (deadline > Date.now()) await this.state.storage.setAlarm(deadline);
+      else await this.erase();
+      return;
+    }
+    if ((await (await this.getRoom(staging?.id, !!staging)).alarm())?.discard) await this.erase();
+  }
 }

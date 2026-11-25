@@ -2,20 +2,25 @@
 import { ledgerRecord } from "./lifecycle.ts";
 import { Auth } from "./auth.ts";
 import { Supabase } from "./supabase.ts";
-import type { Runtime, RoomClient } from "./runtime.ts";
+import type { Runtime, RoomClient, TemplateMediaClient } from "./runtime.ts";
 import { base64, bytes, BACKUP_LIMIT, RoomError } from "nextphase-board-room/protocol.ts";
 export type WorkerEnv = {
-  ROOMS: DurableObjectNamespace; FENCES: DurableObjectNamespace;
+  ROOMS: DurableObjectNamespace; FENCES: DurableObjectNamespace; TEMPLATE_MEDIA: DurableObjectNamespace;
   SUPABASE_URL: string; SUPABASE_ISSUER?: string; SUPABASE_SERVICE_KEY: string;
   JWKS: string; ALLOWED_ORIGIN: string; OPERATOR_KEY?: string; BOARD_JURISDICTION?: "us" | "eu";
 };
-export function namespace(env: WorkerEnv, name: "ROOMS" | "FENCES") {
+type StoreNamespace = "ROOMS" | "FENCES" | "TEMPLATE_MEDIA";
+export function namespace(env: WorkerEnv, name: StoreNamespace) {
   return env.BOARD_JURISDICTION ? env[name].jurisdiction(env.BOARD_JURISDICTION) : env[name];
 }
-export function stub(env: WorkerEnv, name: "ROOMS" | "FENCES", board: string) {
+export function stub(env: WorkerEnv, name: StoreNamespace, board: string) {
   const binding = namespace(env, name);
   return binding.get(binding.idFromName(board));
 }
+const encodePerson = (person: Parameters<RoomClient["export"]>[0]) =>
+  base64(bytes(JSON.stringify(person))).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+const bufferOf = (data: Uint8Array) =>
+  data.buffer instanceof ArrayBuffer && data.byteOffset === 0 && data.length === data.buffer.byteLength ? data.buffer : data.slice().buffer;
 const runtimes = new WeakMap<WorkerEnv, Runtime>();
 export function workerRuntime(env: WorkerEnv): Runtime {
   const cached = runtimes.get(env);
@@ -37,7 +42,7 @@ export function workerRuntime(env: WorkerEnv): Runtime {
       return result;
     }
     function pictureCall(action: string, person: Parameters<RoomClient["export"]>[0], hash: string, headers: Record<string, string> = {}, body?: ArrayBuffer | ReadableStream<Uint8Array>) {
-      const caller = base64(bytes(JSON.stringify(person))).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+      const caller = encodePerson(person);
       return stub(env, "ROOMS", board).fetch("http://room/" + action, {
         method: "POST", body, headers: { "x-board": board, "x-person": caller, "x-picture-hash": hash, ...headers },
       }).then(async response => {
@@ -50,7 +55,7 @@ export function workerRuntime(env: WorkerEnv): Runtime {
     }
     return {
       async storePicture(person, hash, data, type, width, height) {
-        const body = data.buffer instanceof ArrayBuffer && data.byteOffset === 0 && data.length === data.buffer.byteLength ? data.buffer : data.slice().buffer;
+        const body = bufferOf(data);
         const response = await pictureCall("picture-store", person, hash, {
           "x-picture-type": type, "x-picture-width": String(width), "x-picture-height": String(height),
         }, body);
@@ -72,11 +77,29 @@ export function workerRuntime(env: WorkerEnv): Runtime {
         const response = await pictureCall("picture-read", person, hash);
         return response.status === 204 ? null : { type: response.headers.get("Content-Type")!, bytes: new Uint8Array(await response.arrayBuffer()) };
       },
+      openImport: (person, workspace, assets) => call("import-open", { person, workspace, assets }),
+      beginImport: (person, workspace, hash) => call("import-begin", { person, workspace, hash }),
+      endImport: (person, workspace, token) => call("import-end", { person, workspace, token }),
+      async stageImportPicture(person, workspace, token, hash, data, type, width, height) {
+        const response = await pictureCall("import-picture", person, hash, {
+          "x-workspace": workspace, "x-upload-token": token, "x-picture-type": type,
+          "x-picture-width": String(width), "x-picture-height": String(height),
+        }, bufferOf(data));
+        return (await response.json() as { result: "created" | "exists" | "full" }).result;
+      },
+      async stageImportVideo(person, workspace, token, hash, type, body) {
+        const response = await pictureCall("import-video", person, hash,
+          { "x-workspace": workspace, "x-upload-token": token, "x-picture-type": type }, body);
+        return await response.json() as Awaited<ReturnType<RoomClient["stageImportVideo"]>>;
+      },
+      claimImport: (person, workspace, document) => call("import-claim", { person, workspace, document }),
+      releaseImport: token => call("import-release", { token }),
+      assetSizes: (person, hashes) => call("asset-sizes", { person, hashes }),
       admitLifecycle: value => call("admit-lifecycle", value), fenceLifecycle: (row, ready) => call("fence-lifecycle", { row, ready }), versions: person => call("versions", { person }), version: (person, id) => call("version", { person, id }),
       saveVersion: (person, value) => call("save-version", { person, input: value }),
       nameVersion: (person, id, value) => call("name-version", { person, id, input: value }),
       restoreVersion: (person, id, value) => call("restore-version", { person, id, input: value }),
-      create: (document) => call("create", document), rename: (person, title) => call("rename", { person, title }), ticket: (person) => call("ticket", person), export: (person) => call("export", person),
+      create: (document, importer, token) => importer ? call("import-create", { document, importer, token }) : call("create", document), rename: (person, title) => call("rename", { person, title }), ticket: (person) => call("ticket", person), export: (person) => call("export", person),
       deliverNotices: () => call("deliver-notices"), discussion: (person, commentId, occurrence) => call("discussion", { person, commentId, occurrence }),
       changed: () => call("changed"), backup: () => call("backup"), restore: (value) => call("restore", value),
       async restoreToTime(bookmark) {
@@ -87,6 +110,40 @@ export function workerRuntime(env: WorkerEnv): Runtime {
         return result;
       } };
   }
+  async function templateCall(upload: string, action: string, init?: RequestInit) {
+    const reply = await stub(env, "TEMPLATE_MEDIA", upload).fetch("http://template/" + action, { method: "POST", ...init });
+    if (!reply.ok) {
+      const { error } = await reply.json() as { error: { reason: string; needed?: string } };
+      throw new RoomError(reply.status, error.reason, error.needed);
+    }
+    return reply;
+  }
+  function templateMedia(upload: string): TemplateMediaClient {
+    async function call<T>(action: string, value?: object): Promise<T> {
+      return (await templateCall(upload, action, { body: value && JSON.stringify(value) })).json() as Promise<T>;
+    }
+    return {
+      open: (person, workspace, assets) => call("open", { person, workspace, assets }),
+      begin: (person, workspace, hash) => call("begin", { person, workspace, hash }),
+      end: (person, workspace, token) => call("end", { person, workspace, token }),
+      async stage(person, workspace, token, hash, type, data, width, height) {
+        return (await templateCall(upload, "stage", { body: bufferOf(data), headers: {
+          "x-person": encodePerson(person), "x-workspace": workspace, "x-upload-token": token,
+          "x-picture-hash": hash, "x-picture-type": type, "x-picture-bytes": String(data.length),
+          "x-picture-width": String(width), "x-picture-height": String(height),
+        } })).json() as Promise<"created" | "exists">;
+      },
+      commit: (person, workspace) => call("commit", { person, workspace }),
+      inventory: () => call("inventory"),
+      async read(hash) {
+        const reply = await templateCall(upload, "read", { headers: { "x-picture-hash": hash } });
+        return reply.status === 204 ? null : {
+          type: reply.headers.get("Content-Type") as import("nextphase-board-room/pictures.ts").AssetType,
+          bytes: new Uint8Array(await reply.arrayBuffer()),
+        };
+      },
+    };
+  }
   const runtime: Runtime = { backupLimit: BACKUP_LIMIT, now: Date.now, async fenceGeneration(board){
       const response=await stub(env,"FENCES",board).fetch("http://fence/read",{method:"POST"});
       if(!response.ok)throw new RoomError(503,"service_unavailable");
@@ -96,6 +153,8 @@ export function workerRuntime(env: WorkerEnv): Runtime {
       return Math.max(independent,(await local.json() as {generation:number}).generation);
     }, auth, db, allowedOrigin: env.ALLOWED_ORIGIN, operatorKey: env.OPERATOR_KEY,
     room: client,
+    templateMedia,
+    async removeTemplateMedia(upload) { await (await templateCall(upload, "discard")).arrayBuffer(); },
     async removeRoom(board, generation) {
       const response = await stub(env, "ROOMS", board).fetch("http://room/discard", {
         method: "POST", body: JSON.stringify({ board, value: { generation } }),

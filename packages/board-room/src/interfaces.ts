@@ -8,6 +8,7 @@ export interface AccessSource {
   board(id: string): Promise<BoardDetails | null>;
   role(person: string, board: string): Promise<Role | null>;
   changes(board: string, after: number): Promise<AccessPage>;
+  discardImport?(board: string, workspace: string): Promise<void>;
 }
 export type SavedBoard = { boardId: string; title: string; editedAt: number; generation: number; revision: number };
 export interface BoardRows {

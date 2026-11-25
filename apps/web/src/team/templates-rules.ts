@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { validate, validText, type BoardV14 } from "nextphase-board-rules/document.ts";
-import { hasEnds, hasRectangle, isMedia } from "nextphase-board-rules/objects/registry.ts";
+import { hasEnds, hasRectangle } from "nextphase-board-rules/objects/registry.ts";
 import { buildSnapshot, type Snapshot } from "../clipboard.ts";
 import { connectorLayout } from "../connectors.ts";
 
@@ -9,6 +9,31 @@ export type Template = {
   objectCount: number; createdAt: string; updatedAt: string; canManage: boolean; objects: Snapshot["objects"];
 };
 export const TEMPLATE_LIMIT = 25, TEMPLATE_BYTES = 262144;
+export const TEMPLATE_MEDIA_BYTES = 20_971_520;
+export type AssetEntry = { hash: string; type: string; bytes: number };
+export type TemplateDetail = Template & { media: AssetEntry[] };
+const pictureTypes = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+const videoTypes = ["video/mp4", "video/quicktime", "video/webm"];
+export function parseAssetEntries(value: unknown): AssetEntry[] {
+  if (!Array.isArray(value) || value.length > 1_000) throw Error("Invalid media");
+  const hashes = new Set<string>();
+  for (const entry of value) {
+    if (!entry || Object.keys(entry).sort().join() !== "bytes,hash,type" || typeof entry.hash !== "string" ||
+      !/^[0-9a-f]{64}$/.test(entry.hash) || hashes.has(entry.hash) ||
+      !Number.isInteger(entry.bytes) || entry.bytes < 1 ||
+      !(pictureTypes.includes(entry.type) && entry.bytes <= TEMPLATE_MEDIA_BYTES || videoTypes.includes(entry.type) && entry.bytes <= 52_428_800)) throw Error("Invalid media");
+    hashes.add(entry.hash);
+  }
+  return value;
+}
+export const mib = (bytes: number) => (Math.floor(bytes * 10 / 1_048_576 + 0.5) / 10).toFixed(1);
+export const mibUp = (bytes: number) => String(Math.ceil(bytes / 1_048_576));
+export function pictureLine(counts: { pictures: number; videos: number }, bytes?: number) {
+  const count = [counts.pictures ? `${counts.pictures} picture${counts.pictures === 1 ? "" : "s"}` : "",
+    counts.videos ? `${counts.videos} video${counts.videos === 1 ? "" : "s"}` : ""].filter(Boolean).join(" and ");
+  if (!count) return "";
+  return `Includes ${count}${bytes === undefined ? "" : ` (${bytes > TEMPLATE_MEDIA_BYTES ? mibUp(bytes) : mib(bytes)} MiB of the 20 MiB a template can hold)`}.`;
+}
 export const points = (text: string) => [...text].length;
 export const contentBytes = (objects: unknown) => new TextEncoder().encode(JSON.stringify(objects)).byteLength;
 export const validName = (name: unknown): name is string => typeof name === "string" && validText(name, 120, true) && !name.includes("\u0000");
@@ -19,7 +44,7 @@ function containsNul(value: unknown): boolean {
 }
 export function templateBoard(objects: unknown): BoardV14 {
   if (!Array.isArray(objects) || objects.length < 1 || objects.length > 250 || containsNul(objects) || objects.some(o =>
-    !o || typeof o !== "object" || Array.isArray(o) || "generation" in o || "order" in o || "page" in o || isMedia(o))) throw Error("Invalid template");
+    !o || typeof o !== "object" || Array.isArray(o) || "generation" in o || "order" in o || "page" in o)) throw Error("Invalid template");
   const boardId = crypto.randomUUID();
   const board = validate({ schemaVersion: 15, boardId, pages: [{ id: boardId, name: "Page 1" }], title: "Template", retiredGenerations: [],
     objects: objects.map((o, order) => ({ ...o, page: boardId, order, generation: crypto.randomUUID() })) }) as BoardV14;
@@ -53,6 +78,13 @@ export function parseTemplate(value: unknown): Template {
     !time(t.createdAt) || !time(t.updatedAt) || typeof t.canManage !== "boolean" || !Array.isArray(t.objects) || t.objectCount !== t.objects.length) throw Error("Invalid template response");
   templateBoard(t.objects);
   return t;
+}
+export function parseTemplateDetail(value: unknown): TemplateDetail {
+  if (!value || typeof value !== "object") throw Error("Invalid template response");
+  const { media, ...template } = value as TemplateDetail;
+  const entries = parseAssetEntries(media);
+  if (entries.some((entry, i) => i > 0 && entries[i - 1].hash >= entry.hash)) throw Error("Invalid media order");
+  return { ...parseTemplate(template), media: entries };
 }
 export function sortTemplates(templates: Template[]) {
   return [...templates].sort((a, b) => a.updatedAt === b.updatedAt ? (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) : a.updatedAt > b.updatedAt ? -1 : 1);

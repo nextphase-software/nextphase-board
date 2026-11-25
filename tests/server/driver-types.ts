@@ -22,6 +22,6 @@ export interface Driver {
   wake(board: string): Promise<void>;
   restoreFile(board: string, envelope: unknown, fenced: boolean): Promise<void>;
   volumeCopy?(board: string, whileNewer?: () => Promise<void>): Promise<void>;
-  rows(board: string, table: string): Promise<any[]>;
+  rows(board: string, table: string, store?: "template"): Promise<any[]>;
   close(): Promise<void>;
 }

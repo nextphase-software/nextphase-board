@@ -117,11 +117,11 @@ async function controller() {
 }
 unit(10, "controller gates guests, reloads on open, re-reads Add and refreshes own changes", async () => {
   const { Templates } = await controller(), calls = [], notices = [], t = response(); let role = "guest";
-  const request = async (path, method = "GET") => { calls.push([path, method]); return path === "/workspaces" ? { workspaces: [{ id: "w", role }] } : path.endsWith(t.id) ? t : method === "POST" ? t : { templates: [t], limit: 25, canSave: true }; };
+  const request = async (path, method = "GET") => { calls.push([path, method]); return path === "/workspaces" ? { workspaces: [{ id: "w", role }] } : path.endsWith(t.id) ? { ...t, media: [] } : method === "POST" ? t : { templates: [t], limit: 25, canSave: true }; };
   const c = new Templates("w", "Example team", "b", text => notices.push(text), request);
   await c.open(); assert.equal(c.visible, false); assert.deepEqual(calls, [["/workspaces", "GET"]]);
   role = "editor"; await c.open(); assert.equal(c.visible, true); assert.equal(c.status, "ready");
-  assert.deepEqual(await c.read(t), t); assert.deepEqual(calls.at(-1), ["/workspaces/w/templates/" + t.id, "GET"]);
+  assert.deepEqual(await c.read(t), { ...t, media: [] }); assert.deepEqual(calls.at(-1), ["/workspaces/w/templates/" + t.id, "GET"]);
   assert.equal(await c.change("save", { name: t.name, description: t.description }, undefined, t.objects), "done");
   assert.equal(c.newId, t.id); assert.deepEqual(calls.at(-1), ["/workspaces/w/templates", "GET"]);
   assert.equal(notices.at(-1), "Saved “Sprint kickoff” to Example team."); c.stop();

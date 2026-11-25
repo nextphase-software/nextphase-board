@@ -128,6 +128,7 @@ export function useEditingCommands({
     } catch (error) { hosted?.toast(String(error)); }
   }
   const templateCommands = { addActivity, insertStored, commandReason, selected: selected.size > 0, objectCount: model.current.objects.length,
+    closeTemplates: () => setPanel(""),
     snapshot: () => ({ title: model.current.title, selected: selected.size > 0,
       snapshot: buildSnapshot(model.current, selected.size ? selected : new Set(model.current.objects.map(o => o.id)), displayedObjects, measureNode) }) };
   function writePlainText(snapshot: Snapshot, copiedMessage: string) {

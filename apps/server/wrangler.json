@@ -6,7 +6,11 @@
   "triggers": { "crons": ["* * * * *"] },
   "durable_objects": { "bindings": [
     { "name": "ROOMS", "class_name": "BoardRoom" },
-    { "name": "FENCES", "class_name": "RestoreFence" }
+    { "name": "FENCES", "class_name": "RestoreFence" },
+    { "name": "TEMPLATE_MEDIA", "class_name": "TemplateMedia" }
   ] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["BoardRoom", "RestoreFence"] }]
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["BoardRoom", "RestoreFence"] },
+    { "tag": "v2", "new_sqlite_classes": ["TemplateMedia"] }
+  ]
 }

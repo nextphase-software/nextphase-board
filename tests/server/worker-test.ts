@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { deliver } from "../../apps/server/src/delivery.ts";
-import worker, { BoardRoom as ProductionRoom, RestoreFence } from "../../apps/server/src/worker.ts";
+import worker, { BoardRoom as ProductionRoom, RestoreFence, TemplateMedia as ProductionTemplateMedia } from "../../apps/server/src/worker.ts";
 import { createApp } from "../../apps/server/src/app.ts";
 import { Auth } from "../../apps/server/src/auth.ts";
 import { workerRuntime, type WorkerEnv } from "../../apps/server/src/worker-runtime.ts";
@@ -27,6 +27,14 @@ export class TestControls {
 }
 export async function controls(env: TestEnv): Promise<Controls> {
   return (await env.CONTROLS.get(env.CONTROLS.idFromName("controls")).fetch("http://controls/")).json();
+}
+export class TemplateMedia extends ProductionTemplateMedia {
+  private clock: Controls = {};
+  private testEnv: TestEnv;
+  constructor(state: DurableObjectState, env: TestEnv) { super(state); this.testEnv = env; }
+  protected now() { return this.clock.fixedNow ?? Date.now() + (this.clock.offset ?? 0); }
+  async fetch(request: Request) { this.clock = await controls(this.testEnv); return super.fetch(request); }
+  async alarm() { this.clock = await controls(this.testEnv); return super.alarm(); }
 }
 export class BoardRoom extends ProductionRoom {
   current: Controls = {};

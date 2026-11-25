@@ -42,12 +42,13 @@ export async function makeDriver(context: Context): Promise<Driver> {
   let child: ReturnType<typeof fork> | undefined, url = "", sequence = 0, container = "";
   let image = "", volume = "";
   let deliveryIntervalMs = 0;
+  let startupOffset = 0;
   let shutdownRooms: string[] | undefined;
   const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
   async function start() {
     await writeFile(settingsFile, JSON.stringify(settings), { mode: 0o600 });
     const started = child = fork(resolve(root, "tests/server/node-test.ts"), [], { env: { ...process.env, BOARD_SETTINGS: settingsFile,
-      BOARD_DELIVERY_INTERVAL_MS: String(deliveryIntervalMs) },
+      BOARD_DELIVERY_INTERVAL_MS: String(deliveryIntervalMs), BOARD_TEST_CLOCK_OFFSET: String(startupOffset) },
       stdio: ["ignore", "pipe", "pipe", "ipc"] });
     let errors = "";
     started.stderr?.setEncoding("utf8").on("data", (value: string) => {
@@ -187,7 +188,9 @@ export async function makeDriver(context: Context): Promise<Driver> {
       if (value.restart || value.deliveryIntervalMs !== undefined) {
         await stop();
         if (value.deliveryIntervalMs !== undefined) deliveryIntervalMs = Number(value.deliveryIntervalMs);
-        await start(); return {};
+        startupOffset = Number(value.restartOffset ?? 0);
+        try { await start(); } finally { startupOffset = 0; }
+        return {};
       }
       if (value.noOperator !== undefined) { await stop(); settings.operatorKey = value.noOperator ? undefined as any : context.operatorKey; await start(); return {}; }
       if (value.fenceUnreadable !== undefined) { await chmod(resolve(dataDir, "restore-fences.sqlite"), value.fenceUnreadable ? 0 : 0o600); return {}; }
@@ -217,7 +220,7 @@ export async function makeDriver(context: Context): Promise<Driver> {
       execFileSync(process.execPath, ["apps/server/scripts/mark-restored-volume.mjs", dataDir], { cwd: root, stdio: "pipe" });
       await start();
     },
-    async rows(board, table) { return ipc({ board, rows: table }); },
+    async rows(board, table, store) { return ipc({ board, readOnlyRows: table, store }); },
     async close() {
       if (docker) { execFileSync("docker", ["rm", "-f", container], { stdio: "pipe" }); execFileSync("docker", ["volume", "rm", volume], { stdio: "pipe" }); execFileSync("docker", ["image", "rm", image], { stdio: "pipe" }); }
       try {

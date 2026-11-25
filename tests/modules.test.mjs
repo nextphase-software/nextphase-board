@@ -559,12 +559,12 @@ test("production runners contain none of the test driver names", () => {
 });
 
 
-test("team modules and imports follow web modules through 0012-W3 v1", () => {
+test("team modules and imports follow web modules through 0012-W6 v1", () => {
   const team = new URL("team/", source);
   const names = files(team).sort();
   assert.deepEqual(names, ["api.ts", "auth.ts", "comments/card.tsx", "comments/icons.tsx", "comments/layer.tsx", "comments/mention-editor.tsx",
     "comments/panel.tsx", "comments/rules.ts", "comments/tool.tsx", "config.ts", "dialog.tsx", "history-panel.tsx", "history-rules.ts", "history.ts", "home-card.tsx", "home-import.tsx", "home-lists.ts",
-    "home-menu.tsx", "home-rules.ts", "home.tsx", "hosted-board.ts", "import.ts", "lifecycle-rules.ts", "lifecycle.ts", "links.ts",
+    "home-menu.tsx", "home-rules.ts", "home.tsx", "hosted-board.ts", "import.ts", "lifecycle-rules.ts", "lifecycle.ts", "links.ts", "media-transfer.ts",
     "notices.ts", "notification-navigation.ts", "notifications.tsx", "page-presence.ts", "pages.tsx", "people.tsx", "pictures.ts", "presence-layer.tsx", "presence.ts", "reactions-layer.tsx", "reactions-rules.ts", "reactions.ts", "roles.ts", "share-dialog.tsx", "sign-in.tsx", "spotlight-layer.tsx", "spotlight-rules.ts", "spotlight.ts", "team-app.tsx", "templates-rules.ts", "templates-section.tsx", "templates.ts", "timer-panel.tsx", "timer-rules.ts", "timer.ts", "trash.tsx", "voting-card.tsx", "voting-overlay.tsx", "voting-rules.ts", "voting.ts", "workshop-panel.tsx"]);
   for (const name of names) {
     const content = readFileSync(new URL(name, team), "utf8");

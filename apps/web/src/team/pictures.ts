@@ -34,7 +34,7 @@ export class BoardPictures {
       ...(body ? { "Content-Type": "application/octet-stream" } : {}),
     } });
   }
-  async upload(hash: string, bytes: ArrayBuffer): Promise<Upload> {
+  async upload(hash: string, bytes: ArrayBuffer, signal?: AbortSignal): Promise<Upload> {
     try {
       return await withTimeout<Upload>(120000, async signal => {
         const reply = await this.request(hash, signal, bytes);
@@ -44,15 +44,23 @@ export class BoardPictures {
           return { ok: false, kind: "full" };
         }
         return { ok: false, kind: "refused" };
-      });
-    } catch (error) { return { ok: false, kind: error === timedOut ? "refused" : "offline" }; }
+      }, signal);
+    } catch (error) { return { ok: false, kind: signal?.aborted || error === timedOut ? "refused" : "offline" }; }
   }
-  async uploadVideo(hash: string, file: Blob, progress: (loaded: number, total: number) => void): Promise<"ok" | "too_large" | "videos_full" | "refused" | "network"> {
+  async uploadVideo(hash: string, file: Blob, progress: (loaded: number, total: number) => void, signal?: AbortSignal): Promise<"ok" | "too_large" | "videos_full" | "refused" | "network"> {
     const url = settings.serverUrl + "/boards/" + this.board() + "/assets/" + hash;
     try {
+      signal?.throwIfAborted();
       const { data } = await auth.getSession();
-      return await new Promise(resolve => {
+      signal?.throwIfAborted();
+      return await new Promise(done => {
         const xhr = new XMLHttpRequest();
+        const abort = () => { xhr.abort(); resolve("refused"); };
+        const resolve = (value: Awaited<ReturnType<BoardPictures["uploadVideo"]>>) => {
+          signal?.removeEventListener("abort", abort);
+          xhr.upload.onprogress = null;
+          done(value);
+        };
         xhr.open("PUT", url);
         xhr.timeout = 600000;
         xhr.setRequestHeader("Authorization", "Bearer " + (data.session?.access_token ?? ""));
@@ -69,9 +77,11 @@ export class BoardPictures {
           } catch { /* An invalid reply is a refusal. */ }
           resolve("refused");
         };
-        xhr.send(file);
+        signal?.addEventListener("abort", abort, { once: true });
+        try { xhr.send(file); }
+        catch (error) { signal?.removeEventListener("abort", abort); throw error; }
       });
-    } catch { return "network"; }
+    } catch { return signal?.aborted ? "refused" : "network"; }
   }
   async downloadVideo(hash: string, progress: (loaded: number, total: number) => void, signal?: AbortSignal): Promise<{ kind: "ok"; blob: Blob } | { kind: "network" | "refused" }> {
     try {
@@ -101,12 +111,12 @@ export class BoardPictures {
       }, signal);
     } catch (error) { return { kind: signal?.aborted || error === timedOut ? "refused" : "network" }; }
   }
-  async download(hash: string) {
+  async download(hash: string, signal?: AbortSignal) {
     try {
       return await withTimeout(60000, async signal => {
         const reply = await this.request(hash, signal);
         return reply.status === 200 ? await reply.arrayBuffer() : null;
-      });
+      }, signal);
     } catch { return null; }
   }
 }

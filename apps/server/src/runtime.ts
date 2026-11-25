@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { BoardV12 } from "nextphase-board-rules/document.ts";
 import type { Person } from "nextphase-board-room/protocol.ts";
+import type { Room } from "nextphase-board-room/room.ts";
+import type { TemplateStore } from "nextphase-board-room/template-store.ts";
+import type { AssetEntry } from "nextphase-board-room/pictures.ts";
 import type { Auth } from "./auth.ts";
 import type { Supabase } from "./supabase.ts";
 export type TeamTemplate = {
@@ -8,7 +10,12 @@ export type TeamTemplate = {
   objectCount: number; createdAt: string; updatedAt: string; canManage: boolean;
   objects: import("./templates.ts").TemplateObjects;
 };
-export interface RoomClient {
+type ImportRoom = Pick<Room, "openImport" | "beginImport" | "endImport" | "stageImportPicture" |
+  "stageImportVideo" | "claimImport" | "releaseImport" | "create" | "assetSizes">;
+export type TemplateMediaClient = Pick<TemplateStore, "open" | "begin" | "end" | "stage" | "commit" | "read"> & {
+  inventory(): Promise<AssetEntry[]>;
+};
+export interface RoomClient extends ImportRoom {
   admitLifecycle(request: import("nextphase-board-room/lifecycle.ts").LifecycleRequest): Promise<import("nextphase-board-room/lifecycle.ts").Lifecycle>;
   fenceLifecycle(row: import("nextphase-board-room/lifecycle.ts").Lifecycle, ready?: boolean): Promise<void>;
   versions(person: Person): Promise<any>;
@@ -16,7 +23,6 @@ export interface RoomClient {
   saveVersion(person: Person, value: import("nextphase-board-sync/history.ts").SaveVersion): Promise<any>;
   nameVersion(person: Person, id: string, value: { name: string; description: string }): Promise<any>;
   restoreVersion(person: Person, id: string, value: import("nextphase-board-sync/history.ts").RestoreVersion): Promise<any>;
-  create(document: BoardV12): Promise<void>;
   ticket(person: Person): Promise<{ ticket: string; expiresAt: number }>;
   rename(person: Person, title: string): Promise<{ id: string; title: string; revision: number }>;
   storePicture(person: Person, hash: string, bytes: Uint8Array, type: import("nextphase-board-room/pictures.ts").PictureType, width: number, height: number): Promise<"created" | "exists" | "full">;
@@ -41,6 +47,8 @@ export interface Runtime {
   operatorKey?: string;
   room(board: string): RoomClient;
   removeRoom(board: string, generation?: number): Promise<void>;
+  templateMedia(upload: string): TemplateMediaClient;
+  removeTemplateMedia(upload: string): Promise<void>;
   upgrade(board: string, ticket: string, request: Request): Promise<Response>;
 }
 export type AppVariables = { person: Person };

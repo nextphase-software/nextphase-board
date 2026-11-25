@@ -128,8 +128,8 @@ version 15 document in the same way; pre-launch, nothing more is promised.
 ## Version references in other contracts
 
 New and edited documents are **15** everywhere. What each input **accepts on reading** keeps its own range:
-saved local boards, board files' documents and activities accept **1 to 15** (this contract, storage v4, board
-file v5); every room input (client updates and the live board, stored snapshots by storage version, history
+saved boards and board files accept **1 to 15** (this contract, storage v4, board file v5). Catalogue activities
+stay at schema 7 as today (`apps/web/src/activities.ts` stays unchanged). Every room input (client updates and the live board, stored snapshots by storage version, history
 versions, backups by storage version, created and imported boards, team templates) accepts exactly the range in
 **sync v17's single input matrix** ("Input matrix"), which this contract does not restate. Every
 input is validated at its declared version first, then upgraded to 15.

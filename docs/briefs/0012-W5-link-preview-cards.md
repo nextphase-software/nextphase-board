@@ -478,3 +478,165 @@ No unresolved product decision is delegated to implementation.
 ## Implementation record
 
 Append-only. The implementer adds dated sections here.
+
+### 2026-11-25 implementation
+
+- Branch `codex/0012-W5-link-preview-cards`
+- Behaviour baseline `6029f6a`. Prerequisite base `dabfc2a`.
+- Validated source and tests `73b938b5283485da2455338b85cc773a638e685a`
+- Amendments A1/A2 `3a9016a`, A3 `827dfba`, A4 `848f665`, A5 `9e7a391`, A6 `56f5403`
+- Node `26.13.0`, npm `11.20.0`, Wrangler `4.156.0`. Added npm dependencies and licences: none.
+
+| Check | Commands and inspection | Result |
+| --- | --- | --- |
+| V1 | Byte-compare the manifests, locks, dependency inventories and runtime notices against `dabfc2a` | PASS. 20 files byte-identical. |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` | PASS. 118 packages each on the clean candidate and an independent source archive of `6029f6a`. |
+| V3 | `npm run typecheck` | PASS. All five workspaces. |
+| V4 | `npm test` | PASS. 1,468 passed, zero failed or skipped. Includes 24 checks in the two new unit files and all of X10-U00–X10-U16. |
+| V5 | `BOARD_TEAM_FEATURES=off npm run build` with the synthetic team settings above, once without a preview setting and once with `BOARD_LINK_PREVIEW_URL=http://127.0.0.1:8796`. `npm run audit:licenses` and `cmp` against runtime notices v1. Repeat the build with an origin containing a path, an origin containing a query, HTTP outside loopback, and an invalid URL. | PASS. Two successful builds, one audit, two notice comparisons, and four rejected settings. The two output pages match the expected CSP byte for byte. |
+| V6 | `npm run build:fixtures` with an invalid preview setting. `BOARD_TEAM_FEATURES=on npm run build` with the synthetic team settings above, without a preview origin, with the server's origin, and with `http://127.0.0.1:8797`. `npm run audit:licenses`, `cmp` against the runtime notices, and inspect the local-board preview client and bundle. | PASS. Four builds, four CSP comparisons, one audit and three notice comparisons. The same origin occurs once, the different origin is appended, and the fixture output retains its team-off CSP. The team bundle includes the distinct origin for its local-board preview path. |
+| V7 | `npm run build:server`, `npm run audit:licenses`, and `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json`. Repeat the dry run with `--outfile <scratch-file>` to inspect its upload metadata. | PASS. Two server bundles, one audit and two successful dry runs. The CLI lists four bindings, including `LINK_LIMITS (LinkLimits)`. The dry-run upload metadata includes that binding and the `global_fetch_strictly_public` compatibility flag. No deploy. |
+| V8 | `git diff --name-status dabfc2a..73b938b`, `git diff --check dabfc2a..73b938b`, and review of the source and amendment hunks. | PASS. 106 paths including the amendment documents. `App.tsx` has the three wiring points, `style.css` adds the two link-control rules, and Wrangler adds the binding, v3 migration and flag. The room conflict resolver is byte-identical. Browser fetches use the preview service, with `window.open` for user-directed navigation to the pasted site. The preview code has no logging or persistence of page metadata, URLs or bodies. |
+
+V1–V8 ran from 23:50:59 to 23:52:03 UTC. The host was on AC power and its power
+log showed no sleep or wake in that interval. The first build wrapper put an
+`env` option after the assignments and exited before running the build. The
+corrected wrapper ran all V5 and V6 variants on the same source revision.
+
+X10-U13 drove both A5 save orders through the room, including a save-order winner
+that would lose by Yjs client ID. Both cases converged to a valid finished card.
+The A6 TLS fixture generator was checked with OpenSSL 4.1.0 and macOS LibreSSL
+3.3.6. The leaf signatures, exact SANs, EC P-256 keys, validity interval, scratch
+cleanup and missing-tool error were verified without running either server suite.
+The initial commit attempt triggered the boundary hook on the old fixture keys.
+Under A6 the generated certificate and key files were removed from the change.
+Both public-boundary checks passed on the amended docs and the source commit.
+The only type-only file outside the named web changes is
+`apps/web/src/state/use-gif-playback.ts`.
+
+Unrun: `npm run test:server:node` and `npm run test:server:workerd` (including
+S468–S478), the cloud Checks and server-only follow-up (V9), and V10–V14, including
+N10-S1–N10-S9, the browser comparison and the baseline compatibility proof.
+The browser and Supabase CLI cannot start in the implementation sandbox. The
+server and browser fixture code is included for those runs. No outside page was
+fetched for the implementation checks.
+
+#### Changed files
+
+The non-test paths below and the test file table cover all 106 paths relative to
+the prerequisite base. Test line numbers refer to the validated source.
+
+- **Web**
+  - `apps/web/src/App.tsx`
+  - `apps/web/src/board-file.ts`
+  - `apps/web/src/clipboard.ts`
+  - `apps/web/src/link-cards.ts`
+  - `apps/web/src/link-preview-client.ts`
+  - `apps/web/src/scene/board-drawing.tsx`
+  - `apps/web/src/scene/link-body.tsx`
+  - `apps/web/src/state/use-board-document.ts`
+  - `apps/web/src/state/use-editing-commands.ts`
+  - `apps/web/src/state/use-geometry-edits.ts`
+  - `apps/web/src/state/use-gif-playback.ts`
+  - `apps/web/src/state/use-link-cards.ts`
+  - `apps/web/src/state/use-object-layouts.ts`
+  - `apps/web/src/state/use-selection.ts`
+  - `apps/web/src/state/use-storage-session.ts`
+  - `apps/web/src/storage.ts`
+  - `apps/web/src/team/hosted-board.ts`
+  - `apps/web/src/team/import.ts`
+  - `apps/web/src/team/media-transfer.ts`
+  - `apps/web/src/team/pictures.ts`
+  - `apps/web/src/team/templates-rules.ts`
+  - `apps/web/src/team/templates-section.tsx`
+  - `apps/web/src/ui/context-bar.tsx`
+  - `apps/web/src/ui/information-controls.tsx`
+  - `apps/web/src/ui/information-panel.tsx`
+  - `apps/web/src/ui/link-controls.tsx`
+  - `apps/web/src/ui/objects-panel.tsx`
+  - `apps/web/style.css`
+- **Server**
+  - `apps/server/src/app.ts`
+  - `apps/server/src/link-preview/fetcher.ts`
+  - `apps/server/src/link-preview/limits.ts`
+  - `apps/server/src/link-preview/transport-node.ts`
+  - `apps/server/src/link-preview/transport-worker.ts`
+  - `apps/server/src/routes/boards.ts`
+  - `apps/server/src/routes/link-preview.ts`
+  - `apps/server/src/routes/templates.ts`
+  - `apps/server/src/runtime.ts`
+  - `apps/server/src/settings.ts`
+  - `apps/server/src/start-node.ts`
+  - `apps/server/src/templates.ts`
+  - `apps/server/src/worker-runtime.ts`
+  - `apps/server/src/worker.ts`
+  - `apps/server/wrangler.json`
+- **Rules, room and sync**
+  - `packages/board-room/src/edits.ts`
+  - `packages/board-room/src/history.ts`
+  - `packages/board-room/src/room.ts`
+  - `packages/board-rules/src/document.ts`
+  - `packages/board-rules/src/objects/link.ts`
+  - `packages/board-rules/src/objects/registry.ts`
+  - `packages/board-sync/src/codec.ts`
+  - `packages/board-sync/src/document-adapter.ts`
+  - `packages/board-sync/src/session.ts`
+  - `packages/board-sync/src/undo.ts`
+- **Build and test configuration**
+  - `scripts/build-web.mjs`
+  - `vitest.node.config.ts`
+  - `vitest.workerd.config.ts`
+- **Documentation**
+  - `README.md`
+  - `docs/architecture/0001-document-v22.md`
+  - `docs/architecture/0001-web-modules-v50.md`
+  - `docs/architecture/0003-access-v17.md`
+  - `docs/architecture/0003-api-v16.md`
+  - `docs/architecture/0003-self-host-runner-v11.md`
+  - `docs/architecture/0003-sync-v18.md`
+  - `docs/architecture/0012-link-preview-v1.md`
+  - `docs/briefs/0012-W5-link-preview-cards.md`
+  - `docs/guides/try-board.md`
+
+| Test file | Changed lines |
+| --- | --- |
+| `tests/README.md` | 791–800 |
+| `tests/board-catalog.test.mjs` | 235, 322 |
+| `tests/board-file.test.mjs` | 56, 79, 139 |
+| `tests/browser/link-preview-stack.mjs` | 1–30 |
+| `tests/connector-styles.test.mjs` | 45, 84, 478, 539 |
+| `tests/connectors.test.mjs` | 37 |
+| `tests/document.test.mjs` | 43, 117, 132, 135, 246, 293, 375 |
+| `tests/images.test.mjs` | 27, 56 |
+| `tests/link-cards.test.mjs` | 1–532 |
+| `tests/link-preview-fetcher.test.mjs` | 1–314 |
+| `tests/mind-map.test.mjs` | 66, 70, 74 |
+| `tests/modules.test.mjs` | 57, 119, 140, 192, 202, 219–220, 252, 267, 565, 607–608, 759–764, 801–806 |
+| `tests/objects.test.mjs` | 11, 44 |
+| `tests/pages.test.mjs` | 26, 57, 205, 209, 214, 315, 327–338, 343, 442 |
+| `tests/room-imports.test.mjs` | 106 |
+| `tests/room-videos.test.mjs` | 163, 166 |
+| `tests/room.test.mjs` | 248 |
+| `tests/server/drawing-layout.test.ts` | 96–97, 102, 133, 137, 144 |
+| `tests/server/driver-node.ts` | 41, 46, 52–53, 63–64, 193–199 |
+| `tests/server/driver-types.ts` | 15 |
+| `tests/server/driver-workerd.ts` | 29–40 |
+| `tests/server/link-preview-fixtures.ts` | 1–183 |
+| `tests/server/link-preview-tls.ts` | 1–76 |
+| `tests/server/link-preview.test.ts` | 1–326 |
+| `tests/server/mind-maps.test.ts` | 105, 107, 114, 122, 189, 213 |
+| `tests/server/node-test.ts` | 11–13, 30–57, 114–137 |
+| `tests/server/pages.test.ts` | 91, 99, 102, 129 |
+| `tests/server/setup.ts` | 5, 11–12, 15–32, 232 |
+| `tests/server/tables.test.ts` | 115, 118, 122, 322, 353 |
+| `tests/server/voting.test.ts` | 52 |
+| `tests/server/worker-test.ts` | 3–5, 10–13, 35–90, 173–175, 190–203 |
+| `tests/shapes.test.mjs` | 39 |
+| `tests/shared-editing.test.mjs` | 74 |
+| `tests/storage.test.mjs` | 92, 116, 132 |
+| `tests/strokes.test.mjs` | 32, 96 |
+| `tests/tables.test.mjs` | 34, 48, 381, 408, 410, 413 |
+| `tests/team-import.test.mjs` | 84 |
+| `tests/team-templates.test.mjs` | 48 |
+| `tests/video.test.mjs` | 88, 91, 102 |
+| `tests/workshop-voting.test.mjs` | 56 |

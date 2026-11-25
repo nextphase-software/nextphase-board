@@ -646,3 +646,16 @@ outside this fix round. Added dependencies and escalations were both zero.
 | `apps/web/style.css` | Resets shared input styling within the video seek box. |
 | `tests/video-playback.test.mjs` | X8-U27–U29 cover the hover mark, the press at the 20 px boundary, and the scoped Seek CSS. From the reviewed candidate, old line 13 becomes line 14, and new lines 5 and 131–199 are added. |
 | `docs/briefs/0012-W4-video-files.md` | A4, A5 and this appended record. |
+
+### Review fix round 2 — 0012-W4 v1
+
+Branch `codex/0012-W4-video-files`. Validated documentation `cac91c23bf1188ea1aa0da697822cebfde93c15a` from `442dd66e0d3387376864ac092dd29844b47754b8`.
+Amendment A6 updates the Part 2 guide and its copy in this brief. Mia and Ana each retry Play if the strip returns
+to Play after loading, then click the empty canvas before the next person acts.
+
+| Result | UTC on 2026-11-25 | Command and evidence |
+| --- | --- | --- |
+| PASS: V4 | 02:30:34–02:30:41 | `npm test` passed 1,420/1,420 with zero failures, skips or cancellations on Node 26.13.0 and npm 11.20.0. Output SHA-256 prefix `90aab46e43ed0ce7`. |
+| PASS: V8 | 02:30:34 | Inspected all 3 hunks in 2 documents. Ran `git diff --name-status` and `git diff --check` over `442dd66..cac91c2` and `89a4ddf..cac91c2`. Both Try this cells match A6's requested wording, both You should see cells match their prior bytes, both links resolve, and A6 follows A5. Output SHA-256 prefix `edef94d7d2e025dc`. |
+
+The power log recorded zero sleep, dark-wake or wake events during validation.

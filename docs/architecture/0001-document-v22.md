@@ -181,10 +181,13 @@ applies the card sizes.
    its loading size. An edit a person makes to such a card (other than moving, arranging, grouping, sectioning or
    deleting it) writes it as `linkOnly` with the link-only size (480 × 64), its `x` and `y` kept except for the bounds
    shift, in the same edit.
-6. **Nothing fetches again.** Duplicating a card, copying and pasting one, Undo and Redo, board files, imports and
-   templates keep `url`, `title`, `description`, `site`, `asset`, `layout`, `state` and `requestedAt`, with a fresh
-   `id` and `generation`, as for images (v10). None of them asks the link preview service: a copied `loading` card
-   stays `loading` and is drawn link-only once rule 5's 20,000 ms have passed. Team templates may hold cards
+6. **Nothing fetches again. Amendment A1/A2 (2026-11-25).** Each path keeps `url`, `title`, `description`, `site`,
+   `asset`, `layout`, `state` and `requestedAt`. Duplicate, copy and paste, Add template, and team Undo and Redo
+   give the card a fresh `id` and `generation`. Single-user Undo and Redo keep its `id` and give it a fresh
+   `generation`, as local history does today ([interaction v52](0001-interaction-v52.md)). Opening a board file,
+   importing it into a team workspace, and writing a board file (including Save a copy) keep both the card's `id`
+   and `generation` ([board file v6](0006-board-file-v6.md)). None asks the link preview service. A copied `loading`
+   card stays `loading` and is drawn link-only once rule 5's 20,000 ms have passed. Team templates may hold cards
    ([team templates v4](0008-team-templates-v4.md)); catalogue activities never do (they stay at schema 7).
 7. A card's `generation` follows the existing generation rules: every change to any of its keys is a change of the
    object.

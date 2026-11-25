@@ -426,6 +426,8 @@ Durable Object SQLite value at most 8 MB), Cloudflare's `crypto.DigestStream`, a
 - Link preview cards and videos from outside sites.
 - Repairs to separately tracked baseline failures.
 
+Amendment A1 (0012-W4 implement): an aborted `downloadVideo` answers `refused`, as web modules v48 says; hosted storage v14's table row is corrected to match.
+
 ## Implementation record
 
 (Append-only; the implementer adds its source validation here.)

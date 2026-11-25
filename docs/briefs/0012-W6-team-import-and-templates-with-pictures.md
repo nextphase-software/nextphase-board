@@ -425,3 +425,68 @@ delegated to implementation.
 ## Implementation record
 
 (Append-only; the implementer adds its source validation here.)
+
+### 2026-11-25 implementation
+
+- Branch: `codex/0012-W6-team-import-templates-pictures`.
+- Behaviour baseline: `ea4203c`. Prerequisite base: `6e27cb6`.
+- Amendment A1: `04058620588220187dcd7f736c0a54174ecdf39e`.
+  Amendment A2: `0ff627fab23c659f723e6e6a78fc9cd70fc43f4b`.
+- Validated source and tests: `fd333473f5de9491e489aaa966c49351a4aa998d`.
+- Toolchain: Node `26.13.0`, npm `11.20.0`, Wrangler `4.156.0`. Added dependencies: none.
+- Claimed import expiry uses the A1 retry on both runners. The existing Node driver
+  restarts on its existing data folder, so S467 uses that path. X9-U28 checks the
+  restore marker against three SQLite files and reports one marked board.
+
+| Check | Command or inspection | Result |
+| --- | --- | --- |
+| V1 | Compare the tracked manifests, locks, dependency inventories and runtime notice baselines against `6e27cb6` | PASS. 20 files byte-identical. |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` | PASS. 118 packages each on the clean candidate and an independent `ea4203c` checkout. |
+| V3 | `npm run typecheck` | PASS. Five workspace members. |
+| V4 | `npm test` | PASS. 1,443 passed, zero failed, zero skipped. 14 web checks X9-U00–X9-U13 and nine room/store checks X9-U20–X9-U28. |
+| V5 | `BOARD_TEAM_FEATURES=off npm run build`, `npm run audit:licenses`, and `cmp` against runtime notices v1 | PASS. One build, one audit, one byte comparison. |
+| V6 | `npm run build:fixtures`, `BOARD_TEAM_FEATURES=on npm run build` with the synthetic settings above, `npm run audit:licenses`, and `cmp` against runtime notices v3 | PASS. Two builds, one audit, one byte comparison. |
+| V7 | `npm run build:server`, `npm run audit:licenses`, and `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` | PASS. Two server bundles, one audit, and a dry run listing three bindings, including `TEMPLATE_MEDIA (TemplateMedia)`. The final dry run used `WRANGLER_LOG_PATH` in scratch. |
+| V8 | `git diff --name-status 6e27cb6..fd333473` and `git diff --check 6e27cb6..fd333473`, with hunk, protected-file and configuration inspection | PASS. 51 paths, including the two amendment commits. The protected UI files match the base byte-for-byte. The editing commands hook gains only `closeTemplates`. Wrangler gains the binding and migration only. SQL is limited to the four persistence-v13 changes. |
+
+The final install, typecheck, suite, builds, audits and first dry run ran from
+14:37:57 UTC to 14:38:09 UTC. The early candidate had eight unit regressions. The
+affected checks passed on the independent behaviour baseline, and all eight passed
+on the validated source. The changes preserve the old runner and component test
+doubles while using non-creating inventory reads on both real test runners.
+
+The import video body is forwarded as a stream from
+`apps/server/src/routes/imports.ts:49–51` through
+`apps/server/src/routes/pictures.ts:21–27`,
+`apps/server/src/worker-runtime.ts:90–93` and
+`apps/server/src/worker-room.ts:126–130` on Workers, and directly into
+`packages/board-room/src/room.ts:160–167` on Node. Both use
+`packages/board-room/src/pictures.ts:215` and its chunk receiver. The runtime reads
+only the JSON receipt in `worker-runtime.ts:93`.
+
+Test file ranges below refer to the validated source. The Vitest configuration
+includes the new server file on each runner and the workerd configuration binds
+`TemplateMedia`. `packages/board-room/src/interfaces.ts` and
+`apps/web/src/activities.ts` changed only in their types.
+
+| Test file | Changed lines |
+| --- | --- |
+| `tests/README.md` | 781–790 |
+| `tests/modules.test.mjs` | 562, 567 |
+| `tests/room-imports.test.mjs` | 1–233 |
+| `tests/server/driver-node.ts` | 45, 51, 191–193, 223 |
+| `tests/server/driver-types.ts` | 25 |
+| `tests/server/driver-workerd.ts` | 12, 29–35, 146, 168–173, 175–177 |
+| `tests/server/imports.test.ts` | 1–349 |
+| `tests/server/node-test.ts` | 5, 17, 58–62, 71, 92, 103–118, 128–135, 213 |
+| `tests/server/templates.test.ts` | 138 |
+| `tests/server/worker-test.ts` | 3, 31–38 |
+| `tests/team-import.test.mjs` | 29–31, 34, 39–58 |
+| `tests/team-media.test.mjs` | 1–227 |
+| `tests/team-templates.test.mjs` | 120, 124 |
+
+Unrun: `npm run test:server:node` and `npm run test:server:workerd` (S453–S466 on
+both runners and S467 on Node), the server-only performance and full-size proofs,
+and V10–V14. Supabase and browser runs are outside the implementation sandbox.
+The original import cleanup escalations were resolved by A1 and A2. There was no
+further escalation.

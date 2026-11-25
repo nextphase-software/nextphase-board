@@ -14,6 +14,10 @@ stays **9**.
 A staging has a `touched` time, an upload **lease** (null, or `{ token, until }`) and, for an import, a **claim** (null,
 or `{ token, until }`), all room clock milliseconds in its `meta` value. Its **deadline** is the latest of
 `touched + 60,000` (`UPLOAD_IDLE` reused), the lease's `until` and the claim's `until`.
+- **Amendment A1 (2026-11-25).** Claiming an import also sets `finishing` in `meta.import`. The mark survives the
+  claim's expiry. Only `releaseImport(token)` clears it with the claim, and promotion removes the entire
+  `meta.import` value. Once a marked claim has expired, begin, stage, claim and create refuse 410
+  `upload_expired`, including during a cleanup retry.
 - **Renewing:** every staging method below that answers without refusing sets `touched` to now.
 - **One upload at a time (the lease):** before an upload route reads any body byte it calls `begin(…, hash)`, which
   runs the same identity and entry checks as the upload, refuses 409 `upload_in_progress` while another lease is held
@@ -35,6 +39,10 @@ or `{ token, until }`), all room clock milliseconds in its `meta` value. Its **d
   ordered queue, and on a staging does only this (it never refuses with the gate's 404).
   An alarm before the deadline re-arms and does nothing else. A staging method that finds its deadline passed
   refuses 410 `upload_expired` and re-arms the alarm at once.
+  With the `finishing` mark, the room first calls `env.access.discardImport(id, workspace)` to tombstone the id and
+  delete any board and lifecycle rows. Only a successful call permits the staging discard. If the call fails or
+  the optional method is absent, the room remains importing and gated, sets the deadline to now plus 60,000 ms,
+  and re-arms the alarm so the next alarm retries. Never-claimed and released stagings expire without this call.
 - **Reopening:** when a runner opens a room or a template store whose `meta` holds a staging (a cold Durable Object, a
   Node runner restart reached by a request), it re-arms the alarm to the stored deadline, so a passed deadline erases
   it at once.
@@ -50,7 +58,7 @@ A staged import ([API v15](0003-api-v15.md)) lives in `room(<upload id>)`, the r
 Object `idFromName(<upload id>)` on Cloudflare, `boards/<upload id>.sqlite` on Node. A room is **importing** when its
 `meta` table holds the key `import` and no `storage_version`. Its value is a JSON object with exactly `id` (the upload
 id), `workspace`, `person` (the opener's id), `assets` (the opened asset list, in order), `touched`, `lease` and
-`claim` ("Staging deadlines").
+`claim`, plus `finishing` when marked ("Staging deadlines").
 
 **The gate.** While a room is importing, every `Room` method except those named in this section, `alarm` and
 `discardLifecycle` refuses

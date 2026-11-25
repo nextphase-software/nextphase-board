@@ -14,6 +14,9 @@ remain word for word except as below.
 - **A failed or abandoned import leaves nothing**: no board row, no lifecycle row and no room storage, once its idle
   expiry has passed or its finish has failed (the existing clean-up of `deleteBoard` and `removeRoom`). A finish
   refused before the row is inserted (410, 403, 400) inserts nothing.
+  **Amendment A1 (2026-11-25).** When the server stops after the insert and before promotion, the board remains listed
+  but cannot be opened while the importing gate is in force. At expiry, at most 600 s after the claim and longer
+  only while the service cannot be reached, cleanup removes the board and lifecycle rows before erasing room storage.
 - **Board import** (`POST /workspaces/:workspace/boards`): **with** `import`, a document holding images and videos is
   accepted when the staging holds every file it names; **without** `import`, lifecycle v7's refusal stays word for
   word (400 `images_not_supported`). In the web app the reason "it holds pictures or videos, which team boards can't

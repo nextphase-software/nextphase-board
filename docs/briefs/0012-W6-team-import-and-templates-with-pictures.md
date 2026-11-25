@@ -58,6 +58,10 @@ Planning source baseline main **ea4203c**. Use a fresh milestone worktree and br
 this packet, recording that prerequisite base separately from the behaviour baseline. New source files carry
 `SPDX-License-Identifier: Apache-2.0`. Only these files may change, plus the append-only Implementation record below.
 
+**Amendment A1 (2026-11-25).** A claimed import's expiry cleans up any board row before erasing the room and retries
+when SQL cleanup fails. The documentation commit updates this brief and the API v15, hosted storage v15,
+self-host runner v10 and board lifecycle v8 contracts before the source commit.
+
 **New (seven files).**
 1. `packages/board-room/src/template-store.ts` (hosted storage v15)
 2. `apps/server/src/routes/imports.ts` (API v15, the import's open and upload)
@@ -71,7 +75,7 @@ this packet, recording that prerequisite base separately from the behaviour base
 
 | # | File |
 | --- | --- |
-| 8 | `packages/board-room/src/room.ts` (the importing state and its gate, the new methods, `create(document, importer?, token?)`, `assetSizes`, `schedule()` and `alarm()` for staging) and `pictures.ts` (the store paths' admission and final-step checks made injectable for the importing state; the 410 invalidation) |
+| 8 | `packages/board-room/src/room.ts` (the importing state and its gate, the new methods, `create(document, importer?, token?)`, `assetSizes`, `schedule()` and `alarm()` for staging), `pictures.ts` (the store paths' admission and final-step checks made injectable for the importing state; the 410 invalidation) and `interfaces.ts` (type only, optional `AccessSource.discardImport`) |
 | 9 | `apps/server/src/app.ts` (register `imports` and `template-media` after `templates`), `routes/boards.ts` (the optional `import` key and the finish sequence), `routes/pictures.ts` (the `asset-sizes` route; the asset `PUT`'s body handling shared with the import upload, its answers unchanged), `routes/templates.ts` and `templates.ts` (`upload`, `templateObjects(value, held?)`, commit, store removal, `media` in the detail `GET`) |
 | 10 | `apps/server/src/runtime.ts`, `worker-runtime.ts`, `worker-room.ts` (the staging alarm path, erasing on `{ discard: true }`), `worker.ts` (the `TemplateMedia` class), `start-node.ts` (the `template-media` folder, stores, timers, re-arming on open, erasing) and `supabase.ts` (the new arguments, keys and `board_exists` mapping) |
 | 11 | `apps/server/wrangler.json` (the `TEMPLATE_MEDIA` binding and the `v2` migration only) |
@@ -364,6 +368,11 @@ the server-only run.
   answering `{ discard: true }` only at the deadline and invalidating uploads with 410; the lease and the claim holding the deadline
   off; an unknown id answering 410 with discard; `TemplateStore` open, begin, stage, commit (one use, no expiry
   after), inventory, read, the 20 MiB sum, idle discard in staging only.
+- **Amendment A1 (2026-11-25), `tests/room-imports.test.mjs`:** with fake access and clock, an expired claim calls
+  `discardImport(id, workspace)` once before discard. A throwing call leaves the gate in place, makes begin,
+  stage, claim and create refuse 410, and re-arms 60,000 ms later; the next successful alarm discards the staging.
+  An absent method also keeps and re-arms the staging. Released and never-claimed stagings expire without an RPC.
+  A promoted room has no finish mark.
 
 A regression failure that also fails on ea4203c is a baseline finding to report, never fixed here.
 

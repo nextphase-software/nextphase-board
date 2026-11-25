@@ -58,6 +58,9 @@ The workerd test configuration (`vitest.workerd.config.ts`, `durableObjects`) ga
   request body and `/read` answers them as the raw response body, with the person, workspace, lease token, hash, type
   and size in headers (base64url JSON for the person, as the picture calls do), so a 20 MiB asset is never expanded
   through JSON; the other actions use JSON bodies.
+- **Amendment A1 (2026-11-25).** A cold Workers alarm for a staging with the `finishing` mark constructs the room
+  without the recovery-fence check and runs the room's expiry path. It erases the staging only after the room
+  confirms SQL cleanup; a failure re-arms the alarm. The Node timer uses the same expiry path in `room.alarm()`.
 - **Node.** The `schedule` timer of `start-node.ts` that calls `room.alarm()` calls `removeRoom(<id>)` when the
   answer is `{ discard: true }` (closing the database and deleting the `.sqlite`, `-wal` and `-shm` files as today).
   Template stores get the same timer and `removeTemplateMedia`. When the Node runner opens a room or store file

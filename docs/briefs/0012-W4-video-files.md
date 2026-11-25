@@ -618,3 +618,30 @@ A dash means that side contributed zero lines to that hunk. A new file has one r
 | `tests/workshop-reactions.test.mjs` | 18 | 18 |
 | `tests/workshop-spotlight.test.mjs` | 18, — | 18, 344–345 |
 | `tests/workshop-voting.test.mjs` | 18, 56 | 18, 56 |
+
+### Review fix round 1 — 0012-W4 v1
+
+Branch `codex/0012-W4-video-files`. Reviewed candidate `f913c78a1e890454dd05c09b1f104e54e9085386`.
+Validated fix source and tests `9751bbaff97284c7beb65e1fb4554fadc156c831` using Node 26.13.0 and npm 11.20.0.
+
+The canvas enables hover for a video with a drawn JPEG first frame through the same path as an animated GIF.
+A primary press within 20 px of the hover mark's centre selects the video and starts playback.
+The Seek input resets the shared padding, border and radius so the track, fill and knob determine its appearance.
+The keyboard focus outline remains available. A4 gives N8-S2 a fresh local board for its budget check.
+A5 permits A–J saved records to differ only by the change from schema 14 to 15.
+
+| Result | UTC on 2026-11-25 | Command and evidence |
+| --- | --- | --- |
+| PASS: V3 | 01:56:19–01:56:20 | `npm run typecheck` passed 5/5 workspaces. Output SHA-256 prefix `6401c42ca0f07cac`. |
+| PASS: V4 | 01:56:20–01:56:27 | `npm test` passed 1,420/1,420, including X8-U27–U29, with zero failures, skips or cancellations. Output SHA-256 prefix `259854018578c543`. |
+| PASS: V8 | 01:56:27 | Inspected all 10 fix hunks and ran `git diff --name-status` and `git diff --check` across `f913c78..9751bba` and `89a4ddf..9751bba`. The fix changed 4 files with 81 insertions and 7 deletions. The milestone diff covers 93 files and 385 hunks. Both diff checks passed. The App composition guard passed at 264 lines, the canvas hook retains two effects, the seek override is in the appended video rules without a `z-index`, and A4 and A5 match the requested text. The fix scope output SHA-256 prefix is `e4334dd66d436d63`. The full name-status prefix is `a3cc12f2c8cc2d94`. |
+
+The power log recorded zero sleep, dark-wake or wake events during validation. Browser and server suites were
+outside this fix round. Added dependencies and escalations were both zero.
+
+| File | Change |
+| --- | --- |
+| `apps/web/src/state/use-canvas-input.ts` | Enables the existing hover and press path for videos with drawn first frames. |
+| `apps/web/style.css` | Resets shared input styling within the video seek box. |
+| `tests/video-playback.test.mjs` | X8-U27–U29 cover the hover mark, the press at the 20 px boundary, and the scoped Seek CSS. From the reviewed candidate, old line 13 becomes line 14, and new lines 5 and 131–199 are added. |
+| `docs/briefs/0012-W4-video-files.md` | A4, A5 and this appended record. |

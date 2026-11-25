@@ -111,10 +111,10 @@ canonical bytes are those of its own version (v1–14 round trips stay byte-exac
 15. `payloadBytes` excludes `pages` and every `page` for versions 13, 14 and 15 alike.
 
 **Types.** `document.ts` adds `VideoItem` (the table's keys, `page: string`, and `text?`, `color?`, `textSize?`,
-`align?`, `marks?`, `shape?`, `fill?`, `border?` as `never`), `ItemV15 = ItemV14 | VideoItem` and `BoardV15`
+`align?`, `marks?`, `shape?`, `fill?`, `border?` as `never`), `ItemV15 = StoredItemV14 | VideoItem` (where `StoredItemV14` is the previous schema-14 union) and `BoardV15`
 (`schemaVersion: 15`). `Board["schemaVersion"]` gains 15 and `Item` gains `VideoItem`. The **current-document**
 aliases follow the newest version, as `BoardV12` already does: `BoardV12` and `BoardV14` become aliases of
-`BoardV15`, and `ItemV12` of `ItemV15`, so the 40-odd callers that name the current board keep their names.
+`BoardV15`, and `ItemV12` and `ItemV14` of `ItemV15`, so the 40-odd callers that name the current board keep their names.
 A reader that can return an older version does not use those aliases: the **one decoded type** is sync v17's
 `DecodedBoard` (exported from `packages/board-sync/src/codec.ts`: the union of this contract's board shapes for
 versions 10 to 15 exactly as stored, unpaged for 10–12 and paged for 13–15), returned by `readBoard`; `readLiveBoard` returns `BoardV15`. `validate` accepts `schemaVersion` 1 to 15; `upgrade`, `empty` and `add` return `BoardV15`.

@@ -428,6 +428,7 @@ Durable Object SQLite value at most 8 MB), Cloudflare's `crypto.DigestStream`, a
 
 Amendment A1 (0012-W4 implement): an aborted `downloadVideo` answers `refused`, as web modules v48 says; hosted storage v14's table row is corrected to match.
 Amendment A2 (0012-W4 implement): catalogue activities stay at schema 7 as today; document v21's reading-range sentence is corrected to match, and `apps/web/src/activities.ts` does not change.
+Amendment A3 (0012-W4 implement): `ItemV14` follows the current object type alongside `BoardV14` so existing callers, including catalogue activities, keep their type imports. The decoder uses `StoredItemV14` for schema 14.
 
 ## Implementation record
 

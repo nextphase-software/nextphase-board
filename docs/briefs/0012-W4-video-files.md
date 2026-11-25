@@ -125,7 +125,7 @@ Part 2 (team mode):
 
 | Feature | Try this | You should see |
 | --- | --- | --- |
-| [Videos on team boards](../briefs/0012-W4-video-files.md) | Ana (owner), Ben (editor) and Mia (viewer) open the same team board. Ben clicks Media and picks a short MP4. Mia clicks the video, then Play in its strip. Ana does the same. Ben selects the video, presses Delete, then Cmd+Z (Ctrl+Z) | Ben sees "Adding …" with a percentage, then the video; Ana and Mia see it appear. Mia has no Media button but can play it; her strip first shows "Loading video…". Each person's playback stays on their own screen. Undo brings the video back for everyone |
+| [Videos on team boards](../briefs/0012-W4-video-files.md) | Ana (owner), Ben (editor) and Mia (viewer) open the same team board. Ben clicks Media and picks a short MP4. Mia clicks the video, then Play in its strip (if it stops on Play once it has loaded, she presses Play again), then clicks the empty canvas. Ana does the same. Ben clicks the video, presses Delete, then Cmd+Z (Ctrl+Z) | Ben sees "Adding …" with a percentage, then the video; Ana and Mia see it appear. Mia has no Media button but can play it; her strip first shows "Loading video…". Each person's playback stays on their own screen. Undo brings the video back for everyone |
 
 Not allowed:
 - a dependency, font, image or video file in the source tree, service, service migration, object-store binding or
@@ -431,6 +431,7 @@ Amendment A2 (0012-W4 implement): catalogue activities stay at schema 7 as today
 Amendment A3 (0012-W4 implement): `ItemV14` follows the current object type alongside `BoardV14` so existing callers, including catalogue activities, keep their type imports. The decoder uses `StoredItemV14` for schema 14.
 Amendment A4 (0012-W4 review): N8-S2 starts on a fresh local board, because N8-S1's clip already counts toward the video budget.
 Amendment A5 (0012-W4 review): A–J's saved records may differ only by schema 14 → 15.
+Amendment A6 (0012-W4 review fix round 2): the Part 2 guide row allows a second Play press after the download and has each person click away, so it can be walked as written.
 
 ## Implementation record
 

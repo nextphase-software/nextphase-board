@@ -14,12 +14,12 @@ const metaKeys = ["storage_version","board_id","last_edit_at","revision","waterm
 const names = Object.keys(tables).filter((table) => !["waiting", "tickets", "workshop_timer", "workshop_vote", "workshop_vote_ballots"].includes(table));
 export function backup(env: RoomEnvironment, board: string): Envelope {
   if (meta(env.storage, "restore_pending") || meta(env.storage, "explicit_recovery_pending")) throw new RoomError(503, "restore_pending");
-  const total = Number(env.storage.all("SELECT SUM(length(data)) AS total FROM picture_parts")[0].total);
+  const total = Number(env.storage.all("SELECT SUM(length(data)) AS total FROM picture_parts WHERE hash IN (SELECT hash FROM pictures)")[0].total);
   if (4 * Math.ceil(total / 3) > env.backupLimit) throw new RoomError(413, "backup_too_large");
   const output = { format: "nextphase-board-room-backup" as const, version: 1 as const,
     boardId: board, createdAt: new Date(env.now()).toISOString(), tables: {} as Record<string, Row[]> };
   for (const name of names) {
-    output.tables[name] = env.storage.all(`SELECT * FROM "${name}"`).filter(row => name !== "meta" || !["explicit_recovery_pending", "explicit_recovery_generation"].includes(String(row.key))).map((row) =>
+    output.tables[name] = env.storage.all(name === "picture_parts" ? "SELECT * FROM picture_parts WHERE hash IN (SELECT hash FROM pictures)" : `SELECT * FROM "${name}"`).filter(row => name !== "meta" || !["explicit_recovery_pending", "explicit_recovery_generation"].includes(String(row.key))).map((row) =>
       Object.fromEntries(Object.entries(row).map(([key, value]) =>
         [key, key === binaryColumns[name] ? base64(value as Uint8Array) : value])));
   }

@@ -14,7 +14,7 @@ import { createConnector, connectReason } from "../apps/web/src/connectors.ts";
 import { buildSnapshot, buildPaste, plainText, PASTE_PICTURES_REASON } from "../apps/web/src/clipboard.ts";
 import { resizeWithStrokes, changeOrdinaryColor, makeStroke } from "../apps/web/src/strokes.ts";
 const board = () => ({ ...empty(), title: "Synthetic images" });
-const png = Uint8Array.from([137,80,78,71,13,10,26,10,0]).buffer;
+const png = Uint8Array.from([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,1,44,0,0,0,200]).buffer;
 const picture = (bytes = png, width = 300, height = 200) => ({ bytes, mime: signature(bytes), pixelWidth: width, pixelHeight: height });
 const prepared = async (bytes = png, width = 300, height = 200) => ({ hash: await pictureHash(bytes), picture: picture(bytes, width, height), ...landingSize(width, height) });
 const image = await prepared();
@@ -24,7 +24,7 @@ const drawn = (b) => b.objects.map((o) => ({ ...o, displayHeight: o.height }));
 
 test("v10 image keys, order, canonical bytes and every field boundary", () => {
   const b = withImage(), o = b.objects[0];
-  assert.equal(b.schemaVersion, 14);
+  assert.equal(b.schemaVersion, 15);
   assert.deepEqual(Object.keys(JSON.parse(canonical(b)).objects[0]), ["id","generation","type","page","group","section","asset","pixelWidth","pixelHeight","description","x","y","width","height","order"]);
   assert.equal(canonical(validate(JSON.parse(canonical(b)))), canonical(b));
   for (const key of ["pixelWidth", "pixelHeight"]) {
@@ -53,7 +53,7 @@ test("versions 1 to 9 preserve exact payload and upgrade without mutating the sa
     if (version < 3) delete o.group; if (version < 4) delete o.marks; if (version < 5) delete o.section;
     const old = { ...withoutPages(current), schemaVersion: version, objects: [{ ...o }] }; delete old.objects[0].page; const bytes = canonical(old), copy = structuredClone(old);
     const read = validate(JSON.parse(bytes)), upgraded = upgrade(read);
-    assert.equal(canonical(read), bytes); assert.deepEqual(old, copy); assert.equal(upgraded.schemaVersion, 14);
+    assert.equal(canonical(read), bytes); assert.deepEqual(old, copy); assert.equal(upgraded.schemaVersion, 15);
     assert.equal(record(emptyHistory(), upgraded, upgraded).past.length, 0);
   }
 });
@@ -329,6 +329,6 @@ test("failed picture store or unavailable import changes no board and refuses wi
 test("picker exists only while opening, accepts multiple named types, and Image tooltip follows platform",(t)=>{
  const original=globalThis.document;t.after(()=>{globalThis.document=original;});let input,attached=false;const handlers={};
  globalThis.document={createElement(){input={setAttribute(k,v){this[k]=v;},addEventListener(k,fn){handlers[k]=fn;},remove(){attached=false;},click(){}};return input;},body:{append(){attached=true;}}};
- const h=imageHarness(board());h.result.chooseImages();assert(attached);assert.equal(input.type,"file");assert.equal(input.multiple,true);assert.equal(input.accept,"image/png,image/jpeg,image/gif,image/webp");assert.equal(input["aria-label"],"Choose images");handlers.cancel();assert.equal(attached,false);
- for(const mac of [true,false]){const markup=renderToStaticMarkup(createElement(hooks.ImageButton,{picker:{disabled:false,mac,choose(){}}}));assert.match(markup,/aria-label="Image"/);assert(markup.includes(mac?"Image ⇧⌘K":"Image Ctrl+Shift+K"));}
+ const h=imageHarness(board());h.result.chooseImages();assert(attached);assert.equal(input.type,"file");assert.equal(input.multiple,true);assert.equal(input.accept,"image/png,image/jpeg,image/gif,image/webp,video/mp4,video/quicktime,video/webm");assert.equal(input["aria-label"],"Choose images or videos");handlers.cancel();assert.equal(attached,false);
+ for(const mac of [true,false]){const markup=renderToStaticMarkup(createElement(hooks.ImageButton,{picker:{disabled:false,mac,choose(){}}}));assert.match(markup,/aria-label="Media"/);assert(markup.includes(mac?"Media ⇧⌘K":"Media Ctrl+Shift+K"));}
 });

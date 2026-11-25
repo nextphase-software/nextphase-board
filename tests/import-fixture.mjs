@@ -13,10 +13,10 @@ export function version13Board({ boardId, title, pages, objects, retiredGenerati
 export function storedBoardUpdate(board, legacyPages = board.schemaVersion < 13) {
   if (!legacyPages && board.schemaVersion !== 13) {
     const current = new Adapter();
-    try { current.set(board); return Y.encodeStateAsUpdate(current.doc); }
+    try { current.set(board); current.doc.getMap("board").set("schemaVersion", board.schemaVersion); return Y.encodeStateAsUpdate(current.doc); }
     finally { current.destroy(); }
   }
-  if (legacyPages && board.schemaVersion === 14) throw Error("Storage 7 cannot hold schema 14");
+  if (legacyPages && board.schemaVersion >= 14) throw Error("Storage 7 cannot hold schema 14");
   const adapter = new Adapter(), doc = new Y.Doc();
   try {
     adapter.set(board);
@@ -83,7 +83,7 @@ export function richBoard() {
 
 // Long drawing coordinates reach the canonical byte boundary within 250 objects.
 // Canonicalize the small skeleton first, so an over-limit fixture can still be serialized.
-export function sizedBoard(bytes = 2097152, version = 14) {
+export function sizedBoard(bytes = 2097152, version = 15) {
   let board = richBoard();
   board.title = "Sized";
   board.objects[2].text = "";

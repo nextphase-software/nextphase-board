@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { RefObject } from "react";
-import type { ImageItem } from "nextphase-board-rules/document.ts";
+import type { ImageItem, VideoItem } from "nextphase-board-rules/document.ts";
 import { count } from "nextphase-board-rules/document.ts";
 export type ImagePicker = { disabled: boolean; mac: boolean; choose: () => void };
 export type DescriptionControl = {
-  image: ImageItem | undefined; value: string; opened: boolean; disabled: boolean;
+  image: ImageItem | VideoItem | undefined; label: string; value: string; opened: boolean; disabled: boolean;
   field: RefObject<HTMLTextAreaElement | null>; button: RefObject<HTMLButtonElement | null>; control: RefObject<HTMLSpanElement | null>;
   toggle: () => void; change: (value: string) => void; commit: () => void; close: () => void;
   focusField: (node: HTMLTextAreaElement | null) => void;
   startComposition: () => void; endComposition: (value: string) => void;
 };
 export function ImageButton({ picker }: { picker: ImagePicker }) {
-  const tooltip = picker.mac ? "Image ⇧⌘K" : "Image Ctrl+Shift+K";
-  return <button className="icon-button" aria-label="Image" title={tooltip} disabled={picker.disabled} onClick={picker.choose}>
+  const tooltip = picker.mac ? "Media ⇧⌘K" : "Media Ctrl+Shift+K";
+  return <button className="icon-button" aria-label="Media" title={tooltip} disabled={picker.disabled} onClick={picker.choose}>
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
       <rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8" cy="8" r="1.5" /><path d="m3 17 5-5 4 4 3-5 6 7" />
     </svg><span className="tooltip">{tooltip}</span>
@@ -32,7 +32,7 @@ export function DescriptionField({ control: c, panel = false }: { control: Descr
 export function ImageControls({ count, control: c }: { count: number; control: DescriptionControl }) {
   if (!count) return null;
   return <>
-    <span>{count === 1 ? "Image" : count + " images"}</span>
+    <span>{c.label ?? (count === 1 ? "Image" : count + " images")}</span>
     {count === 1 && <><span className="divider" aria-hidden="true" />
       <span className="image-description-control" ref={c.control} onKeyDown={(e) => {
         if (e.key === "Escape" && !e.nativeEvent.isComposing) { e.preventDefault(); e.stopPropagation(); c.close(); }

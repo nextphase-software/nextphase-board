@@ -44,7 +44,7 @@ for (let version = 1; version <= 13; version++) test(`version ${version} file ro
   const board = versionBoard(version), before = structuredClone(board), payload = canonical(board);
   const raw = await writeBoardFile(board), parsed = JSON.parse(raw);
   assert.deepEqual(Object.keys(parsed), ["format", "fileVersion", "payload", "sha256"]);
-  assert.equal(parsed.fileVersion, 2);
+  assert.equal(parsed.fileVersion, 3);
   assert.deepEqual(JSON.parse(parsed.payload), { document: payload, assets: [] }); assert.equal(parsed.sha256, await digest(parsed.payload));
   assert.equal(raw, JSON.stringify(parsed));
   const restored = await readBoardFile(file(raw));
@@ -53,7 +53,7 @@ for (let version = 1; version <= 13; version++) test(`version ${version} file ro
   assert.equal(JSON.parse(JSON.parse(await writeBoardFile(shown, board)).payload).document, payload);
   const edited = { ...shown, title: "Edited unsaved title" };
   assert.equal(JSON.parse(JSON.parse(await writeBoardFile(edited)).payload).document, canonical(edited));
-  assert.equal(JSON.parse(JSON.parse(JSON.parse(await writeBoardFile(edited)).payload).document).schemaVersion, 14);
+  assert.equal(JSON.parse(JSON.parse(JSON.parse(await writeBoardFile(edited)).payload).document).schemaVersion, 15);
 });
 
 test("ordered file checks refuse each malformed input with its exact first reason", async () => {
@@ -68,7 +68,7 @@ test("ordered file checks refuse each malformed input with its exact first reaso
     ["\ufeff" + good, "it is not a Board file"],
     [new Uint8Array([0xc3, 0x28]), "it is not a Board file"],
     [await envelope(payload, { format: "other" }), "it is not a Board file"],
-    [await envelope(payload, { fileVersion: 3 }), "it was made by a newer version of Board"],
+    [await envelope(payload, { fileVersion: 4 }), "it was made by a newer version of Board"],
     [await envelope(payload, { fileVersion: "1" }), "it is not a Board file"],
     [await envelope(payload, { fileVersion: 0 }), "it is not a Board file"],
     [await envelope(payload, { payload: {} }), "it is not a Board file"],
@@ -76,13 +76,13 @@ test("ordered file checks refuse each malformed input with its exact first reaso
     [await envelope(payload, { sha256: e.sha256.toUpperCase() }), "it is damaged"],
     [await envelope(payload, { sha256: "0".repeat(64) }), "it is damaged"],
     [await envelope("not JSON"), "it is not a valid board"],
-    [await envelope(JSON.stringify({ schemaVersion: 15 })), "it was made by a newer version of Board"],
+    [await envelope(JSON.stringify({ schemaVersion: 16 })), "it was made by a newer version of Board"],
     [await envelope(JSON.stringify({ schemaVersion: 7 })), "it is not a valid board"],
     [await envelope(payload.replace('"title":', '"title" :')), "it is not a valid board"],
     [await envelope(JSON.stringify({ ...versionBoard(1), objects: versionBoard(2).objects })), "it is not a valid board"],
     // Earlier checks take precedence over all later failures.
     [await envelope("bad", { format: "other", fileVersion: 2 }), "it is not a Board file"],
-    [await envelope("bad", { fileVersion: 3, sha256: 1 }), "it was made by a newer version of Board"],
+    [await envelope("bad", { fileVersion: 4, sha256: 1 }), "it was made by a newer version of Board"],
     [await envelope("bad", { sha256: "0".repeat(64) }), "it is damaged"],
   ];
   for (const [raw, reason] of cases) await assert.rejects(readBoardFile(file(raw)), { message: reason });
@@ -90,10 +90,10 @@ test("ordered file checks refuse each malformed input with its exact first reaso
 
 test("the byte limit is checked before reading, including the exact boundary", async () => {
   let read = false;
-  await assert.rejects(readBoardFile({ size: FILE_LIMIT + 1, arrayBuffer() { read = true; throw Error(); } }), { message: "it is larger than 72 MiB" });
+  await assert.rejects(readBoardFile({ size: FILE_LIMIT + 1, arrayBuffer() { read = true; throw Error(); } }), { message: "it is larger than 216 MiB" });
   assert.equal(read, false);
   await assert.rejects(readBoardFile(file(" ".repeat(FILE_LIMIT))), { message: "it is not a Board file" });
-  await assert.rejects(readBoardFile(file(" ".repeat(FILE_LIMIT + 1))), { message: "it is larger than 72 MiB" });
+  await assert.rejects(readBoardFile(file(" ".repeat(FILE_LIMIT + 1))), { message: "it is larger than 216 MiB" });
 });
 
 test("file names replace each forbidden character and keep other Unicode", () => {
@@ -112,13 +112,13 @@ test("file names replace each forbidden character and keep other Unicode", () =>
 const { addImages } = await import("../apps/web/src/images.ts");
 const { assetKey, pictureHash, pictureBytes, PICTURE_LIMIT } = await import("../apps/web/src/image-assets.ts");
 const { readBoardBundle, pictureBase64 } = await import("../apps/web/src/board-file.ts");
-const pngBytes=Uint8Array.from([137,80,78,71,13,10,26,10,1]).buffer;
+const pngBytes=Uint8Array.from([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,2,0,0,0,2,1]).buffer;
 const pictureEntry=async(bytes=pngBytes)=>({hash:await pictureHash(bytes),picture:{bytes,mime:"image/png",pixelWidth:2,pixelHeight:2},width:2,height:2});
-const p1=await pictureEntry(),p2=await pictureEntry(Uint8Array.from([137,80,78,71,13,10,26,10,2]).buffer);
+const p1=await pictureEntry(),p2=await pictureEntry(new Uint8Array(pngBytes).with(-1,2).buffer);
 const withPictures=(items=[p1,p2,p1])=>addImages({...empty(),title:"Synthetic portable images"},items,{x:0,y:0});
 const v2=async(bundle)=>envelope(typeof bundle==="string"?bundle:JSON.stringify(bundle),{fileVersion:2});
 
-test("v2 bundle keeps one sorted entry per distinct picture, exact document and digest over bundle",async()=>{
+test("v3 bundle keeps one sorted entry per distinct picture, exact document and digest over bundle",async()=>{
   const b=withPictures(),cache=new Map([[p1.hash,p1.picture],[p2.hash,p2.picture]]),raw=await writeBoardFile(b,undefined,cache),outer=JSON.parse(raw),bundle=JSON.parse(outer.payload);
   assert.deepEqual(Object.keys(bundle),["document","assets"]); assert.equal(bundle.document,canonical(b));
   assert.equal(outer.sha256,await digest(outer.payload)); assert.deepEqual(bundle.assets.map(p=>p.sha256),[p1.hash,p2.hash].sort());
@@ -136,7 +136,7 @@ test("v2 ordered bundle/document checks precede picture checks and reject malfor
     [{...bundle,document:3},"it is damaged"],
     [JSON.stringify(bundle,null,2),"it is damaged"],
     [{document:"bad",assets:null},"it is not a valid board"],
-    [{document:JSON.stringify({schemaVersion:15}),assets:null},"it was made by a newer version of Board"],
+    [{document:JSON.stringify({schemaVersion:16}),assets:null},"it was made by a newer version of Board"],
     [{...bundle,document:bundle.document+" "},"it is not a valid board"],
   ];
   for(const [bundle,reason] of cases) await assert.rejects(readBoardBundle(file(await v2(bundle))),{message:reason});
@@ -174,7 +174,7 @@ test("20 MiB picture writes and reads intact; decoded byte overflow fails even w
   const bytes=new Uint8Array(20*1024*1024);bytes.set(new Uint8Array(pngBytes));const p=await pictureEntry(bytes.buffer),b=withPictures([p]);
   const raw=await writeBoardFile(b,undefined,new Map([[p.hash,p.picture]])),restored=await readBoardBundle(file(raw));
   assert.deepEqual(restored.pictures.get(p.hash).bytes,p.picture.bytes);assert.equal(canonical(restored.board),canonical(b));
-  await assert.rejects(readBoardBundle({size:1,arrayBuffer:async()=>new ArrayBuffer(FILE_LIMIT+1)}),{message:"it is larger than 72 MiB"});
+  await assert.rejects(readBoardBundle({size:1,arrayBuffer:async()=>new ArrayBuffer(FILE_LIMIT+1)}),{message:"it is larger than 216 MiB"});
 });
 
 test("v1 image document resolves existing pictures and refuses resolved bytes above 50 MiB",async()=>{

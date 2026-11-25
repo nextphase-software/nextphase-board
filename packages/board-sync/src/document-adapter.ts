@@ -2,7 +2,7 @@
 import * as Y from "yjs";
 import { compareKeys, orderWrites, rebalance } from "./order-keys.ts";
 import { markOf, styleOf, upgrade, type Board, type TableItem } from "nextphase-board-rules/document.ts";
-import { connectorStyleOf, extraValues, hasEnds, hasRectangle, hasText, isImage, isTable, cellKey, type TableAxis } from "nextphase-board-rules/objects/registry.ts";
+import { connectorStyleOf, extraValues, hasEnds, hasRectangle, hasText, isMedia, isVideo, isTable, cellKey, type TableAxis } from "nextphase-board-rules/objects/registry.ts";
 export type TableOrderHint = {
   table: string; axis?: TableAxis; moved?: readonly string[];
   orders?: Partial<Record<TableAxis, ReadonlyMap<string, string>>>;
@@ -116,8 +116,9 @@ export class Adapter {
         for (const [key, value] of Object.entries(hasEnds(o) ? { ends: { from: { object: o.from.object, anchor: o.from.anchor }, to: { object: o.to.object, anchor: o.to.anchor } }, connectorStyle: connectorStyleOf(o) } : extraValues(o))) {
           if (JSON.stringify(m.get(key)) !== JSON.stringify(value)) m.set(key, value);
         }
-        if (isImage(o)) for (const key of ["text", "style", "marks", "ends", "connectorStyle"]) m.delete(key);
+        if (isMedia(o)) for (const key of ["text", "style", "marks", "ends", "connectorStyle"]) m.delete(key);
         else for (const key of ["asset", "pixelWidth", "pixelHeight", "description"]) m.delete(key);
+        if (!isVideo(o)) for (const key of ["poster", "durationMs", "name"]) m.delete(key);
         if (hasText(o)) {
           let text = m.get("text") as Y.Text | undefined;
           if (!text) {

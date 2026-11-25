@@ -772,6 +772,12 @@ remain unrun in the sandbox.
 `room-pictures.test.mjs` (headers, storage, history, edits and backups).
 Both server runner suites include `server/pictures.test.ts` (S431–S441).
 
+## 0012-W4 video files
+
+`npm test` includes `video.test.mjs` for documents, files and media import, `video-playback.test.mjs`
+for playback and controls, and `room-videos.test.mjs` for streamed room storage, edits and backups.
+Both server suites include `server/videos.test.ts` (S443–S452).
+
 ## Node test server warnings
 
 S442 in `server/suite.test.ts` verifies that the driver captures the test

@@ -36,7 +36,7 @@ export function workerRuntime(env: WorkerEnv): Runtime {
       if (!response.ok) throw new RoomError(response.status, result.error.reason, result.error.needed);
       return result;
     }
-    function pictureCall(action: string, person: Parameters<RoomClient["export"]>[0], hash: string, headers: Record<string, string> = {}, body?: ArrayBuffer) {
+    function pictureCall(action: string, person: Parameters<RoomClient["export"]>[0], hash: string, headers: Record<string, string> = {}, body?: ArrayBuffer | ReadableStream<Uint8Array>) {
       const caller = base64(bytes(JSON.stringify(person))).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
       return stub(env, "ROOMS", board).fetch("http://room/" + action, {
         method: "POST", body, headers: { "x-board": board, "x-person": caller, "x-picture-hash": hash, ...headers },
@@ -55,6 +55,18 @@ export function workerRuntime(env: WorkerEnv): Runtime {
           "x-picture-type": type, "x-picture-width": String(width), "x-picture-height": String(height),
         }, body);
         return (await response.json() as { result: "created" | "exists" | "full" }).result;
+      },
+      async storeVideo(person, hash, type, body) {
+        const response = await pictureCall("video-store", person, hash, { "x-picture-type": type }, body);
+        return await response.json() as Awaited<ReturnType<RoomClient["storeVideo"]>>;
+      },
+      async readVideo(person, hash) {
+        const response = await pictureCall("video-read", person, hash);
+        if (response.status === 204) return null;
+        const bytes = Number(response.headers.get("x-picture-bytes"));
+        const fixed = new FixedLengthStream(bytes);
+        void response.body!.pipeTo(fixed.writable).catch(() => {});
+        return { type: response.headers.get("Content-Type") as import("nextphase-board-room/pictures.ts").VideoType, bytes, body: fixed.readable };
       },
       async readPicture(person, hash) {
         const response = await pictureCall("picture-read", person, hash);

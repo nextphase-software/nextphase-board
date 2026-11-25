@@ -77,9 +77,9 @@ test("X7-U21 layout 9 creation, legacy backups and version gates", async t => {
   s.exec = (sql,...args) => { writes?.push([sql,...args]); return exec(sql,...args); };
   for (const version of [7,8]) for (const keep of [true,false]) {
     const old = structuredClone(backup); old.tables.meta.find(r=>r.key==="storage_version").value=version;
-    if (version===7) {
-      const b=version13Board(room.board), {canonical}=await import("../packages/board-rules/src/document.ts");
-      old.tables.snapshot_chunks.find(r=>r.kind==="yjs").bytes=Buffer.from(storedBoardUpdate(b,true)).toString("base64");
+    {
+      const b=version===7 ? version13Board(room.board) : {...room.board,schemaVersion:14}, {canonical}=await import("../packages/board-rules/src/document.ts");
+      old.tables.snapshot_chunks.find(r=>r.kind==="yjs").bytes=Buffer.from(storedBoardUpdate(b,version===7)).toString("base64");
       old.tables.snapshot_chunks.find(r=>r.kind==="json").bytes=Buffer.from(canonical(b)).toString("base64");
     }
     if (!keep) { delete old.tables.pictures; delete old.tables.picture_parts; }

@@ -50,7 +50,7 @@ for (const [i, entry] of catalog.entries()) {
     assert.equal(board.title, entry.name);
     assert(board.objects.length >= 1 && board.objects.length <= 40);
     const written = JSON.parse(await writeBoardFile(board));
-    assert.equal(written.fileVersion, 2);
+    assert.equal(written.fileVersion, 3);
     assert.deepEqual(JSON.parse(written.payload), { document: JSON.parse(entry.file).payload, assets: [] });
   });
 }

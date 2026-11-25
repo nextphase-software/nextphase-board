@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useImages } from "./state/use-images"; import { ImageNames } from "./scene/image-body"; import { useGifPlayback } from "./state/use-gif-playback"; import { GifMarks } from "./scene/gif-marks";
+import { useImages } from "./state/use-images"; import { ImageNames } from "./scene/image-body"; import { useGifPlayback } from "./state/use-gif-playback"; import { GifMarks } from "./scene/gif-marks"; import { useVideoPlayback } from "./state/use-video-playback"; import { VideoPlayer } from "./scene/video-player";
 import { screenPoint } from "./view";
 import { useSessionStatus } from "./state/use-session-status";
 import { useGestureState } from "./state/use-gesture-state";
@@ -122,7 +122,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     selectionKey, selected, selectionReason, bounds, pos, view, size, layout, inline,
     item: resolvedItem, itemHeight, dotsVisible, editorBox,
   });
-  const gif = useGifPlayback({ objects: displayedObjects, selected, animated: images.animated, bitmaps: images.bitmaps, pressedPlay, setMessage }); const exporter = useExport({ page: pages.id, board: pages.canvas(tidy.board), objects: displayedObjects, objectLayouts, selected, tableSelection, bitmaps: images.bitmaps, hosted: team?.hosted, busy, composing, tidyOpen: tidy.open, setMessage, scene, setPanel, boardButton, draw: drawExport }); const { tableAction, tableSize, tableData, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
+  const video = useVideoPlayback({ opening: adapter.current, boardId: board.boardId, objects: displayedObjects, selected, bitmaps: images.bitmaps, pressedPlay, hosted: team?.hosted, hidden: tidy.open || find.open || (gestureBusy && !drag.current?.pan), setMessage }); const gif = useGifPlayback({ objects: displayedObjects, selected, animated: images.animated, bitmaps: images.bitmaps, pressedPlay, setMessage }); const exporter = useExport({ page: pages.id, board: pages.canvas(tidy.board), objects: displayedObjects, objectLayouts, selected, tableSelection, bitmaps: images.bitmaps, hosted: team?.hosted, busy, composing, tidyOpen: tidy.open, setMessage, scene, setPanel, boardButton, draw: drawExport }); const { tableAction, tableSize, tableData, connectorCommands, strokeCommands, loadTemplates, templateCommands, templatePreviews, shapeCommands, setSection, objectClipboard, command, clipboardCommand, arrangementReason, arrange, changeStyle, toggleFormat } = useEditingCommands({
     pages, tableSelection, chooseTable, growTableRows, tableMeasure, tool, connectorStyle, shapeSession, growHeight, growAvailable, model, commit, historyRef, updateHistory, setDrafts, finishTextSession,
     setMessage, messageSequence, alive, select, selected, setInline, scene, view, setView,
     displayedObjects, commandReason, selectionReason, clipboardState, editingState,
@@ -172,7 +172,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
         <BoardDrawing
           tableSelection={tableSelection} tableCell={tableEntry.draft?.cell} tableGesture={tableGesture} faded={find.faded} bitmaps={images.bitmaps} loading={images.loading} playing={gif.playing} connection={connection} preview={preview} size={size} view={view} board={pages.canvas(tidy.board)} objectLayouts={objectLayouts} selected={tidy.selected} inline={inline} movingIds={busy && drag.current?.crossed ? drag.current.ids ?? [] : []}
         />
-        <GifMarks objects={displayedObjects} animated={images.animated} bitmaps={images.bitmaps} selected={selected} hovered={hovered} pos={pos} zoom={view.z} /><Overlays
+        <GifMarks objects={displayedObjects} animated={images.animated} bitmaps={images.bitmaps} selected={selected} hovered={hovered} pos={pos} zoom={view.z} /><VideoPlayer player={video.player} pos={pos} zoom={view.z} /><Overlays
           selectedGroups={selectedGroups} pos={pos} view={view} handlesVisible={handlesVisible}
           handlePoints={handlePoints} spacePan={spacePan} selectionBox={selectionBox} tool={tool}
         />

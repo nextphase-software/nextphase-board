@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-import { clamp, freshIdentifier, type BoardV14, type ImageItem, validText } from "nextphase-board-rules/document.ts";
-import { imageType, isImage, type Rectangle } from "nextphase-board-rules/objects/registry.ts";
+import { clamp, freshIdentifier, type BoardV14, type ImageItem, type VideoItem, validText } from "nextphase-board-rules/document.ts";
+import { imageType, videoType, isMedia, type Rectangle } from "nextphase-board-rules/objects/registry.ts";
 import { bandOrder, sectionAt } from "./sections.ts";
-import { PICTURE_LIMIT, pictureHash, signature, tabPictures, type Picture } from "./image-assets.ts";
-export const IMAGE_ACCEPT = "image/png,image/jpeg,image/gif,image/webp";
+import type { PreparedVideo } from "./video.ts";
+import { boardPictures, boardVideos, tabVideos, VIDEO_LIMIT, type VideoRecord, PICTURE_LIMIT, pictureHash, signature, tabPictures, type Picture } from "./image-assets.ts";
+export const MEDIA_ACCEPT = "image/png,image/jpeg,image/gif,image/webp,video/mp4,video/quicktime,video/webm";
+export const VIDEO_REASONS = { file: "file is larger than 50 MiB", play: "this browser cannot play this video",
+  bytes: "videos would exceed the 100 MiB board limit", store: "video could not be stored in this browser" } as const;
 export const IMAGE_REASONS = {
-  file: "file is larger than 20 MiB", type: "not a supported image (PNG, JPEG, GIF or WebP)",
+  file: "file is larger than 20 MiB", type: "not a supported image or video (PNG, JPEG, GIF, WebP, MP4, MOV or WebM)",
   size: "picture would exceed the 20,000-unit size limit", objects: "250 object limit reached",
   bytes: "pictures would exceed the 50 MiB board limit", store: "picture could not be stored in this browser",
 } as const;
@@ -29,35 +32,44 @@ export function imageRow(sizes: readonly { width: number; height: number }[], ce
     x += s.width + 16; return result;
   });
 }
-export function importReason(board: BoardV14, accepted: readonly PreparedImage[], next: PreparedImage, pictures: ReadonlyMap<string, Picture> = tabPictures): string {
+export type PreparedMedia = PreparedImage | PreparedVideo;
+export function importReason(board: BoardV14, accepted: readonly PreparedMedia[], next: PreparedMedia, pictures: ReadonlyMap<string, Picture> = tabPictures, videos: ReadonlyMap<string, VideoRecord> | null = tabVideos): string {
   if (board.objects.length + accepted.length >= 250) return IMAGE_REASONS.objects;
-  const available = new Map(pictures), hashes = new Set(board.objects.filter(isImage).map((o) => o.asset));
-  for (const item of [...accepted, next]) { hashes.add(item.hash); available.set(item.hash, item.picture); }
-  const bytes = [...hashes].reduce((sum, hash) => sum + (available.get(hash)?.bytes.byteLength ?? 0), 0);
-  return bytes > PICTURE_LIMIT ? IMAGE_REASONS.bytes : "";
+  const p = new Map([...boardPictures(board)].map(hash => [hash, pictures.get(hash)?.bytes.byteLength ?? 0]));
+  const v = new Map([...boardVideos(board)].map(hash => [hash, videos?.get(hash)?.bytes.byteLength ?? 0]));
+  for (const item of [...accepted, next]) {
+    if ("video" in item) { v.set(item.hash, item.video.bytes.byteLength); p.set(item.posterHash, item.poster.bytes.byteLength); }
+    else p.set(item.hash, item.picture.bytes.byteLength);
+  }
+  const sum = (values: Map<string, number>) => [...values.values()].reduce((n, bytes) => n + bytes, 0);
+  if (sum(p) > PICTURE_LIMIT) return IMAGE_REASONS.bytes;
+  return videos && sum(v) > VIDEO_LIMIT ? VIDEO_REASONS.bytes : "";
 }
-export function addImages(board: BoardV14, images: readonly PreparedImage[], centre: { x: number; y: number }, page = board.boardId): BoardV14 {
+export function addImages(board: BoardV14, images: readonly PreparedMedia[], centre: { x: number; y: number }, page = board.boardId): BoardV14 {
   if (!images.length) return board;
   if (board.objects.length + images.length > 250) throw Error(IMAGE_REASONS.objects);
   const reserved: string[] = [], fresh = () => { const id = freshIdentifier(board, reserved); reserved.push(id); return id; };
   const row = imageRow(images, centre);
-  const objects: (ImageItem & { page: string })[] = images.map((image, i) => ({
-    id: fresh(), generation: fresh(), type: imageType().type, page, group: null,
+  const objects: ((ImageItem & { page: string }) | VideoItem)[] = images.map((image, i) => ({
+    id: fresh(), generation: fresh(), page, group: null,
     section: sectionAt(board.objects.filter(o => o.page === page), { x: row[i].x + row[i].width / 2, y: row[i].y + row[i].height / 2 })?.id ?? null,
-    asset: image.hash, pixelWidth: image.picture.pixelWidth, pixelHeight: image.picture.pixelHeight, description: "",
+    asset: image.hash, description: "",
+    ...("video" in image ? { type: videoType().type, poster: image.posterHash, pixelWidth: image.poster.pixelWidth,
+      pixelHeight: image.poster.pixelHeight, durationMs: image.video.durationMs, name: image.name } :
+      { type: imageType().type, pixelWidth: image.picture.pixelWidth, pixelHeight: image.picture.pixelHeight }),
     ...row[i], order: board.objects.length + i,
   }));
   return { ...board, objects: bandOrder([...board.objects, ...objects], page).map((o, order) => ({ ...o, order })) };
 }
 export const PASTE_NOT_LOADED = "Could not paste the image: it has not loaded yet.";
-export const HOSTED_REASONS = { offline: "you are offline", too_large: "it is larger than 20 MiB", full: "this board already holds 50 MiB of pictures", refused: "the server did not accept it" };
-export function fileNames(refused: readonly { name: string }[]): string {
-  const names = refused.slice(0, 3).map((r) => r.name || "Clipboard image");
+export const HOSTED_REASONS = { video_too_large: "it is larger than 50 MiB", videos_full: "this board already holds 100 MiB of videos", video_play: "this browser cannot play it", offline: "you are offline", too_large: "it is larger than 20 MiB", full: "this board already holds 50 MiB of pictures", refused: "the server did not accept it" };
+export function fileNames(refused: readonly { name: string; video?: boolean }[]): string {
+  const names = refused.slice(0, 3).map((r) => r.name || (r.video ? "Clipboard video" : "Clipboard image"));
   const text = names.length <= 1 ? names[0] : names.slice(0, -1).join(", ") + " and " + names.at(-1);
   return text + (refused.length > 3 ? " and " + (refused.length - 3) + " more" : "");
 }
-export function addingNotice(files: readonly { name: string }[]) { return "Adding " + fileNames(files) + "…"; }
-export function refusalNotice(refused: readonly { name: string; reason: string }[]): string {
+export function addingNotice(files: readonly { name: string; video?: boolean }[], percent?: number) { return "Adding " + fileNames(files) + "…" + (percent === undefined ? "" : " " + percent + "%"); }
+export function refusalNotice(refused: readonly { name: string; video?: boolean; reason: string }[]): string {
   return "Could not add " + fileNames(refused) + ": " +
     [...new Set(refused.map((r) => r.reason))].join("; ") + ".";
 }
@@ -66,11 +78,11 @@ export async function decodePicture(picture: Picture): Promise<ImageBitmap> {
   if (bitmap.width !== picture.pixelWidth || bitmap.height !== picture.pixelHeight) { bitmap.close(); throw Error("Image unavailable"); }
   return bitmap;
 }
-export async function prepareImage(file: { size: number; arrayBuffer: () => Promise<ArrayBuffer> }): Promise<PreparedImage> {
+export async function prepareImage(file: { size: number; arrayBuffer: () => Promise<ArrayBuffer> }, supplied?: ArrayBuffer): Promise<PreparedImage> {
   if (file.size > 20971520) throw Error(IMAGE_REASONS.file);
   let bytes: ArrayBuffer, mime: Picture["mime"], bitmap: ImageBitmap;
   try {
-    bytes = await file.arrayBuffer();
+    bytes = supplied ?? await file.arrayBuffer();
     if (bytes.byteLength > 20971520) throw Error(IMAGE_REASONS.file);
     const found = signature(bytes); if (!found) throw Error(); mime = found;
     bitmap = await createImageBitmap(new Blob([bytes], { type: mime }));
@@ -98,6 +110,6 @@ export function nativePasteKey(event: { isTrusted: boolean; key: string; metaKey
 export const descriptionDraft = (value: string) => validText(value, Number.MAX_SAFE_INTEGER) ? Array.from(value).slice(0, 1000).join("") : null;
 export function describeImage(board: BoardV14, boardId: string, id: string, generation: string, description: string): BoardV14 {
   if (board.boardId !== boardId || !validText(description, 1000)) return board;
-  const objects = board.objects.map((o) => isImage(o) && o.id === id && o.generation === generation && o.description !== description ? { ...o, description } : o);
+  const objects = board.objects.map((o) => isMedia(o) && o.id === id && o.generation === generation && o.description !== description ? { ...o, description } : o);
   return objects.some((o, i) => o !== board.objects[i]) ? { ...board, objects } : board;
 }

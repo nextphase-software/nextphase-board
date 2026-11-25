@@ -3,7 +3,7 @@ import * as Y from "yjs";
 import { canonical, freshIdentifier, validate, type BoardV14, type ItemV14 } from "nextphase-board-rules/document.ts";
 import { checkTransition } from "nextphase-board-rules/transition.ts";
 import { hasEnds, isMindNode, isTable, sizeTable, setCell, type TableAxis } from "nextphase-board-rules/objects/registry.ts";
-import { readBoard } from "./codec.ts";
+import { readLiveBoard } from "./codec.ts";
 
 import type { TableItem } from "nextphase-board-rules/document.ts";
 import type { TableOrderHint } from "./document-adapter.ts";
@@ -53,7 +53,7 @@ export function capture(doc: Y.Doc): State {
     }
     units.set(id, values);
   }
-  return { board: readBoard(doc), units };
+  return { board: readLiveBoard(doc), units };
 }
 function captureAxis(map: Y.Map<unknown>, values: Map<string, Unit>, axis: TableAxis, size: "width" | "height") {
   const entries = map.get(axis + "Map") as Y.Map<Y.Map<unknown>>;

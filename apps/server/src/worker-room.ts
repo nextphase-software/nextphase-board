@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { PictureType } from "nextphase-board-room/pictures.ts";
+import type { PictureType, VideoType } from "nextphase-board-room/pictures.ts";
 import { Room } from "nextphase-board-room/room.ts";
 import { BACKUP_LIMIT, errorBody, RoomError, type Connection, type Attachment } from "nextphase-board-room/protocol.ts";
 import type { RoomEnvironment } from "nextphase-board-room/interfaces.ts";
@@ -24,6 +24,16 @@ export function roomEnvironment(state: DurableObjectState, env: WorkerEnv, board
       while (next <= minimum) next = await fenceCall("raise");
       return next;
     },
+    hasher() {
+      const { DigestStream } = crypto as Crypto & { DigestStream: new (algorithm: string) => WritableStream<Uint8Array> & { digest: Promise<ArrayBuffer> } };
+      const stream = new DigestStream("SHA-256"), writer = stream.getWriter();
+      void stream.digest.catch(() => {});
+      return { update: chunk => writer.write(chunk), async hex() {
+        await writer.close();
+        return Array.from(new Uint8Array(await stream.digest), b => b.toString(16).padStart(2, "0")).join("");
+      }, abort() { void writer.abort().catch(() => {}); } };
+    },
+    timer(ms, callback) { const timer = setTimeout(callback, ms); return () => clearTimeout(timer); },
     hash: async (value) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(value)))].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
     randomTicket: () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
     randomId: () => crypto.randomUUID(), verify: (token) => runtime.auth.verify(token),
@@ -75,12 +85,23 @@ export class WorkerRoom {
         await room.connected(connection(pair[1]));
         return new Response(null, { status: 101, webSocket: pair[0] });
       }
-      if (url.pathname === "/picture-store" || url.pathname === "/picture-read") {
+      if (url.pathname === "/picture-store" || url.pathname === "/picture-read" || url.pathname === "/video-read" || url.pathname === "/video-store") {
         const headers = request.headers;
         const room = await this.getRoom(headers.get("x-board")!);
         const caller = atob(headers.get("x-person")!.replaceAll("-", "+").replaceAll("_", "/"));
         const person = JSON.parse(new TextDecoder().decode(Uint8Array.from(caller, char => char.charCodeAt(0))));
         const hash = headers.get("x-picture-hash")!;
+        if (url.pathname === "/video-store") {
+          if (!request.body) throw new RoomError(400, "unsupported_picture");
+          return Response.json(await room.storeVideo(person, hash, headers.get("x-picture-type") as VideoType, request.body));
+        }
+        if (url.pathname === "/video-read") {
+          const video = await room.readVideo(person, hash);
+          if (!video) return new Response(null, { status: 204 });
+          const fixed = new FixedLengthStream(video.bytes);
+          void video.body.pipeTo(fixed.writable).catch(() => {});
+          return new Response(fixed.readable, { headers: { "Content-Type": video.type, "x-picture-bytes": String(video.bytes) } });
+        }
         if (url.pathname === "/picture-read") {
           const picture = await room.readPicture(person, hash);
           return picture ? new Response(picture.bytes, { headers: { "Content-Type": picture.type } }) : new Response(null, { status: 204 });

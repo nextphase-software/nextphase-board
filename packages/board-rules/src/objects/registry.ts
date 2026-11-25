@@ -10,6 +10,8 @@ import { stroke, type StrokeKeys } from "./stroke.ts";
 export * from "./stroke.ts";
 import { image, type ImageKeys } from "./image.ts";
 export * from "./image.ts";
+import { video, type VideoKeys } from "./video.ts";
+export * from "./video.ts";
 import { mindNode, type MindNodeKeys } from "./mind-node.ts";
 export * from "./mind-node.ts";
 import { tape, type TapeKeys } from "./tape.ts";
@@ -18,13 +20,13 @@ import { table, type TableKeys } from "./table.ts";
 export * from "./table.ts";
 export type Rectangle = { x: number; y: number; width: number; height: number };
 
-export type ObjectType = typeof sticky | typeof shape | typeof text | typeof section | typeof connector | typeof stroke | typeof image | typeof mindNode | typeof tape | typeof table;
-export type TextRectangleType = Exclude<ObjectType, typeof connector | typeof stroke | typeof image | typeof tape | typeof table>["type"];
-export type RectangleType = TextRectangleType | typeof stroke.type | typeof image.type | typeof tape.type | typeof table.type;
+export type ObjectType = typeof sticky | typeof shape | typeof text | typeof section | typeof connector | typeof stroke | typeof image | typeof video | typeof mindNode | typeof tape | typeof table;
+export type TextRectangleType = Exclude<ObjectType, typeof connector | typeof stroke | typeof image | typeof video | typeof tape | typeof table>["type"];
+export type RectangleType = TextRectangleType | typeof stroke.type | typeof image.type | typeof video.type | typeof tape.type | typeof table.type;
 export type PlacementType = TextRectangleType | typeof table.type;
 export type PointsType = typeof stroke.type;
 export type EndsType = typeof connector.type;
-export const OBJECT_TYPES: readonly ObjectType[] = [sticky, shape, text, section, table, stroke, connector, image, mindNode, tape];
+export const OBJECT_TYPES: readonly ObjectType[] = [sticky, shape, text, section, table, stroke, connector, image, video, mindNode, tape];
 
 export function objectType<T extends string>(type: T): Extract<ObjectType, { type: T }>;
 export function objectType(type: string): ObjectType {
@@ -39,8 +41,8 @@ export function typeForTool(tool: string): PlacementType {
   return record.type;
 }
 
-export function placementTool(tool: string): Exclude<ObjectType, typeof connector | typeof stroke | typeof image | typeof tape> | undefined {
-  return OBJECT_TYPES.find((t): t is Exclude<ObjectType, typeof connector | typeof stroke | typeof image | typeof tape> => t.tool !== null && (t.tool === tool || t.kinds.some((k) => k.tool === tool)));
+export function placementTool(tool: string): Exclude<ObjectType, typeof connector | typeof stroke | typeof image | typeof video | typeof tape> | undefined {
+  return OBJECT_TYPES.find((t): t is Exclude<ObjectType, typeof connector | typeof stroke | typeof image | typeof video | typeof tape> => t.tool !== null && (t.tool === tool || t.kinds.some((k) => k.tool === tool)));
 }
 
 export function containerType(): typeof section {
@@ -58,17 +60,22 @@ export function hasRectangle<T extends { type: string }>(o: T): o is T & Rectang
   return !hasEnds(o);
 }
 export function hasPoints<T extends { type: string }>(o: T): o is T & StrokeKeys & Rectangle & { type: PointsType } { return objectType(o.type).points; }
-export function hasText<T extends { type: string }>(o: T): o is T & { type: Exclude<ObjectType, typeof stroke | typeof image | typeof tape | typeof table>["type"] } { return objectType(o.type).text; }
+export function hasText<T extends { type: string }>(o: T): o is T & { type: Exclude<ObjectType, typeof stroke | typeof image | typeof video | typeof tape | typeof table>["type"] } { return objectType(o.type).text; }
 export const sectionIdea = <T extends { type: string }>(o: T): o is T & Rectangle & { type: RectangleType } => hasRectangle(o) && !isContainer(o) && !isMindNode(o);
 export const eligibleVote = (o: { type: string }) => objectType(o.type).voting;
 export const voteTextAnchor = (o: { type: string }) => o.type === text.type;
-export const eligibleIdea = <T extends { type: string }>(o: T): o is T & Rectangle & { type: TextRectangleType } => sectionIdea(o) && !hasPoints(o) && !isImage(o) && !isTape(o) && !isTable(o);
+export const eligibleIdea = <T extends { type: string }>(o: T): o is T & Rectangle & { type: TextRectangleType } => sectionIdea(o) && !hasPoints(o) && !isMedia(o) && !isTape(o) && !isTable(o);
 export function isImage<T extends { type: string }>(o: T): o is T & ImageKeys & Rectangle & { type: typeof image.type } { return o.type === image.type; }
+export function isVideo<T extends { type: string }>(o: T): o is T & VideoKeys & Rectangle & { type: typeof video.type } { return o.type === video.type; }
+export function isMedia<T extends { type: string }>(o: T) { return isImage(o) || isVideo(o); }
+export function pictureOf(o: { type: string }): string | undefined { return isImage(o) ? o.asset : isVideo(o) ? o.poster : undefined; }
+export function assetsOf(o: { type: string }): string[] { return isVideo(o) ? [o.asset, o.poster] : isImage(o) ? [o.asset] : []; }
+export const videoType = () => video;
 export function isMindNode<T extends { type: string }>(o: T): o is T & MindNodeKeys & Rectangle & { type: typeof mindNode.type } { return o.type === mindNode.type; }
 export function isTape<T extends { type: string }>(o: T): o is T & TapeKeys & Rectangle & { type: typeof tape.type } { return o.type === tape.type; }
 export function isTable<T extends { type: string }>(o: T): o is T & TableKeys & Rectangle & { type: typeof table.type } { return o.type === table.type; }
 export const tapeType = () => tape;
-export const keepsProportions = (o: { type: string }) => hasPoints(o) || isImage(o);
+export const keepsProportions = (o: { type: string }) => hasPoints(o) || isMedia(o);
 export const imageType = () => image;
 export const typeWithPoints = () => stroke;
 export const orderBand = (o: { type: string }) => isContainer(o) ? 0 : hasEnds(o) ? 1 : 2;
@@ -81,9 +88,9 @@ export const kindInfo = (o: Partial<ShapeKeys & StrokeKeys>) => SHAPE_KINDS.find
 export const labelPrefix = (o: { type: string } & Partial<ShapeKeys & StrokeKeys>) => objectType(o.type).labelPrefix(o);
 export const textBox = (o: { type: string; x: number; y: number; width: number; height: number } & Partial<ShapeKeys & StrokeKeys>) => { const t = objectType(o.type); return t.text && !t.ends ? t.textBox(o) : o; };
 export const fontSize = (o: { type: string; textSize: Parameters<typeof sticky.fontSize>[0]["textSize"] }) => { const t = objectType(o.type); return t.text ? t.fontSize(o) : 0; };
-export function extraValues<T extends { type: string } & Partial<ShapeKeys & EndsKeys & StrokeKeys & ConnectorStyle & ImageKeys & TapeKeys>>(o: T): Partial<T> {
+export function extraValues<T extends { type: string } & Partial<ShapeKeys & EndsKeys & StrokeKeys & ConnectorStyle & VideoKeys & TapeKeys>>(o: T): Partial<T> {
   return Object.fromEntries(objectType(o.type).extraKeys.map((key) => {
-    const value = o[key as keyof (ShapeKeys & EndsKeys & StrokeKeys & ConnectorStyle & ImageKeys & TapeKeys)];
+    const value = o[key as keyof (ShapeKeys & EndsKeys & StrokeKeys & ConnectorStyle & VideoKeys & TapeKeys)];
     // Nested paint is canonical too, independent of the incoming property order.
     return [key, key === "fill" ? { mode: o.fill!.mode, color: o.fill!.color }
       : key === "border" ? { style: o.border!.style, color: o.border!.color } : key === "from" || key === "to" ? { object: o[key]!.object, anchor: o[key]!.anchor } : key === "points" ? o.points!.map(([x, y]) => [x, y]) : value];
@@ -97,7 +104,7 @@ export function objectKeys(type: string, version: number): string[] {
     ...(version >= 5 ? ["section"] : []), ...(version >= 6 ? objectType(type).extraKeys.filter((key) => version >= 9 || !CONNECTOR_STYLE_KEYS.includes(key as keyof ConnectorStyle)) : []),
     ...(objectType(type).ends ? [] : ["x", "y", "width", "height"]), "order"];
 }
-export const ADD_OPTIONS = OBJECT_TYPES.filter((t): t is Exclude<ObjectType, typeof connector | typeof stroke | typeof image | typeof tape | typeof table> => t.tool !== null && !isMindNode(t) && !isTable(t)).sort((a, b) => (Number(a.container) * 2 + Number(a.shapePaint)) - (Number(b.container) * 2 + Number(b.shapePaint))).flatMap((t) => t.kinds.length
+export const ADD_OPTIONS = OBJECT_TYPES.filter((t): t is Exclude<ObjectType, typeof connector | typeof stroke | typeof image | typeof video | typeof tape | typeof table> => t.tool !== null && !isMindNode(t) && !isTable(t)).sort((a, b) => (Number(a.container) * 2 + Number(a.shapePaint)) - (Number(b.container) * 2 + Number(b.shapePaint))).flatMap((t) => t.kinds.length
   ? t.kinds.filter(k => k.key).map((k) => ({ type: t.type, tool: k.tool, label: k.kind }))
   : [{ type: t.type, tool: t.tool, label: t.type }]);
 

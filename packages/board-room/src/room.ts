@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { readPicture, storePicture, type PictureType } from "./pictures.ts";
+import { readPicture, storePicture, readVideo, VideoUploads, type VideoType, type PictureType } from "./pictures.ts";
 import { Reactions } from "./reactions.ts";
 import { Spotlight } from "./spotlight.ts";
 import { WorkshopVoting, resetVoting } from "./voting.ts";
@@ -7,7 +7,7 @@ import { WorkshopTimer, resetTimer, markExplicitRecovery } from "./timer.ts";
 import { RoomLifecycle, type Lifecycle, type LifecycleRequest } from "./lifecycle.ts";
 import * as Y from "yjs";
 import { Adapter, convertPages } from "nextphase-board-sync/document-adapter.ts";
-import { readBoard } from "nextphase-board-sync/codec.ts";
+import { readBoard, readLiveBoard, type DecodedBoard } from "nextphase-board-sync/codec.ts";
 import { canonical, upgrade, validate, type BoardV13, type BoardV14 } from "nextphase-board-rules/document.ts";
 import { History, validateHistoryBackup } from "./history.ts";
 import { HISTORY_INTERVAL } from "nextphase-board-sync/history.ts";
@@ -24,6 +24,7 @@ import { consumeTicket, issueTicket } from "./tickets.ts";
 import { Presences, currentAttachment, endPresence } from "./presence.ts";
 
 export class Room {
+  readonly uploads = new VideoUploads();
   boardId: string;
   env: RoomEnvironment;
   access: Access;
@@ -94,9 +95,9 @@ export class Room {
       if (!details) throw new RoomError(404, "not_found");
       if (!page) throw new RoomError(503, "service_unavailable");
       const adapter = new Adapter();
-      const input = document ?? { schemaVersion: 14 as const, boardId: this.boardId, title: details.title, pages: [{ id: this.boardId, name: "Page 1" }], objects: [], retiredGenerations: [] };
+      const input = document ?? { schemaVersion: 15 as const, boardId: this.boardId, title: details.title, pages: [{ id: this.boardId, name: "Page 1" }], objects: [], retiredGenerations: [] };
       try {
-        if (![13, 14].includes(validate(input).schemaVersion)) throw Error();
+        if (![13, 14, 15].includes(validate(input).schemaVersion)) throw Error();
       } catch { throw new RoomError(400, "invalid_document"); }
       const board = upgrade(input);
       adapter.set(board);
@@ -128,10 +129,12 @@ export class Room {
     this.doc.destroy();
     this.doc = loadDocument(storage);
     const legacy = meta(storage, "storage_version") === 7;
-    this.board = readBoard(this.doc, legacy);
-    if (legacy || this.board.schemaVersion !== 14) storage.transaction(() => {
+    const decoded = readBoard(this.doc, legacy);
+    validate(decoded);
+    if (decoded.schemaVersion === 15) this.board = decoded;
+    else storage.transaction(() => {
       if (legacy) resetVoting(storage);
-      this.upgradeStored(legacy);
+      this.upgradeStored(decoded, legacy);
       snapshot(storage, this.doc, this.board, meta(storage, "revision"));
       if (legacy) setMeta(storage, "storage_version", 8);
     });
@@ -159,18 +162,17 @@ export class Room {
     this.background(() => this.deliverNotices());
   }
   // Snapshot the upgraded map at the existing revision, without a person's edit.
-  private upgradeStored(legacy: boolean) {
-    validate(this.board);
-    const version = Number(this.board.schemaVersion);
+  private upgradeStored(decoded: DecodedBoard, legacy: boolean) {
+    const version = decoded.schemaVersion;
     if (![10, 11, 12, 13, 14].includes(version) || legacy && version === 14) throw Error("invalid_document");
     this.doc.transact(() => {
       if (version < 13) {
-        convertPages(this.doc, upgrade(this.board).pages);
+        convertPages(this.doc, upgrade(decoded).pages);
         for (const value of this.doc.getMap<Y.Map<unknown>>("objects").values()) value.set("page", this.boardId);
-      } else if (legacy && this.doc.getMap("board").has("pages")) convertPages(this.doc, this.board.pages);
-      this.doc.getMap("board").set("schemaVersion", 14);
+      } else if (legacy && decoded.schemaVersion === 13) convertPages(this.doc, decoded.pages);
+      this.doc.getMap("board").set("schemaVersion", 15);
     });
-    this.board = readBoard(this.doc); validate(this.board);
+    this.board = readLiveBoard(this.doc); validate(this.board);
   }
   private closeLegacy() {
     for (const peer of this.env.connections()) if (!currentAttachment(peer.attachment())) this.close(peer, 1012);
@@ -316,7 +318,21 @@ export class Room {
       await this.refresh();
       const grant = await this.access.lookup(person.id, this.boardId);
       if (rank(grant.role) < rank("editor")) throw new RoomError(403, "role_too_low", "editor");
-      return storePicture(this.env.storage, this.board, this.env.now(), hash, data, type, width, height);
+      return storePicture(this.env.storage, this.board, this.env.now(), hash, data, type, width, height, this.uploads);
+    });
+  }
+  storeVideo(person: Person, hash: string, type: VideoType, body: ReadableStream<Uint8Array>) {
+    return this.uploads.store(this, hash, type, body, async () => {
+      await this.refresh();
+      const grant = await this.access.lookup(person.id, this.boardId);
+      if (rank(grant.role) < rank("editor")) throw new RoomError(403, "role_too_low", "editor");
+    });
+  }
+  readVideo(person: Person, hash: string) {
+    return this.ordered(async () => {
+      await this.refresh();
+      await this.access.lookup(person.id, this.boardId);
+      return readVideo(this.env.storage, hash);
     });
   }
   readPicture(person: Person, hash: string) {
@@ -494,8 +510,11 @@ export class Room {
     if (request.operation === "move" && this.history.active()) return Promise.reject(new RoomError(503,"restore_pending"));
     return this.ordered(() => this.lifecycle.admit(request));
   }
-  fenceLifecycle(row: Lifecycle, ready = false) { return this.ordered(() => ready ? this.lifecycle.accessReady(row) : this.lifecycle.fence(row)); }
-  discardLifecycle() { return this.ordered(async () => { this.lifecycle.freeze(); this.lifecycle.discarded = true; await this.env.schedule(null); }); }
+  fenceLifecycle(row: Lifecycle, ready = false) { return this.ordered(async () => {
+    if (ready || row.state !== "active") this.uploads.invalidate(ready ? 503 : 404);
+    await (ready ? this.lifecycle.accessReady(row) : this.lifecycle.fence(row));
+  }); }
+  discardLifecycle() { return this.ordered(async () => { this.uploads.invalidate(503); this.lifecycle.freeze(); this.lifecycle.discarded = true; await this.env.schedule(null); }); }
   historyPause(actor: string) {
     this.spotlight.end("recovery");
     this.copies?.suspend();
@@ -519,6 +538,7 @@ export class Room {
       const generation = await this.env.raiseFence();
       this.copies?.suspend();
       this.closeAll(4423);
+      this.uploads.invalidate(503);
       replace(this.env, envelope);
       this.env.storage.transaction(() => {
         this.env.storage.exec("DELETE FROM mention_pending"); this.env.storage.exec("DELETE FROM mention_targets");
@@ -534,6 +554,7 @@ export class Room {
     return this.ordered(async () => {
       await this.lifecycle.active();
       this.spotlight.end("recovery");
+      this.uploads.invalidate(503);
       const generation = await (reserve ? reserve() : this.env.raiseFence());
       this.copies?.suspend();
       this.closeAll(4423);

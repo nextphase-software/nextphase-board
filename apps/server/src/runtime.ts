@@ -20,6 +20,8 @@ export interface RoomClient {
   ticket(person: Person): Promise<{ ticket: string; expiresAt: number }>;
   rename(person: Person, title: string): Promise<{ id: string; title: string; revision: number }>;
   storePicture(person: Person, hash: string, bytes: Uint8Array, type: import("nextphase-board-room/pictures.ts").PictureType, width: number, height: number): Promise<"created" | "exists" | "full">;
+  storeVideo: import("nextphase-board-room/room.ts").Room["storeVideo"];
+  readVideo: import("nextphase-board-room/room.ts").Room["readVideo"];
   readPicture(person: Person, hash: string): Promise<{ type: string; bytes: Uint8Array<ArrayBuffer> } | null>;
   export(person: Person): Promise<string>;
   deliverNotices(): Promise<void>;

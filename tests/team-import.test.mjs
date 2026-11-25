@@ -16,25 +16,26 @@ async function refused(importBoard, input, reason) {
   assert.equal(sends, 0);
 }
 for (const [name, input, index] of [
-  ["file over 72 MiB", () => ({ size: 75497473, arrayBuffer: () => assert.fail("Oversized file was read") }), 0],
+  ["file over 216 MiB", () => ({ size: 226492417, arrayBuffer: () => assert.fail("Oversized file was read") }), 0],
   ["not a Board file", () => file("not JSON"), 1],
   ["damaged file", () => file(envelope("{}", { sha256: "0".repeat(64) })), 2],
   ["not a valid board", () => file(envelope("{}")), 3],
-  ["newer Board file", () => file(envelope("{}", { fileVersion: 3 })), 4],
+  ["newer Board file", () => file(envelope("{}", { fileVersion: 4 })), 4],
 ]) test(`team import refuses ${name} with the reader's exact words without sending`, async () => {
   const { importBoard } = await import("../apps/web/src/team/import.ts");
   const { FILE_REASONS } = await import("../apps/web/src/board-file.ts");
   await refused(importBoard, input(), FILE_REASONS[index]);
 });
-for (const version of [1, 2]) test(`team import refuses pictures in file version ${version} before decoding or sending`, async () => {
+for (const version of [1, 2, 3]) test(`team import refuses pictures in file version ${version} before decoding or sending`, async () => {
   const { importBoard, PICTURES_REASON } = await import("../apps/web/src/team/import.ts");
   const { canonical } = await import("../packages/board-rules/src/document.ts");
   const { writeBoardFile } = await import("../apps/web/src/board-file.ts");
-  const bytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 1]).buffer;
+  const bytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2, 0, 0, 0, 2]).buffer;
   const hash = createHash("sha256").update(new Uint8Array(bytes)).digest("hex"), board = imageBoard(hash);
-  const raw = version === 1 ? envelope(canonical(board)) : await writeBoardFile(board, undefined,
+  const raw = version === 1 ? envelope(canonical(board)) : version === 2 ?
+    envelope(JSON.stringify({ document: canonical(board), assets: [{ sha256: hash, mime: "image/png", pixelWidth: 2, pixelHeight: 2, base64: Buffer.from(bytes).toString("base64") }] }), {fileVersion: 2}) : await writeBoardFile(board, undefined,
     new Map([[hash, { bytes, mime: "image/png", pixelWidth: 2, pixelHeight: 2 }]]));
-  assert.equal(PICTURES_REASON, "it holds pictures, which team boards can't hold yet");
+  assert.equal(PICTURES_REASON, "it holds pictures or videos, which team boards can't hold yet");
   await refused(importBoard, file(raw), PICTURES_REASON);
 });
 test("team import refuses a document of 2097153 canonical bytes without sending", async () => {
@@ -61,7 +62,7 @@ test("team import upgrades schema 9 to 10 preserving every object", async () => 
   const { canonical } = await import("../packages/board-rules/src/document.ts");
   const board = { ...withoutPages(richBoard()), schemaVersion: 9 }, bodies = [];
   await importBoard(file(envelope(canonical(board))), async (body) => { bodies.push(body); });
-  assert.deepEqual(bodies, [{ title: board.title, document: { ...board, schemaVersion: 14, pages: [{ id: board.boardId, name: "Page 1" }], objects: board.objects.map(o => ({ ...o, page: board.boardId })) } }]);
+  assert.deepEqual(bodies, [{ title: board.title, document: { ...board, schemaVersion: 15, pages: [{ id: board.boardId, name: "Page 1" }], objects: board.objects.map(o => ({ ...o, page: board.boardId })) } }]);
 });
 
 async function roomFixture() {

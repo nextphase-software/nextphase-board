@@ -25,6 +25,7 @@ export interface MentionSource {
   carryNotices?(board: string, from: number, to: number): Promise<void>;
   clearNotices(board: string, generation: number): Promise<void>;
 }
+export type AssetHasher = { update(chunk: Uint8Array): Promise<void>; hex(): Promise<string>; abort?(): void };
 export interface RoomEnvironment {
   lifecycle: import("./lifecycle.ts").LifecycleSource;
   mentions?: MentionSource;
@@ -36,6 +37,8 @@ export interface RoomEnvironment {
   fence(): Promise<number>;
   raiseFence(minimum?: number): Promise<number>;
   hash(bytes: Uint8Array): Promise<string>;
+  hasher(): AssetHasher;
+  timer(ms: number, callback: () => void): () => void;
   randomTicket(): string;
   randomId(): string;
   verify(token: string): Promise<Person>;

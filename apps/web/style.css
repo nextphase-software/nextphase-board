@@ -1720,3 +1720,38 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
   border-width: 8px 0 8px 13px;
   border-color: transparent transparent transparent white;
 }
+
+.video-badge { position: absolute; pointer-events: none; display: inline-flex; align-items: center; gap: 3px; padding: 3px 5px 3px 4px; border-radius: 4px; background: #1e1c22cc; color: white; font: 700 10px/1 system-ui, sans-serif; letter-spacing: .02em; white-space: nowrap; transform: translateX(-100%); }
+.video-badge::before { content: ""; border-style: solid; border-width: 4px 0 4px 6px; border-color: transparent transparent transparent white; }
+.video-player { position: absolute; pointer-events: none; }
+.video-player.concealed { visibility: hidden; }
+.video-player::after { content: ""; position: absolute; inset: -1px; border: 2px solid #518de0; pointer-events: none; }
+.video-player > video { display: block; width: 100%; height: 100%; object-fit: fill; visibility: hidden; }
+.video-player > video.shown { visibility: visible; }
+.video-player > video:fullscreen { visibility: visible; pointer-events: auto; object-fit: contain; background: black; }
+.video-player > .video-strip { position: absolute; bottom: 8px; height: 36px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 6px; border-radius: 8px; background: #1e1c22cc; color: white; font: 500 12px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; pointer-events: auto; }
+.video-player.concealed > .video-strip { visibility: hidden; }
+.video-strip > button { flex: none; display: grid; place-items: center; width: 28px; height: 28px; min-width: 28px; min-height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: white; }
+.video-strip > button.video-play { background: #ffffff26; }
+.video-strip > button:hover:not(:disabled):not([aria-disabled=true]) { background: #ffffff26; }
+.video-strip > button.video-play:hover:not(:disabled):not([aria-disabled=true]) { background: #ffffff40; }
+.video-strip > button:active:not(:disabled):not([aria-disabled=true]) { background: #ffffff40; }
+.video-strip > button.video-play:active:not(:disabled):not([aria-disabled=true]) { background: #ffffff59; }
+.video-strip > button:focus-visible { outline: 2px solid white; outline-offset: 1px; }
+.video-time { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.video-strip.narrow > .video-time { flex: 1 1 auto; }
+.video-total { color: #ffffffb3; }
+.video-seek-box { position: relative; flex: 1 1 0; min-width: 24px; height: 12px; }
+.video-track { position: absolute; left: 0; right: 0; top: 4px; height: 4px; border-radius: 2px; background: #ffffff4d; }
+.video-fill { position: absolute; left: 0; top: 4px; width: var(--fill); height: 4px; border-radius: 2px; background: white; }
+.video-seek { position: absolute; left: -6px; right: -6px; top: 0; width: calc(100% + 12px); height: 12px; margin: 0; appearance: none; -webkit-appearance: none; background: transparent; cursor: pointer; }
+.video-seek:disabled { cursor: default; }
+.video-seek::-webkit-slider-runnable-track { height: 12px; background: transparent; }
+.video-seek::-moz-range-track { height: 12px; background: transparent; }
+.video-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border: 0; border-radius: 50%; background: white; }
+.video-seek::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: white; }
+.video-seek:hover:not(:disabled)::-webkit-slider-thumb { box-shadow: 0 0 0 4px #ffffff33; }
+.video-seek:hover:not(:disabled)::-moz-range-thumb { box-shadow: 0 0 0 4px #ffffff33; }
+.video-seek:active:not(:disabled)::-webkit-slider-thumb { box-shadow: 0 0 0 4px #ffffff4d; }
+.video-seek:active:not(:disabled)::-moz-range-thumb { box-shadow: 0 0 0 4px #ffffff4d; }
+.video-seek:focus-visible { outline: 2px solid white; outline-offset: 2px; }

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { RectangleItem, StrokeItem, ImageItem, TableItem } from "nextphase-board-rules/document.ts";
+import type { RectangleItem, StrokeItem, ImageItem, VideoItem, TableItem } from "nextphase-board-rules/document.ts";
 import type { Corner, Rectangle } from "./resize";
 import type { View } from "./view";
 
-export type ResizeStart = { object: (RectangleItem | StrokeItem | ImageItem | TableItem) & { page: string }; rectangle: Rectangle };
+export type ResizeStart = { object: (RectangleItem | StrokeItem | ImageItem | VideoItem | TableItem) & { page: string }; rectangle: Rectangle };
 import type { ConnectionDrag } from "./connection-drag.ts";
 
 // One mind node pressed and dragged: its branch, the drop target under the

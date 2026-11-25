@@ -112,14 +112,14 @@ async function change(s: Subjects, c: Client, mutate: (t: TableItem) => TableIte
 function fork(doc: Y.Doc) { const next = new Y.Doc(); Y.applyUpdate(next, Y.encodeStateAsUpdate(doc)); docs.add(next); return next; }
 
 check(425, "create and import bounded schema-14 tables and read legacy schema 13", async s => {
-  assert.equal((await exported(await create())).schemaVersion, 14);
+  assert.equal((await exported(await create())).schemaVersion, 15);
   const b = seed(s, 3, 4), t = tableAt(b);
   const served = await exported(await create(b));
-  assert.equal(served.schemaVersion, 14);
+  assert.equal(served.schemaVersion, 15);
   assert.deepEqual(tableAt(served), t);
   const { boardId, pages, title, retiredGenerations } = b;
   const legacy = { schemaVersion: 13, boardId, title, pages, objects: [], retiredGenerations };
-  assert.equal((await exported(await create(legacy))).schemaVersion, 14);
+  assert.equal((await exported(await create(legacy))).schemaVersion, 15);
   const refuses = async (document: unknown) => {
     const r = await request(`/workspaces/${fixture.workspace}/boards`, "owner", "POST", { title, document });
     assert.equal(r.status, 400);
@@ -319,13 +319,13 @@ check(429, "stored room upgrades and history and backup restores retain tables a
     const versions = await ok(versionRoot(id)), receipts = await driver.rows(id, "receipts");
     await driver.control({ board: id, roomSQL }); await driver.wake(id);
     const live = await exported(id);
-    assert.equal(live.schemaVersion, 14); assert.deepEqual(live, s.rules.upgrade(legacy));
+    assert.equal(live.schemaVersion, 15); assert.deepEqual(live, s.rules.upgrade(legacy));
     const c = await join(s, id, "owner");
     assert(!c.doc.getMap("board").has("pages")); assert(c.doc.getMap("board").get("pageMap") instanceof Y.Map);
     if (storage === 8 && schemaVersion === 13) {
       const old = new Y.Doc(); docs.add(old); Y.applyUpdate(old, update);
       const delta = Y.decodeUpdate(Y.encodeStateAsUpdate(c.doc, Y.encodeStateVector(old))).structs;
-      assert.equal(delta.length, 1); assert.equal(delta[0].content.getContent()[0], 14);
+      assert.equal(delta.length, 1); assert.equal(delta[0].content.getContent()[0], 15);
     }
     await c.peer.close(); peers.delete(c.peer);
     assert.deepEqual(await ok(versionRoot(id)), versions);
@@ -350,7 +350,7 @@ check(429, "stored room upgrades and history and backup restores retain tables a
   const bytes = new TextEncoder().encode(s.rules.canonical(legacy));
   await driver.control({ board: oldBoard, roomSQL: [{ sql: "DELETE FROM version_chunks WHERE version_id=?", bindings: [oldVersion.id] },
     { sql: `INSERT INTO version_chunks VALUES (?,0,x'${Buffer.from(bytes).toString("hex")}')`, bindings: [oldVersion.id] }] });
-  await restore(oldBoard, oldVersion.id); assert.equal((await exported(oldBoard)).schemaVersion, 14);
+  await restore(oldBoard, oldVersion.id); assert.equal((await exported(oldBoard)).schemaVersion, 15);
 });
 
 check(430, "saving and inserting a team template twice remaps all table IDs", async s => {

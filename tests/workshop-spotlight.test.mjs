@@ -15,7 +15,7 @@ async function fixture(count=4){
     changes:async(_board,after)=>{if(offline)throw Error('Replay unavailable');return {latest,lowestKept:1,changes:changes.filter(c=>c.number>after)};}},
     lifecycle:{lifecycle:async()=>({state:life,generation})},fence:async()=>generation,raiseFence:async(min=0)=>generation=Math.max(generation,min)+1,
     hash:async v=>createHash('sha256').update(v).digest('hex'),randomId:randomUUID,randomTicket:randomUUID,verify:async()=>{},connections:()=>connections,schedule:async()=>{},backupLimit:16777216};
-  let room=new Room(id,env),board={schemaVersion:14,boardId:id,pages:[{id,name:"Page 1"}],title:'Spotlight board',objects:[],retiredGenerations:[]};
+  let room=new Room(id,env),board={schemaVersion:15,boardId:id,pages:[{id,name:"Page 1"}],title:'Spotlight board',objects:[],retiredGenerations:[]};
   for(let i=0;i<count;i++)board=add(board,'sticky',i*260,0);
   await room.create(board);
   async function open(role='editor',person=randomUUID(),label='synthetic'){
@@ -341,6 +341,8 @@ unit(63,'NB-111 hidden comment inputs preserve card and composer drafts until Co
       assert.equal(f.host.commentDrafts.get(c.thread),c.kept);assert.equal(c.state.focused,0);
       f.host.showSurface('comments');c.state.mode=true;
       assert.equal(f.host.commentDrafts.get(c.thread).reply.text,'Unposted spotlight handoff draft.');
+      const strip=c.event({closest(selector){return selector === ".video-strip" ? this : null;}});
+      c.state.handlers.keys(strip);assert.equal(strip.prevented,false);assert.equal(c.state.opened,opened);assert.equal(c.state.composer,anchor);
       const escape=c.event();c.state.handlers.keys(escape);
       assert.equal(c.state.composer,null);assert.equal(c.state.opened,null);
       assert.equal(escape.prevented,true);assert.equal(escape.stopped,true);

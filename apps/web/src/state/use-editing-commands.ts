@@ -11,11 +11,11 @@ import { textUnits, type Style } from "nextphase-board-rules/styles.ts";
 import type { View } from "../view";
 import { arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "../arrange";
 import { assignSection, commandObjectLabel, orderInBands, wrapReason, wrapSelection } from "../sections";
-import { isTape, type TapePattern, type ConnectorStyle, type End, objectType, isImage, hasRectangle, hasText, isTable, insertAxis, deleteAxis, cellText, cellAt, cellIndex, setCell, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, isMindNode, type ShapeKeys, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
+import { isTape, type TapePattern, type ConnectorStyle, type End, objectType, isMedia, isVideo, pictureOf, hasRectangle, hasText, isTable, insertAxis, deleteAxis, cellText, cellAt, cellIndex, setCell, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, isMindNode, type ShapeKeys, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
 import { addChild, addSibling, collapse, descendants, hiddenIds, settle, withHiddenDescendants, MAP_WORDS, type MapCommand, type MeasureNode } from "../mind-map";
 import { editingCommandReason } from "../commands";
 import { groupObjects, groupReason, ungroupObjects } from "../group";
-import { tabPictures } from "../image-assets.ts";
+import { tabPictures, tabVideos } from "../image-assets.ts";
 import { PASTE_NOT_LOADED } from "../images.ts";
 import { buildPaste, buildSnapshot, clipboardReason, plainText, type ClipboardCommand, type Snapshot } from "../clipboard";
 
@@ -265,11 +265,14 @@ export function useEditingCommands({
     if (reason) { setMessage(reason); return; }
     try {
       if (name === "Paste") {
-        if (objectClipboard!.objects.some(o => "asset" in o && !tabPictures.has(o.asset))) { setMessage(PASTE_NOT_LOADED); return; }
+        if (objectClipboard!.objects.some(o => {
+          const hash = pictureOf(o);
+          return hash !== undefined && !tabPictures.has(hash) || !hosted && isVideo(o) && !tabVideos.has(o.asset);
+        })) { setMessage(PASTE_NOT_LOADED); return; }
         const result = buildPaste(model.current, objectClipboard!, {
           centerX: view.x, centerY: view.y, zoom: view.z,
           width: scene.current!.clientWidth, height: scene.current!.clientHeight,
-        }, undefined, pages.id);
+        }, undefined, pages.id, hosted ? null : tabVideos);
         const existing = new Set(model.current.objects.map((o) => o.id));
         const ids = result.board.objects.filter((o) => !existing.has(o.id)).map((o) => o.id);
         commit(result.board, true);
@@ -489,7 +492,7 @@ export function useEditingCommands({
     commit(next, true);
   }
   function changeStyle<K extends keyof Style>(key: K, value: Style[K]) {
-    if (selectionReason || key !== "color" && model.current.objects.some((o) => selected.has(o.id) && hasRectangle(o) && !isImage(o) && !objectType(o.type).richText)) return;
+    if (selectionReason || key !== "color" && model.current.objects.some((o) => selected.has(o.id) && hasRectangle(o) && !isMedia(o) && !objectType(o.type).richText)) return;
     finishTextSession();
     setInline(false);
     if (key === "color") { commit({ ...model.current, objects: changeOrdinaryColor(model.current.objects, selected, value as Style["color"]) }, true); return; }
@@ -503,7 +506,7 @@ export function useEditingCommands({
     commit({ ...model.current, objects }, true);
   }
   function toggleFormat(flag: Flag) {
-    if (selectionReason || model.current.objects.some((o) => selected.has(o.id) && hasRectangle(o) && !isImage(o) && !objectType(o.type).richText)) return;
+    if (selectionReason || model.current.objects.some((o) => selected.has(o.id) && hasRectangle(o) && !isMedia(o) && !objectType(o.type).richText)) return;
     finishTextSession();
     const field = editor.current;
     const beingEdited = field === document.activeElement && selected.size === 1;

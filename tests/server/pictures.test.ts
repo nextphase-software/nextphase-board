@@ -168,6 +168,13 @@ check(437,"verified restore before fencing and per-runner full-board backups",as
 check(438,"new and restored version-8 rooms load as layout 9",async()=>{
   const b=await ok(operator("backup")), version=b.tables.meta.find((r:any)=>r.key==="storage_version");
   assert.equal(version.value,9);version.value=8;delete b.tables.pictures;delete b.tables.picture_parts;
+  const snapshot = b.tables.snapshot_chunks;
+  const doc = new Y.Doc();
+  const yjs = snapshot.find((r:any) => r.kind === "yjs"), json = snapshot.find((r:any) => r.kind === "json");
+  Y.applyUpdate(doc, decode(yjs.bytes)); doc.getMap("board").set("schemaVersion",14);
+  yjs.bytes = encode(Y.encodeStateAsUpdate(doc)); doc.destroy();
+  const board = JSON.parse(new TextDecoder().decode(decode(json.bytes))); board.schemaVersion = 14;
+  json.bytes = encode(new TextEncoder().encode(JSON.stringify(board)));
   await ok(operator("restore",b));await ok(request(root()+"/export"));
   assert.equal((await rows("meta")).find(r=>r.key==="storage_version").value,9);assert.deepEqual(await rows("pictures"),[]);assert.deepEqual(await rows("picture_parts"),[]);
 });

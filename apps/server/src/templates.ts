@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { validate, validText, type BoardV14, type ItemV14 } from "nextphase-board-rules/document.ts";
-import { isImage } from "nextphase-board-rules/objects/registry.ts";
+import { isMedia } from "nextphase-board-rules/objects/registry.ts";
 import { RoomError } from "nextphase-board-room/protocol.ts";
 import { validTitle } from "./cursor.ts";
 
@@ -19,9 +19,9 @@ function containsNul(value: unknown): boolean {
 export function templateObjects(value: unknown): { objects: TemplateObjects; objectCount: number; contentBytes: number } {
   try {
     if (!Array.isArray(value) || value.length < 1 || value.length > 250 || containsNul(value) ||
-      value.some(o => !o || typeof o !== "object" || Array.isArray(o) || "generation" in o || "order" in o || "page" in o || isImage(o))) throw Error();
+      value.some(o => !o || typeof o !== "object" || Array.isArray(o) || "generation" in o || "order" in o || "page" in o || isMedia(o))) throw Error();
     const boardId = crypto.randomUUID();
-    validate({ schemaVersion: 14, boardId, pages: [{ id: boardId, name: "Page 1" }], title: "Template", retiredGenerations: [],
+    validate({ schemaVersion: 15, boardId, pages: [{ id: boardId, name: "Page 1" }], title: "Template", retiredGenerations: [],
       objects: value.map((o, order) => ({ ...o, page: boardId, order, generation: crypto.randomUUID() })) }) as BoardV14;
   } catch { throw new RoomError(400, "bad_request"); }
   const contentBytes = new TextEncoder().encode(JSON.stringify(value)).byteLength;

@@ -7,7 +7,8 @@ import type Konva from "konva";
 import type { BoardV12 as Board } from "nextphase-board-rules/document.ts";
 import type { View } from "../view";
 import { bandOrder, dropTargets } from "../sections";
-import { isTape, isTable, type TapeKeys, isImage, objectType, hasRectangle, hasText, hasPoints, type StrokeKeys, type Rectangle, hasEnds, orderBand, isMindNode } from "nextphase-board-rules/objects/registry.ts";
+import { videoFrame } from "../video.ts";
+import { isVideo, isTape, isTable, type TapeKeys, isImage, objectType, hasRectangle, hasText, hasPoints, type StrokeKeys, type Rectangle, hasEnds, orderBand, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { hiddenIds } from "../mind-map";
 import type { MapDrag } from "../gesture";
 import { MindNodeBody } from "./mind-node-body";
@@ -64,6 +65,7 @@ export function BoardDrawing({ tableGesture, tableSelection, tableCell, faded, b
           const fade = (body: React.ReactNode) => faded.has(o.id) ? <Group key={o.id + pass} opacity={0.4}>{body}</Group> : body;
           if (hasEnds(o)) return fade(<ConnectorBody key={o.id + pass} object={o} layout={connection?.reconnect?.id === o.id ? reconnectPreview(o, connection.reconnect.end, connection.pointer, connection.side ?? "auto", rectangles, () => layout.connector!.labelBox.width - 24) : layout.connector!}
             selected={selected.has(o.id)} inline={inline} zoom={view.z} pass={pass === 1 ? "line" : "label"} />);
+          if (isVideo(o)) return fade(<ImageBody key={o.id} object={o} bitmap={videoFrame(o, bitmaps)} loading={loading?.has(o.poster)} selected={selected.has(o.id)} zoom={view.z} />);
           if (isImage(o)) return fade(<ImageBody key={o.id} object={o} bitmap={playing?.id === o.id ? playing.bitmap : bitmaps.get(o.asset)} loading={loading?.has(o.asset)} selected={selected.has(o.id)} zoom={view.z} />);
           if (isTable(o)) return fade(<TableBody key={o.id} object={o} layout={layout.table!}
             selection={tableSelection?.id === o.id ? tableSelection : undefined} editing={tableCell}

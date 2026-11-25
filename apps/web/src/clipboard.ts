@@ -9,8 +9,9 @@ import type { DisplayObject } from "./selection.ts";
 
 import { copiedSet, copiedSetReason, remapEnds } from "./connectors.ts";
 
-import { pictureBytes, PICTURE_LIMIT, tabPictures, type Picture } from "./image-assets.ts";
+import { videoBytes, VIDEO_LIMIT, tabVideos, type VideoRecord, pictureBytes, PICTURE_LIMIT, tabPictures, type Picture } from "./image-assets.ts";
 import { copiedStructure, remapParent, withHiddenDescendants, type MeasureNode } from "./mind-map.ts";
+export const PASTE_VIDEOS_REASON = "Could not paste: the videos would exceed the 100 MiB board limit.";
 export const PASTE_PICTURES_REASON = "Could not paste: the pictures would exceed the 50 MiB board limit.";
 type CopiedItem<T> = T extends ItemV14 ? Omit<T, "generation" | "order" | "page"> : never;
 export type ClipboardCommand = "Copy" | "Cut" | "Paste";
@@ -85,7 +86,7 @@ function bounded(position: number, length: number): number {
   return result;
 }
 
-export function buildPaste(board: BoardV14, snapshot: Snapshot, view: PasteView, pictures: ReadonlyMap<string, Picture> = tabPictures, page = board.boardId): {
+export function buildPaste(board: BoardV14, snapshot: Snapshot, view: PasteView, pictures: ReadonlyMap<string, Picture> = tabPictures, page = board.boardId, videos: ReadonlyMap<string, VideoRecord> | null = tabVideos): {
   board: BoardV14; pasteCount: number;
 } {
   if (board.objects.length + snapshot.objects.length > 250) throw Error("250 object limit reached");
@@ -99,6 +100,7 @@ export function buildPaste(board: BoardV14, snapshot: Snapshot, view: PasteView,
   const dy = inView ? 24 * pasteCount : view.centerY - (top + bottom) / 2;
   const next = copyObjects(board, snapshot, dx, dy, page);
   if (pictureBytes(next, pictures) > PICTURE_LIMIT) throw Error(PASTE_PICTURES_REASON);
+  if (videos && videoBytes(next, videos) > VIDEO_LIMIT) throw Error(PASTE_VIDEOS_REASON);
   return { board: next, pasteCount };
 }
 

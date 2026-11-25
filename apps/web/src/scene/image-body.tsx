@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Group, Image, Rect, Text } from "react-konva";
 import type { ImageItem, BoardV12 } from "nextphase-board-rules/document.ts";
-import { isImage } from "nextphase-board-rules/objects/registry.ts";
-export function ImageBody({ object: o, bitmap, selected, zoom, loading }: { object: ImageItem; bitmap?: ImageBitmap; loading?: boolean; selected: boolean; zoom: number }) {
+import { isMedia } from "nextphase-board-rules/objects/registry.ts";
+export function ImageBody({ object: o, bitmap, selected, zoom, loading }: { object: Pick<ImageItem, "x" | "y" | "width" | "height" | "pixelWidth" | "pixelHeight">; bitmap?: ImageBitmap; loading?: boolean; selected: boolean; zoom: number }) {
   const available = bitmap?.width === o.pixelWidth && bitmap?.height === o.pixelHeight;
   return <Group>
     {available ? <Image x={o.x} y={o.y} width={o.width} height={o.height} image={bitmap} /> : <>
@@ -16,5 +16,5 @@ export function ImageBody({ object: o, bitmap, selected, zoom, loading }: { obje
   </Group>;
 }
 export function ImageNames({ board }: { board: BoardV12 }) {
-  return <>{board.objects.filter(isImage).map((o) => <span key={o.id} className="sr-only" role="img" aria-label={o.description || "No description"} />)}</>;
+  return <>{board.objects.filter(isMedia).map((o) => <span key={o.id} className="sr-only" role="img" aria-label={o.description || "No description"} />)}</>;
 }

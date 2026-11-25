@@ -104,6 +104,11 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
     const roomBackground = { run(task: Promise<void>) { roomTasks.add(task); background.run(task); void task.finally(() => roomTasks.delete(task)).catch(() => {}); } };
     const room = new Room(board, { storage, access: db, lifecycle: db, rows: db, mentions: db, background: roomBackground, now,
       fence: () => recoveryGeneration(board, storage, db, fences), raiseFence: (minimum) => fences.raise(board, minimum),
+      hasher() {
+        const hash = createHash("sha256");
+        return { async update(chunk) { hash.update(chunk); }, async hex() { return hash.digest("hex"); }, abort() { hash.destroy(); } };
+      },
+      timer(ms, callback) { const timer = setTimeout(callback, ms).unref(); return () => clearTimeout(timer); },
       hash: async (value) => createHash("sha256").update(value).digest("hex"), randomTicket: () => randomBytes(32).toString("base64url"),
       randomId: randomUUID, verify: (token) => auth.verify(token), connections: () => [...connections],
       backupLimit: runtime.backupLimit,
@@ -124,7 +129,7 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
     return entry;
   }
   const upgrades = new WeakMap<Request, { board: string; attachment: Attachment }>();
-  const runtime: Runtime = { backupLimit: options.backupLimit ?? 100_663_296, now, async fenceGeneration(board) {
+  const runtime: Runtime = { backupLimit: options.backupLimit ?? 234_881_024, now, async fenceGeneration(board) {
       const independent=await fences.read(board),entry=rooms.get(board);
       if(entry)return Math.max(independent,meta(entry.storage,"restore_generation"));
       const file=resolve(settings.dataDir,"boards",board+".sqlite");

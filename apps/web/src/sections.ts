@@ -3,7 +3,7 @@ import { add, clamp, type BoardV14 as Board, type ItemV14 as Item } from "nextph
 import { arrangeOrder, type OrderCommand } from "./arrange.ts";
 import { editingCommandReason } from "./commands.ts";
 import { boundingBox, limitMove, type DisplayObject, type Point } from "./selection.ts";
-import { usesShapePaint, kindInfo, isTape, isTable, TAPE_PATTERNS, isImage, containerType, isContainer, labelPrefix, hasRectangle, hasEnds, hasText, sectionIdea, orderBand, isMindNode } from "nextphase-board-rules/objects/registry.ts";
+import { usesShapePaint, kindInfo, isTape, isTable, TAPE_PATTERNS, isMedia, containerType, isContainer, labelPrefix, hasRectangle, hasEnds, hasText, sectionIdea, orderBand, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { withMaps } from "./mind-map.ts";
 
 import { bands, FOLLOW_REASON } from "./connectors.ts";
@@ -144,7 +144,7 @@ export function objectLabel(board: Board, object: Item, numbers: ReadonlyMap<str
   const container = isContainer(object);
   const prefix = numberedObjectLabel(board, object);
   if (isTable(object)) return prefix + " · " + tableDimensions(object);
-  const text = hasText(object) ? drafts[object.id] ?? object.text : isImage(object) ? object.description || "No description" : isTape(object) ? TAPE_PATTERNS.find(p => p.value === object.pattern)!.name : "";
+  const text = hasText(object) ? drafts[object.id] ?? object.text : isMedia(object) ? object.description || "No description" : isTape(object) ? TAPE_PATTERNS.find(p => p.value === object.pattern)!.name : "";
   const name = container ? shortName(text) : text.slice(0, 36) || "Empty";
   if (hasEnds(object)) {
     const endpoint = (id: string) => {
@@ -158,7 +158,7 @@ export function objectLabel(board: Board, object: Item, numbers: ReadonlyMap<str
     return prefix + " · " + name + " · " + count + (count === 1 ? " item" : " items");
   }
   const parent = board.objects.find((o) => o.id === object.section);
-  return prefix + (object.group !== null ? " · Group " + numbers.get(object.group) : "") + (hasText(object) || isImage(object) || isTape(object) ? " · " + name : "") +
+  return prefix + (object.group !== null ? " · Group " + numbers.get(object.group) : "") + (hasText(object) || isMedia(object) || isTape(object) ? " · " + name : "") +
     (parent ? " · in " + shortName(drafts[parent.id] ?? parent.text ?? "") : "");
 }
 

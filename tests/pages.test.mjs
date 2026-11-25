@@ -23,7 +23,7 @@ check(1, 'version 13 exact document keys, default page and every page identity/n
   const { s, board } = await fixture(); s.validate(board);
   assert.deepEqual(Object.keys(JSON.parse(s.canonical(board))), ['schemaVersion','boardId','title','pages','objects','retiredGenerations']);
   assert.deepEqual(JSON.parse(s.canonical(board)).pages.map(Object.keys), [['id','name'],['id','name']]);
-  assert.equal(s.empty().schemaVersion, 14);
+  assert.equal(s.empty().schemaVersion, 15);
   for (const mutate of [b => delete b.pages, b => b.pages = [], b => b.pages = Array.from({length:51}, () => ({id:crypto.randomUUID(),name:'P'})),
     b => b.pages[1].id = b.pages[0].id, b => b.pages[0].id = b.objects[0].id, b => b.pages[0].id = b.objects[0].generation,
     b => b.pages[0].id = 'bad', b => b.pages[0].extra = true, b => b.pages[0].name = '', b => b.pages[0].name = ' x ',
@@ -54,7 +54,7 @@ check(3, 'versions 7, 11 and 12 upgrade deterministically without mutation or an
   const current=s.add({...s.empty(),title:'Legacy'},'sticky',0,0);
   for(const version of [7,11,12]) {
     const old={...withoutPages(current),schemaVersion:version}, bytes=s.canonical(old), before=structuredClone(old), next=s.upgrade(old);
-    assert.equal(next.schemaVersion,14);assert.deepEqual(next.pages,[{id:old.boardId,name:'Page 1'}]);
+    assert.equal(next.schemaVersion,15);assert.deepEqual(next.pages,[{id:old.boardId,name:'Page 1'}]);
     assert(next.objects.every(o=>o.page===old.boardId));assert.deepEqual(old,before);assert.equal(s.canonical(old),bytes);
     assert.deepEqual(record(emptyHistory(),next,s.upgrade(old)),emptyHistory());assert.equal(s.upgrade(next),next);
   }
@@ -202,15 +202,16 @@ check(26, 'cross-page find uses page order, current-page first, wrapping and the
   assert.equal(s.resultPageLine(without,{current:results[0],removed:null}),'');
   const faded=find.fadedIds(drawn(b).filter(o=>o.page===first),results,new Set());assert.equal(faded.size,0);
 });
-check(27, 'storage and board files accept 13 and 14, classify 15 as newer, and preserve all pages', async () => {
+check(27, 'storage and board files accept 13, 14 and 15, classify 16 as newer, and preserve all pages', async () => {
   const {s,board}=await fixture(),{writeBoardFile,readBoardFile}=await load('apps/web/src/board-file.ts'),{decode,digest}=await load('apps/web/src/storage.ts');
   const file=raw=>({size:Buffer.byteLength(raw),arrayBuffer:async()=>new TextEncoder().encode(raw).buffer});
   assert.deepEqual(await readBoardFile(file(await writeBoardFile(board))),board);
-  const payload=JSON.stringify({...board,schemaVersion:15}),sha256=await digest(payload);
+  const payload=JSON.stringify({...board,schemaVersion:16}),sha256=await digest(payload);
   await assert.rejects(decode(JSON.stringify({formatVersion:1,storageRevision:1,payload,sha256})),/newer|Unsupported|unknown/i);
   await assert.rejects(readBoardFile(file(JSON.stringify({format:'nextphase-board',fileVersion:1,payload,sha256}))),/newer version/);
   assert.equal(s.validate({...board,schemaVersion:13}).schemaVersion,13);
-  assert.equal(s.validate(board).schemaVersion,14);
+  assert.equal(s.validate({...board,schemaVersion:14}).schemaVersion,14);
+  assert.equal(s.validate(board).schemaVersion,15);
 });
 
 // A synthetic hook scheduler executes production state owners and handlers, never a browser.
@@ -311,7 +312,7 @@ check(34, 'both template wrappers reject stored page and put inserted objects on
   const {board,second}=await fixture(),{buildSnapshot}=await load('apps/web/src/clipboard.ts'),{templateObjects}=await load('apps/server/src/templates.ts'),{templateBoard}=await load('apps/web/src/team/templates-rules.ts'),{insertActivity}=await load('apps/web/src/activities.ts'),s=await subjects();
   const snapshot=buildSnapshot(board,ids(board.objects),drawn(board));assert(snapshot.objects.every(o=>!('page'in o)));
   const invalid=snapshot.objects.map(o=>({...o,page:second}));assert.throws(()=>templateBoard(invalid));assert.throws(()=>templateObjects(invalid),e=>e.message==='bad_request');
-  const wrapper=templateBoard(snapshot.objects);assert.equal(wrapper.schemaVersion,14);assert.deepEqual(wrapper.pages,[{id:wrapper.boardId,name:'Page 1'}]);
+  const wrapper=templateBoard(snapshot.objects);assert.equal(wrapper.schemaVersion,15);assert.deepEqual(wrapper.pages,[{id:wrapper.boardId,name:'Page 1'}]);
   const next=insertActivity(board,wrapper,{x:0,y:0,z:1},{w:1440,h:900},second).board;s.validate(next);assert(next.objects.slice(board.objects.length).every(o=>o.page===second));
 });
 check(35, 'closing menus preserves their explicit return focus instead of focusing the current page name', async () => {

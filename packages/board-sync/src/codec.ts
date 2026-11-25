@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
 import { compareKeys, validOrderKey } from "./order-keys.ts";
-import type { BoardV14, ItemV14 } from "nextphase-board-rules/document.ts";
+import type { Board, BoardV10, BoardV13, BoardV15, ItemV10, MindNodeItem, ItemV13, StoredItemV14 as ItemV14, ItemV15 } from "nextphase-board-rules/document.ts";
 import { hasEnds, hasRectangle, hasText, objectType, isTable, TABLE_ID } from "nextphase-board-rules/objects/registry.ts";
 
 import { TEXT_SIZES } from "nextphase-board-rules/styles.ts";
+
+type WithoutPage<T> = T extends unknown ? Omit<T, "page"> : never;
+type StoredBoard<V extends number, Items> = Omit<Board, "objects" | "pages" | "schemaVersion"> & { schemaVersion: V; objects: Items[] };
+export type DecodedBoard = BoardV10 | StoredBoard<11, WithoutPage<ItemV10 | MindNodeItem>> | StoredBoard<12, WithoutPage<ItemV13>> | BoardV13 |
+  (StoredBoard<14, ItemV14> & { pages: BoardV15["pages"] }) | BoardV15;
 
 function exact(value: unknown, keys: readonly string[]): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value) || value instanceof Y.AbstractType ||
@@ -63,18 +68,20 @@ function readTable(value: Y.Map<unknown>, id: string, common: string[]): ItemV14
 
 // Check the complete mapping before projecting it. Silently discarding an
 // unknown field here would allow hidden data to live in an otherwise valid board.
-export function readBoard(doc: Y.Doc, legacy = false): BoardV14 {
+export function readBoard(doc: Y.Doc, legacy = false): DecodedBoard {
   if ([...doc.share.keys()].some((key) => !["board", "objects", "retired"].includes(key))) {
     throw Error("invalid_update");
   }
   const board = map(doc.getMap("board"), ["schemaVersion", "boardId", "title", "pageMap", "pages"]);
   const version = board.get("schemaVersion");
-  const paged = version === 13 || version === 14;
-  if (!legacy && board.has("pages") || legacy && (version === 14 ||
+  if (typeof version !== "number" || ![10, 11, 12, 13, 14, 15].includes(version)) return invalid();
+  const paged = version >= 13;
+  if (!paged && (board.has("pages") || board.has("pageMap"))) return invalid();
+  if (!legacy && board.has("pages") || legacy && (version > 13 ||
       version === 13 && (!board.has("pages") || board.has("pageMap")))) throw Error("invalid_update");
-  let pages: BoardV14["pages"] | undefined;
+  let pages: BoardV15["pages"] | undefined;
   if (paged) {
-    if (legacy && board.has("pages")) pages = board.get("pages") as BoardV14["pages"];
+    if (legacy && board.has("pages")) pages = board.get("pages") as BoardV15["pages"];
     else {
       const pageMap = board.get("pageMap");
       if (!(pageMap instanceof Y.Map) || [...pageMap._map.keys()].some(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))) throw Error("invalid_update");
@@ -91,7 +98,7 @@ export function readBoard(doc: Y.Doc, legacy = false): BoardV14 {
   if ([...retired.values()].some((value) => value !== true)) throw Error("invalid_update");
   const items = [...objects.entries()].map(([id, value]) => {
     if (!(value instanceof Y.Map) || typeof value.get("type") !== "string") throw Error("invalid_update");
-    const type = value.get("type") as ItemV14["type"];
+    const type = value.get("type") as ItemV15["type"];
     let record;
     try { record = objectType(type); } catch { throw Error("invalid_update"); }
     const object = { type };
@@ -129,7 +136,7 @@ export function readBoard(doc: Y.Doc, legacy = false): BoardV14 {
     for (const key of ["fill", "border"] as const) {
       if (key in result) exact(result[key], key === "fill" ? ["mode", "color"] : ["style", "color"]);
     }
-    return result as ItemV14;
+    return result as ItemV15;
   });
   return {
     schemaVersion: version,
@@ -138,5 +145,11 @@ export function readBoard(doc: Y.Doc, legacy = false): BoardV14 {
     ...(paged ? { pages } : {}),
     objects: items.sort((a, b) => a.order - b.order),
     retiredGenerations: [...retired.keys()].sort(),
-  } as BoardV14;
+  } as DecodedBoard;
+}
+
+export function readLiveBoard(doc: Y.Doc): BoardV15 {
+  const board = readBoard(doc);
+  if (board.schemaVersion !== 15) return invalid();
+  return board;
 }

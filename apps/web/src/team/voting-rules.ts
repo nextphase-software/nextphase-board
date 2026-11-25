@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { eligibleVote, hasText, isImage, objectType, usesShapePaint, voteTextAnchor } from 'nextphase-board-rules/objects/registry.ts';
+import { eligibleVote, hasText, isMedia, objectType, usesShapePaint, voteTextAnchor } from 'nextphase-board-rules/objects/registry.ts';
 import type { ItemV12 } from 'nextphase-board-rules/document.ts';
 import type { VoteProjection, VoteOwn, VoteTarget } from './hosted-board';
 export { eligibleVote, voteTextAnchor };
@@ -11,7 +11,7 @@ export const remainingWords=(p:VoteProjection)=>`${ownBallot(p)?.remaining??0} o
 export function voteLabel(o?:ItemV12) {
   if(!o)return 'Removed object';
   if(hasText(o)&&o.text.trim())return o.text.trim();
-  if(isImage(o)&&o.description.trim())return o.description.trim();
+  if(isMedia(o)&&o.description.trim())return o.description.trim();
   if(usesShapePaint(o))return o.shape![0].toUpperCase()+o.shape!.slice(1);
   return objectType(o.type).label;
 }

@@ -6,7 +6,8 @@ import { expandSelection, pressSelection, toggleGroup } from "../group";
 import { nearestHandle, type Corner } from "../resize";
 import type { View } from "../view";
 import { drawRectangle, dropped, placeObject, withMembers } from "../sections";
-import { isImage, isTape, isTable, table, type TapePattern, isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, isMindNode, type ShapePaint, type ConnectorStyle } from "nextphase-board-rules/objects/registry.ts";
+import { hasPlayMark } from "../video.ts";
+import { isMedia, isVideo, isTape, isTable, table, type TapePattern, isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, isMindNode, type ShapePaint, type ConnectorStyle } from "nextphase-board-rules/objects/registry.ts";
 import type { Drag, NodeDrop, ResizeStart } from "../gesture";
 import { branchIds, dropTarget, MAP_WORDS } from "../mind-map";
 
@@ -85,7 +86,7 @@ export function useCanvasInput({
   setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
   scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
   selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
-  handlesVisible, handlePoints, objectLayouts, displayedObjects, edit, textEditing, invalidObjectText, animated, bitmaps,
+  handlesVisible, handlePoints, objectLayouts, displayedObjects, edit, textEditing, invalidObjectText, animated = new Set(), bitmaps = new Map(),
 }: Input) {
   const tableDrag = useRef<{ object: TableItem; border: TableBorder; layout: TableLayout } | null>(null);
   const ghost = useRef<TableGhost | null>(null);
@@ -253,8 +254,7 @@ export function useCanvasInput({
     const p = point(e);
     if (hovered && e.isPrimary && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && !voting?.mode) {
       const hit = hitObject(displayedObjects, p, view.z);
-      if (hit && hit.id === hovered && isImage(hit) && animated?.has(hit.asset) && !selected.has(hit.id) &&
-          bitmaps?.get(hit.asset)?.width === hit.pixelWidth && bitmaps?.get(hit.asset)?.height === hit.pixelHeight &&
+      if (hit && hit.id === hovered && isMedia(hit) && hasPlayMark(hit, animated, bitmaps) && !selected.has(hit.id) &&
           hit.width * view.z >= 56 && hit.height * view.z >= 56 &&
           Math.hypot(p.x - hit.x - hit.width / 2, p.y - hit.y - hit.height / 2) * view.z <= 20) {
         setPressedPlay(previous => ({ id: hit.id, sequence: previous.sequence + 1 }));
@@ -378,9 +378,8 @@ export function useCanvasInput({
   function pointerMove(e: React.PointerEvent<HTMLDivElement>) {
     trackPointer(e);
     const d = drag.current;
-    const hit = hoverAllowed && e.buttons === 0 && animated?.size ? hitObject(displayedObjects, point(e), view.z) : undefined;
-    const id = hit && isImage(hit) && animated?.has(hit.asset) && !selected.has(hit.id) &&
-      bitmaps?.get(hit.asset)?.width === hit.pixelWidth && bitmaps?.get(hit.asset)?.height === hit.pixelHeight ? hit.id : "";
+    const hit = hoverAllowed && e.buttons === 0 && (animated.size || displayedObjects.some(isVideo)) ? hitObject(displayedObjects, point(e), view.z) : undefined;
+    const id = hit && isMedia(hit) && hasPlayMark(hit, animated, bitmaps) && !selected.has(hit.id) ? hit.id : "";
     if (id !== hovered) setHover({ key: hoverKey, id });
     if(!d&&voting?.pointerMove(e,hitObject(displayedObjects,point(e),view.z)))return;
     if (!d) {

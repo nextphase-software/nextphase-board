@@ -71,7 +71,7 @@ for (const [old, next] of [["abcd", "Xabcd"], ["abcd", "abXcd"], ["abcd", "abcdX
 
 test("adapter roundtrip preserves every base object type", () => {
   let b = { ...upgrade(empty()), title: "Shared" };
-  for (const type of OBJECT_TYPES.filter((t) => t.type !== "connector" && t.type !== "image" && t.type !== "stroke" && t.type !== "tape")) b = add(b, type.type, 0, 0);
+  for (const type of OBJECT_TYPES.filter((t) => t.type !== "connector" && t.type !== "image" && t.type !== "video" && t.type !== "stroke" && t.type !== "tape")) b = add(b, type.type, 0, 0);
   b = connector(b, b.objects.find((o) => o.type === "sticky").id, b.objects.find((o) => o.type === "text").id);
   // Base fixtures contain valid image and stroke objects too.
   const image = { id: crypto.randomUUID(), generation: crypto.randomUUID(), type: "image", page: b.pages[0].id, asset: "a".repeat(64), pixelWidth: 1,

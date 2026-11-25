@@ -12,7 +12,7 @@ export type { TimerSnapshot, TimerFrame, TimerAction, TimerCause } from "./timer
 import * as Y from "yjs";
 import { type BoardV14 } from "nextphase-board-rules/document.ts";
 import { Adapter, type TableOrderHint } from "./document-adapter.ts";
-import { readBoard } from "./codec.ts";
+import { readLiveBoard } from "./codec.ts";
 import { capture, SharedUndo } from "./undo.ts";
 import { normalizeText, textProblem, type CommentOperation, type CommentRequest, type CommentThread } from "./comments.ts";
 
@@ -156,7 +156,7 @@ export class BoardSession<T = unknown> {
   epoch = 0;
   restoreGeneration = 0;
   revision = 0;
-  get board() { return readBoard(this.adapter.doc); }
+  get board() { return readLiveBoard(this.adapter.doc); }
   get doc() { return this.adapter.doc; }
   private constructor(options: SessionOptions<T>) { this.options = options; }
   static async join<T>(options: SessionOptions<T>): Promise<BoardSession<T>> {

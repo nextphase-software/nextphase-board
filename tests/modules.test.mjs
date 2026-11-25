@@ -55,7 +55,7 @@ function webImportProblems(content, file = "") {
 test("the package holds exactly its modules", () => {
   assert.deepEqual(rulesParts, [
     "document.ts", "marks.ts", "objects/connector.ts", "objects/image.ts", "objects/mind-node.ts", "objects/registry.ts",
-    "objects/section.ts", "objects/shape.ts", "objects/sticky.ts", "objects/stroke.ts", "objects/table.ts", "objects/tape.ts", "objects/text.ts",
+    "objects/section.ts", "objects/shape.ts", "objects/sticky.ts", "objects/stroke.ts", "objects/table.ts", "objects/tape.ts", "objects/text.ts", "objects/video.ts",
     "platform.d.ts", "styles.ts", "transition.ts",
   ]);
   for (const [name, content] of rulesContents) {
@@ -188,7 +188,7 @@ test("every screen part begins with the Apache-2.0 licence header", () => {
   }
 });
 
-test("scene parts contain exactly the twenty modules named through 0012-W3 v1", () => {
+test("scene parts contain exactly the twenty-one modules named through 0012-W4 v1", () => {
   assert.deepEqual(sceneParts, [
     "board-drawing.tsx",
     "connection-dots.tsx",
@@ -210,11 +210,12 @@ test("scene parts contain exactly the twenty modules named through 0012-W3 v1", 
     "table-buttons.tsx",
     "tape-body.tsx",
     "tidy-up-layer.tsx",
+    "video-player.tsx",
   ]);
 });
 
-test("object types contain exactly the eleven object-type modules named through 0011-W1 v1", () => {
-  assert.deepEqual(objectTypes, ["connector.ts", "image.ts", "mind-node.ts", "registry.ts", "section.ts", "shape.ts", "sticky.ts", "stroke.ts", "table.ts", "tape.ts", "text.ts"]);
+test("object types contain exactly the twelve object-type modules named through 0012-W4 v1", () => {
+  assert.deepEqual(objectTypes, ["connector.ts", "image.ts", "mind-node.ts", "registry.ts", "section.ts", "shape.ts", "sticky.ts", "stroke.ts", "table.ts", "tape.ts", "text.ts", "video.ts"]);
 });
 
 test("object types never import React or Konva", () => {
@@ -233,7 +234,7 @@ test("composition and screen parts ask the registry instead of comparing type na
 });
 
 test("screen and scene guard detects equality and inequality in both operand orders", () => {
-  for (const name of ["sticky", "text", "section", "shape", "square", "circle", "connector", "stroke", "table", "tape", "image", "marker", "highlighter"]) {
+  for (const name of ["sticky", "text", "section", "shape", "square", "circle", "connector", "stroke", "table", "tape", "image", "video", "marker", "highlighter"]) {
     for (const operator of ["===", "!=="]) for (const quote of ['"', "'"]) {
       const literal = quote + name + quote;
       for (const comparison of [`o.type ${operator} ${literal}`, `${literal} ${operator} o.type`]) {
@@ -241,12 +242,12 @@ test("screen and scene guard detects equality and inequality in both operand ord
       }
     }
   }
-  for (const source of ['const keys = ["type", "text"];', 'if (o.text === draft) return;', 'labelPrefix(o)']) {
+  for (const source of ['const keys = ["type", "text"];', 'if (o.text === draft) return;', 'labelPrefix(o)', 'isVideoKind(assetKind(bytes))', 'importing === "with-videos"']) {
     assert.deepEqual(typeNameComparisons(source), [], source);
   }
 });
 
-test("state contains exactly the twenty-seven hooks named through 0012-W3 v1", () => {
+test("state contains exactly the twenty-eight hooks named through 0012-W4 v1", () => {
   assert.deepEqual(files(new URL("state/", source)).sort(), [
     "use-board-document.ts",
     "use-canvas-input.ts",
@@ -274,6 +275,7 @@ test("state contains exactly the twenty-seven hooks named through 0012-W3 v1", (
     "use-text-entry.ts",
     "use-tidy-up.ts",
     "use-validity.ts",
+    "use-video-playback.ts",
     "use-viewport.ts",
   ]);
 });
@@ -446,8 +448,8 @@ test("object types import only siblings or styles, which never imports object ty
 
 function typeNameComparisons(source) {
   return [
-    /[=!]==\s*["'](?:sticky|text|section|shape|square|circle|connector|stroke|table|tape|image|marker|highlighter)["']/,
-    /["'](?:sticky|text|section|shape|square|circle|connector|stroke|table|tape|image|marker|highlighter)["']\s*[=!]==/,
+    /[=!]==\s*["'](?:sticky|text|section|shape|square|circle|connector|stroke|table|tape|image|video|marker|highlighter)["']/,
+    /["'](?:sticky|text|section|shape|square|circle|connector|stroke|table|tape|image|video|marker|highlighter)["']\s*[=!]==/,
   ].filter((pattern) => pattern.test(source));
 }
 
@@ -600,7 +602,7 @@ test("the hosted board hook holds exactly one passive effect", () => {
 });
 
 // Web modules v43, v45 and v46: exact existing-line substitutions from the behaviour baseline.
-test("0012-W3 App composition changes only its recorded substitutions", () => {
+test("0012-W4 App composition changes only its recorded substitutions", () => {
   const base = execFileSync("git", ["show", "3f4ad48:apps/web/src/App.tsx"], { encoding: "utf8" });
   const substitutions = [
   [
@@ -748,7 +750,10 @@ test("0012-W3 App composition changes only its recorded substitutions", () => {
   ["onLostPointerCapture={lostPointerCapture}", "onLostPointerCapture={lostPointerCapture} onPointerLeave={pointerLeave}"],
   ["bitmaps={images.bitmaps} connection", "bitmaps={images.bitmaps} loading={images.loading} playing={gif.playing} connection"],
   ["        <Overlays", "        <GifMarks objects={displayedObjects} animated={images.animated} bitmaps={images.bitmaps} selected={selected} hovered={hovered} pos={pos} zoom={view.z} /><Overlays"],
-  ["busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen}", "busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen} importing={images.importing}"]
+  ["busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen}", "busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen} importing={images.importing}"],
+    ["import { GifMarks } from \"./scene/gif-marks\";", "import { GifMarks } from \"./scene/gif-marks\"; import { useVideoPlayback } from \"./state/use-video-playback\"; import { VideoPlayer } from \"./scene/video-player\";"],
+    ["  const gif = useGifPlayback({", "  const video = useVideoPlayback({ opening: adapter.current, boardId: board.boardId, objects: displayedObjects, selected, bitmaps: images.bitmaps, pressedPlay, hosted: team?.hosted, hidden: tidy.open || find.open || (gestureBusy && !drag.current?.pan), setMessage }); const gif = useGifPlayback({"],
+    ["zoom={view.z} /><Overlays", "zoom={view.z} /><VideoPlayer player={video.player} pos={pos} zoom={view.z} /><Overlays"]
 ];
   let expected = base;
   for (const [from, to] of substitutions) {
@@ -777,4 +782,11 @@ test("Tidy up owns at most two passive effects", () => {
 
 test("sync package holds exactly the twelve modules of web modules v42", () => {
   assert.deepEqual(files(new URL("../packages/board-sync/src/", import.meta.url)).sort(), ["codec.ts", "comments.ts", "document-adapter.ts", "history.ts", "mentions.ts", "order-keys.ts", "reactions.ts", "session.ts", "spotlight.ts", "timer.ts", "undo.ts", "voting.ts"]);
+});
+
+test("video playback owns two effects and the scene owns none", () => {
+  const hook = readFileSync(new URL("state/use-video-playback.ts", source), "utf8");
+  assert.equal((hook.match(/\buseEffect\s*\(/g) ?? []).length, 2);
+  assert.doesNotMatch(hook, /\buseLayoutEffect\b/);
+  assert.doesNotMatch(readFileSync(new URL("scene/video-player.tsx", source), "utf8"), /\buse\w*\s*\(/);
 });

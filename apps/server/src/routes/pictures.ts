@@ -1,15 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
-import { MAX_SIDE, PICTURE_BYTES, pictureHeader } from "nextphase-board-room/pictures.ts";
+import { MAX_SIDE, PICTURE_BYTES, pictureHeader, pictureSignature, videoType } from "nextphase-board-room/pictures.ts";
 import { RoomError } from "nextphase-board-room/protocol.ts";
 import type { Runtime } from "../runtime.ts";
-import { authorize, bytes, hashId, id, type ServerApp } from "./common.ts";
+import { authorize, head, streamBytes, hashId, id, type ServerApp } from "./common.ts";
 
 export function pictureRoutes(app: ServerApp, runtime: Runtime) {
   const path = "/boards/:board/assets/:hash";
   app.put(path, async c => {
     const board = id(c, "board"), hash = hashId(c), person = c.get("person");
     await authorize(runtime, person.id, board, "board", "editor");
-    const data = await bytes(c, PICTURE_BYTES), header = pictureHeader(data);
+    const replay = await head(c, 64), room = runtime.room(board);
+    const video = !pictureSignature(replay.head) && videoType(replay.head);
+    if (video) {
+      try {
+        const { result, type, bytes } = await room.storeVideo(person, hash, video, replay.body);
+        if (result === "full") throw new RoomError(409, "board_videos_full");
+        return c.json({ asset: hash, type, bytes }, result === "created" ? 201 : 200);
+      } finally { if (!replay.body.locked) void replay.body.cancel().catch(() => {}); }
+    }
+    const data = await streamBytes(replay.body, PICTURE_BYTES), header = pictureHeader(data);
     if (!header) throw new RoomError(400, "unsupported_picture");
     const { type, width, height } = header;
     if (Math.max(width, height) > MAX_SIDE) throw new RoomError(400, "picture_too_large");
@@ -23,7 +32,14 @@ export function pictureRoutes(app: ServerApp, runtime: Runtime) {
     const board = id(c, "board"), hash = hashId(c), person = c.get("person");
     await authorize(runtime, person.id, board, "board");
     const picture = await runtime.room(board).readPicture(person, hash);
-    if (!picture) throw new RoomError(404, "not_found");
+    if (!picture) {
+      const video = await runtime.room(board).readVideo(person, hash);
+      if (!video) throw new RoomError(404, "not_found");
+      return c.body(video.body, 200, {
+        "Content-Type": video.type, "Content-Length": String(video.bytes),
+        "Cache-Control": "private, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff",
+      });
+    }
     return c.body(picture.bytes, 200, {
       "Content-Type": picture.type, "Content-Length": String(picture.bytes.length),
       "Cache-Control": "private, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff",

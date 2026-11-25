@@ -2,7 +2,8 @@
 import { useRef, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import type { BoardV14 } from "nextphase-board-rules/document.ts";
-import { isImage } from "nextphase-board-rules/objects/registry.ts";
+import { videoFrame } from "../video.ts";
+import { isMedia, isVideo } from "nextphase-board-rules/objects/registry.ts";
 import {
   allowedToExport, defaultExportChoices, exportContent, EXPORT_FAILURE, exportFileName,
   exportOpening, fitPicture, gridDots, gridRadius, includedObjects, lowerScaleMessage,
@@ -161,9 +162,9 @@ export function useExport<Layouts>(input: Input<Layouts>) {
       }
 
       const box = content.box;
-      const images = objects.filter(isImage);
+      const images = objects.filter(isMedia);
       const picturesReady = (pictures: ReadonlyMap<string, ImageBitmap>) => images.every(image => {
-        const bitmap = pictures.get(image.asset);
+        const bitmap = isVideo(image) ? videoFrame(image, pictures) : pictures.get(image.asset);
         return bitmap?.width === image.pixelWidth && bitmap?.height === image.pixelHeight;
       });
       let pictures = frozen.bitmaps;

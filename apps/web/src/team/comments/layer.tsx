@@ -135,6 +135,7 @@ function ActiveCommentsLayer({ hosted, board, page, openPage, objects, view, siz
       if (target.closest('.find-bar')) return;
       if (target.closest(".w1-panel,.w1-trigger")) return;
       if (target.closest(".comment-card,.comment-composer,.comment-menu")) return;
+      if (target.closest(".video-strip")) return;
       if (event.key === "Escape" && !event.isComposing) {
         if (composer) { setComposer(null); setDraft({ text: "" }); canvas.focus(); }
         else if (opened) closeCard();

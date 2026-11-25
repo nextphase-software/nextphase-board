@@ -67,6 +67,7 @@ app.runtime.room = (board) => {
     finally { entry.storage.exec = exec; }
     if (failCreate === "after") throw Error("Create reply unavailable");
   }, rename: (p, title) => room.rename(p, title), ticket: (p) => room.ticket(p), export: (p) => room.export(p), backup: () => room.backup(), restore: (v) => room.restore(v),
+    storeVideo: (...args) => room.storeVideo(...args), readVideo: (...args) => room.readVideo(...args),
     storePicture: (...args) => room.storePicture(...args), readPicture: (p, hash) => room.readPicture(p, hash),
     discussion: (p, id, occurrence) => room.discussion(p, id, occurrence), deliverNotices: () => room.deliverNotices(),
     changed: () => unreachable.includes(board) ? Promise.reject(Error("Room unavailable")) : room.changed() };

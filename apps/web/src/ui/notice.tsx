@@ -5,7 +5,7 @@ import type { Board as SavedBoard } from "nextphase-board-rules/document.ts";
 
 type Props = {
   hosted?: boolean;
-  importing?: boolean;
+  importing?: boolean | "pictures" | "with-videos";
   pages: import("../find").Pages;
   showNotice: boolean;
   visibleMessage: string;
@@ -25,7 +25,7 @@ export function Notice({
   showNotice, visibleMessage, invalidFields, busy, tool, readOnly, snapshots, reopen, composing,
   adopt, setReadOnly, setMessage, pages, hosted, importing
 }: Props) {
-  if (importing && hosted) return <aside className="notice" role="status" hidden={!showNotice}>{visibleMessage}</aside>;
+  if (importing && (hosted || importing === "with-videos")) return <aside className="notice" role="status" hidden={!showNotice}>{visibleMessage}</aside>;
   return (
     <aside className="notice" role="status" hidden={!showNotice}>
       {visibleMessage}

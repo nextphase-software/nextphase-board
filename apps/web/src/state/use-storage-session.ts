@@ -8,6 +8,9 @@ import { boardFileName, readBoardBundle, writeBoardFile } from "../board-file";
 import type { View } from "../view";
 
 import { boardPictures, readPictures, pictureBytes, PICTURE_LIMIT, tabPictures, type Pictures } from "../image-assets.ts";
+import { pictureOf, isMedia, isVideo } from "nextphase-board-rules/objects/registry.ts";
+import { tabVideos, boardVideos, readVideos, holdVideo, videoBytes, VIDEO_LIMIT, downloadedVideo, pictureHash,
+  validVideoRecord, assetKey, signature, type Videos } from "../image-assets.ts";
 import { decodePicture } from "../images.ts";
 import { discardStartupPage, markStartupAdoption } from "../page-links.ts";
 
@@ -33,7 +36,7 @@ type Input = {
   composing: boolean;
   pending: RefObject<{ invalid: boolean; composing: boolean; busy: boolean }>;
 };
-type Target = { key: string; name: string } | { board: SavedBoard; name: string; pictures: Pictures }
+type Target = { key: string; name: string } | { board: SavedBoard; name: string; pictures: Pictures; videos: Videos }
   | { name: string; run: () => void };
 type Ownership = { release: () => void; task: Promise<void> };
 const OPEN_KEY = "nextphase-board/open/v1";
@@ -48,6 +51,8 @@ export function useStorageSession({
   const [question, setQuestion] = useState<Target | null>(null), [answerPending, setAnswerPending] = useState(false);
   const ack = useRef(-1), store = useRef<LocalStore | null>(null), ownership = useRef<Ownership | null>(null);
   const alive = useRef(true), currentKey = useRef("original"), opened = useRef<SavedBoard | undefined>(undefined);
+  const savingCopy = useRef<{ opening: Adapter | null; cancel: AbortController } | undefined>(undefined);
+  if (savingCopy.current && savingCopy.current.opening !== adapter.current) savingCopy.current.cancel.abort();
   const operation = useRef(false), epoch = useRef(0), questionTarget = useRef<Target | null>(null);
   const incoming = useRef<{ store: LocalStore | null; own: Ownership } | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null), fileInput = useRef<HTMLInputElement | null>(null);
@@ -170,7 +175,7 @@ export function useStorageSession({
     if (hosted) {
       setOpening(false);
       const unsubscribe = hosted.subscribe(() => { if (hosted.unavailable) { epoch.current++; questionTarget.current=null; setQuestion(null); setSnapshots([]); clearHistory(); } });
-      return () => { unsubscribe(); alive.current = false; adapter.current?.destroy(); };
+      return () => { unsubscribe(); alive.current = false; savingCopy.current?.cancel.abort(); adapter.current?.destroy(); };
     }
     let choice = new URL(location.href).searchParams.get("board");
     if (!isBoardKey(choice)) {
@@ -196,7 +201,7 @@ export function useStorageSession({
     const focus = () => { if (panelOpen.current) void actions.current.refresh(); };
     window.addEventListener("pagehide", hide); window.addEventListener("pageshow", show); window.addEventListener("focus", focus);
     return () => {
-      alive.current = false; hide(); adapter.current?.destroy();
+      alive.current = false; savingCopy.current?.cancel.abort(); hide(); adapter.current?.destroy();
       if (timer.current) clearInterval(timer.current);
       window.removeEventListener("pagehide", hide); window.removeEventListener("pageshow", show); window.removeEventListener("focus", focus);
     };
@@ -268,7 +273,8 @@ export function useStorageSession({
         created = new LocalStore(undefined, id); incoming.current.store = created;
         await created.open(() => {});
         if (!alive.current || token !== epoch.current) throw Error("Session closed");
-        await created.create(board, target.pictures); created.close();
+        await created.create(board, target.pictures, target.videos); created.close();
+        for (const [hash, video] of target.videos) holdVideo(hash, video);
         for (const [hash, picture] of target.pictures) tabPictures.set(hash, picture);
         if (!alive.current || token !== epoch.current) throw Error("Session closed");
         incoming.current = null;
@@ -306,13 +312,15 @@ export function useStorageSession({
     const focus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     pendingOpenFocus.current = null;
     operation.current = true; setOpening(true);
-    let board: SavedBoard, pictures: Pictures;
+    let board: SavedBoard, pictures: Pictures, videos: Videos;
     try {
-      const bundle = await readBoardBundle(file); board = bundle.board; pictures = bundle.pictures;
+      const bundle = await readBoardBundle(file); board = bundle.board; pictures = bundle.pictures; videos = bundle.videos;
       if (bundle.fileVersion === 1) {
-        pictures = new Map(tabPictures);
+        pictures = new Map(tabPictures); videos = new Map(tabVideos);
+        if (store.current?.db) await readVideos(store.current.db, boardVideos(board), videos);
         if (store.current?.db) await readPictures(store.current.db, boardPictures(board), pictures);
         if (pictureBytes(board, pictures) > PICTURE_LIMIT) throw Error("its pictures exceed the 50 MiB board limit");
+        if (videoBytes(board, videos) > VIDEO_LIMIT) throw Error("its videos exceed the 100 MiB board limit");
       } else for (const picture of pictures.values()) {
         try { (await decodePicture(picture)).close(); } catch { throw Error("it is damaged"); }
       }
@@ -323,7 +331,7 @@ export function useStorageSession({
       setOpening(false); return;
     }
     operation.current = false; setOpening(false);
-    ask({ board, pictures, name: file.name }, fileButton.current);
+    ask({ board, pictures, videos, name: file.name }, fileButton.current);
   }
   async function answer(value: "cancel" | "discard" | "save") {
     if (answerPending || operation.current || !questionTarget.current) return;
@@ -337,19 +345,53 @@ export function useStorageSession({
   }
   async function saveCopy() {
     if (invalid || busy || composing || operation.current || hosted?.history.previewing || hosted?.history.locked) return;
+    operation.current = true; setOpening(true);
+    const opening = adapter.current, cancel = new AbortController(), hide = () => cancel.abort();
+    savingCopy.current = {opening, cancel};
+    const current = () => alive.current && adapter.current === opening && !cancel.signal.aborted;
+    window.addEventListener("pagehide", hide);
     try {
-      const board = structuredClone(hosted?.snapshot.board ?? model.current), unchanged = revision.current === ack.current ? opened.current : undefined;
-      if (store.current?.db) await readPictures(store.current.db, boardPictures(unchanged ?? board));
-      for (const hash of boardPictures(unchanged ?? board)) {
-        const picture = tabPictures.get(hash);
-        if (!picture) throw Error("a picture is unavailable");
-        try { (await decodePicture(picture)).close(); } catch { throw Error("a picture is unavailable"); }
+      const board = structuredClone(hosted?.snapshot.board ?? model.current), unchanged = !hosted && revision.current === ack.current ? opened.current : undefined;
+      for (const object of (unchanged ?? board).objects.filter(isMedia)) {
+        const hash = pictureOf(object)!;
+        try {
+          let picture = tabPictures.get(hash);
+          if (!picture && hosted) {
+            const bytes = await hosted.pictures.download(hash);
+            if (!current()) return;
+            const mime = bytes && signature(bytes);
+            if (bytes && mime) picture = { bytes, mime, pixelWidth: object.pixelWidth, pixelHeight: object.pixelHeight };
+          } else if (!picture && store.current?.db) {
+            await readPictures(store.current.db, [hash]); picture = tabPictures.get(hash);
+          }
+          if (!picture || signature(picture.bytes) !== picture.mime || await pictureHash(picture.bytes) !== hash || isVideo(object) && picture.mime !== "image/jpeg" ||
+              picture.pixelWidth !== object.pixelWidth || picture.pixelHeight !== object.pixelHeight) throw Error();
+          (await decodePicture(picture)).close();
+          if (!current()) return;
+          tabPictures.set(hash, picture);
+        } catch { throw Error("a picture is unavailable"); }
+        if (isVideo(object)) try {
+          if (!tabVideos.has(object.asset) && hosted) {
+            const answer = await hosted.pictures.downloadVideo(object.asset, () => {}, cancel.signal);
+            if (!current()) return;
+            const video = answer.kind === "ok" && await downloadedVideo(answer.blob, object.asset, object.durationMs);
+            if (!current()) return;
+            if (!video) throw Error();
+            holdVideo(object.asset, video);
+          } else {
+            if (!hosted && store.current?.db) await readVideos(store.current.db, [object.asset]);
+            if (!await validVideoRecord(assetKey(object.asset), tabVideos.get(object.asset))) throw Error();
+          }
+        } catch { throw Error("a video is unavailable"); }
+        if (!current()) return;
       }
       const raw = await writeBoardFile(board, unchanged);
+      if (!current()) return;
       const url = URL.createObjectURL(new Blob([raw], { type: "application/octet-stream" }));
       const link = document.createElement("a"); link.href = url; link.download = boardFileName(board.title);
       link.click(); setTimeout(() => URL.revokeObjectURL(url), 0);
-    } catch (error) { setMessage("Could not save a copy to file: " + (error instanceof Error ? error.message : String(error)) + "."); }
+    } catch (error) { if (current()) setMessage("Could not save a copy to file: " + (error instanceof Error ? error.message : String(error)) + "."); }
+    finally { savingCopy.current = undefined; window.removeEventListener("pagehide", hide); cancel.abort(); operation.current = false; setOpening(false); }
   }
   return { store, snapshots, alive, adopt, save, reopen,
     boardFiles: { entries, heldLocks, boardKey: key, readOnly, opening, invalid, panelRef: panelRef.current,

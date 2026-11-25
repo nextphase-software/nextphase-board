@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { clamp, freshIdentifier, type BoardV14, type StrokeItem, type ItemV14 } from "nextphase-board-rules/document.ts";
-import { isImage, hasPoints, hasRectangle, hasText, usesShapePaint, inkInfo, inkWidth, inkColors, typeWithPoints, rectangleType, type StrokeKeys, type InkPoint, type InkWeight } from "nextphase-board-rules/objects/registry.ts";
+import { isMedia, hasPoints, hasRectangle, hasText, usesShapePaint, inkInfo, inkWidth, inkColors, typeWithPoints, rectangleType, type StrokeKeys, type InkPoint, type InkWeight } from "nextphase-board-rules/objects/registry.ts";
 import { cornerPoint, type Corner, type Rectangle } from "./resize.ts";
 import type { Style } from "nextphase-board-rules/styles.ts";
 import type { Point } from "./selection.ts";
@@ -115,7 +115,7 @@ export function resizeWithStrokes(corner: Corner, members: readonly { object: Ex
   const sx = 1 + (east ? delta.x : -delta.x) / bounds.width, sy = 1 + (south ? delta.y : -delta.y) / bounds.height;
   const wanted = sx >= 1 && sy >= 1 ? Math.max(sx, sy) : sx <= 1 && sy <= 1 ? Math.min(sx, sy) : sx + sy >= 2 ? Math.max(sx, sy) : Math.min(sx, sy);
   const floor = Math.max(...members.map(({ object: o, rectangle: r }) => hasPoints(o) ? strokeFloor(o)
-    : Math.max(Math.min(Math.max(isImage(o) ? 1 : 80, rectangleType(o.type).sizeRange.min), r.width) / r.width, rectangleType(o.type).sizeRange.min / r.height)));
+    : Math.max(Math.min(Math.max(isMedia(o) ? 1 : 80, rectangleType(o.type).sizeRange.min), r.width) / r.width, rectangleType(o.type).sizeRange.min / r.height)));
   const project = (s: number) => members.map(({ object: o, rectangle: r }) => {
     if (s === 1) return o;
     const opposite = { x: fixed.x + (r.x + (east ? 0 : r.width) - fixed.x) * s,

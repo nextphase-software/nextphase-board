@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { BoardV12 as Board, TableItem } from "nextphase-board-rules/document.ts";
 import { count } from "nextphase-board-rules/document.ts";
 import { FLAGS, formatted, formattedRange, type Flag, type TextSelection } from "nextphase-board-rules/marks.ts";
-import { isTape, isTable, objectType, isImage, hasText, hasPoints, usesShapePaint, commonShapeValue, hasRectangle, hasEnds } from "nextphase-board-rules/objects/registry.ts";
+import { isTape, isTable, objectType, isMedia, hasText, hasPoints, usesShapePaint, commonShapeValue, hasRectangle, hasEnds } from "nextphase-board-rules/objects/registry.ts";
 import { colorEntry, commonStyle } from "nextphase-board-rules/styles.ts";
 
 import { numberedObjectLabel } from "../sections";
@@ -26,7 +26,7 @@ export function useSelection({ board, drafts, textSelection }: Input) {
   const tapes = selectedObjects.filter(isTape);
   const tapeSelection = { objects: tapes, only: tapes.length > 0 && tapes.length === selectedObjects.length };
   const textIdeas = ideas.filter(hasText);
-  const formattingIdeas = ideas.filter((o) => !isImage(o));
+  const formattingIdeas = ideas.filter((o) => !isMedia(o));
   const richText = formattingIdeas.length > 0 && formattingIdeas.every((o) => objectType(o.type).richText);
   const selectionKey = JSON.stringify(selectedObjects.map((o) => o.id));
   const selectedId = selectedObjects.length === 1 ? selectedObjects[0].id : "";

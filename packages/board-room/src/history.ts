@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { isMedia } from "nextphase-board-rules/objects/registry.ts";
 import { cleanPictures, markPictures, validatePictures } from "./pictures.ts";
 import * as Y from 'yjs';
 import { readBoard } from 'nextphase-board-sync/codec.ts';
@@ -34,7 +35,7 @@ export function documentBytes(rows: Row[], board: string): { board: Board; data:
   if (data.length > STORED_DOCUMENT_LIMIT) throw Error('document_too_large');
   let at = 0; for (const row of rows) { data.set(row.bytes as Uint8Array, at); at += (row.bytes as Uint8Array).length; }
   const text = new TextDecoder().decode(data), value = validate(JSON.parse(text));
-  if (![10, 11, 12, 13, 14].includes(value.schemaVersion) || value.boardId !== board || canonical(value) !== text) throw Error('bad_document');
+  if (![10, 11, 12, 13, 14, 15].includes(value.schemaVersion) || value.boardId !== board || canonical(value) !== text) throw Error('bad_document');
   return { board: value, data };
 }
 export class History {
@@ -63,7 +64,7 @@ export class History {
     setMeta(this.s, 'history_capture_sha256', prepared.sha256); setMeta(this.s, 'history_capture_bytes', prepared.data.length);
     markPictures(this.s, prepared.board, ordinal);
     this.prune();
-    if (reason !== 'before_restore') cleanPictures(this.s, prepared.board, capturedAt);
+    if (reason !== 'before_restore') cleanPictures(this.s, prepared.board, capturedAt, this.host.uploads);
     return { id, ordinal, capturedAt, revision, generation, reason, name, description, actor, namedBy: name || description ? actor : null, sourceName };
   }
   async automatic(reason: 'checkpoint' | 'last_close') {
@@ -75,9 +76,9 @@ export class History {
     // Compare only valid older representations: new types and kinds cannot
     // appear in a legacy copy, and an upgrade alone captures no version.
     const legacy: Prepared[] = [];
-    for (const version of [10, 11, 12, 13] as const) {
+    for (const version of [10, 11, 12, 13, 14] as const) {
       const { pages: _pages, ...current } = this.host.board;
-      const older = version === 13 ? { ...this.host.board, schemaVersion: version }
+      const older = version >= 13 ? { ...this.host.board, schemaVersion: version }
         : { ...current, schemaVersion: version, objects: current.objects.map(({ page: _page, ...o }) => o) };
       let valid: Board;
       try { valid = validate(older); } catch { continue; }
@@ -89,7 +90,7 @@ export class History {
       if (!same) this.capture(prepared, meta(this.s, 'revision'), meta(this.s, 'restore_generation'), reason);
       else {
         this.prune();
-        cleanPictures(this.s, this.host.board, now);
+        cleanPictures(this.s, this.host.board, now, this.host.uploads);
       }
       if (reason === 'checkpoint') setMeta(this.s, 'history_next_at', next + (Math.floor((now - next) / HISTORY_INTERVAL) + 1) * HISTORY_INTERVAL);
     });
@@ -306,6 +307,7 @@ export async function validateHistoryBackup(env: RoomEnvironment, tables: Record
     for (const revision of snapshots) {
       if (!historyInteger(revision) || revision > Number(get('revision'))) throw Error('bad_snapshot');
       const json = documentBytes(tables.snapshot_chunks.filter(r=>r.snapshot_revision===revision&&r.kind==='json').sort((a,b)=>Number(a.chunk_index)-Number(b.chunk_index)),board);
+      if (get('storage_version') === 8 && json.board.schemaVersion > 14) throw Error('bad_snapshot');
       const parts = tables.snapshot_chunks.filter(r=>r.snapshot_revision===revision&&r.kind==='yjs').sort((a,b)=>Number(a.chunk_index)-Number(b.chunk_index));
       if (!parts.length || parts.some((r,i)=>r.chunk_index!==i || !(r.bytes instanceof Uint8Array) || !r.bytes.length || r.bytes.length>HISTORY_CHUNK)) throw Error('bad_snapshot');
       const data = new Uint8Array(parts.reduce((n,r)=>n+(r.bytes as Uint8Array).length,0)); let at=0;
@@ -319,7 +321,7 @@ export async function validateHistoryBackup(env: RoomEnvironment, tables: Record
       if (Number(r.revision)>Number(snapshots.at(-1))) Y.applyUpdate(doc,r.update);
     }
     const head=readBoard(doc, get('storage_version') === 7); validate(head); canonical(head);
-    if (head.boardId!==board || ![10,11,12,13,14].includes(head.schemaVersion) || head.objects.some(o=>get('storage_version') !== 9 && o.type==='image'||identity.get(o.id)!==o.generation)) throw Error('bad_head');
+    if (head.boardId!==board || get('storage_version') === 8 && head.schemaVersion > 14 || head.objects.some(o=>get('storage_version') !== 9 && isMedia(o)||identity.get(o.id)!==o.generation)) throw Error('bad_head');
   } finally {doc.destroy();}
   if (tables.snapshot_chunks.some(r=>!['json','yjs'].includes(String(r.kind)))) throw Error('bad_snapshot');
   const comments = new Map(tables.comments.map(r=>[r.id,r])), threads = new Map(tables.threads.map(r=>[r.id,r]));

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { validate, validText, type BoardV14 } from "nextphase-board-rules/document.ts";
-import { hasEnds, hasRectangle, isImage } from "nextphase-board-rules/objects/registry.ts";
+import { hasEnds, hasRectangle, isMedia } from "nextphase-board-rules/objects/registry.ts";
 import { buildSnapshot, type Snapshot } from "../clipboard.ts";
 import { connectorLayout } from "../connectors.ts";
 
@@ -19,9 +19,9 @@ function containsNul(value: unknown): boolean {
 }
 export function templateBoard(objects: unknown): BoardV14 {
   if (!Array.isArray(objects) || objects.length < 1 || objects.length > 250 || containsNul(objects) || objects.some(o =>
-    !o || typeof o !== "object" || Array.isArray(o) || "generation" in o || "order" in o || "page" in o || isImage(o))) throw Error("Invalid template");
+    !o || typeof o !== "object" || Array.isArray(o) || "generation" in o || "order" in o || "page" in o || isMedia(o))) throw Error("Invalid template");
   const boardId = crypto.randomUUID();
-  const board = validate({ schemaVersion: 14, boardId, pages: [{ id: boardId, name: "Page 1" }], title: "Template", retiredGenerations: [],
+  const board = validate({ schemaVersion: 15, boardId, pages: [{ id: boardId, name: "Page 1" }], title: "Template", retiredGenerations: [],
     objects: objects.map((o, order) => ({ ...o, page: boardId, order, generation: crypto.randomUUID() })) }) as BoardV14;
   if (contentBytes(objects) > TEMPLATE_BYTES) throw Error("This is too large for a template. Select fewer objects.");
   return board;

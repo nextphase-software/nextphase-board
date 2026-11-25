@@ -221,7 +221,8 @@ is outside this contract.
 ### Test doubles
 
 - **Fixture pages.** A new test module, `tests/server/link-preview-fixtures.ts`, exports
-  `startLinkFixtures(options?: { http?: number; https?: number; hold?: string[] })`, which starts the local page
+  `startLinkFixtures(tls, options?: { http?: number; https?: number; hold?: string[] })` (TLS input from
+  Amendment A6), which starts the local page
   servers (one `http`, one `https`, on `127.0.0.1`; port `0`, a free port, unless given) and answers
   `{ http: number; https: number; close(): Promise<void> }`. The servers serve every fixture page by the request's
   `Host` (the Node runner's pinned connections) or by the test name the workerd seam passes in its
@@ -237,22 +238,25 @@ is outside this contract.
   answers the records for that name as JSON; `POST /__release` releases held requests (the launcher's hold, below).
   Every other request to a control path is 404.
 - **Who starts them (one owner).** `tests/server/setup.ts`, the existing Vitest global setup that runs in Node for both
-  pools and already owns the Supabase proxy and the test helper, calls `startLinkFixtures()` once, adds
-  `linkFixtures: { http: <port>, https: <port> }` to the `board` context it provides, and closes them in its teardown.
+  pools and already owns the Supabase proxy and the test helper, calls `startLinkFixtures(tls)` once, adds
+  `linkFixtures: { http: <port>, https: <port>, ca: <test authority PEM> }` to the `board` context it provides,
+  and closes them in its teardown (Amendment A6).
   No other server-suite file starts a fixture server. The ports reach each runner as follows:
   - **Node:** `driver-node.ts` passes `LINK_FIXTURE_HTTP_PORT` and `LINK_FIXTURE_HTTPS_PORT` in the environment of the
-    forked `tests/server/node-test.ts`, which builds `testDial` from them.
+    forked `tests/server/node-test.ts`, which builds `testDial` from them. It also passes the test authority via
+    `LINK_FIXTURE_CA` (Amendment A6).
   - **workerd:** `vitest.workerd.config.ts` adds `LINK_FIXTURE_PORT: String(context.linkFixtures.http)` to
     `miniflare.bindings`, beside today's `SUPABASE_URL: context.proxyUrl`. The test worker's `fetch` seam sends each
     test-name hop to `http://127.0.0.1:<LINK_FIXTURE_PORT><path and query>` with `x-link-fixture-host: <name>` and
     `x-link-fixture-scheme: http | https`. A Worker cannot be given the test authority, so certificate checks are
     Node's only (S468).
   - Checks read a fixture server's records through `GET /__requests` from their own pool, as they reach the proxy.
-- **TLS fixtures.** `tests/server/fixtures/link-preview-tls/` holds a test certificate authority (`ca.pem`), a
-  certificate and key it signed for the fixture names (each name listed in the certificate, no wildcard), and a
-  second authority with a certificate for `wrongca.test` (S468's refused certificate). They are generated once by
-  the implementer, committed, valid until at least 2045, and used only by tests and the launcher; the record says
-  how they were made. They are never read by `apps/server/src`.
+- **TLS fixtures. Amendment A6 (2026-11-25).** `tests/server/link-preview-tls.ts` uses the system `openssl` to
+  generate a test authority and a leaf certificate for the fixture names, each listed explicitly in the leaf's
+  subject alternative names. A second authority signs a leaf for `wrongca.test` (S468's refused certificate).
+  The keys are EC P-256, and all certificates are valid from one hour before generation until seven days after.
+  The server harness and browser launcher each generate the fixtures in a fresh scratch folder at startup and
+  remove the folder at teardown. Certificate and key files are never committed or read by `apps/server/src`.
 - `tests/server/node-test.ts` passes `linkTransport`: the test resolver (`resolver`) answering test names from the
   table, including the private, mapped, NAT64, 6to4, mixed, unlisted-documentation, rebinding, one-family-failure,
   never-answering and both-failing cases of S471; `testAllow`; `testDial` to the fixture ports it was given; `ca`
@@ -300,7 +304,7 @@ never built by `build:server` and never deployed; `apps/server/src/node.ts` stay
   preview server; the team app and the single-user build both use it. No second launcher and no other fixture
   server runs during the browser check.
 - **Start**: `BOARD_SETTINGS=<settings file> node tests/browser/link-preview-stack.mjs`. It reads and checks the
-  settings exactly as `node.ts` does (`checkSettings`), starts `startLinkFixtures({ http: 8797, https: 8798, hold:
+  settings exactly as `node.ts` does (`checkSettings`), starts `startLinkFixtures(tls, { http: 8797, https: 8798, hold:
   ["fieldnotes.test/sprint"] })`, the **fixed loopback ports, `http` on `127.0.0.1:8797` and `https` on
   `127.0.0.1:8798`**, then calls `startNode(settings, { linkTransport })` with the seams below and nothing else: the
   real Supabase connection from the settings, the real clock and `memoryLimits()`. It prints one line,

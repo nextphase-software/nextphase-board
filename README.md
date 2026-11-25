@@ -35,7 +35,8 @@ The [briefs](docs/briefs/README.md) describe what each milestone added.
 **<https://board-preview.nextphase.software>**
 
 The preview serves the local single-user build: there is no sign-in, and your boards stay
-in your browser on that device and are not sent anywhere. Save a copy to a file if you want
+in your browser on that device. Board's link preview service reads links you paste to fetch each
+page's title, description and picture. Only the link is sent. Save a copy to a file if you want
 to keep one. The preview is updated as milestones are reviewed and merged, so features
 appear and change over time. Desktop Chrome and Safari are the browsers checked so far.
 Team features are not on the preview yet; run team mode on your own computer to try them.

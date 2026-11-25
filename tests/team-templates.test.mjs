@@ -45,7 +45,7 @@ unit(1, "selection and whole board use Copy snapshots with normalized sections a
 });
 unit(2, "both validators wrap document 10 and preserve stored objects", async () => {
   const r = await rules(), s = await server(), value = objects(fixture()), before = structuredClone(value);
-  assert.equal(r.templateBoard(value).schemaVersion, 15); validate(r.templateBoard(value));
+  assert.equal(r.templateBoard(value).schemaVersion, 16); validate(r.templateBoard(value));
   assert.deepEqual(s.templateObjects(value).objects, value); assert.deepEqual(value, before);
   assert.equal(s.templateObjects(value).objectCount, value.length);
 });

@@ -12,6 +12,7 @@ export type Context = {
   people: Record<string, { id: string; email: string; token: string }>;
   listsPeople: Context["people"];
   bad: Record<string, string>; jwks: object; issuer: string; proxyUrl: string; helperUrl: string;
+  linkFixtures: { http: number; https: number; ca: string }; linkPreviewOrigin: string;
   origin: string; operatorKey: string; stack: { apiUrl: string }; serviceKey: string;
 };
 export interface Driver {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { checkLedger, ledgerRecord, type RecoveryRecord } from "./lifecycle.ts";
-import { serve } from "@hono/node-server";
+import { serve, type HttpBindings } from "@hono/node-server";
 import { WebSocketServer, type WebSocket } from "ws";
 import { mkdir, access, readdir, rm } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
@@ -17,6 +17,9 @@ import { Supabase } from "./supabase.ts";
 import type { Settings } from "./settings.ts";
 import type { Runtime } from "./runtime.ts";
 import { deliver } from "./delivery.ts";
+import { createNodeTransport, type NodeTransportOptions } from "./link-preview/transport-node.ts";
+import { memoryLimits, type LinkLimitsClient } from "./link-preview/limits.ts";
+import { addressKey, fetchLinkPreview } from "./link-preview/fetcher.ts";
 const MAX_TIMER_MS = 2 ** 31 - 1;
 const boardFile = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.sqlite$/;
 
@@ -55,6 +58,7 @@ function eraseUnknown<T extends object>(target: T, erase: () => Promise<void>): 
 export type NodeOptions = {
   now?: () => number; db?: Supabase; auth?: Auth; backupLimit?: number;
   deliveryIntervalMs?: number;
+  linkTransport?: NodeTransportOptions; linkLimits?: LinkLimitsClient;
   fence?: { read(board: string): Promise<number>; raise(board: string, minimum?: number): Promise<number> };
 };
 export async function recoveryGeneration(board: string, storage: NodeStorage, db: Supabase, fences: NonNullable<NodeOptions['fence']>) {
@@ -203,6 +207,7 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
     }
   }
   const upgrades = new WeakMap<Request, { board: string; attachment: Attachment }>();
+  const linkTransport = createNodeTransport(options.linkTransport);
   const runtime: Runtime = { backupLimit: options.backupLimit ?? 234_881_024, now, async fenceGeneration(board) {
       const independent=await fences.read(board),entry=rooms.get(board);
       if(entry)return Math.max(independent,meta(entry.storage,"restore_generation"));
@@ -211,6 +216,15 @@ export async function startNode(settings: Settings, options: NodeOptions = {}) {
       const saved=new NodeStorage(file);
       try{return Math.max(independent,meta(saved,"restore_generation"));}finally{saved.close();}
     }, auth, db, allowedOrigin: settings.allowedOrigin, operatorKey: settings.operatorKey,
+    linkPreviewOrigins: settings.linkPreviewOrigins ?? [],
+    linkPreview: {
+      preview: (url, startedAt) => fetchLinkPreview(url, {
+        transport: linkTransport, now, startedAt, abortAfter: ms => AbortSignal.timeout(ms),
+        denyPrefixes: settings.linkPreviewDenyPrefixes,
+      }),
+      limits: options.linkLimits ?? memoryLimits(),
+      clientAddress: c => addressKey((c.env as HttpBindings | undefined)?.incoming.socket.remoteAddress),
+    },
     room: (board) => eraseUnknown(roomEntry(board).room, () => runtime.removeRoom(board)),
     templateMedia(upload) {
       const store = eraseUnknown(templateEntry(upload), () => runtime.removeTemplateMedia(upload));

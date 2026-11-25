@@ -5,16 +5,17 @@ import { InformationPanel } from "./information-panel";
 
 type Props = {
   infoButton: RefObject<HTMLButtonElement | null>; panel: string;
+  linkLine: string;
   busy: boolean; composing: boolean; toggle: (name: string) => void;
 };
-export function InformationControls({ infoButton, panel, busy, composing, toggle }: Props) {
+export function InformationControls({ infoButton, panel, busy, composing, toggle, linkLine }: Props) {
   return <>
     <InformationButton
       infoButton={infoButton} panel={panel} busy={busy} composing={composing} toggle={toggle}
     />
     {panel === "Information" && (
       <InformationPanel
-        busy={busy} composing={composing} toggle={toggle}
+        busy={busy} composing={composing} toggle={toggle} linkLine={linkLine}
       />
     )}
   </>;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { assetEntries, held, isPictureType, isVideoType, readPicture, storePicture, readVideo, VideoUploads, type AssetEntry, type AssetType, type VideoType, type PictureType } from "./pictures.ts";
-import { isImage, isVideo } from "nextphase-board-rules/objects/registry.ts";
+import { pictureOf, isVideo } from "nextphase-board-rules/objects/registry.ts";
 import { Reactions } from "./reactions.ts";
 import { Spotlight } from "./spotlight.ts";
 import { WorkshopVoting, resetVoting } from "./voting.ts";
@@ -31,8 +31,9 @@ export const importDeadline = (staging: ImportStaging) => stagingDeadline(stagin
 
 export function requireHeldMedia(objects: readonly { type: string }[], typeOf: (hash: string) => unknown) {
   for (const object of objects) {
+    const picture = pictureOf(object);
     const missing = isVideo(object) ? !isVideoType(typeOf(object.asset)) || typeOf(object.poster) !== "image/jpeg"
-      : isImage(object) && !isPictureType(typeOf(object.asset));
+      : picture !== undefined && !isPictureType(typeOf(picture));
     if (missing) throw new RoomError(400, "asset_missing");
   }
 }
@@ -229,9 +230,9 @@ export class Room {
       if (!details) throw new RoomError(404, "not_found");
       if (!page) throw new RoomError(503, "service_unavailable");
       const adapter = new Adapter();
-      const input = document ?? { schemaVersion: 15 as const, boardId: this.boardId, title: details.title, pages: [{ id: this.boardId, name: "Page 1" }], objects: [], retiredGenerations: [] };
+      const input = document ?? { schemaVersion: 16 as const, boardId: this.boardId, title: details.title, pages: [{ id: this.boardId, name: "Page 1" }], objects: [], retiredGenerations: [] };
       try {
-        if (![13, 14, 15].includes(validate(input).schemaVersion)) throw Error();
+        if (![13, 14, 15, 16].includes(validate(input).schemaVersion)) throw Error();
       } catch { throw new RoomError(400, "invalid_document"); }
       const board = upgrade(input);
       adapter.set(board);
@@ -270,7 +271,7 @@ export class Room {
     const legacy = meta(storage, "storage_version") === 7;
     const decoded = readBoard(this.doc, legacy);
     validate(decoded);
-    if (decoded.schemaVersion === 15) this.board = decoded;
+    if (decoded.schemaVersion === 16) this.board = decoded;
     else storage.transaction(() => {
       if (legacy) resetVoting(storage);
       this.upgradeStored(decoded, legacy);
@@ -303,13 +304,13 @@ export class Room {
   // Snapshot the upgraded map at the existing revision, without a person's edit.
   private upgradeStored(decoded: DecodedBoard, legacy: boolean) {
     const version = decoded.schemaVersion;
-    if (![10, 11, 12, 13, 14].includes(version) || legacy && version === 14) throw Error("invalid_document");
+    if (![10, 11, 12, 13, 14, 15].includes(version) || legacy && version > 13) throw Error("invalid_document");
     this.doc.transact(() => {
       if (version < 13) {
         convertPages(this.doc, upgrade(decoded).pages);
         for (const value of this.doc.getMap<Y.Map<unknown>>("objects").values()) value.set("page", this.boardId);
       } else if (legacy && decoded.schemaVersion === 13) convertPages(this.doc, decoded.pages);
-      this.doc.getMap("board").set("schemaVersion", 15);
+      this.doc.getMap("board").set("schemaVersion", 16);
     });
     this.board = readLiveBoard(this.doc); validate(this.board);
   }

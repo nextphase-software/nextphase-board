@@ -22,7 +22,11 @@ import { anchorCell, type TableSelection, type TableAction } from "../table";
 import type { CellAddress } from "nextphase-board-rules/objects/registry.ts";
 import type { TableItem } from "nextphase-board-rules/document.ts";
 
+import type { LinkBar } from "../link-cards";
+import { LinkControls } from "./link-controls";
+
 type Props = {
+  links: LinkBar;
   tableSelection?: TableSelection;
   tableDraft?: string;
   tableResizing: boolean;
@@ -90,7 +94,7 @@ type Props = {
 };
 
 export function ContextBar({ tableSelection, tableDraft, tableResizing, cellInvalidNotice, setMessage, tableAction, tableSize, editCell, exportTable,
-  moveToPage, tapeSelection, tidy, board, imageCount, imagesOnly, description, strokeSelection, strokeCommands, connectorObjects, connectorCommands, connectorPopup, connectorOnly, connectorCount, duplicateReason, shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
+  moveToPage, links, tapeSelection, tidy, board, imageCount, imagesOnly, description, strokeSelection, strokeCommands, connectorObjects, connectorCommands, connectorPopup, connectorOnly, connectorCount, duplicateReason, shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
   inline, richText, finishTextSession, setInline, scene, edit, text, colourControl, colourButton,
   selectionReason, colourLabel, swatchOpen, setArrangeFor, setSwatchFor, selectionKey,
   selectionColor, swatches, contextWidth, size, closeSwatches, changeStyle, selectionSize,
@@ -158,7 +162,7 @@ export function ContextBar({ tableSelection, tableDraft, tableResizing, cellInva
           finishTextSession(); setInline(false); scene.current?.focus();
         }} draft={inline ? tableDraft : undefined} invalid={!!cellInvalidNotice} readOnly={readOnly} composing={composing}
         reason={selectionReason} action={tableAction} size={tableSize} exportTable={exportTable}>{arrangeTools}{objectCommands}</TableControls> : tapeSelection.only ? <><TapeControls selection={tapeSelection} commands={strokeCommands} reason={selectionReason} />{moveToPage}{(["Duplicate","Delete"] as const).map(name=><button key={name} className="icon-button" aria-label={name} disabled={!!(name==="Duplicate"?duplicateReason:selectionReason)} onClick={()=>command(name)}><Icon name={name} /><span className="tooltip">{name}</span></button>)}</> : strokeSelection.only ? <StrokeControls moveToPage={moveToPage} selection={strokeSelection} commands={strokeCommands} reason={selectionReason} remove={() => command("Delete")} /> : connectorOnly ? <ConnectorControls moveToPage={moveToPage} objects={connectorObjects} commands={connectorCommands} popup={connectorPopup} count={selected.size} empty={!text} reason={selectionReason} edit={edit} remove={() => command("Delete")} /> : <>
-      {imagesOnly ? <ImageControls count={imageCount} control={description} /> : <>
+      {links.only ? <LinkControls bar={links} reason={selectionReason} /> : imagesOnly ? <ImageControls count={imageCount} control={description} /> : <>
       <ShapeControls part="kind" selection={shapeSelection} commands={shapeCommands} reason={selectionReason} popup={shapePopup} />
       {(!shapeSelection.objects.length || connectorCount > 0 || strokeSelection.objects.length > 0 || tapeSelection.objects.length > 0) && <span>{item ? objectType(item.type).label : selected.size + " objects"}</span>}
       <span className="divider" aria-hidden="true" />
@@ -253,7 +257,7 @@ export function ContextBar({ tableSelection, tableDraft, tableResizing, cellInva
       </button>
       </>}
       {arrangeTools}
-      {!imagesOnly && selected.size >= 2 && <><button className="icon-button" aria-label="Tidy up" title={tidyReason || 'Tidy up'} disabled={!!tidyReason}
+      {!links.only && !imagesOnly && selected.size >= 2 && <><button className="icon-button" aria-label="Tidy up" title={tidyReason || 'Tidy up'} disabled={!!tidyReason}
         onClick={()=>tidy.start({readOnly,composing,pointerGesture:busy,invalidObjectText:false})}><Icon name="Tidy up" /><span className="tooltip">Tidy up · {/Mac|iPhone|iPad/.test(navigator.platform)?'⌥⇧T':'Alt+Shift+T'}</span></button><span className="divider" aria-hidden="true" /></>}
       {objectCommands}
       </>}

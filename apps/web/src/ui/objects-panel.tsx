@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction, RefObject, ReactNode } from "react";
 import type { BoardV12 as Board, ItemV12 as Item } from "nextphase-board-rules/document.ts";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "nextphase-board-rules/styles.ts";
 import { objectLabel } from "../sections";
-import { ADD_OPTIONS, isContainer, sectionIdea, hasRectangle, hasEnds, isMindNode } from "nextphase-board-rules/objects/registry.ts";
+import { ADD_OPTIONS, isContainer, sectionIdea, hasRectangle, hasEnds, isLink, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { hiddenIds } from "../mind-map";
 import { FLAGS, FLAG_LABELS, type Flag } from "nextphase-board-rules/marks.ts";
 import { Icon } from "../icons";
@@ -78,7 +78,9 @@ export function ObjectsPanel({
 }: Props) {
   const ideas = board.objects.filter((o) => selected.has(o.id) && sectionIdea(o));
   const geometryReason = tidy.open ? TIDY_WAIT : !selected.size || readOnly || composing || busy ? selectionReason : board.objects.some((o) => selected.has(o.id) && hasRectangle(o)) ? "" : FOLLOW_REASON;
-  const sizeReason = geometryReason || (tapeSelection.objects.length ? "Washi tape can't be resized." : "");
+  const linkSelected = board.objects.some(object => selected.has(object.id) && isLink(object));
+  const sizeReason = geometryReason || (tapeSelection.objects.length ? "Washi tape can't be resized."
+    : linkSelected ? "Link cards can't be resized." : "");
   const sections = board.objects.filter(isContainer);
   const sharedSection = ideas.length && ideas.every((o) => o.section === ideas[0].section) ? ideas[0].section ?? "" : "mixed";
   // Hidden mind nodes are not listed; a node has no position or size fields.
@@ -209,7 +211,7 @@ export function ObjectsPanel({
           ["Wider", 10, 0], ["Narrower", -10, 0], ["Taller", 0, 10], ["Shorter", 0, -10],
         ].map(([name, x, y]) => <button key={name}
           aria-label={(selected.size > 1 ? "Make objects " : "Make object ") + String(name).toLowerCase()}
-          disabled={!!sizeReason} title={tidy.open ? TIDY_WAIT : tapeSelection.objects.length ? "Washi tape can't be resized." : undefined} aria-describedby={geometryReason === FOLLOW_REASON ? "geometry-reason" : undefined}
+          disabled={!!sizeReason} title={tidy.open ? TIDY_WAIT : tapeSelection.objects.length ? "Washi tape can't be resized." : linkSelected ? "Link cards can't be resized." : undefined} aria-describedby={geometryReason === FOLLOW_REASON ? "geometry-reason" : undefined}
           onClick={() => resizeBy(Number(x), Number(y))}>{name}</button>)}
       </div>
       <GrowButton available={growAvailable} grow={shapeCommands.grow} /></>}

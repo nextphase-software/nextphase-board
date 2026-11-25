@@ -46,7 +46,7 @@ export function templateBoard(objects: unknown): BoardV14 {
   if (!Array.isArray(objects) || objects.length < 1 || objects.length > 250 || containsNul(objects) || objects.some(o =>
     !o || typeof o !== "object" || Array.isArray(o) || "generation" in o || "order" in o || "page" in o)) throw Error("Invalid template");
   const boardId = crypto.randomUUID();
-  const board = validate({ schemaVersion: 15, boardId, pages: [{ id: boardId, name: "Page 1" }], title: "Template", retiredGenerations: [],
+  const board = validate({ schemaVersion: 16, boardId, pages: [{ id: boardId, name: "Page 1" }], title: "Template", retiredGenerations: [],
     objects: objects.map((o, order) => ({ ...o, page: boardId, order, generation: crypto.randomUUID() })) }) as BoardV14;
   if (contentBytes(objects) > TEMPLATE_BYTES) throw Error("This is too large for a template. Select fewer objects.");
   return board;

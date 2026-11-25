@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState } from "react";
-import type { ItemV12 } from "nextphase-board-rules/document.ts";
+import type { ItemV12, LinkItem } from "nextphase-board-rules/document.ts";
 import { decodeGif } from "../gif.ts";
 import { tabPictures } from "../image-assets.ts";
 
@@ -12,7 +12,7 @@ export function useGifPlayback({ objects, selected, animated, bitmaps, pressedPl
   objects: readonly ItemV12[]; selected: ReadonlySet<string>; animated: ReadonlySet<string>;
   bitmaps: ReadonlyMap<string, ImageBitmap>; pressedPlay?: { id: string; sequence: number }; setMessage: (text: string) => void;
 }) {
-  const item = selected.size === 1 ? objects.find(o => selected.has(o.id)) : undefined;
+  const item = selected.size === 1 ? objects.find(o => selected.has(o.id)) as Exclude<ItemV12, LinkItem> | undefined : undefined;
   const candidate = item && "asset" in item && animated.has(item.asset) && bitmaps.get(item.asset)?.width === item.pixelWidth &&
     bitmaps.get(item.asset)?.height === item.pixelHeight ? item : undefined;
   const latch = useRef({ id: "", sequence: 0 });

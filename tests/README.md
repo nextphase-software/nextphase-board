@@ -788,6 +788,16 @@ Both server runner suites include `server/imports.test.ts` (S453–S466). Node a
 S467, which restarts the runner on its existing data folder and checks that the marked
 import is erased without a request to its room.
 
+## 0012-W5 link preview cards
+
+`npm test` includes `link-cards.test.mjs` and `link-preview-fetcher.test.mjs` for paste,
+card states, arrival, undo, board files, templates, and outbound safety. The fetcher checks
+use in-process fixtures and synthetic addresses.
+
+Both server suites include `server/link-preview.test.ts` (S468–S478). Their shared setup
+owns the HTTP and HTTPS fixture servers. The browser checks use the separate test-only
+`tests/browser/link-preview-stack.mjs` launcher, with the check run's isolated team settings.
+
 ## Node test server warnings
 
 S442 in `server/suite.test.ts` verifies that the driver captures the test

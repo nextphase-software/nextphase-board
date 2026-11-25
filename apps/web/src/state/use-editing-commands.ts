@@ -11,7 +11,7 @@ import { textUnits, type Style } from "nextphase-board-rules/styles.ts";
 import type { View } from "../view";
 import { arrangePositions, arrangeReason, isOrderCommand, type ArrangeCommand } from "../arrange";
 import { assignSection, commandObjectLabel, orderInBands, wrapReason, wrapSelection } from "../sections";
-import { isTape, type TapePattern, type ConnectorStyle, type End, objectType, isMedia, isVideo, pictureOf, hasRectangle, hasText, isTable, insertAxis, deleteAxis, cellText, cellAt, cellIndex, setCell, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, isMindNode, type ShapeKeys, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
+import { isTape, type TapePattern, type ConnectorStyle, type End, objectType, isMedia, isLink, isVideo, pictureOf, hasRectangle, hasText, isTable, insertAxis, deleteAxis, cellText, cellAt, cellIndex, setCell, hasPoints, isDrawingTool, type InkWeight, hasEnds, usesShapePaint, changeKind, changeFill, changeBorder, paintOf, paintAfterStep, isMindNode, type ShapeKeys, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
 import { addChild, addSibling, collapse, descendants, hiddenIds, settle, withHiddenDescendants, MAP_WORDS, type MapCommand, type MeasureNode } from "../mind-map";
 import { editingCommandReason } from "../commands";
 import { groupObjects, groupReason, ungroupObjects } from "../group";
@@ -220,8 +220,7 @@ export function useEditingCommands({
     }
     if (!canAddTable()) return next(event);
     const text = event.clipboardData.getData("text/plain");
-    const ownCopy = objectClipboard && copyRecord.current && (copyRecord.current.text === text || copyRecord.current.state === "refused");
-    if (ownCopy || !isSpreadsheetData(text, event.clipboardData.getData("text/html"))) return next(event);
+    if (ownCopy(text) || !isSpreadsheetData(text, event.clipboardData.getData("text/html"))) return next(event);
     event.preventDefault();
     applyTableBatch(anchorAt(), [readSpreadsheet(text)]);
   };
@@ -257,7 +256,9 @@ export function useEditingCommands({
     scene.current?.focus();
     return true;
   }, { reason: exportState.reason, disabled: !exportState.table });
-  const tableData = { paste, drop, exportTable, importButton: {
+  const ownCopy = (text: string) => !!(objectClipboard && copyRecord.current &&
+    (copyRecord.current.text === text || copyRecord.current.state === "refused"));
+  const tableData = { ownCopy, paste, drop, exportTable, importButton: {
     shown: hosted?.snapshot.role !== "viewer", disabled: !canAddTable(), choose: chooseCsv,
   } };
   function clipboardCommand(name: ClipboardCommand) {
@@ -493,7 +494,7 @@ export function useEditingCommands({
     commit(next, true);
   }
   function changeStyle<K extends keyof Style>(key: K, value: Style[K]) {
-    if (selectionReason || key !== "color" && model.current.objects.some((o) => selected.has(o.id) && hasRectangle(o) && !isMedia(o) && !objectType(o.type).richText)) return;
+    if (selectionReason || key !== "color" && model.current.objects.some((o) => selected.has(o.id) && hasRectangle(o) && !isMedia(o) && !isLink(o) && !objectType(o.type).richText)) return;
     finishTextSession();
     setInline(false);
     if (key === "color") { commit({ ...model.current, objects: changeOrdinaryColor(model.current.objects, selected, value as Style["color"]) }, true); return; }
@@ -507,7 +508,7 @@ export function useEditingCommands({
     commit({ ...model.current, objects }, true);
   }
   function toggleFormat(flag: Flag) {
-    if (selectionReason || model.current.objects.some((o) => selected.has(o.id) && hasRectangle(o) && !isMedia(o) && !objectType(o.type).richText)) return;
+    if (selectionReason || model.current.objects.some((o) => selected.has(o.id) && hasRectangle(o) && !isMedia(o) && !isLink(o) && !objectType(o.type).richText)) return;
     finishTextSession();
     const field = editor.current;
     const beingEdited = field === document.activeElement && selected.size === 1;

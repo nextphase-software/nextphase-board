@@ -2,7 +2,7 @@
 import * as Y from "yjs";
 import { canonical, freshIdentifier, validate, type BoardV14, type ItemV14 } from "nextphase-board-rules/document.ts";
 import { checkTransition } from "nextphase-board-rules/transition.ts";
-import { hasEnds, isMindNode, isTable, sizeTable, setCell, type TableAxis } from "nextphase-board-rules/objects/registry.ts";
+import { hasEnds, isLink, isMindNode, isTable, sizeTable, setCell, type TableAxis } from "nextphase-board-rules/objects/registry.ts";
 import { readLiveBoard } from "./codec.ts";
 
 import type { TableItem } from "nextphase-board-rules/document.ts";
@@ -201,6 +201,23 @@ export class SharedUndo {
       this.past.push(step); this.past = this.past.slice(-100);
       if (!direction) this.future = [];
     }
+  }
+  amend(before: State, after: State, id: string): boolean {
+    this.observe(before, after, true);
+    const card = after.board.objects.find(o => o.id === id && isLink(o));
+    if (!card || !isLink(card)) return false;
+    for (let index = this.past.length - 1; index >= 0; index--) {
+      const step = this.past[index];
+      const entry = step.find(value => value.live && value.id === id && value.key === "object" && value.before === null);
+      if (!entry) continue;
+      const old = entry.after as ItemV14;
+      if (!isLink(old)) return false;
+      const { title, description, site, asset, state, layout, width, height } = card;
+      entry.after = { ...old, title, description, site, asset, state, layout, width, height,
+        x: Math.min(Math.max(old.x, -1e6), 1e6 - width), y: Math.min(Math.max(old.y, -1e6), 1e6 - height) };
+      return true;
+    }
+    return false;
   }
   take(state: State, direction: "undo" | "redo"): BoardV14 | string {
     this.group = undefined; this.pageOrders.clear(); this.page = undefined; this.tableHint = undefined; this.table = undefined;

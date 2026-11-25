@@ -26,6 +26,18 @@ export async function makeDriver(context: Context): Promise<Driver> {
       return result;
     },
     async control(value) {
+      if (value.linkRecords) return (await SELF.fetch("http://board/__link-test-records")).json();
+      if (value.linkLogs) return (await SELF.fetch("http://board/__link-test-logs")).json();
+      if (value.linkManual) {
+        const reply = await fetch(`http://127.0.0.1:${context.linkFixtures.http}/manual`, { redirect: "manual" });
+        await reply.body?.cancel();
+        return { status: reply.status, location: reply.headers.get("Location") };
+      }
+      if (typeof value.linkAlarm === "string") {
+        const { runDurableObjectAlarm } = await import("cloudflare:test");
+        const namespace = bindings.LINK_LIMITS;
+        return runDurableObjectAlarm(namespace.get(namespace.idFromName(value.linkAlarm)));
+      }
       if (value.board && value.importCommand) {
         const reply = await roomStub(String(value.board)).fetch("http://room/import-" + value.importCommand, {
           method: "POST", body: JSON.stringify({ board: value.board, value: { ...value, importer: value.person } }),

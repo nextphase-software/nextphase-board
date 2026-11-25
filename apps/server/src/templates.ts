@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { validate, validText, type BoardV14, type ItemV14 } from "nextphase-board-rules/document.ts";
-import { isMedia } from "nextphase-board-rules/objects/registry.ts";
+import { assetsOf } from "nextphase-board-rules/objects/registry.ts";
 import { RoomError } from "nextphase-board-room/protocol.ts";
 import { requireHeldMedia } from "nextphase-board-room/room.ts";
 import type { AssetEntry } from "nextphase-board-room/pictures.ts";
@@ -21,9 +21,9 @@ function containsNul(value: unknown): boolean {
 export function templateObjects(value: unknown, held?: ReadonlyMap<string, AssetEntry>): { objects: TemplateObjects; objectCount: number; contentBytes: number } {
   try {
     if (!Array.isArray(value) || value.length < 1 || value.length > 250 || containsNul(value) ||
-      value.some(o => !o || typeof o !== "object" || Array.isArray(o) || "generation" in o || "order" in o || "page" in o || !held && isMedia(o))) throw Error();
+      value.some(o => !o || typeof o !== "object" || Array.isArray(o) || "generation" in o || "order" in o || "page" in o || !held && assetsOf(o).length)) throw Error();
     const boardId = crypto.randomUUID();
-    validate({ schemaVersion: 15, boardId, pages: [{ id: boardId, name: "Page 1" }], title: "Template", retiredGenerations: [],
+    validate({ schemaVersion: 16, boardId, pages: [{ id: boardId, name: "Page 1" }], title: "Template", retiredGenerations: [],
       objects: value.map((o, order) => ({ ...o, page: boardId, order, generation: crypto.randomUUID() })) }) as BoardV14;
   } catch { throw new RoomError(400, "bad_request"); }
   if (held) requireHeldMedia(value as TemplateObjects, hash => held.get(hash)?.type);

@@ -4,7 +4,7 @@ import * as Y from "yjs";
 import { readBoard } from "nextphase-board-sync/codec.ts";
 import { canonical, validate, type BoardV14 } from "nextphase-board-rules/document.ts";
 import { checkTransition } from "nextphase-board-rules/transition.ts";
-import { isMedia, isVideo } from "nextphase-board-rules/objects/registry.ts";
+import { isImage, isLink, isVideo } from "nextphase-board-rules/objects/registry.ts";
 import { createEncoder, toUint8Array } from "lib0/encoding";
 import { createDecoder } from "lib0/decoding";
 import { writeUpdate, readSyncMessage } from "y-protocols/sync";
@@ -33,7 +33,7 @@ export function evaluate(doc: Y.Doc, before: BoardV14, update: Uint8Array, stora
     let changed = promote(doc, candidate, update);
     let after: ReturnType<typeof readBoard>;
     try { after = readBoard(candidate); } catch { return { kind: "refused", reason: "invalid_update" }; }
-    if (after.schemaVersion !== 15) return { kind: "refused", reason: "invalid_document" };
+    if (after.schemaVersion !== 16) return { kind: "refused", reason: "invalid_document" };
     const pages = after.pages;
     if (after.objects.some(o => !pages.some(p => p.id === o.page))) return { kind: "refused", reason: "invalid_document" };
     const repaired = repair(candidate, before, after);
@@ -41,7 +41,7 @@ export function evaluate(doc: Y.Doc, before: BoardV14, update: Uint8Array, stora
     if (repaired.changed) after = readBoard(candidate);
     try {
       validate(after);
-      if (after.schemaVersion !== 15) throw Error();
+      if (after.schemaVersion !== 16) throw Error();
     } catch { return { kind: "refused", reason: "invalid_document" }; }
     try { canonical(after); } catch { return { kind: "refused", reason: "document_too_large" }; }
     try { checkTransition(before, after); } catch { return { kind: "refused", reason: "invalid_transition" }; }
@@ -54,10 +54,11 @@ export function evaluate(doc: Y.Doc, before: BoardV14, update: Uint8Array, stora
         return { kind: "refused", reason: "identifier_reused" };
       }
     }
-    const media = new Map(before.objects.filter(isMedia).map(o => [o.id, o]));
-    for (const object of after.objects.filter(isMedia)) {
+    const media = new Map(before.objects.map(o => [o.id, o]));
+    for (const object of after.objects) {
+      if (!isImage(object) && !isVideo(object) && !isLink(object) || object.asset === null) continue;
       const prior = media.get(object.id);
-      if (prior?.type === object.type && prior.asset === object.asset &&
+      if (prior?.type === object.type && "asset" in prior && prior.asset === object.asset &&
           (!isVideo(object) || isVideo(prior) && object.poster === prior.poster)) continue;
       const type = held(storage, object.asset)?.type;
       if (isVideo(object) ? !isVideoType(type) || held(storage, object.poster)?.type !== "image/jpeg" : !isPictureType(type)) {

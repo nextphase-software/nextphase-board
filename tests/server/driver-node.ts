@@ -38,16 +38,19 @@ export async function makeDriver(context: Context): Promise<Driver> {
   await mkdir(dataDir); await chmod(dataDir, 0o777);
   const settingsFile = resolve(folder, "settings.json");
   const settings = { supabaseUrl: context.proxyUrl, issuer: context.issuer, serviceKey: context.serviceKey, jwks: context.jwks,
-    allowedOrigin: context.origin, operatorKey: context.operatorKey, port: 0, dataDir };
+    allowedOrigin: context.origin, linkPreviewOrigins: [context.linkPreviewOrigin], operatorKey: context.operatorKey, port: 0, dataDir };
   let child: ReturnType<typeof fork> | undefined, url = "", sequence = 0, container = "";
   let image = "", volume = "";
   let deliveryIntervalMs = 0;
   let startupOffset = 0;
+  const linkLogs: string[] = [];
   let shutdownRooms: string[] | undefined;
   const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
   async function start() {
     await writeFile(settingsFile, JSON.stringify(settings), { mode: 0o600 });
     const started = child = fork(resolve(root, "tests/server/node-test.ts"), [], { env: { ...process.env, BOARD_SETTINGS: settingsFile,
+      LINK_FIXTURE_HTTP_PORT: String(context.linkFixtures.http), LINK_FIXTURE_HTTPS_PORT: String(context.linkFixtures.https),
+      LINK_FIXTURE_CA: context.linkFixtures.ca,
       BOARD_DELIVERY_INTERVAL_MS: String(deliveryIntervalMs), BOARD_TEST_CLOCK_OFFSET: String(startupOffset) },
       stdio: ["ignore", "pipe", "pipe", "ipc"] });
     let errors = "";
@@ -57,6 +60,8 @@ export async function makeDriver(context: Context): Promise<Driver> {
     for (const stream of [started.stderr, started.stdout]) {
       if (!stream) continue;
       createInterface({ input: stream, crlfDelay: Infinity }).on("line", (line) => {
+        linkLogs.push(line);
+        if (linkLogs.length > 1000) linkLogs.shift();
         console.error(`[test server ${started.pid}] ${line}`);
       });
     }
@@ -183,6 +188,13 @@ export async function makeDriver(context: Context): Promise<Driver> {
     async control(value) {
       if (docker) {
         if (value.restart) { execFileSync("docker", ["restart", container], { stdio: "pipe" }); await ready(); }
+        return {};
+      }
+      if (value.linkLogs) return linkLogs.slice();
+      if (value.linkOrigins !== undefined) {
+        await stop();
+        settings.linkPreviewOrigins = value.linkOrigins as string[];
+        await start();
         return {};
       }
       if (value.restart || value.deliveryIntervalMs !== undefined) {

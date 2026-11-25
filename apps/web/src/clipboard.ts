@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { freshIdentifier, type BoardV14, type ItemV14 } from "nextphase-board-rules/document.ts";
-import { hasRectangle, hasText , isTable, remapTable } from "nextphase-board-rules/objects/registry.ts";
+import { hasRectangle, hasText, isLink, isTable, remapTable } from "nextphase-board-rules/objects/registry.ts";
 import { editingCommandReason } from "./commands.ts";
 import { tableTsv } from "./table-csv.ts";
 import { wholeGroups } from "./group.ts";
@@ -67,7 +67,7 @@ export function buildSnapshot(board: BoardV14, selected: ReadonlySet<string>,
 }
 
 export function plainText(snapshot: Snapshot): string {
-  return snapshot.objects.flatMap(o => isTable(o) ? [tableTsv(o)] : hasText(o) && o.text !== "" ? [o.text] : [])
+  return snapshot.objects.flatMap(o => isTable(o) ? [tableTsv(o)] : isLink(o) ? [o.url] : hasText(o) && o.text !== "" ? [o.text] : [])
     .join("\n\n");
 }
 

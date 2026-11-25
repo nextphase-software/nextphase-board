@@ -5,6 +5,14 @@ import type { TemplateStore } from "nextphase-board-room/template-store.ts";
 import type { AssetEntry } from "nextphase-board-room/pictures.ts";
 import type { Auth } from "./auth.ts";
 import type { Supabase } from "./supabase.ts";
+import type { LinkPreview } from "./link-preview/fetcher.ts";
+import type { LinkLimitsClient } from "./link-preview/limits.ts";
+import type { ServerContext } from "./routes/common.ts";
+export type LinkPreviewRuntime = {
+  preview(url: string, startedAt: number): Promise<LinkPreview>;
+  limits: LinkLimitsClient;
+  clientAddress(context: ServerContext): string;
+};
 export type TeamTemplate = {
   id: string; name: string; description: string; creatorLabel: string; sourceTitle: string;
   objectCount: number; createdAt: string; updatedAt: string; canManage: boolean;
@@ -44,6 +52,8 @@ export interface Runtime {
   auth: Auth;
   db: Supabase;
   allowedOrigin: string;
+  linkPreviewOrigins: readonly string[];
+  linkPreview: LinkPreviewRuntime;
   operatorKey?: string;
   room(board: string): RoomClient;
   removeRoom(board: string, generation?: number): Promise<void>;

@@ -8,6 +8,9 @@ import { RoomError } from "../../packages/board-room/src/protocol.ts";
 import { readFile } from "node:fs/promises";
 import { Supabase } from "../../apps/server/src/supabase.ts";
 import { startNode } from "../../apps/server/src/start-node.ts";
+import { request as httpRequest } from "node:http";
+import { readdir } from "node:fs/promises";
+import { fixtureDial, nodeResolver, testAllow } from "./link-preview-fixtures.ts";
 import { checkSettings } from "../../apps/server/src/settings.ts";
 process.on("warning", ({ name, message }) => {
   process.send?.({ warning: { name, message } });
@@ -24,7 +27,34 @@ const db = new Supabase(settings.supabaseUrl, settings.serviceKey);
 const documentGeneration = db.documentGeneration.bind(db), mentionGeneration = db.mentionGeneration.bind(db);
 db.documentGeneration = board => failCheckpoint === "document" ? Promise.reject(Error("Document checkpoint unavailable")) : documentGeneration(board);
 db.mentionGeneration = board => failCheckpoint === "mention" ? Promise.reject(Error("Mention checkpoint unavailable")) : mentionGeneration(board);
-const app = await startNode(settings, { db, now: () => fixedNow ?? Date.now() + offset, backupLimit: 16777216,
+const resolutions: { host: string; family: string }[] = [];
+const socketRecords: unknown[] = [];
+let linkNow: number | undefined, failLinkLimits = false, delayLinkLimits = false;
+const httpPort = Number(process.env.LINK_FIXTURE_HTTP_PORT), httpsPort = Number(process.env.LINK_FIXTURE_HTTPS_PORT);
+const transportPath = "../../apps/server/src/link-preview/transport-node.ts";
+const limitsPath = "../../apps/server/src/link-preview/limits.ts";
+let linkOptions: Pick<import("../../apps/server/src/start-node.ts").NodeOptions, "linkTransport" | "linkLimits"> = {};
+let linkTransportForProof: import("../../apps/server/src/link-preview/fetcher.ts").LinkTransport | undefined;
+try {
+  const { createNodeTransport } = await import(transportPath) as typeof import("../../apps/server/src/link-preview/transport-node.ts");
+  const { memoryLimits } = await import(limitsPath) as typeof import("../../apps/server/src/link-preview/limits.ts");
+  if (httpPort && httpsPort) {
+    const ca = process.env.LINK_FIXTURE_CA;
+    if (!ca) throw Error("The test harness must supply the link preview fixture CA");
+    const memory = memoryLimits(() => linkNow ?? Date.now());
+    const linkTransport = { resolver: nodeResolver(resolutions), testAllow, testDial: fixtureDial(httpPort, httpsPort),
+      ca, onSocket: (record: unknown) => socketRecords.push(record) };
+    linkTransportForProof = createNodeTransport(linkTransport);
+    linkOptions = { linkTransport, linkLimits: { async take(key) {
+      if (failLinkLimits) throw Error("Fixture limiter unavailable");
+      if (delayLinkLimits) await new Promise(resolve => setTimeout(resolve, 1500));
+      return memory.take(key);
+    } } };
+  }
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code !== "ERR_MODULE_NOT_FOUND") throw error;
+}
+const app = await startNode(settings, { ...linkOptions, db, now: () => fixedNow ?? Date.now() + offset, backupLimit: 16777216,
   deliveryIntervalMs: Number(process.env.BOARD_DELIVERY_INTERVAL_MS ?? 0) });
 const original = app.runtime.room;
 const discard=app.runtime.removeRoom.bind(app.runtime), guard=db.lifecycleGuard!;
@@ -81,6 +111,30 @@ process.on("message", async (message: any) => {
   try {
     let result: any = {};
     const value = message.value;
+    if (value.linkNow !== undefined) linkNow = typeof value.linkNow === "number" ? value.linkNow : undefined;
+    if (value.failLinkLimits !== undefined) failLinkLimits = value.failLinkLimits === true;
+    if (value.delayLinkLimits !== undefined) delayLinkLimits = value.delayLinkLimits === true;
+    if (value.linkRecords) {
+      process.send?.({ id: message.id, result: { resolutions, sockets: socketRecords } }); return;
+    }
+    if (value.linkInventory) {
+      const inventory = await Promise.all(["boards", "template-media"].map(name => readdir(resolve(settings.dataDir, name))));
+      process.send?.({ id: message.id, result: inventory.map(files => files.sort()) }); return;
+    }
+    if (value.linkManual) {
+      result = await new Promise((resolve, reject) => {
+        const req = httpRequest({ host: "127.0.0.1", port: httpPort, path: "/manual", method: "GET" }, response => {
+          response.resume(); resolve({ status: response.statusCode, location: response.headers.location });
+        });
+        req.once("error", reject); req.end();
+      });
+      process.send?.({ id: message.id, result }); return;
+    }
+    if (value.linkPin && linkTransportForProof) {
+      const exchange = await linkTransportForProof.request(new URL(`http://pin.test:${httpPort}/`), "127.0.0.1", {}, AbortSignal.timeout(2000));
+      await exchange.body?.cancel();
+      process.send?.({ id: message.id, result: exchange.status }); return;
+    }
     if (value.overflowTimer) setTimeout(() => {}, 2 ** 31).unref();
     if(value.failLifecycle!==undefined)failLifecycle=value.failLifecycle;
     if(value.holdRoom!==undefined)holdRoom=value.holdRoom;

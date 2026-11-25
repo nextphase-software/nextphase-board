@@ -2,14 +2,34 @@
 // Vitest global setup runs in Node for both pools. It never starts or stops a stack.
 import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { Supabase } from "../../apps/server/src/supabase.ts";
 import { badTokens, token } from "./tokens.ts";
+import { startLinkFixtures, suiteOrigin } from "./link-preview-fixtures.ts";
+import { makeLinkPreviewTls } from "./link-preview-tls.ts";
 const root = new URL("../../", import.meta.url);
 export default async function setup(project: any) {
+  const tls = await makeLinkPreviewTls();
+  let closeFixtures: (() => Promise<void>) | undefined;
+  const close = async () => {
+    try { await closeFixtures?.(); }
+    finally { await rm(tls.dir, { recursive: true, force: true }); }
+  };
+  try {
+    const fixtures = await startLinkFixtures(tls);
+    closeFixtures = fixtures.close;
+    const teardown = await setupBoard(project, { http: fixtures.http, https: fixtures.https, ca: tls.ca });
+    return async () => { try { await teardown(); } finally { await close(); } };
+  } catch (error) {
+    await close();
+    throw error;
+  }
+}
+
+async function setupBoard(project: any, linkFixtures: { http: number; https: number; ca: string }) {
   const stackPath = process.env.BOARD_TEST_STACK ?? fileURLToPath(new URL(".stack.json", import.meta.url));
   const stack = JSON.parse(await readFile(stackPath, "utf8"));
   const health = await fetch(stack.apiUrl + "/auth/v1/health", { headers: { apikey: stack.anonKey } });
@@ -209,7 +229,7 @@ export default async function setup(project: any) {
     } catch (error) { res.writeHead(500, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Test helper failed", detail: (error as Error).message.slice(0, 300) })); }
   });
   await new Promise<void>((resolve) => helper.listen(0, "127.0.0.1", resolve));
-  const context = { docker: process.env.BOARD_TEST_TARGET === "docker", people, listsPeople, bad, jwks, issuer, proxyUrl, helperUrl: `http://127.0.0.1:${(helper.address() as any).port}`,
+  const context = { linkFixtures, linkPreviewOrigin: suiteOrigin, docker: process.env.BOARD_TEST_TARGET === "docker", people, listsPeople, bad, jwks, issuer, proxyUrl, helperUrl: `http://127.0.0.1:${(helper.address() as any).port}`,
     origin: "http://127.0.0.1:4173", operatorKey: randomUUID(), stack: { apiUrl: stack.apiUrl }, serviceKey: stack.serviceRoleKey };
   project.provide("board", context);
   return async () => {

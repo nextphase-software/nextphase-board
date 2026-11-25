@@ -10,7 +10,7 @@ import type { View } from "../view";
 import { boardPictures, readPictures, pictureBytes, PICTURE_LIMIT, tabPictures, type Pictures } from "../image-assets.ts";
 import { pictureOf, isMedia, isVideo } from "nextphase-board-rules/objects/registry.ts";
 import { tabVideos, boardVideos, readVideos, holdVideo, videoBytes, VIDEO_LIMIT, downloadedVideo, pictureHash,
-  validVideoRecord, assetKey, signature, type Videos } from "../image-assets.ts";
+  validVideoRecord, validPicture, assetKey, signature, type Videos } from "../image-assets.ts";
 import { decodePicture } from "../images.ts";
 import { discardStartupPage, markStartupAdoption } from "../page-links.ts";
 
@@ -352,20 +352,30 @@ export function useStorageSession({
     window.addEventListener("pagehide", hide);
     try {
       const board = structuredClone(hosted?.snapshot.board ?? model.current), unchanged = !hosted && revision.current === ack.current ? opened.current : undefined;
-      for (const object of (unchanged ?? board).objects.filter(isMedia)) {
-        const hash = pictureOf(object)!;
+      for (const object of (unchanged ?? board).objects) {
+        const hash = pictureOf(object);
+        if (!hash) continue;
+        const media = isMedia(object);
         try {
           let picture = tabPictures.get(hash);
           if (!picture && hosted) {
             const bytes = await hosted.pictures.download(hash);
             if (!current()) return;
             const mime = bytes && signature(bytes);
-            if (bytes && mime) picture = { bytes, mime, pixelWidth: object.pixelWidth, pixelHeight: object.pixelHeight };
+            if (bytes && mime) {
+              if (media) picture = { bytes, mime, pixelWidth: object.pixelWidth, pixelHeight: object.pixelHeight };
+              else {
+                const bitmap = await createImageBitmap(new Blob([bytes], { type: mime }));
+                picture = { bytes, mime, pixelWidth: bitmap.width, pixelHeight: bitmap.height };
+                bitmap.close();
+                if (!await validPicture(assetKey(hash), picture)) throw Error();
+              }
+            }
           } else if (!picture && store.current?.db) {
             await readPictures(store.current.db, [hash]); picture = tabPictures.get(hash);
           }
           if (!picture || signature(picture.bytes) !== picture.mime || await pictureHash(picture.bytes) !== hash || isVideo(object) && picture.mime !== "image/jpeg" ||
-              picture.pixelWidth !== object.pixelWidth || picture.pixelHeight !== object.pixelHeight) throw Error();
+              media && (picture.pixelWidth !== object.pixelWidth || picture.pixelHeight !== object.pixelHeight)) throw Error();
           (await decodePicture(picture)).close();
           if (!current()) return;
           tabPictures.set(hash, picture);

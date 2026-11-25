@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { isImage, isVideo } from "nextphase-board-rules/objects/registry.ts";
+import { pictureOf, isVideo } from "nextphase-board-rules/objects/registry.ts";
 import type { ApiError } from "./api.ts";
 import { parseAssetEntries, type AssetEntry, type TemplateDetail } from "./templates-rules.ts";
 import type { ImportBody, ImportMedia } from "./import.ts";
@@ -18,7 +18,7 @@ export function mediaOf(objects: Objects, held?: ReadonlyMap<string, AssetEntry>
   };
   for (const object of objects) {
     if (isVideo(object)) { add(object.poster, "picture"); add(object.asset, "video"); }
-    else if (isImage(object)) add(object.asset, "picture");
+    else { const hash = pictureOf(object); if (hash) add(hash, "picture"); }
   }
   return [...media].map(([hash, kind]) => ({ hash, kind }));
 }

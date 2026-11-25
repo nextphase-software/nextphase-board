@@ -54,7 +54,7 @@ function webImportProblems(content, file = "") {
 
 test("the package holds exactly its modules", () => {
   assert.deepEqual(rulesParts, [
-    "document.ts", "marks.ts", "objects/connector.ts", "objects/image.ts", "objects/mind-node.ts", "objects/registry.ts",
+    "document.ts", "marks.ts", "objects/connector.ts", "objects/image.ts", "objects/link.ts", "objects/mind-node.ts", "objects/registry.ts",
     "objects/section.ts", "objects/shape.ts", "objects/sticky.ts", "objects/stroke.ts", "objects/table.ts", "objects/tape.ts", "objects/text.ts", "objects/video.ts",
     "platform.d.ts", "styles.ts", "transition.ts",
   ]);
@@ -116,7 +116,7 @@ test("the import guards catch each forbidden form", () => {
   }
 });
 
-test("screen parts contain exactly the thirty-four screen modules named through 0012-W2 v1", () => {
+test("screen parts contain exactly the thirty-five screen modules named through 0012-W5 v1", () => {
   assert.deepEqual(screenParts, [
     "arrange-controls.tsx",
     "board-panel.tsx",
@@ -137,6 +137,7 @@ test("screen parts contain exactly the thirty-four screen modules named through 
     "information-button.tsx",
     "information-controls.tsx",
     "information-panel.tsx",
+    "link-controls.tsx",
     "move-to-page.tsx",
     "navigation-panel.tsx",
     "notice.tsx",
@@ -188,7 +189,7 @@ test("every screen part begins with the Apache-2.0 licence header", () => {
   }
 });
 
-test("scene parts contain exactly the twenty-one modules named through 0012-W4 v1", () => {
+test("scene parts contain exactly the twenty-two modules named through 0012-W5 v1", () => {
   assert.deepEqual(sceneParts, [
     "board-drawing.tsx",
     "connection-dots.tsx",
@@ -198,6 +199,7 @@ test("scene parts contain exactly the twenty-one modules named through 0012-W4 v
     "gif-marks.tsx",
     "image-body.tsx",
     "inline-editor.tsx",
+    "link-body.tsx",
     "mind-map-buttons.tsx",
     "mind-map-layer.tsx",
     "mind-node-body.tsx",
@@ -214,8 +216,8 @@ test("scene parts contain exactly the twenty-one modules named through 0012-W4 v
   ]);
 });
 
-test("object types contain exactly the twelve object-type modules named through 0012-W4 v1", () => {
-  assert.deepEqual(objectTypes, ["connector.ts", "image.ts", "mind-node.ts", "registry.ts", "section.ts", "shape.ts", "sticky.ts", "stroke.ts", "table.ts", "tape.ts", "text.ts", "video.ts"]);
+test("object types contain exactly the thirteen object-type modules named through 0012-W5 v1", () => {
+  assert.deepEqual(objectTypes, ["connector.ts", "image.ts", "link.ts", "mind-node.ts", "registry.ts", "section.ts", "shape.ts", "sticky.ts", "stroke.ts", "table.ts", "tape.ts", "text.ts", "video.ts"]);
 });
 
 test("object types never import React or Konva", () => {
@@ -247,7 +249,7 @@ test("screen and scene guard detects equality and inequality in both operand ord
   }
 });
 
-test("state contains exactly the twenty-eight hooks named through 0012-W4 v1", () => {
+test("state contains exactly the twenty-nine hooks named through 0012-W5 v1", () => {
   assert.deepEqual(files(new URL("state/", source)).sort(), [
     "use-board-document.ts",
     "use-canvas-input.ts",
@@ -262,6 +264,7 @@ test("state contains exactly the twenty-eight hooks named through 0012-W4 v1", (
     "use-gif-playback.ts",
     "use-hosted-board.ts",
     "use-images.ts",
+    "use-link-cards.ts",
     "use-messages.ts",
     "use-object-layouts.ts",
     "use-page-keys.ts",
@@ -559,7 +562,7 @@ test("production runners contain none of the test driver names", () => {
 });
 
 
-test("team modules and imports follow web modules through 0012-W6 v1", () => {
+test("team modules and imports follow web modules through 0012-W5 v1", () => {
   const team = new URL("team/", source);
   const names = files(team).sort();
   assert.deepEqual(names, ["api.ts", "auth.ts", "comments/card.tsx", "comments/icons.tsx", "comments/layer.tsx", "comments/mention-editor.tsx",
@@ -601,8 +604,8 @@ test("the hosted board hook holds exactly one passive effect", () => {
   assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });
 
-// Web modules v43, v45 and v46: exact existing-line substitutions from the behaviour baseline.
-test("0012-W4 App composition changes only its recorded substitutions", () => {
+// Web modules v43, v45, v46 and v50: exact existing-line substitutions from the behaviour baseline.
+test("0012-W5 App composition changes only its recorded substitutions", () => {
   const base = execFileSync("git", ["show", "3f4ad48:apps/web/src/App.tsx"], { encoding: "utf8" });
   const substitutions = [
   [
@@ -753,7 +756,12 @@ test("0012-W4 App composition changes only its recorded substitutions", () => {
   ["busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen}", "busy={busy} tool={tool} readOnly={readOnly} snapshots={snapshots} reopen={reopen} importing={images.importing}"],
     ["import { GifMarks } from \"./scene/gif-marks\";", "import { GifMarks } from \"./scene/gif-marks\"; import { useVideoPlayback } from \"./state/use-video-playback\"; import { VideoPlayer } from \"./scene/video-player\";"],
     ["  const gif = useGifPlayback({", "  const video = useVideoPlayback({ opening: adapter.current, boardId: board.boardId, objects: displayedObjects, selected, bitmaps: images.bitmaps, pressedPlay, hosted: team?.hosted, hidden: tidy.open || find.open || (gestureBusy && !drag.current?.pan), setMessage }); const gif = useGifPlayback({"],
-    ["zoom={view.z} /><Overlays", "zoom={view.z} /><VideoPlayer player={video.player} pos={pos} zoom={view.z} /><Overlays"]
+    ["zoom={view.z} /><Overlays", "zoom={view.z} /><VideoPlayer player={video.player} pos={pos} zoom={view.z} /><Overlays"],
+    ["import { VideoPlayer } from \"./scene/video-player\";", "import { VideoPlayer } from \"./scene/video-player\"; import { useLinkCards } from \"./state/use-link-cards\";"],
+    ["pasteFiles: (files) => void images.pasted(files, () => clipboardCommand(\"Paste\")), composing });", "pasteFiles: (files) => void images.pasted(files, () => clipboardCommand(\"Paste\")), composing }); const links = useLinkCards({ hosted: team?.hosted, page: pages.id, board, model, commit, select, selected, commandReason, tidyOpen: tidy.open, busy, composing, readOnly, editing: () => !!textSession.current, ownCopy: tableData.ownCopy, historyRef, updateHistory, lineCount, getView: () => view, scene, getStore: () => store.current, isAlive: () => alive.current });"],
+    ["onPaste={tableData.paste(hostedPaste ?? images.paste(() => clipboardCommand(\"Paste\")))}", "onPaste={tableData.paste(links.paste(hostedPaste ?? images.paste(() => clipboardCommand(\"Paste\"))))}"],
+    ["          tapeSelection={tapeSelection} tidy={tidy} board={pages.canvas()} moveToPage=", "          links={links.bar} tapeSelection={tapeSelection} tidy={tidy} board={pages.canvas()} moveToPage="],
+    ["        infoButton={infoButton} panel={panel} busy={busy} composing={composing} toggle={toggle}", "        infoButton={infoButton} panel={panel} busy={busy} composing={composing} toggle={toggle} linkLine={links.aboutLine}"]
 ];
   let expected = base;
   for (const [from, to] of substitutions) {
@@ -789,4 +797,10 @@ test("video playback owns two effects and the scene owns none", () => {
   assert.equal((hook.match(/\buseEffect\s*\(/g) ?? []).length, 2);
   assert.doesNotMatch(hook, /\buseLayoutEffect\b/);
   assert.doesNotMatch(readFileSync(new URL("scene/video-player.tsx", source), "utf8"), /\buse\w*\s*\(/);
+});
+
+test("the link cards hook holds exactly two passive effects", () => {
+  const content = readFileSync(new URL("state/use-link-cards.ts", source), "utf8");
+  assert.equal((content.match(/\buseEffect\s*\(/g) ?? []).length, 2);
+  assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });

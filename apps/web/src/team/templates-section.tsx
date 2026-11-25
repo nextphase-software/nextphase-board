@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useLayoutEffect, useId, useRef, useState, type ButtonHTMLAttributes, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { isImage, isVideo } from "nextphase-board-rules/objects/registry.ts";
+import { isImage, isLink, isVideo } from "nextphase-board-rules/objects/registry.ts";
 import { activityPreview, type Preview, type TemplateCommands } from "../activities.ts";
 import type { Snapshot } from "../clipboard.ts";
 import type { HostedBoard } from "./hosted-board.ts";
@@ -142,7 +142,7 @@ function TemplateDialog({ state, controller, hosted, close }: { state: DialogSta
   const media = mediaOf(objects ?? []);
   const bytes = sizes?.reduce((sum, item) => sum + item.bytes, 0);
   const pictureHint = media.length ? pictureLine({
-    pictures: new Set(objects?.filter(isImage).map(object => object.asset)).size,
+    pictures: new Set(objects?.flatMap(object => isImage(object) || isLink(object) && object.asset ? [object.asset] : [])).size,
     videos: new Set(objects?.filter(isVideo).map(object => object.asset)).size,
   }, bytes) : "";
   let preview: Preview | undefined, contentError = "";

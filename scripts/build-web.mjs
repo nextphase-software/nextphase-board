@@ -12,10 +12,19 @@ const { build } = require("esbuild");
 const fixture = process.argv.includes("--fixtures"),
   out = resolve(app, fixture ? "dist-fixtures" : "dist");
 const team = fixture ? null : teamSettings(process.env);
+const previewOrigin = fixture ? null : process.env.BOARD_LINK_PREVIEW_URL || null;
+if (previewOrigin) {
+  const url = URL.parse(previewOrigin);
+  if (!url || url.origin !== previewOrigin || (url.protocol !== "https:" &&
+      !(url.protocol === "http:" && url.hostname === "127.0.0.1" && url.port))) {
+    throw Error("BOARD_LINK_PREVIEW_URL must be an HTTPS origin or a loopback HTTP origin with a port.");
+  }
+}
 const defines = {
   "process.env.NODE_ENV": '"production"',
   BOARD_TEAM_FEATURES: JSON.stringify(!!team),
   BOARD_TEAM_SETTINGS: JSON.stringify(team),
+  BOARD_LINK_PREVIEW_URL: JSON.stringify(previewOrigin),
 };
 await mkdir(out, { recursive: true });
 const result = await build({
@@ -42,9 +51,10 @@ await writeFile(
   JSON.stringify(result.metafile, null, 2),
 );
 const index = await readFile(resolve(app, "index.html"), "utf8");
-await writeFile(resolve(out, "index.html"), team
-  ? index.replace("connect-src 'none'", `connect-src ${team.supabaseUrl} ${team.serverUrl} ${team.serverUrl.replace(/^http/, "ws")}`)
-  : index);
+const origins = team ? [team.supabaseUrl, team.serverUrl, team.serverUrl.replace(/^http/, "ws")] : [];
+if (previewOrigin && !origins.includes(previewOrigin)) origins.push(previewOrigin);
+await writeFile(resolve(out, "index.html"), origins.length
+  ? index.replace("connect-src 'none'", `connect-src ${origins.join(" ")}`) : index);
 await copyFile(resolve(app, "style.css"), resolve(out, "style.css"));
 await copyFile(
   resolve(root, `docs/architecture/0001-runtime-notices-v${team ? 3 : 1}.txt`),

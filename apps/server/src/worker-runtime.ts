@@ -4,12 +4,15 @@ import { Auth } from "./auth.ts";
 import { Supabase } from "./supabase.ts";
 import type { Runtime, RoomClient, TemplateMediaClient } from "./runtime.ts";
 import { base64, bytes, BACKUP_LIMIT, RoomError } from "nextphase-board-room/protocol.ts";
+import { addressKey, fetchLinkPreview } from "./link-preview/fetcher.ts";
+import { createWorkerTransport } from "./link-preview/transport-worker.ts";
 export type WorkerEnv = {
   ROOMS: DurableObjectNamespace; FENCES: DurableObjectNamespace; TEMPLATE_MEDIA: DurableObjectNamespace;
+  LINK_LIMITS: DurableObjectNamespace; LINK_PREVIEW_ORIGINS?: string;
   SUPABASE_URL: string; SUPABASE_ISSUER?: string; SUPABASE_SERVICE_KEY: string;
   JWKS: string; ALLOWED_ORIGIN: string; OPERATOR_KEY?: string; BOARD_JURISDICTION?: "us" | "eu";
 };
-type StoreNamespace = "ROOMS" | "FENCES" | "TEMPLATE_MEDIA";
+type StoreNamespace = "ROOMS" | "FENCES" | "TEMPLATE_MEDIA" | "LINK_LIMITS";
 export function namespace(env: WorkerEnv, name: StoreNamespace) {
   return env.BOARD_JURISDICTION ? env[name].jurisdiction(env.BOARD_JURISDICTION) : env[name];
 }
@@ -144,6 +147,7 @@ export function workerRuntime(env: WorkerEnv): Runtime {
       },
     };
   }
+  const linkTransport = createWorkerTransport();
   const runtime: Runtime = { backupLimit: BACKUP_LIMIT, now: Date.now, async fenceGeneration(board){
       const response=await stub(env,"FENCES",board).fetch("http://fence/read",{method:"POST"});
       if(!response.ok)throw new RoomError(503,"service_unavailable");
@@ -152,6 +156,23 @@ export function workerRuntime(env: WorkerEnv): Runtime {
       if(!local.ok)throw new RoomError(503,"service_unavailable");
       return Math.max(independent,(await local.json() as {generation:number}).generation);
     }, auth, db, allowedOrigin: env.ALLOWED_ORIGIN, operatorKey: env.OPERATOR_KEY,
+    linkPreviewOrigins: (env.LINK_PREVIEW_ORIGINS ?? "").split(",").map(value => value.trim())
+      .filter(value => value !== "null" && URL.parse(value)?.origin === value),
+    linkPreview: {
+      preview: (url, startedAt) => fetchLinkPreview(url, { transport: linkTransport, now: runtime.now, startedAt, abortAfter: ms => AbortSignal.timeout(ms) }),
+      limits: {
+        async take(key) {
+          const response = await stub(env, "LINK_LIMITS", key).fetch("http://limits/take", {
+            method: "POST", body: JSON.stringify({ key }), headers: { "Content-Type": "application/json" },
+          });
+          if (!response.ok) throw Error("limit_unavailable");
+          const answer = await response.json<{ allowed?: boolean }>();
+          if (typeof answer.allowed !== "boolean") throw Error("limit_unavailable");
+          return answer.allowed;
+        },
+      },
+      clientAddress: c => addressKey(c.req.header("CF-Connecting-IP")),
+    },
     room: client,
     templateMedia,
     async removeTemplateMedia(upload) { await (await templateCall(upload, "discard")).arrayBuffer(); },

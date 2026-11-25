@@ -26,7 +26,7 @@ export type Transport = { send(text: string): void; close(code: number, reason?:
 export type SessionOptions<T> = { ticket(): Promise<T>; open(ticket: T): Promise<Transport>; clock: Clock; clientId?: number };
 export type Request = {
   state: "sent" | "received" | "waiting" | "saved" | "refused" | "dropped";
-  reason?: string; update: string; text?: string; revision?: number; group?: string;
+  reason?: string; update: string; text?: string; revision?: number; group?: string; arrivalOf?: string;
   touched: { id: string; generation: string }[]; notKept?: boolean;
 };
 const outstanding = (request: Request) => ["sent", "received", "waiting"].includes(request.state);
@@ -419,25 +419,27 @@ export class BoardSession<T = unknown> {
     return requestId;
   }
   private blocked() { return !this.joined || this.recovering ? "join_required" : this.role === "viewer" ? "role_too_low" : null; }
-  edit(board: BoardV14, group?: string, movedPages?: readonly string[], page?: string, tableHint?: TableOrderHint): string {
+  edit(board: BoardV14, group?: string, movedPages?: readonly string[], page?: string, tableHint?: TableOrderHint, arrivalOf?: string): string {
     const blocked = this.blocked(); if (blocked) return blocked;
-    return this.write(board, undefined, group, movedPages, page, tableHint);
+    return this.write(board, undefined, group, movedPages, page, tableHint, arrivalOf);
   }
-  private write(board: BoardV14, direction?: "undo" | "redo", group?: string, movedPages?: readonly string[], page?: string, tableHint?: TableOrderHint) {
+  private write(board: BoardV14, direction?: "undo" | "redo", group?: string, movedPages?: readonly string[], page?: string, tableHint?: TableOrderHint, arrivalOf?: string) {
     const previous = this.board;
     const before = capture(this.doc), vector = Y.encodeStateVector(this.doc);
     this.adapter.set(board, movedPages, direction ? this.history.pageOrders : undefined, tableHint);
     this.change = { origin: "own" };
-    this.history.record(before, capture(this.doc), direction, group, page);
+    const after = capture(this.doc);
+    if (arrivalOf) this.history.amend(before, after, arrivalOf);
+    else this.history.record(before, after, direction, group, page);
     const touched = board.objects.filter((object) => JSON.stringify(object) !==
       JSON.stringify(previous.objects.find((old) => old.id === object.id)))
       .map(({ id, generation }) => ({ id, generation }));
-    return this.sendEdit(Y.encodeStateAsUpdate(this.doc, vector), group, touched);
+    return this.sendEdit(Y.encodeStateAsUpdate(this.doc, vector), group, touched, arrivalOf);
   }
-  private sendEdit(update: Uint8Array, group?: string, touched: Request["touched"] = []) {
+  private sendEdit(update: Uint8Array, group?: string, touched: Request["touched"] = [], arrivalOf?: string) {
     const requestId = crypto.randomUUID(), encoded = encode(update);
     const text = JSON.stringify({ kind: "edit", epoch: this.epoch, requestId, update: encoded, restoreGeneration: this.restoreGeneration });
-    const request: Request = { state: "sent", update: encoded, text, touched, ...(group ? { group } : {}) };
+    const request: Request = { state: "sent", update: encoded, text, touched, ...(arrivalOf ? { arrivalOf } : {}), ...(group ? { group } : {}) };
     this.requests.set(requestId, request);
     if (sizeOf(text) > 1048576) {
       request.state = "refused"; request.reason = "message_too_large";

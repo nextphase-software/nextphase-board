@@ -11,6 +11,7 @@ import { callerFrom, WorkerRoom } from "./worker-room.ts";
 import { WorkerStorage } from "./worker-storage.ts";
 import { workerRuntime, stub, type WorkerEnv } from "./worker-runtime.ts";
 import { deliver } from "./delivery.ts";
+import { prune, rulesFor, take, type Counts } from "./link-preview/limits.ts";
 type FenceState = { generation: number; recoveryGeneration: number };
 const recoveryKey = "time_recovery_generation";
 function checkedFence(value: FenceState): FenceState {
@@ -159,6 +160,42 @@ export class RestoreFence {
       }) : read();
       return Response.json(result);
     } catch { return Response.json({ error: { reason: "room_locked" } }, { status: 503 }); }
+  }
+}
+export class LinkLimits {
+  protected readonly state: DurableObjectState;
+  constructor(state: DurableObjectState) { this.state = state; }
+
+  protected now(): number { return Date.now(); }
+
+  async fetch(request: Request) {
+    if (request.method !== "POST" || new URL(request.url).pathname !== "/take") return new Response(null, { status: 404 });
+    let input: { key?: unknown } | null;
+    try { input = await request.json(); }
+    catch { return new Response(null, { status: 400 }); }
+    if (!input || typeof input.key !== "string" || Object.keys(input).length !== 1 ||
+        !/^(person|address):.+$/.test(input.key)) return new Response(null, { status: 400 });
+    const key = input.key;
+    return this.state.blockConcurrencyWhile(async () => {
+      const time = this.now(), storage = this.state.storage;
+      const current = await storage.get<Counts>("counts") ?? {};
+      const result = take(current, rulesFor(key), time);
+      if (result.allowed) await storage.put("counts", result.counts);
+      if (result.next !== null) await storage.setAlarm(result.next);
+      return Response.json({ allowed: result.allowed });
+    });
+  }
+
+  async alarm() {
+    await this.state.blockConcurrencyWhile(async () => {
+      const time = this.now(), storage = this.state.storage;
+      const result = prune(await storage.get<Counts>("counts") ?? {}, time);
+      if (result.next === null) await storage.deleteAll();
+      else {
+        await storage.put("counts", result.counts);
+        await storage.setAlarm(result.next);
+      }
+    });
   }
 }
 export default {

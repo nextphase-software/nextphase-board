@@ -70,12 +70,13 @@ export function useBoardDocument({ readOnly, setStatus, hosted, nameSent }: Inpu
   function finishNameEntry() { nameGroup.current = undefined; }
   // The commit lays out, on the document it commits, every map it changes,
   // except the map of a node whose text session is open (interaction v40).
-  function commit(input: SavedBoard, recordObject = false, orderIds?: readonly string[], opens?: string, movedPages?: readonly string[], tableHint?: TableOrderHint) {
+  function commit(input: SavedBoard, recordObject = false, orderIds?: readonly string[], opens?: string, movedPages?: readonly string[], tableHint?: TableOrderHint, arrivalOf?: string) {
     const raw = upgrade(input);
     if (readOnly) return;
     if (tableCellCount(raw.objects) > MAX_BOARD_CELLS) throw Error("A board holds at most 5,000 table cells.");
     let next = settle(model.current, raw, textSession.current?.id);
     if (JSON.stringify(next) === JSON.stringify(model.current)) return;
+    if (hosted && arrivalOf) { apply(next, undefined, movedPages, tableHint, arrivalOf); return; }
     pendingAdd.current = null;
     let step: Step | undefined;
     if (recordObject) {
@@ -90,9 +91,9 @@ export function useBoardDocument({ readOnly, setStatus, hosted, nameSent }: Inpu
     if (!apply(next, group ?? nameGroup.current ?? textSession.current?.group, movedPages, tableHint)) return;
     if (opens) pendingAdd.current = { id: opens, before, group, step: hosted ? undefined : step };
   }
-  function apply(next: Board, group?: string, movedPages?: readonly string[], tableHint?: TableOrderHint) {
+  function apply(next: Board, group?: string, movedPages?: readonly string[], tableHint?: TableOrderHint, arrivalOf?: string) {
     const titleChanged = next.title !== model.current.title;
-    if (hosted && hosted.edit(next, group, movedPages, stepPage.current, tableHint) !== true) return false;
+    if (hosted && hosted.edit(next, group, movedPages, stepPage.current, tableHint, arrivalOf) !== true) return false;
     if (hosted && titleChanged) nameSent?.(next.title);
     model.current = next;
     adapter.current!.set(next, movedPages, undefined, tableHint);

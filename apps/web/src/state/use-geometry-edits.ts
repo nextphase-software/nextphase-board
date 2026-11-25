@@ -3,7 +3,7 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 import { add, type Board as SavedBoard, type BoardV14 as Board, type ItemV14 as Item, type TableItem, validText } from "nextphase-board-rules/document.ts";
 import { neededHeight, savedHeight } from "../geometry";
 import { moveWithMembers, placeObject } from "../sections";
-import { isTape, isTable, cellText, setCell, validCellText, resizeAxis, scaleTable, type CellAddress, objectType, rectangleType, hasText, keepsProportions, hasRectangle, creationValues, typeForTool, isMindNode, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
+import { isLink, isTape, isTable, cellText, setCell, validCellText, resizeAxis, scaleTable, type CellAddress, objectType, rectangleType, hasText, keepsProportions, hasRectangle, creationValues, typeForTool, isMindNode, type ShapePaint } from "nextphase-board-rules/objects/registry.ts";
 import { detach, dragPreview, outerSide, reparent, starterMap, type MeasureNode, type Side } from "../mind-map";
 import { resizeObject, resizeSet, type Corner, type Rectangle } from "../resize";
 import { resizeWithStrokes } from "../strokes";
@@ -167,7 +167,7 @@ export function useGeometryEdits({
   }
 
   function resizeStart(): ResizeStart[] {
-    return model.current.objects.filter(hasRectangle).filter((o) => !isTape(o)).filter((o) => selected.has(o.id)).map((object) => ({
+    return model.current.objects.filter(hasRectangle).filter((o) => !isTape(o) && !isLink(o)).filter((o) => selected.has(o.id)).map((object) => ({
       object, rectangle: { x: object.x, y: object.y, width: object.width,
         height: objectLayouts.get(object.id)!.height },
     }));
@@ -180,7 +180,7 @@ export function useGeometryEdits({
     });
   }
   function resizedBoard(corner: Corner, start: ResizeStart[], dx: number, dy: number, shift: boolean) {
-    if (model.current.objects.some(o => selected.has(o.id) && isTape(o))) return model.current;
+    if (model.current.objects.some(o => selected.has(o.id) && (isTape(o) || isLink(o)))) return model.current;
     function scaled(o: TableItem, base: Rectangle, next: Rectangle) {
       return tableCorner(growTableRows(scaleTable(o, next.width / base.width, next.height / base.height)),
         base, next, corner, start.length === 1, tableMeasure);

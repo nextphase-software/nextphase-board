@@ -413,6 +413,8 @@ export class HostedBoard {
     void this.refreshMentions();
     if (historyNavigation.open === this.boardId) { delete historyNavigation.open; this.history.show(); }
   }
+  private readonly refusedArrivals = new Set<string>();
+  arrivalRefused(id: string): boolean { return this.refusedArrivals.delete(id); }
   private changed(session: BoardSession<string>, event: SessionEvent) {
     if (this.stopped || this.ended || session !== this.session) return;
     if (event.kind === "history_restoring") { this.spotlight.clear();this.timer.disconnect();this.voting.disconnect(); this.history.restoring(typeof event.actor === "string" ? event.actor : null); return; }
@@ -430,7 +432,11 @@ export class HostedBoard {
     if (event.kind === "joined") this.joined(session);
     else if (event.kind === "refused") {
       this.spotlight.clear();this.clearPresence();
-      this.publish({ connected: false, toast: words.refusedEdit(String(event.reason)) });
+      const arrival = typeof event.requestId === "string" && session.requests.get(event.requestId)?.arrivalOf;
+      if (arrival) {
+        this.refusedArrivals.add(arrival);
+        this.publish({ connected: false });
+      } else this.publish({ connected: false, toast: words.refusedEdit(String(event.reason)) });
     } else if (event.kind === "join_failed") {
       if (this.attempt && !this.attempt.outcome && !this.attempt.socket) {
         this.finish(this.attempt, { kind: "failure", reason: "join_failed" });
@@ -445,9 +451,9 @@ export class HostedBoard {
       this.recoveringIds = [];
     } else this.publish({ board: session.board });
   }
-  edit(board: BoardV14, group?: string, movedPages?: readonly string[], page?: string, tableHint?: TableOrderHint) {
+  edit(board: BoardV14, group?: string, movedPages?: readonly string[], page?: string, tableHint?: TableOrderHint, arrivalOf?: string) {
     if (!this.canEdit || !this.session || JSON.stringify(board) === JSON.stringify(this.session.board)) return false;
-    return this.deliberate(() => this.session!.edit(board, group, movedPages, page, tableHint));
+    return this.deliberate(() => this.session!.edit(board, group, movedPages, page, tableHint, arrivalOf));
   }
   inverse(direction: "undo" | "redo") {
     if (!this.canEdit || !this.session) return;

@@ -16,12 +16,14 @@ import { operators } from "./routes/operator.ts";
 import { templateRoutes } from "./routes/templates.ts";
 import { importRoutes } from "./routes/imports.ts";
 import { templateMediaRoutes } from "./routes/template-media.ts";
+import { linkPreviewRoutes, publicLinkPreview } from "./routes/link-preview.ts";
 export function createApp(runtime: Runtime) {
   const app = new Hono<{ Variables: AppVariables }>();
   app.onError((error, c) => {
     const failure = error instanceof RoomError ? error : new RoomError(503, "service_unavailable");
     return c.json(errorBody(failure), failure.status as 400);
   });
+  app.use("*", publicLinkPreview(runtime));
   app.use("*", async (c, next) => {
     const origin = c.req.header("Origin");
     if (origin === runtime.allowedOrigin) {
@@ -53,6 +55,7 @@ export function createApp(runtime: Runtime) {
   templateRoutes(app, runtime);
   importRoutes(app, runtime);
   templateMediaRoutes(app, runtime);
+  linkPreviewRoutes(app, runtime);
   mentions(app, runtime);
   accessRoutes(app, runtime);
   invitations(app, runtime);

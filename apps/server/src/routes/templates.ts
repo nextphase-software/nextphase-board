@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { RoomError, type Person } from "nextphase-board-room/protocol.ts";
-import { isMedia } from "nextphase-board-rules/objects/registry.ts";
+import { assetsOf } from "nextphase-board-rules/objects/registry.ts";
 import { labelOf } from "nextphase-board-room/tickets.ts";
 import type { Runtime } from "../runtime.ts";
 import { templateDetails, templateObjects } from "../templates.ts";
@@ -23,7 +23,7 @@ async function removeStore(runtime: Runtime, store: string | null | undefined) {
 async function changeContent<T>(runtime: Runtime, workspace: string, person: Person, objects: unknown, upload: string | undefined,
   write: (content: ReturnType<typeof templateObjects>) => Promise<T>) {
   if (!upload) return write(templateObjects(objects));
-  if (!Array.isArray(objects) || !objects.some(object => object && isMedia(object))) throw new RoomError(400, "bad_request");
+  if (!Array.isArray(objects) || !objects.some(object => object && assetsOf(object).length)) throw new RoomError(400, "bad_request");
   const entries = await runtime.templateMedia(upload).commit(person, workspace);
   let content;
   try { content = templateObjects(objects, new Map(entries.map(entry => [entry.hash, entry]))); }

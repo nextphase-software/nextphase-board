@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useImages } from "./state/use-images"; import { ImageNames } from "./scene/image-body"; import { useGifPlayback } from "./state/use-gif-playback"; import { GifMarks } from "./scene/gif-marks"; import { useVideoPlayback } from "./state/use-video-playback"; import { VideoPlayer } from "./scene/video-player";
+import { useImages } from "./state/use-images"; import { ImageNames } from "./scene/image-body"; import { useGifPlayback } from "./state/use-gif-playback"; import { GifMarks } from "./scene/gif-marks"; import { useVideoPlayback } from "./state/use-video-playback"; import { VideoPlayer } from "./scene/video-player"; import { useLinkCards } from "./state/use-link-cards";
 import { screenPoint } from "./view";
 import { useSessionStatus } from "./state/use-session-status";
 import { useGestureState } from "./state/use-gesture-state";
@@ -133,7 +133,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     command, clipboardCommand, openExport: exporter.open, toggleFormat, model, cancel, scene, busy, composing, select,
     setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
   });
-  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, onChange: pages.changed, tables: { selection: tableSelection, entry: tableEntry, choose: chooseTable, setMessage, cancelDrag: tableGesture.cancelDrag, focus: tableGesture.focus, finish: finishTextSession, endComposition: tableEntry.endComposition }, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand("Paste"), pasteFiles: (files) => void images.pasted(files, () => clipboardCommand("Paste")), composing });
+  const hostedPaste = useHostedBoard({ hosted: team?.hosted, model, load, onChange: pages.changed, tables: { selection: tableSelection, entry: tableEntry, choose: chooseTable, setMessage, cancelDrag: tableGesture.cancelDrag, focus: tableGesture.focus, finish: finishTextSession, endComposition: tableEntry.endComposition }, setBoard, setTitle, setDrafts, setReadOnly, setTool, setInline, select, paste: () => clipboardCommand("Paste"), pasteFiles: (files) => void images.pasted(files, () => clipboardCommand("Paste")), composing }); const links = useLinkCards({ hosted: team?.hosted, page: pages.id, board, model, commit, select, selected, commandReason, tidyOpen: tidy.open, busy, composing, readOnly, editing: () => !!textSession.current, ownCopy: tableData.ownCopy, historyRef, updateHistory, lineCount, getView: () => view, scene, getStore: () => store.current, isAlive: () => alive.current });
   const nativeEditor = <ContentField
     tableEntry={tableEntry} tableName={tableName} cellInvalidNotice={cellInvalidNotice} setMessage={setMessage} editCell={tableGeometry.editCell} changeCell={tableGeometry.changeCell} finishCellComposition={tableGeometry.finishCellComposition} editor={editor} inline={inline} text={text} readOnly={readOnly} busy={busy} item={item}
     selectedId={selectedId} composing={composing} beginTextSession={beginTextSession}
@@ -148,7 +148,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
     >
       {team?.hosted && team.banner}
       <div
-        ref={scene} onPointerDownCapture={images.guardGesture} onPaste={tableData.paste(hostedPaste ?? images.paste(() => clipboardCommand("Paste")))} onDragOver={images.dragOver} onDrop={tableData.drop(images.drop)}
+        ref={scene} onPointerDownCapture={images.guardGesture} onPaste={tableData.paste(links.paste(hostedPaste ?? images.paste(() => clipboardCommand("Paste"))))} onDragOver={images.dragOver} onDrop={tableData.drop(images.drop)}
         className={"scene" + (spacePan ? busy ? " grabbing" : " grab" : "")}
         style={{
           cursor: drag.current?.corner ? (drag.current.corner === "nw" || drag.current.corner === "se"
@@ -220,7 +220,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
       )}
       {tidy.open && <TidyUpBar tidy={tidy} pos={pos} view={view} size={size} layout={layout} />}{selected.size > 0 && !tidy.open && (
         <ContextBar
-          tapeSelection={tapeSelection} tidy={tidy} board={pages.canvas()} moveToPage={<MoveToPage pages={pages} selected={selected} reason={duplicateReason} />} description={images.description} imageCount={images.count} imagesOnly={images.only} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
+          links={links.bar} tapeSelection={tapeSelection} tidy={tidy} board={pages.canvas()} moveToPage={<MoveToPage pages={pages} selected={selected} reason={duplicateReason} />} description={images.description} imageCount={images.count} imagesOnly={images.only} connectorCommands={connectorCommands} strokeSelection={strokeSelection} strokeCommands={strokeCommands} shapeSelection={shapeSelection} shapeCommands={shapeCommands} shapePopup={shapePopup} selectionFormats={selectionFormats} toggleFormat={toggleFormat} richText={richText}
           connectorObjects={connectors} connectorPopup={connectorPopup} connectorOnly={connectorOnly} connectorCount={connectors.length} duplicateReason={duplicateReason} contextBar={contextBar} contextFits={contextFits} contextLeft={contextLeft}
           tableSelection={tableSelection} tableDraft={tableEntry.draft?.text} tableResizing={tableGesture.resizing} cellInvalidNotice={cellInvalidNotice} setMessage={setMessage} tableAction={tableAction} tableSize={tableSize} exportTable={tableData.exportTable} editCell={tableGeometry.editCell} contextTop={contextTop} item={item} selected={selected} readOnly={readOnly}
           composing={composing} busy={busy} inline={inline} finishTextSession={finishTextSession}
@@ -252,7 +252,7 @@ export function App({ team }: { team?: TeamParts } = {}) {
       />
       <BoardQuestion {...boardQuestion} /><ExportDialog {...exporter.dialog} />
       <InformationControls
-        infoButton={infoButton} panel={panel} busy={busy} composing={composing} toggle={toggle}
+        infoButton={infoButton} panel={panel} busy={busy} composing={composing} toggle={toggle} linkLine={links.aboutLine}
       />
       {panel === "Navigation" && (
         <NavigationPanel

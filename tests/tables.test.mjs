@@ -31,7 +31,7 @@ async function shared(initial) {
 
 test("T-U01 table rules place bounded dimensions and canonicalize nested keys and cells", async () => {
   const r = await document(), t = await tableRules(), b = await board(), base = b.objects[0];
-  assert.equal(b.schemaVersion, 15);
+  assert.equal(b.schemaVersion, 16);
   assert.deepEqual([base.x, base.y, base.width, base.height], [-500, -250, 384, 128]);
   assert.equal(new Set([...base.rows, ...base.columns].map(a => a.id)).size, 4);
   const large = (await board(3, 4)).objects[0];
@@ -45,7 +45,7 @@ test("T-U01 table rules place bounded dimensions and canonicalize nested keys an
   assert.deepEqual(canonical.cells.map(c => c.text), ["First", "Last"]);
   assert.throws(() => r.validate({ ...b, schemaVersion: 13 }));
   const legacy = { ...b, schemaVersion: 13, objects: [] };
-  assert.equal(r.upgrade(legacy).schemaVersion, 15);
+  assert.equal(r.upgrade(legacy).schemaVersion, 16);
   assert.equal(JSON.parse(r.canonical(legacy)).schemaVersion, 13);
 });
 
@@ -378,7 +378,7 @@ test("T-U10 row growth and each edit, geometry or structure operation are single
   }
 });
 
-test("T-U11 stored schema 13 pageMap upgrades to 15 through a schema-only snapshot with no edit", async () => {
+test("T-U11 stored schema 13 pageMap upgrades to 16 through a schema-only snapshot with no edit", async () => {
   await tableRules();
   const { NodeStorage } = await import("../apps/server/src/node-storage.ts"), { Room } = await import("../packages/board-room/src/room.ts");
   const { meta, setMeta } = await import("../packages/board-room/src/storage.ts");
@@ -405,12 +405,12 @@ test("T-U11 stored schema 13 pageMap upgrades to 15 through a schema-only snapsh
     const tables = () => ["edits", "receipts", "versions", "version_chunks"].map(t => storage.all("SELECT * FROM " + t));
     const before = tables();
     room.initialized = false; await room.load();
-    assert.equal(room.board.schemaVersion, 15);
+    assert.equal(room.board.schemaVersion, 16);
     const delta = Y.decodeUpdate(Y.encodeStateAsUpdate(room.doc, Y.encodeStateVector(stored))).structs;
-    assert.equal(delta.length, 1); assert.equal(delta[0].content.getContent()[0], 15);
+    assert.equal(delta.length, 1); assert.equal(delta[0].content.getContent()[0], 16);
     await room.history.automatic("last_close");
     assert.deepEqual(tables(), before); assert.equal(meta(storage, "revision"), 0);
-    room.initialized = false; await room.load(); assert.equal(room.board.schemaVersion, 15);
+    room.initialized = false; await room.load(); assert.equal(room.board.schemaVersion, 16);
   } finally { room.doc.destroy(); stored.destroy(); storage.close(); }
 });
 

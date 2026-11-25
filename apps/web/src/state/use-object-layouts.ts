@@ -3,7 +3,7 @@ import { useMemo, type RefObject } from "react";
 import Konva from "konva";
 import type { BoardV14 as Board, ItemV14 as Item, TableItem } from "nextphase-board-rules/document.ts";
 import { allowedHeight, displayHeight, neededHeight, TEXT_INSET, TEXT_LAYOUT, type ResolvedItem } from "../geometry";
-import { isTape, isTable, objectType, textBox, hasText, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds, voteTextAnchor, isMindNode } from "nextphase-board-rules/objects/registry.ts";
+import { isLink, isTape, isTable, objectType, textBox, hasText, usesShapePaint, shapeTextLayout, fitHeight, canGrow, hasRectangle, hasEnds, voteTextAnchor, isMindNode } from "nextphase-board-rules/objects/registry.ts";
 import { hiddenIds, nodeBox, nodeLines } from "../mind-map";
 import { groupNumbers, wholeGroups } from "../group";
 import { cornerPoint, type Corner } from "../resize";
@@ -147,7 +147,7 @@ export function useObjectLayouts({
   const bounds = boundingBox(rectanglesSelected.length ? rectanglesSelected : displayedObjects.filter((o) => selected.has(o.id)));
   const selectedGroups = wholeGroups(displayedObjects, selected);
   const numbers = groupNumbers(objects);
-  const handlesVisible = (!tableSelection || tableSelection.kind === TABLE_LEVEL) && rectanglesSelected.length > 0 && !rectanglesSelected.some(isMindNode) && !rectanglesSelected.some(isTape) && !!bounds && tool === "Select" && !readOnly && (!inline || !!item && !objectType(item.type).richText) && !composing &&
+  const handlesVisible = (!tableSelection || tableSelection.kind === TABLE_LEVEL) && rectanglesSelected.length > 0 && !rectanglesSelected.some(isMindNode) && !rectanglesSelected.some(isTape) && !rectanglesSelected.some(isLink) && !!bounds && tool === "Select" && !readOnly && (!inline || !!item && !objectType(item.type).richText) && !composing &&
     (!busy || !!drag.current?.corner);
   const handlePoints = bounds ? CORNERS.map((corner) => ({
     corner, ...cornerPoint(corner, bounds),

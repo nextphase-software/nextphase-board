@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
 import { compareKeys, validOrderKey } from "./order-keys.ts";
-import type { Board, BoardV10, BoardV13, BoardV15, ItemV10, MindNodeItem, ItemV13, StoredItemV14 as ItemV14, ItemV15 } from "nextphase-board-rules/document.ts";
+import type { Board, BoardV10, BoardV13, BoardV16, StoredItemV15, ItemV10, MindNodeItem, ItemV13, StoredItemV14 as ItemV14, ItemV15 } from "nextphase-board-rules/document.ts";
 import { hasEnds, hasRectangle, hasText, objectType, isTable, TABLE_ID } from "nextphase-board-rules/objects/registry.ts";
 
 import { TEXT_SIZES } from "nextphase-board-rules/styles.ts";
@@ -9,7 +9,7 @@ import { TEXT_SIZES } from "nextphase-board-rules/styles.ts";
 type WithoutPage<T> = T extends unknown ? Omit<T, "page"> : never;
 type StoredBoard<V extends number, Items> = Omit<Board, "objects" | "pages" | "schemaVersion"> & { schemaVersion: V; objects: Items[] };
 export type DecodedBoard = BoardV10 | StoredBoard<11, WithoutPage<ItemV10 | MindNodeItem>> | StoredBoard<12, WithoutPage<ItemV13>> | BoardV13 |
-  (StoredBoard<14, ItemV14> & { pages: BoardV15["pages"] }) | BoardV15;
+  (StoredBoard<14, ItemV14> & { pages: BoardV16["pages"] }) | (StoredBoard<15, StoredItemV15> & { pages: BoardV16["pages"] }) | BoardV16;
 
 function exact(value: unknown, keys: readonly string[]): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value) || value instanceof Y.AbstractType ||
@@ -74,14 +74,14 @@ export function readBoard(doc: Y.Doc, legacy = false): DecodedBoard {
   }
   const board = map(doc.getMap("board"), ["schemaVersion", "boardId", "title", "pageMap", "pages"]);
   const version = board.get("schemaVersion");
-  if (typeof version !== "number" || ![10, 11, 12, 13, 14, 15].includes(version)) return invalid();
+  if (typeof version !== "number" || ![10, 11, 12, 13, 14, 15, 16].includes(version)) return invalid();
   const paged = version >= 13;
   if (!paged && (board.has("pages") || board.has("pageMap"))) return invalid();
   if (!legacy && board.has("pages") || legacy && (version > 13 ||
       version === 13 && (!board.has("pages") || board.has("pageMap")))) throw Error("invalid_update");
-  let pages: BoardV15["pages"] | undefined;
+  let pages: BoardV16["pages"] | undefined;
   if (paged) {
-    if (legacy && board.has("pages")) pages = board.get("pages") as BoardV15["pages"];
+    if (legacy && board.has("pages")) pages = board.get("pages") as BoardV16["pages"];
     else {
       const pageMap = board.get("pageMap");
       if (!(pageMap instanceof Y.Map) || [...pageMap._map.keys()].some(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))) throw Error("invalid_update");
@@ -148,8 +148,8 @@ export function readBoard(doc: Y.Doc, legacy = false): DecodedBoard {
   } as DecodedBoard;
 }
 
-export function readLiveBoard(doc: Y.Doc): BoardV15 {
+export function readLiveBoard(doc: Y.Doc): BoardV16 {
   const board = readBoard(doc);
-  if (board.schemaVersion !== 15) return invalid();
+  if (board.schemaVersion !== 16) return invalid();
   return board;
 }

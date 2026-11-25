@@ -85,10 +85,10 @@ test("X8-U00 picture-only import keeps routing, notices and size refusals",async
   await team.drop([file("b")]);assert.deepEqual(team.messages,["Adding b…",""]);assert.equal(team.writes.length,0);
   await team.drop([{...file("large"),size:20971521}]);assert.equal(team.messages.at(-1),"Could not add large: it is larger than 20 MiB.");
 });
-test("X8-U01 schema 15 validates every video field, canonical order and disjoint picture/video identities",async()=>{
+test("X8-U01 schema 16 validates every video field, canonical order and disjoint picture/video identities",async()=>{
   const rules=await import("../packages/board-rules/src/document.ts"),r=await import("../packages/board-rules/src/objects/registry.ts");
   const b=await board(),o=b.objects[0],patch=v=>({...b,objects:[{...o,...v}]});
-  assert.equal(b.schemaVersion,15);assert.equal(r.isVideo(o),true);assert(r.isMedia(o));assert.equal(r.pictureOf(o),o.poster);
+  assert.equal(b.schemaVersion,16);assert.equal(r.isVideo(o),true);assert(r.isMedia(o));assert.equal(r.pictureOf(o),o.poster);
   assert.deepEqual(new Set(r.assetsOf(o)),new Set([o.asset,o.poster]));assert(!r.eligibleIdea(o));assert(r.keepsProportions(o));
   const keys="id generation type page group section asset poster pixelWidth pixelHeight durationMs name description x y width height order".split(" ");
   assert.deepEqual(Object.keys(JSON.parse(rules.canonical(b)).objects[0]),keys);
@@ -99,7 +99,7 @@ test("X8-U01 schema 15 validates every video field, canonical order and disjoint
   for(const n of [1,1920])rules.validate(patch({pixelWidth:n,pixelHeight:n}));for(const n of [1,86400000])rules.validate(patch({durationMs:n}));
   assert.throws(()=>rules.validate({...b,schemaVersion:14}));rules.validate(patch({name:"🎬".repeat(255),description:"🎬".repeat(1000)}));
   const {addImages}=await import("../apps/web/src/images.ts");assert.throws(()=>rules.validate(addImages(b,[{hash:o.asset,picture:frame,width:2,height:3}],{x:0,y:0})));
-  for(const version of [13,14]){const old={...empty(),title:"Videos",schemaVersion:version};assert.deepEqual(rules.upgrade(old),{...old,schemaVersion:15});}
+  for(const version of [13,14]){const old={...empty(),title:"Videos",schemaVersion:version};assert.deepEqual(rules.upgrade(old),{...old,schemaVersion:16});}
 });
 test("X8-U02 content routing uses exact picture signatures before MP4, QuickTime and bounded EBML headers",async()=>{
   const r=await import("../apps/web/src/image-assets.ts");

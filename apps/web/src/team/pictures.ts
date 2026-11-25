@@ -2,6 +2,8 @@
 import { auth } from "./auth";
 import { settings } from "./config";
 
+import { previewRequest, readLinkPreview } from "../link-preview-client";
+
 type Upload = { ok: true } | { ok: false; kind: "offline" | "too_large" | "full" | "refused" };
 
 const timedOut = Symbol("picture timeout");
@@ -33,6 +35,18 @@ export class BoardPictures {
       Authorization: "Bearer " + (data.session?.access_token ?? ""),
       ...(body ? { "Content-Type": "application/octet-stream" } : {}),
     } });
+  }
+  async linkPreview(url: string, signal: AbortSignal) {
+    try {
+      const { data } = await auth.getSession();
+      signal.throwIfAborted();
+      const request = previewRequest(url, signal);
+      const endpoint = settings.serverUrl + "/boards/" + this.board() + "/link-preview";
+      const result = await readLinkPreview(await fetch(endpoint, {
+        ...request, headers: { ...request.headers, Authorization: "Bearer " + (data.session?.access_token ?? "") },
+      }));
+      return signal.aborted ? null : result;
+    } catch { return null; }
   }
   async upload(hash: string, bytes: ArrayBuffer, signal?: AbortSignal): Promise<Upload> {
     try {

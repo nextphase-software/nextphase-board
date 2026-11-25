@@ -17,10 +17,11 @@ export function pictureBase64(bytes: ArrayBuffer): string {
 }
 export async function writeBoardFile(shown: Board, unchanged?: Board, pictures: ReadonlyMap<string, Picture> = tabPictures, videos: ReadonlyMap<string, VideoRecord> = tabVideos) {
   const board = unchanged ?? shown, document = canonical(board);
-  for (const media of board.objects.filter(isMedia)) {
-    const hash = pictureOf(media)!, p = pictures.get(hash);
-    if (!p || isVideo(media) && p.mime !== "image/jpeg" || p.pixelWidth !== media.pixelWidth ||
-        p.pixelHeight !== media.pixelHeight || !await validPicture(assetKey(hash), p)) throw Error("a picture is unavailable");
+  for (const media of board.objects) {
+    const hash = pictureOf(media);
+    if (!hash) continue;
+    const p = pictures.get(hash);
+    if (!p || isVideo(media) && p.mime !== "image/jpeg" || isMedia(media) && (p.pixelWidth !== media.pixelWidth || p.pixelHeight !== media.pixelHeight) || !await validPicture(assetKey(hash), p)) throw Error("a picture is unavailable");
   }
   const hashes = boardVideos(board);
   for (const hash of hashes) if (!await validVideoRecord(assetKey(hash), videos.get(hash))) throw Error("a video is unavailable");
@@ -63,7 +64,7 @@ export async function readBoardBundle(file: { size: number; arrayBuffer: () => P
   }
   let board;
   try { board = JSON.parse(document); } catch { return refuse(FILE_REASONS[3]); }
-  if (Number.isSafeInteger(board?.schemaVersion) && board.schemaVersion > 15) refuse(FILE_REASONS[4]);
+  if (Number.isSafeInteger(board?.schemaVersion) && board.schemaVersion > 16) refuse(FILE_REASONS[4]);
   try { validate(board); if (canonical(board) !== document) refuse(FILE_REASONS[3]); }
   catch { return refuse(FILE_REASONS[3]); }
   const validated = board as Board;

@@ -2,15 +2,17 @@
   "name": "nextphase-board-server",
   "main": "src/worker.ts",
   "compatibility_date": "2026-10-30",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "triggers": { "crons": ["* * * * *"] },
   "durable_objects": { "bindings": [
     { "name": "ROOMS", "class_name": "BoardRoom" },
     { "name": "FENCES", "class_name": "RestoreFence" },
-    { "name": "TEMPLATE_MEDIA", "class_name": "TemplateMedia" }
+    { "name": "TEMPLATE_MEDIA", "class_name": "TemplateMedia" },
+    { "name": "LINK_LIMITS", "class_name": "LinkLimits" }
   ] },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["BoardRoom", "RestoreFence"] },
-    { "tag": "v2", "new_sqlite_classes": ["TemplateMedia"] }
+    { "tag": "v2", "new_sqlite_classes": ["TemplateMedia"] },
+    { "tag": "v3", "new_sqlite_classes": ["LinkLimits"] }
   ]
 }

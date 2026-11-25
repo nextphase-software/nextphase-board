@@ -245,7 +245,7 @@ for (const [version, maximum] of [[10, false], [11, false], [12, false], [12, tr
         assert.deepEqual(served, JSON.parse(canonical(upgrade(board))));
         assert.deepEqual(served.pages, [{ id: board.boardId, name: "Page 1" }]);
         assert(served.objects.every(object => object.page === board.boardId));
-        assert.equal(readBoard(f.room.doc).schemaVersion, 15);
+        assert.equal(readBoard(f.room.doc).schemaVersion, 16);
         assert.deepEqual(f.storage.all("SELECT * FROM edits"), []); assert.deepEqual(unchanged(), before);
         if (maximum) assert.equal(payloadBytes(canonical(served)), 2097152);
       }

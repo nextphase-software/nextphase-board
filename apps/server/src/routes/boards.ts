@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { canonical, upgrade, validate, type BoardV14 } from "nextphase-board-rules/document.ts";
-import { isMedia } from "nextphase-board-rules/objects/registry.ts";
+import { assetsOf } from "nextphase-board-rules/objects/registry.ts";
 import { validTitle } from "../cursor.ts";
 import { RoomError } from "nextphase-board-room/protocol.ts";
 import { boardDetails } from "../supabase.ts";
@@ -56,7 +56,7 @@ export function boards(app: ServerApp, runtime: Runtime) {
     if (imported) {
       try {
         const board = validate(value.document);
-        if (board.schemaVersion !== 13 && board.schemaVersion !== 14 && board.schemaVersion !== 15) throw Error();
+        if (board.schemaVersion !== 13 && board.schemaVersion !== 14 && board.schemaVersion !== 15 && board.schemaVersion !== 16) throw Error();
         document = upgrade(board);
       } catch { throw new RoomError(400, "invalid_document"); }
       if (staged && typeof importId === "string") {
@@ -69,7 +69,7 @@ export function boards(app: ServerApp, runtime: Runtime) {
         // UUIDs have the same byte length; check the stored title before creating a row.
         canonical({ ...document, title });
       } catch { throw new RoomError(400, "document_too_large"); }
-      if (document.objects.some(isMedia)) throw new RoomError(400, "images_not_supported");
+      if (document.objects.some(o => assetsOf(o).length)) throw new RoomError(400, "images_not_supported");
     }
     const row = await runtime.db.rpc("create_board", { workspace, person: person.id, title });
     const details = boardDetails(row);

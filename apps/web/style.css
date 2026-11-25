@@ -558,6 +558,8 @@ small {
 .paint-modes { display: flex; gap: 8px; margin-bottom: 12px; }
 .paint-modes button { flex: 1; }
 .context .paint-modes button[aria-pressed=true] { background: #7051cf; }
+.context .link-layout { display: flex; align-items: center; gap: 4px; }
+.context .link-layout button[aria-pressed=true] { background: #7051cf; border-radius: 6px; }
 .shape-swatches { display: grid; grid-template-columns: repeat(11, 40px); gap: 4px; }
 .shape-swatches .colour-dot { width: 26px; height: 26px; }
 .shape-swatches button[aria-pressed=true] .colour-dot, .custom-colour[data-pressed=true] {

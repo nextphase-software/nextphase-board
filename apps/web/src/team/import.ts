@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { readBoardBundle, FILE_REASONS } from "../board-file.ts";
 import { canonical, upgrade, type BoardV12 } from "nextphase-board-rules/document.ts";
-import { isImage, isMedia, isVideo, pictureOf } from "nextphase-board-rules/objects/registry.ts";
+import { assetsOf, isVideo, pictureOf } from "nextphase-board-rules/objects/registry.ts";
 
 export type ImportBody = { title: string; document: BoardV12 };
 export type ImportMedia = { hash: string; type: string; bytes: number; blob: Blob };
@@ -12,7 +12,7 @@ export async function importBoard<T>(file: Parameters<typeof readBoardBundle>[0]
   try { canonical(document); }
   catch { throw Error(FILE_REASONS[3]); }
   const title = document.title;
-  if (!board.objects.some(isMedia)) return send({ title, document });
+  if (!board.objects.some(o => assetsOf(o).length)) return send({ title, document });
   const media: ImportMedia[] = [], seen = new Set<string>();
   for (const object of board.objects) {
     const picture = pictureOf(object);
@@ -37,7 +37,7 @@ export async function importBoard<T>(file: Parameters<typeof readBoardBundle>[0]
   };
   for (const object of board.objects) {
     if (isVideo(object)) { add(object.poster, pictures.get(object.poster)!); add(object.asset, videos.get(object.asset)!); }
-    else if (isImage(object)) add(object.asset, pictures.get(object.asset)!);
+    else { const hash = pictureOf(object); if (hash) add(hash, pictures.get(hash)!); }
   }
   return { title, document, media };
 }

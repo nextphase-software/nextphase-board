@@ -66,6 +66,13 @@ self-host runner v10 and board lifecycle v8 contracts before the source commit.
 The volume-restore marker preserves marked staging files for that cleanup. The documentation commit updates this
 brief and the hosted persistence v13, self-host runner v10 and board lifecycle v8 contracts before the source commit.
 
+**Amendment A3 (2026-11-25).** Workspace guest refusals follow [access v16](../architecture/0003-access-v16.md)
+and the S456 expectations below.
+
+**Amendment A4 (2026-11-25).** Finish compensation tombstones the board and removes its SQL rows before
+erasing the importing room. On SQL failure it preserves the gate, claim and `finishing` mark for A1 expiry.
+Either cleanup failure answers 503 `creation_cleanup_failed`. S465 covers both failures and expiry on both runners.
+
 **New (seven files).**
 1. `packages/board-room/src/template-store.ts` (hosted storage v15)
 2. `apps/server/src/routes/imports.ts` (API v15, the import's open and upload)
@@ -355,6 +362,10 @@ the server-only run.
   201 is 409; exactly one row. A finish whose `create_board` reply is lost (the test proxy's `failAfter`) answers 503
   and leaves no row and no room; a finish whose `create_board` the proxy delays past the server's RPC timeout answers
   503, and once the delayed call has ended no row with that id exists (the tombstone refused it) and no room remains.
+  **Amendment A4 (2026-11-25).** A lost reply followed by a failed `discard_import` leaves the SQL row and gated
+  staging with its claim and mark. A failed room removal after SQL cleanup leaves the marked staging and the
+  tombstone. Both answer 503 `creation_cleanup_failed`. After each injected failure is cleared, expiry removes the
+  staging and the SQL board and lifecycle rows are absent.
 - **S466** while a room is importing, both before and after a board row with its id exists (the check claims the import
   through the room and inserts the row through the RPC, then probes before calling `create`): its socket join answers
   401; `GET /boards/:id/assets/:hash`, `/boards/:id/export`, its versions and the operator backup answer 404; none

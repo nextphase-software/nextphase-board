@@ -12,8 +12,13 @@ async function finishImport(runtime: Runtime, workspace: string, board: string, 
   const room = runtime.room(board);
   const token = await room.claimImport(person, workspace, document);
   const cleanup = async () => {
-    const results = await Promise.allSettled([runtime.db.discardImport(board, workspace), runtime.removeRoom(board)]);
-    if (results.some(result => result.status === "rejected")) throw new RoomError(503, "creation_cleanup_failed");
+    try {
+      // Keep the finishing mark available to the expiry alarm until SQL cleanup succeeds.
+      await runtime.db.discardImport(board, workspace);
+      await runtime.removeRoom(board);
+    } catch {
+      throw new RoomError(503, "creation_cleanup_failed");
+    }
   };
   let details;
   try {

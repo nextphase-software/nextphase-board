@@ -12,7 +12,8 @@ let driver: Driver, f: { workspace: string; a: string; people: Context["people"]
 beforeAll(async () => { driver = await makeDriver(context); });
 afterEach(async () => {
   await helper("proxy", { rpc: "create_board" });
-  await driver.control({ fixedNow: null, offset: 0 });
+  await helper("proxy", { rpc: "discard_import" });
+  await driver.control({ fixedNow: null, offset: 0, failLifecycle: "" });
 });
 afterAll(async () => { await driver?.close(); });
 
@@ -312,6 +313,36 @@ check(465, "import-claim", async () => {
     if (mode.delayMs) await wait(mode.delayMs);
     await helper("proxy", { rpc: "create_board" });
     assert.deepEqual(await rows("boards", { id: failed }), []);
+    assert.equal((await rows("deleted_board_ids", { board_id: failed })).length, 1);
+    await erased(failed);
+  }
+  for (const failure of ["sql", "room"]) {
+    const failed = await uploaded();
+    const parameters = { board: failed, workspace: f.workspace };
+    await helper("proxy", { rpc: "create_board", parameters, failAfter: true });
+    if (failure === "sql") await helper("proxy", { rpc: "discard_import", parameters, fail: true });
+    else await driver.control({ failLifecycle: "discard" });
+    await refused(finish(failed, document), 503, "creation_cleanup_failed");
+
+    const directoryRows = failure === "sql" ? 1 : 0;
+    assert.equal((await rows("boards", { id: failed })).length, directoryRows);
+    assert.equal((await rows("board_lifecycle", { board_id: failed })).length, directoryRows);
+    assert.equal((await rows("deleted_board_ids", { board_id: failed })).length, 1 - directoryRows);
+    const meta = await driver.rows(failed, "meta");
+    assert(!meta.some(row => row.key === "storage_version"));
+    const staging = JSON.parse(meta.find(row => row.key === "import")?.value);
+    assert.equal(staging.finishing, true);
+    assert.equal(typeof staging.claim.token, "string");
+    assert(Number.isSafeInteger(staging.claim.until));
+    assert((await driver.rows(failed, "pictures")).some(row => row.hash === picture.hash));
+    await refused(request(board(failed) + "/export"), 404, "not_found");
+
+    await helper("proxy", { rpc: "create_board" });
+    await helper("proxy", { rpc: "discard_import" });
+    await driver.control({ failLifecycle: "", fixedNow: staging.claim.until + 1, board: failed, alarm: true });
+    await driver.control({ fixedNow: null });
+    assert.deepEqual(await rows("boards", { id: failed }), []);
+    assert.deepEqual(await rows("board_lifecycle", { board_id: failed }), []);
     assert.equal((await rows("deleted_board_ids", { board_id: failed })).length, 1);
     await erased(failed);
   }

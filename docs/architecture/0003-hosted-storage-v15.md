@@ -37,6 +37,9 @@ or `{ token, until }`), all room clock milliseconds in its `meta` value. Its **d
   ([self-host runner v10](0003-self-host-runner-v10.md)). The same discard serves the finish's compensation and
   unknown ids: `Room.discardLifecycle` (and `TemplateStore`'s `discard`) is **exempt from the gate**, runs in the
   ordered queue, and on a staging does only this (it never refuses with the gate's 404).
+  **Amendment A4 (2026-11-25).** The finish route uses this discard only after SQL cleanup succeeds
+  ([API v15](0003-api-v15.md#staged-board-import)). A SQL failure preserves the importing gate, claim and
+  `finishing` mark for the expiry retry.
   An alarm before the deadline re-arms and does nothing else. A staging method that finds its deadline passed
   refuses 410 `upload_expired` and re-arms the alarm at once.
   With the `finishing` mark, the room first calls `env.access.discardImport(id, workspace)` to tombstone the id and

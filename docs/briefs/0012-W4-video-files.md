@@ -433,3 +433,186 @@ Amendment A3 (0012-W4 implement): `ItemV14` follows the current object type alon
 ## Implementation record
 
 (Append-only; the implementer adds its source validation here.)
+
+### Implementation on 2026-11-24
+
+Branch `codex/0012-W4-video-files`. Validated source and tests `a1d3ae45268400d66e09cfa408ddfc9aa56a6461`.
+The prerequisite base was `89a4ddfd92614ded11f4cb8260fa6be767c401a0` and the behaviour baseline was
+`efa921fecf592c1ca1ddbdb90efd43f351b04639`. The candidate used Node 26.13.0 and npm 11.20.0.
+The application now accepts MP4, MOV and WebM, carries their JPEG first frames through files and export, and
+keeps each person's playback in their tab. Team uploads stream into the existing room tables in 1 MiB parts.
+The dependency count, room layout (9), service tables (17) and bindings are unchanged.
+
+#### Source validation
+
+All rows refer to the validated source SHA above. Times are UTC on 2026-11-25. The web builds used
+`BOARD_SUPABASE_URL=http://127.0.0.1:55321 BOARD_SUPABASE_ANON_KEY=synthetic BOARD_SERVER_URL=http://127.0.0.1:8796`.
+The host's `pmset -g log` recorded zero sleep or wake transitions during the validation windows.
+
+| Result | UTC | Command and evidence |
+| --- | --- | --- |
+| PASS: V1 | 00:48:18 | `git show 89a4ddf:<path>` piped to `cmp - <path>` matched 20 of 20 files byte for byte. These cover six manifests, the npm lock, five accepted dependency locks, five inventories and three notices. Added dependencies: zero. |
+| PASS: V2 | 00:48:18–00:48:21 | `npm ci --ignore-scripts --no-audit --no-fund` installed 118 packages on the clean candidate and 118 on an independent archive of efa921f. Both exited 0. |
+| PASS: V3 | 00:48:21–00:48:22 | `npm run typecheck` passed all five workspaces with zero diagnostics. |
+| PASS: V4 | 00:48:22–00:48:29 | `npm test` passed 1,417 of 1,417 in 6.405 s, with zero failures, cancellations or skips. The three named unit files also passed independently, 31 of 31 in 1.157 s (00:52:11–00:52:12). |
+| PASS: V5 | 00:48:29 | `BOARD_TEAM_FEATURES=off npm run build` and `npm run audit:licenses` passed. `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v1.txt` exited 0. |
+| PASS: V6 | 00:48:29 | `npm run build:fixtures`, `BOARD_TEAM_FEATURES=on npm run build` and `npm run audit:licenses` passed. `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt` exited 0. |
+| PASS: V7 | 00:48:29–00:48:30 and 00:50:13–00:50:14 | `npm run build:server` built Node and Worker, and `npm run audit:licenses` passed. `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` built 1,430.23 KiB (296.28 KiB gzip). Wrangler 4.156.0 listed only `ROOMS` and `FENCES` and exited at the dry run. The first attempt ended at a sandbox-denied preferences directory. The successful retry used a scratch `XDG_CONFIG_HOME` and log path. |
+| PASS: V8 | 00:52:04 | Reviewed the changes and ran `git diff --name-status 89a4ddf..a1d3ae4` and `git diff --check 89a4ddf..a1d3ae4`. The 381 zero-context hunks cover 93 files (8 added, 85 modified), with 2,286 insertions and 390 deletions. All paths appear below. The diff check produced no output. |
+
+The focused command was `node --test --test-reporter=tap tests/video.test.mjs tests/video-playback.test.mjs tests/room-videos.test.mjs`.
+The 13 media tests (X8-U00–U12) cover existing picture imports, schema and file compatibility, byte signatures,
+preparation, both budgets, storage and cleanup, hosted uploads, download cancellation and Save a copy.
+The seven playback tests (X8-U20–U26) exercise selection, retained time, press and opening lifetimes, retries, notices,
+fullscreen and control markup. The 11 room tests (X8-U31–U41) exercise staging and publication, same-hash waiters,
+per-kind budgets, cancellation and cleanup, a resettable 60,000 ms idle timer, part-by-part reads, retention, restore,
+and the edit gate for new or changed video and JPEG references. The limit backup held 104,857,600 bytes of video and
+52,428,800 bytes of pictures in 150 parts. Its serialized size was 209,733,326 bytes against Node's 234,881,024-byte
+default. It restored, and the streamed videos matched their hashes.
+
+#### Validation log receipts
+
+The SHA-256 prefixes identify the command outputs. The V1 receipt covers the compared file list.
+
+| Check | Output name and digest |
+| --- | --- |
+| V1 | `compared` `b92f4449f5c44ee9` |
+| V2 | `v2-candidate.log` `1cd9e26314b87e0e`, `v2-baseline.log` `ebe85f03f5800e34` |
+| V3 | `v3.log` `6401c42ca0f07cac` |
+| V4 | `v4.log` `57ef7d280a983791`, `v4-focused.log` `48b8a092f6e6607a` |
+| V5 | `v5.log` `f487d01a47264543`, `v5-audit.log` `7bf914273592848e`, `v5-cmp.log` `e3b0c44298fc1c14` |
+| V6 | `v6-fixtures.log` `d10037338e529c19`, `v6.log` `f487d01a47264543`, `v6-audit.log` `7bf914273592848e`, `v6-cmp.log` `e3b0c44298fc1c14` |
+| V7 | `v7.log` `c8fbd0d3d1c9e3b3`, `v7-audit.log` `7bf914273592848e`, `v7-wrangler.log` `23e4de25418a1f51`, `v7-wrangler-retry.log` `4132269dfe2f9568` |
+| V8 | `v8-files.log` `a3cc12f2c8cc2d94`, `v8-check.log` `e3b0c44298fc1c14`, `v8-structure.log` `e08e1cc5ebc8fbce` |
+
+#### Streaming and module evidence
+
+- Both runners use `apps/server/src/routes/common.ts:21` to inspect the first 64 bytes and replay the input through a stream.
+  `apps/server/src/routes/pictures.ts:12–21` passes the video stream to the room. Its whole-body picture reader runs on the other branch.
+  A video GET returns the stream and its stored length at `apps/server/src/routes/pictures.ts:35–41`.
+- Node supplies the incremental SHA-256 writer at `apps/server/src/start-node.ts:107–112` and the backup default at line 132.
+  `packages/board-room/src/room.ts:324–335` dispatches the authenticated store and read. The Worker passes the request body
+  to the Durable Object at `apps/server/src/worker-runtime.ts:39–45,59–61`. The Durable Object passes `request.body` to the
+  room at `apps/server/src/worker-room.ts:96`. Its whole-body read at line 109 is specific to the picture action.
+- `packages/board-room/src/pictures.ts:233–237,256–272,278–296` accounts for incoming parts, feeds the incremental
+  hash and publishes the final row in one transaction. Lines 313–327 read one part per pull. The Durable Object and Worker
+  preserve length and propagate cancellation on the return path at `apps/server/src/worker-room.ts:99–106` and
+  `apps/server/src/worker-runtime.ts:63–70`. The response JSON on line 61 is an upload acknowledgement. X8-U31 and
+  X8-U40 exercise the route and Worker forwarding with instrumented streams. Backup inventories at
+  `packages/board-room/src/backups.ts:17–26` select only parts with published rows. The typed edit test exercises
+  `packages/board-room/src/edits.ts:58–65`.
+- The guards counted 28 state hooks, 21 scene parts, 56 team modules, 34 screen parts, 17 rules files and 12 object-type
+  modules. The playback hook has two effects and the player scene part has zero hooks. The 27 existing state hook
+  effect counts matched the base. The state hooks have zero scene-part imports. The stylesheet retains its base prefix.
+  The only page-policy addition is `media-src 'self' blob:`. The asset routes carry the hosted video and its poster.
+  Hosted import uses the tab cache. No source media, schema migration, binding, dependency or import exception was added.
+
+#### App composition
+
+Applying these three substitutions once each to the behaviour baseline reproduced the candidate's 264-line
+`apps/web/src/App.tsx` byte for byte.
+
+| efa921f line | Before (exact, once in the file) | After |
+| --- | --- | --- |
+| 2 | `import { GifMarks } from "./scene/gif-marks";` | `import { GifMarks } from "./scene/gif-marks"; import { useVideoPlayback } from "./state/use-video-playback"; import { VideoPlayer } from "./scene/video-player";` |
+| 125 | `  const gif = useGifPlayback({` | `  const video = useVideoPlayback({ opening: adapter.current, boardId: board.boardId, objects: displayedObjects, selected, bitmaps: images.bitmaps, pressedPlay, hosted: team?.hosted, hidden: tidy.open \|\| find.open \|\| (gestureBusy && !drag.current?.pan), setMessage }); const gif = useGifPlayback({` |
+| 175 | `zoom={view.z} /><Overlays` | `zoom={view.z} /><VideoPlayer player={video.player} pos={pos} zoom={view.z} /><Overlays` |
+
+
+#### Amendments and dispositions
+
+- A1 corrected the abort result in `docs/architecture/0003-hosted-storage-v14.md`. Aborting through the signal
+  returns `refused` and ends progress. Closing an opening discards its pending answer and produces no notice or cache entry.
+- A2 corrected the reading range in `docs/architecture/0001-document-v21.md`. Saved boards and board files accept 1–15.
+  The catalogue keeps its explicit schema-7 check. `apps/web/src/activities.ts` is byte-identical to the base.
+  A3 in the same contract preserves its existing type import through the current `ItemV14` alias.
+  `StoredItemV14` denotes the older union in the decoder. The three amendments are also recorded in this brief.
+- Web modules v48 gives the fullscreen flag and its action the same property name. The shared TypeScript interface
+  uses `fullScreen` for the boolean and `enterFullScreen()` for the action. The control keeps the specified name
+  and focus behaviour. The only additional type-only file is `apps/web/src/gesture.ts`, where `ResizeStart` accepts
+  a `VideoItem`. No outstanding escalation.
+- Current schema expectations move to 15, future-version refusals to 16 and current board files to version 3.
+  Historical inputs keep their pinned versions. S438 and X7-U21 write schema 14 in both representations of a storage-8
+  snapshot. X7-U26 uses the current restored head. The T-U11 live wire delta uses 15, while its pinned 14 input at
+  baseline line 388 stays intact. `tests/page-links.test.mjs:15` supplies a fixture without reading the version
+  and is unchanged. Three synthetic PNG fixtures in the image, board-file and team-import suites supply a complete
+  IHDR signature. No older assertion required changing for the 20–50 MiB unknown, non-image file reason.
+
+#### Deferred verification
+
+V9 was unrun. Both `npm run test:server:node` and `npm run test:server:workerd` require the server environment.
+Both Vitest configurations register S443–S452 (ten checks per runner). The cloud Checks workflow owns the counted
+suites. Speed checks and a 50 MiB upload and download on each live runner belong to the separate server-only run.
+The passing room checks used SQLite and stream doubles. V10–V14 remain for independent verification, including
+the browser scenarios and 28 design comparisons, the independent baseline capability runs, A–J and the prior milestone
+regressions. The 28 approved screens were read as design inputs. Manual checks are selected at Review.
+
+#### Files changed outside tests
+
+Paths are relative to the repository root. The 57 files here and 36 files in the next table account for the entire
+validated diff, including the three amendment documents.
+
+| Directory | Files |
+| --- | --- |
+| `.` | `vitest.node.config.ts`, `vitest.workerd.config.ts` |
+| `apps/server/src` | `runtime.ts`, `start-node.ts`, `templates.ts`, `worker-room.ts`, `worker-runtime.ts` |
+| `apps/server/src/routes` | `boards.ts`, `common.ts`, `pictures.ts` |
+| `apps/web` | `index.html`, `style.css` |
+| `apps/web/src` | `App.tsx`, `board-file.ts`, `clipboard.ts`, `gesture.ts`, `image-assets.ts`, `images.ts`, `sections.ts`, `storage.ts`, `strokes.ts`, `video.ts` |
+| `apps/web/src/scene` | `board-drawing.tsx`, `gif-marks.tsx`, `image-body.tsx`, `video-player.tsx` |
+| `apps/web/src/state` | `use-canvas-input.ts`, `use-editing-commands.ts`, `use-export.ts`, `use-images.ts`, `use-selection.ts`, `use-storage-session.ts`, `use-video-playback.ts` |
+| `apps/web/src/team` | `import.ts`, `pictures.ts`, `templates-rules.ts`, `voting-rules.ts` |
+| `apps/web/src/team/comments` | `layer.tsx` |
+| `apps/web/src/ui` | `image-controls.tsx`, `notice.tsx` |
+| `docs/architecture` | `0001-document-v21.md`, `0003-hosted-storage-v14.md` |
+| `docs/briefs` | `0012-W4-video-files.md` |
+| `docs/guides` | `try-board.md` |
+| `packages/board-room/src` | `backups.ts`, `edits.ts`, `history.ts`, `interfaces.ts`, `pictures.ts`, `room.ts` |
+| `packages/board-rules/src` | `document.ts` |
+| `packages/board-rules/src/objects` | `registry.ts`, `video.ts` |
+| `packages/board-sync/src` | `codec.ts`, `document-adapter.ts`, `session.ts`, `undo.ts` |
+
+
+#### Changed test lines
+
+These are the zero-context hunk ranges from the prerequisite base and the validated source, respectively.
+A dash means that side contributed zero lines to that hunk. A new file has one range covering its entire contents.
+
+| File | Base lines | Validated lines |
+| --- | --- | --- |
+| `tests/README.md` | — | 775–780 |
+| `tests/activities.test.mjs` | 53 | 53 |
+| `tests/board-catalog.test.mjs` | 235, 322 | 235, 322 |
+| `tests/board-file.test.mjs` | 47, 56, 71, 79, 85, 93, 96, 115, 117, 121, 139, 177 | 47, 56, 71, 79, 85, 93, 96, 115, 117, 121, 139, 177 |
+| `tests/connector-styles.test.mjs` | 45, 84, 478, 539 | 45, 84, 478, 539 |
+| `tests/connectors.test.mjs` | 37 | 37 |
+| `tests/document.test.mjs` | 43, 117, 132, 135, 246, 293, 375 | 43, 117, 132, 135, 246, 293, 375 |
+| `tests/images.test.mjs` | 17, 27, 56, 332–333 | 17, 27, 56, 332–333 |
+| `tests/import-fixture.mjs` | 16, 19, 86 | 16, 19, 86 |
+| `tests/mind-map.test.mjs` | 66, 70, 74 | 66, 70, 74 |
+| `tests/modules.test.mjs` | 58, 191, —, 216–217, 236, 244, 249, —, 449–450, 603, 751, — | 58, 191, 213, 217–218, 237, 245, 250, 278, 451–452, 605, 753–756, 786–792 |
+| `tests/objects.test.mjs` | 4, 11, 44 | 4, 11, 44 |
+| `tests/pages.test.mjs` | 26, 57, 205, 209, 213, 314 | 26, 57, 205, 209, 213–214, 315 |
+| `tests/room-pictures.test.mjs` | 80–82 | 80–82 |
+| `tests/room-videos.test.mjs` | — | 1–209 |
+| `tests/room.test.mjs` | 248 | 248 |
+| `tests/server/drawing-layout.test.ts` | 96–97, 102, 133, 137, 144 | 96–97, 102, 133, 137, 144 |
+| `tests/server/mind-maps.test.ts` | 105, 107, 114, 122, 189, 213 | 105, 107, 114, 122, 189, 213 |
+| `tests/server/node-test.ts` | — | 70 |
+| `tests/server/pages.test.ts` | 91, 99, 102, 129 | 91, 99, 102, 129 |
+| `tests/server/pictures.test.ts` | — | 171–177 |
+| `tests/server/tables.test.ts` | 115, 118, 122, 322, 328, 353 | 115, 118, 122, 322, 328, 353 |
+| `tests/server/videos.test.ts` | — | 1–255 |
+| `tests/server/voting.test.ts` | 52 | 52 |
+| `tests/shapes.test.mjs` | 39 | 39 |
+| `tests/shared-editing.test.mjs` | 74 | 74 |
+| `tests/storage.test.mjs` | 92, 116, 132 | 92, 116, 132 |
+| `tests/strokes.test.mjs` | 32, 96 | 32, 96 |
+| `tests/tables.test.mjs` | 34, 48, 381, 408, 410, 413 | 34, 48, 381, 408, 410, 413 |
+| `tests/team-import.test.mjs` | 19, 23, 29, 33, 35, 37, 64 | 19, 23, 29, 33, 35–36, 38, 65 |
+| `tests/team-templates.test.mjs` | 48 | 48 |
+| `tests/video-playback.test.mjs` | — | 1–129 |
+| `tests/video.test.mjs` | — | 1–256 |
+| `tests/workshop-reactions.test.mjs` | 18 | 18 |
+| `tests/workshop-spotlight.test.mjs` | 18, — | 18, 344–345 |
+| `tests/workshop-voting.test.mjs` | 18, 56 | 18, 56 |

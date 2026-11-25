@@ -548,3 +548,40 @@ and `tests/server/imports.test.ts` lines 151–152.
 Unrun on this revision: `npm run test:server:node`, `npm run test:server:workerd`, the
 server-only performance and full-size proofs, and V10–V14. The focused probes run without
 Supabase. No escalation.
+
+### Fix round 2 (2026-11-25)
+
+- Review fix round 1 of 3. Branch: `codex/0012-W6-team-import-templates-pictures`.
+  Reviewed record tip: `30eec0883bd6c63907ed5972bc842b7d69f07049`.
+  Validated source and tests: `32e9005d58745d494138b7dbc4d61c4084e07ec4`.
+- **N9-S10.** The import and template clauses now appear inside their “You should see” cells
+  in `docs/guides/try-board.md` at lines 236 and 244. A structural check verified the exact
+  endings, three cells per row and no other guide changes. The check covered 27 data rows
+  plus the header and separator.
+- **Amendment A4.** `apps/server/src/routes/boards.ts` awaits `discard_import` before
+  `removeRoom`. A SQL failure preserves the importing gate, claim, and finishing mark.
+  A room-removal failure follows a successful tombstone. Both return 503
+  `creation_cleanup_failed` and leave expiry responsible for the remaining staging.
+  API v15, hosted storage v15 and this brief record the amendment.
+- **Proof.** S465 uses the existing RPC proxy and lifecycle fault controls for both runners.
+  The two added cases in `tests/server/imports.test.ts` at lines 319–348 assert the cleanup
+  order, retained staging and expiry erasure. `node --check tests/server/imports.test.ts`
+  passed. A local `node --input-type=module` probe used the real route and an in-memory SQLite
+  room with a fake directory and clock. All four combinations passed: SQL or room-removal
+  failure after a lost create reply or failed promotion, followed by successful expiry.
+
+Node `26.13.0`, npm `11.20.0`, Wrangler `4.156.0`. Added dependencies: none.
+
+| Check | Command or inspection | Result |
+| --- | --- | --- |
+| V1 | Byte-compare manifests, locks, inventories and runtime notices against `6e27cb6` | PASS. 20 files byte-identical. |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` | PASS. 118 packages each on the candidate and an independent `ea4203c` checkout. |
+| V3 | `npm run typecheck` | PASS. Five workspace members. |
+| V4 | `npm test` | PASS. 1,443 passed, zero failed or skipped, including all 23 milestone checks. |
+| V5 | `BOARD_TEAM_FEATURES=off npm run build`, `npm run audit:licenses`, and `cmp` against runtime notices v1 | PASS. One build, one audit, one byte comparison. |
+| V6 | `BOARD_TEAM_FEATURES=on npm run build:fixtures`, `BOARD_TEAM_FEATURES=on npm run build`, `npm run audit:licenses`, and `cmp` against runtime notices v3 | PASS. Two builds, one audit, one byte comparison. |
+| V7 | `npm run build:server`, `npm run audit:licenses`, and `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` | PASS. Two server bundles, one audit and three dry-run bindings including `TEMPLATE_MEDIA (TemplateMedia)`. |
+| V8 | `git diff --name-status 6e27cb6..32e9005` and `git diff --check 6e27cb6..32e9005`, with hunk and protected-file inspection | PASS. 52 milestone paths and six repair paths. The protected UI matches the prerequisite base, with the one specified editing hook property. Wrangler carries the binding and migration. SQL and import video streaming match the reviewed revision. |
+
+Unrun on this revision: `npm run test:server:node` and `npm run test:server:workerd`, including
+the expanded S465, the server-only performance and full-size proofs, and V10–V14. No escalation.

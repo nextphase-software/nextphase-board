@@ -58,9 +58,9 @@ New in v17. The fetcher is [link preview v1](0012-link-preview-v1.md); the card 
   gate for `/boards/:board/*`: a board that is not active (trashed, moving, deleted) answers as that gate does for
   every other board route (404 `not_found`). The role is read in the route's own call; holding a card, a loading card
   or an earlier preview never counts as permission.
-- **Public route.** `POST /link-preview` has **no account and reads no token**. Only the exact path `/link-preview` is
+- **Public route. Amendment A3 (2026-11-25).** `POST /link-preview` has **no account and reads no token**. Only the exact path `/link-preview` is
   public; it is answered by its own branch before the bearer middleware, and every near match (`/link-preview/`,
-  another letter case, a longer path) still needs a token ([API v16](0003-api-v16.md)). It is open only when the
+  another letter case, a longer path), an encoded spelling of the path included, still needs a token ([API v16](0003-api-v16.md)). It is open only when the
   operator lists browser origins in `linkPreviewOrigins` ([self-host runner v11](0003-self-host-runner-v11.md)) and
   the request's `Origin` equals one of them; otherwise it is 404. An `Origin` header is easy to set outside a browser,
   so the origin list keeps other web pages from using the route, and the **per-address limit** (10 a minute and 200 a

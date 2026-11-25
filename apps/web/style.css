@@ -1745,6 +1745,7 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
 .video-track { position: absolute; left: 0; right: 0; top: 4px; height: 4px; border-radius: 2px; background: #ffffff4d; }
 .video-fill { position: absolute; left: 0; top: 4px; width: var(--fill); height: 4px; border-radius: 2px; background: white; }
 .video-seek { position: absolute; left: -6px; right: -6px; top: 0; width: calc(100% + 12px); height: 12px; margin: 0; appearance: none; -webkit-appearance: none; background: transparent; cursor: pointer; }
+.video-seek-box > .video-seek { padding: 0; border: 0; border-radius: 0; }
 .video-seek:disabled { cursor: default; }
 .video-seek::-webkit-slider-runnable-track { height: 12px; background: transparent; }
 .video-seek::-moz-range-track { height: 12px; background: transparent; }

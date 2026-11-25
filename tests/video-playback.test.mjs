@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID, createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { setImmediate as turn } from "node:timers/promises";
 import { build } from "esbuild";
 import { createElement } from "react";
@@ -10,7 +11,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 let compiled;
 function modules(){
   return compiled??=build({stdin:{resolveDir:new URL("../apps/web/src/",import.meta.url).pathname,loader:"ts",contents:
-    'export * from "./state/use-video-playback.ts";export * from "./scene/video-player.tsx";export * from "./image-assets.ts";export {render,dispose} from "react";'},
+    'export * from "./state/use-video-playback.ts";export * from "./state/use-canvas-input.ts";export * from "./scene/gif-marks.tsx";export * from "./scene/video-player.tsx";export * from "./image-assets.ts";export {render,dispose} from "react";'},
     bundle:true,write:false,platform:"node",format:"esm",jsx:"automatic",plugins:[{name:"hook",setup(p){
       p.onResolve({filter:/^react$/},()=>({path:"react",namespace:"stub"}));
       p.onResolve({filter:/^react\/jsx-runtime$/},arg=>({path:import.meta.resolve(arg.path),external:true}));
@@ -126,4 +127,73 @@ test("X8-U26 strip markup, 240 px boundary, loading controls, narrow fit and abs
   assert.match(html,/width:224px/);assert.doesNotMatch(html,/video-strip narrow/);
   html=markup(h.render(),.3);assert.match(html,/video-strip narrow/);assert.match(html,/width:120px/);assert.doesNotMatch(html,/aria-label="Seek"|aria-label="Mute"/);
   h.render().play();html=markup(h.render(),1);assert.match(html,/Loading video… 0%/);assert.doesNotMatch(html,/<input/);assert.match(html,/aria-label="Full screen" disabled/);
+});
+
+async function videoCanvas(t) {
+  const slots = [], noop = () => {};
+  let dispose = noop;
+  t.after(() => dispose());
+  const h = await fixture(t);
+  dispose = () => h.m.dispose(slots);
+  h.deselect();
+  const scene = { getBoundingClientRect: () => ({ left: 0, top: 0 }), focus: noop, setPointerCapture: noop };
+  const board = { boardId: h.input.boardId, objects: h.input.objects };
+  const props = {
+    page: board.boardId, model: { current: board }, scene: { current: scene },
+    spacePanRef: { current: false }, drag: { current: null }, view: { x: 200, y: 150, z: 1 },
+    size: { w: 400, h: 300 }, tool: "Select", drawing: {}, animated: new Set(), bitmaps: h.input.bitmaps,
+    displayedObjects: [{ ...h.video, displayHeight: h.video.height }], handlePoints: [], objectLayouts: new Map(),
+    trackPointer: noop, clearHistory: noop, finishTextSession: noop, setBusy: noop,
+    get selected() { return h.input.selected; },
+    select(ids) { h.input.selected = new Set(ids); },
+  };
+  const event = {
+    target: scene, currentTarget: scene, clientX: 150, clientY: 100,
+    isPrimary: true, button: 0, buttons: 0, pointerId: 1, preventDefault: noop,
+  };
+  const render = () => h.m.render(slots, () => h.m.useCanvasInput(props), noop);
+  return { ...h, props, event, canvas: render };
+}
+
+test("X8-U27 a video-only canvas shows the play mark on hover when the first frame is drawn", async t => {
+  const h = await videoCanvas(t);
+  const mark = () => renderToStaticMarkup(createElement(h.m.GifMarks, {
+    objects: h.props.displayedObjects, animated: h.props.animated, bitmaps: h.props.bitmaps,
+    selected: h.props.selected, hovered: h.canvas().hovered, pos: () => ({ left: 0, top: 0 }), zoom: 1,
+  }));
+  const frame = h.props.bitmaps.get(h.video.poster);
+  h.props.bitmaps.delete(h.video.poster);
+  h.canvas().pointerMove(h.event);
+  assert.equal(h.canvas().hovered, "");
+  assert.doesNotMatch(mark(), /class="gif-play"/);
+  h.props.bitmaps.set(h.video.poster, frame);
+  assert.doesNotMatch(mark(), /class="gif-play"/);
+  h.canvas().pointerMove(h.event);
+  assert.equal(h.canvas().hovered, h.video.id);
+  assert.match(mark(), /class="gif-play"/);
+});
+
+test("X8-U28 pressing within 20 px of a hovered video's centre selects it and starts playback", async t => {
+  const h = await videoCanvas(t);
+  h.canvas().pointerMove(h.event);
+  assert.equal(h.el.plays, 0);
+  h.canvas().pointerDown({ ...h.event, clientX: h.event.clientX + 20 });
+  assert.deepEqual([...h.input.selected], [h.video.id]);
+  h.input.pressedPlay = h.canvas().pressedPlay;
+  assert.deepEqual(h.input.pressedPlay, { id: h.video.id, sequence: 1 });
+  h.render();
+  h.render().onLoadedMetadata();
+  assert.equal(h.el.plays, 1);
+});
+
+test("X8-U29 the video seek input resets shared input chrome and keeps its focus outline", async () => {
+  const css = await readFile(new URL("../apps/web/style.css", import.meta.url), "utf8");
+  const strip = css.slice(css.indexOf(".video-player {"));
+  const seek = strip.match(/\.video-seek-box > \.video-seek\s*\{([^}]+)\}/)?.[1];
+  assert.ok(seek, "The range input needs a rule scoped to its seek box");
+  assert.match(seek, /\bpadding:\s*0\s*;/);
+  assert.match(seek, /\bborder:\s*0\s*;/);
+  assert.match(seek, /\bborder-radius:\s*0\s*;/);
+  assert.match(strip, /\.video-seek:focus-visible\s*\{[^}]*outline:\s*2px solid white;/);
+  assert.doesNotMatch(strip, /\bz-index\s*:/);
 });

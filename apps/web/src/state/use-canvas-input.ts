@@ -6,8 +6,8 @@ import { expandSelection, pressSelection, toggleGroup } from "../group";
 import { nearestHandle, type Corner } from "../resize";
 import type { View } from "../view";
 import { drawRectangle, dropped, placeObject, withMembers } from "../sections";
-import { hasPlayMark } from "../video.ts";
-import { isMedia, isVideo, isTape, isTable, table, type TapePattern, isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, isMindNode, type ShapePaint, type ConnectorStyle } from "nextphase-board-rules/objects/registry.ts";
+import { hasPlayMark, videoFrame } from "../video.ts";
+import { isMedia, isTape, isTable, table, type TapePattern, isContainer, hasText, inkInfo, isDrawingTool, isEraser, drawingKey, drawingStyleFor, type DrawingStyle, hasEnds, placementTool, typeForTool, toolForKey, creationValues, isMindNode, type ShapePaint, type ConnectorStyle } from "nextphase-board-rules/objects/registry.ts";
 import type { Drag, NodeDrop, ResizeStart } from "../gesture";
 import { branchIds, dropTarget, MAP_WORDS } from "../mind-map";
 
@@ -93,7 +93,8 @@ export function useCanvasInput({
   const [hoverAxis, setHoverAxis] = useState<TableBorder["axis"]>();
   const [hover, setHover] = useState({ key: "", id: "" });
   const [pressedPlay, setPressedPlay] = useState({ id: "", sequence: 0 });
-  const hoverAllowed = !!animated?.size && tool === "Select" && !busy && !drag.current && !inline && !textEditing;
+  const hoverAllowed = tool === "Select" && !busy && !drag.current && !inline && !textEditing &&
+    (!!animated.size || displayedObjects.some(object => videoFrame(object, bitmaps)));
   const hoverKey = hoverAllowed ? [model.current.boardId, page, tool, view.x, view.y, view.z].join("/") : "";
   const hovered = hoverAllowed && hover.key === hoverKey ? hover.id : "";
   if (hover.id && (!hoverAllowed || hover.key !== hoverKey)) setHover({ key: hoverKey, id: "" });
@@ -378,7 +379,7 @@ export function useCanvasInput({
   function pointerMove(e: React.PointerEvent<HTMLDivElement>) {
     trackPointer(e);
     const d = drag.current;
-    const hit = hoverAllowed && e.buttons === 0 && (animated.size || displayedObjects.some(isVideo)) ? hitObject(displayedObjects, point(e), view.z) : undefined;
+    const hit = hoverAllowed && e.buttons === 0 ? hitObject(displayedObjects, point(e), view.z) : undefined;
     const id = hit && isMedia(hit) && hasPlayMark(hit, animated, bitmaps) && !selected.has(hit.id) ? hit.id : "";
     if (id !== hovered) setHover({ key: hoverKey, id });
     if(!d&&voting?.pointerMove(e,hitObject(displayedObjects,point(e),view.z)))return;

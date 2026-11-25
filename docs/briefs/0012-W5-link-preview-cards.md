@@ -219,6 +219,8 @@ This inventory authorizes expectation changes, not additional historical runs.
 | --- | --- |
 | Tests pinning `OBJECT_TYPES`, the current schema 15 or a "newer" fixture at 16: `tests/document*.test.mjs`, `board-file.test.mjs`, `storage.test.mjs` (92–132), `board-catalog.test.mjs` (235, 322), `room-videos.test.mjs` (159–166), `pages.test.mjs` (209–214), `room-imports.test.mjs`, `mind-map.test.mjs`, `resize.test.mjs`, `tables.test.mjs`, `connectors.test.mjs`, `connector-styles.test.mjs`, `images.test.mjs`, `video.test.mjs`, `video-playback.test.mjs`, `strokes.test.mjs`, `sync*.test.mjs`, `team-import.test.mjs` (84), `team-templates.test.mjs` (48), `objects.test.mjs` (11, Amendment A1/A2 (2026-11-25): the exact registry order gains `link` directly after `video`), `room.test.mjs` (248), `shapes.test.mjs` (39), and every server check that asserts the current schema number (listed by the record) | The type list gains `link`; every assertion of the **current** schema moves from 15 to 16 and every **newer-than-current** fixture from 16 to 17; historical fixtures keep their declared versions. Every other assertion unchanged; must pass. The record lists each changed line |
 | `tests/modules.test.mjs` (the exact module lists, the App composition test, the line budget, counts and effect guards) | The new modules inserted in sorted order; title "through 0012-W5 v1". App.tsx's budget and composition change only by web modules v50's three wiring points. Every other guard unchanged; must pass |
+| `tests/pages.test.mjs` (0010-W2 F1 and F1b stylesheet comparisons) | **Amendment A4 (2026-11-25).** Exclude precisely the two link-control rule lines specified by web modules v50 from the current stylesheet, asserting that each occurs exactly once. The remaining prefix before `/* Pages:` must match each historical reference byte for byte. Every other assertion stays unchanged |
+| `tests/workshop-voting.test.mjs` (W2-U07) | **Amendment A4 (2026-11-25).** Add `link` immediately after `video` in the eligible type list, as document v22 gives cards `voting: true`. No other assertion changes |
 | Paste checks (`tests/clipboard*.test.mjs`, table/CSV paste, picture paste) | Unchanged; must pass. A clipboard holding Board objects, a table or a file still takes its existing path |
 | Board file and team import checks (`tests/team-import.test.mjs`, board file tests) | Unchanged for files without cards apart from the schema row above; must pass |
 | The 0001-W11 brief's AC02 ("canvas paste reads only Board's own clipboard") | Amended by this brief: system-clipboard text that is exactly one address now makes a card (or text); any other system-clipboard text is still ignored, and Board's own copy keeps its path |
@@ -228,6 +230,8 @@ This inventory authorizes expectation changes, not additional historical runs.
 | Local shell: A–J | No difference allowed outside the new card, bar and About line, which none of A–J shows |
 
 The record lists every changed line range under `tests/`.
+
+**Amendment A4 (2026-11-25).** Any other existing assertion of a list derived from `OBJECT_TYPES` may change on one recorded line to include `link` in registry order when document v22 makes it eligible for the list, and stays unchanged when the list's flag is false for cards.
 
 ## Browser checks
 

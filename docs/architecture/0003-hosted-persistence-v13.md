@@ -59,12 +59,14 @@ Assets of an imported board, once created, follow persistence v12's rules unchan
 are live; any staged asset the document does not name is an unused upload kept 24 hours from the create.
 
 **Known limits (pre-launch, accepted at G1):**
-- On Node, a runner stopped while a room or store is staging loses its in-memory timer; the staging file stays until
-  something opens it (which re-arms the alarm and erases it at once, hosted storage v15) — there is no start-up sweep.
-  Nothing in it is reachable: it has no board or template row.
-- `apps/server/scripts/mark-restored-volume.mjs` (the Node volume-restore marker) skips, and deletes with its `-wal`
-  and `-shm` files, every `boards/*.sqlite` whose `meta` holds `import` and no `storage_version`, so no recovery marker
-  is ever written into a staging; it marks every other file exactly as today and counts only those.
+- **Amendment A2 (2026-11-25).** Node loses in-memory timers when it stops. At start-up it does one read-only
+  `meta` read per board file and opens only importing rooms whose `finishing` mark is set, to re-arm their
+  deadlines. An unmarked import or a staging template store waits for a request to reopen it and re-arm expiry.
+  Those stagings have no board or template row.
+- **Amendment A2 (2026-11-25).** The Node volume-restore marker, `apps/server/scripts/mark-restored-volume.mjs`,
+  deletes each unmarked importing file with its `-wal` and `-shm` companions. For an importing file holding the
+  `finishing` mark, it skips the file and preserves it for start-up expiry. It writes no recovery marker to a
+  staging, marks every other file as today, and counts only the files it marks.
 - A committed store whose removal failed, or whose workspace was deleted with its templates, is left without a row
   that names it. It is unreachable and holds at most 20 MiB.
 

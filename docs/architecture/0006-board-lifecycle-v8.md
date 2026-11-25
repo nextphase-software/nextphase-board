@@ -17,6 +17,8 @@ remain word for word except as below.
   **Amendment A1 (2026-11-25).** When the server stops after the insert and before promotion, the board remains listed
   but cannot be opened while the importing gate is in force. At expiry, at most 600 s after the claim and longer
   only while the service cannot be reached, cleanup removes the board and lifecycle rows before erasing room storage.
+  **Amendment A2 (2026-11-25).** Node re-arms marked imports at startup, including after a volume restore. An
+  expired marked import runs cleanup on restart even if nobody opens the board.
 - **Board import** (`POST /workspaces/:workspace/boards`): **with** `import`, a document holding images and videos is
   accepted when the staging holds every file it names; **without** `import`, lifecycle v7's refusal stays word for
   word (400 `images_not_supported`). In the web app the reason "it holds pictures or videos, which team boards can't

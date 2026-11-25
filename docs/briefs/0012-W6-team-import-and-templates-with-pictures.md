@@ -62,6 +62,10 @@ this packet, recording that prerequisite base separately from the behaviour base
 when SQL cleanup fails. The documentation commit updates this brief and the API v15, hosted storage v15,
 self-host runner v10 and board lifecycle v8 contracts before the source commit.
 
+**Amendment A2 (2026-11-25).** Node rearms marked imports on start-up after inspecting the board files read-only.
+The volume-restore marker preserves marked staging files for that cleanup. The documentation commit updates this
+brief and the hosted persistence v13, self-host runner v10 and board lifecycle v8 contracts before the source commit.
+
 **New (seven files).**
 1. `packages/board-room/src/template-store.ts` (hosted storage v15)
 2. `apps/server/src/routes/imports.ts` (API v15, the import's open and upload)
@@ -354,6 +358,9 @@ the server-only run.
   through the room and inserts the row through the RPC, then probes before calling `create`): its socket join answers
   401; `GET /boards/:id/assets/:hash`, `/boards/:id/export`, its versions and the operator backup answer 404; none
   writes `storage_version` (inventory read); the `create` then succeeds.
+- **S467 (Amendment A2, 2026-11-25; Node only)** a marked staging whose claim expired while the runner was stopped
+  is erased and its board and lifecycle rows are removed by `discard_import` after restarting on the same data
+  folder, without a request to open that room.
 
 **Unit checks**, named `X9-U00` onwards across the new unit files:
 - `tests/team-media.test.mjs`: **X9-U00** (compatibility: a team import of a file without media sends today's single
@@ -373,6 +380,9 @@ the server-only run.
   stage, claim and create refuse 410, and re-arms 60,000 ms later; the next successful alarm discards the staging.
   An absent method also keeps and re-arms the staging. Released and never-claimed stagings expire without an RPC.
   A promoted room has no finish mark.
+- **Amendment A2 (2026-11-25), `tests/room-imports.test.mjs`:** run the volume-restore marker on a fixture folder with
+  a normal board, an unmarked staging and a marked staging. The board receives the existing recovery markers, the
+  unmarked staging and its companions are erased, and the marked staging is untouched. The printed count is one.
 
 A regression failure that also fails on ea4203c is a baseline finding to report, never fixed here.
 
@@ -406,8 +416,9 @@ delegated to implementation.
 
 - A Cancel control, parallel uploads and resuming an import: the import is seconds long for most boards.
 - Template stores in the operator backup: pre-launch; a later change.
-- A start-up sweep of staging files left by a stopped Node runner, and stores orphaned by an unknown SQL outcome, a
-  failed removal or a deleted workspace: unreachable, bounded, pre-launch (hosted persistence v13, "Known limits").
+- A start-up sweep of unmarked imports and staging template stores left by a stopped Node runner, and stores orphaned
+  by an unknown SQL outcome, a failed removal or a deleted workspace: unreachable, bounded, pre-launch (hosted
+  persistence v13, "Known limits").
 - Single-user templates with pictures; link previews; the template preview drawing pictures.
 - Repairs to separately tracked baseline failures.
 

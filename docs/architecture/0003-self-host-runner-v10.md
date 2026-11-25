@@ -65,6 +65,10 @@ The workerd test configuration (`vitest.workerd.config.ts`, `durableObjects`) ga
   answer is `{ discard: true }` (closing the database and deleting the `.sqlite`, `-wal` and `-shm` files as today).
   Template stores get the same timer and `removeTemplateMedia`. When the Node runner opens a room or store file
   whose `meta` holds a staging, it arms the timer to the stored deadline (hosted storage v15, "Reopening").
+  **Amendment A2 (2026-11-25).** After creating the data folders and before accepting requests, the runner
+  reads the `meta` of each `boards/<uuid>.sqlite` read-only, without creating tables or a room. If `import` holds
+  the `finishing` mark and `storage_version` is absent, it opens the room through the normal path to re-arm
+  expiry. A passed deadline runs A1 cleanup at once. Other files stay unopened by the runner.
 - `removeTemplateMedia` on Workers posts `/discard` to the store (`deleteAll()` and `deleteAlarm()`); on Node it
   closes and deletes the store's three files. Erasing a store that does not exist succeeds.
 - Room code still calls no timer itself: it reports deadlines through `env.schedule` as today (the shared-module

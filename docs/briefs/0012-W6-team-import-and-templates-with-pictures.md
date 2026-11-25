@@ -491,3 +491,49 @@ both runners and S467 on Node), the server-only performance and full-size proofs
 and V10–V14. Supabase and browser runs are outside the implementation sandbox.
 The original import cleanup escalations were resolved by A1 and A2. There was no
 further escalation.
+
+### Fix round 1 (2026-11-25)
+
+- REC-046 repair before check run 1. Branch: `codex/0012-W6-team-import-templates-pictures`.
+  Previous record tip and Checks run 45638252873 candidate: `7b978037fa5c49bb53c370b4c3a884127a0b251b`.
+  Validated source and tests: `92cb693afa22b502254f170912d4707fc39c2d3c`.
+- **S456, Amendment A3.** Both import suites exposed a mismatch between the expectation and the
+  existing workspace route authorization in S58. S456 now asserts that the viewer and granted
+  guest receive 403 `role_too_low` with `needed: "editor"`, and that the plain guest and outsider
+  receive 404 `not_found`. A focused Node probe with a synthetic workspace directory checked
+  all eight status and body outcomes on the import and template upload Open routes.
+- **S182, S219 and S432.** Jobs 139289450018 and 139289449773 failed on blob-size assertions for
+  `history_intent_chunks`, `version_chunks` and `picture_parts`. The workerd driver now reports
+  `{ bytes: byteLength }` for raw SQLite `ArrayBuffer` values as well as `Uint8Array`. A focused
+  Miniflare probe used real workerd SQLite and the driver's mapper to verify the three blob
+  tables and an absent table.
+- **S37.** Job 139289449986 exposed a harness regression. The baseline room inspection
+  opened the room through the Node runner, where `DELETE FROM waiting` runs on first open.
+  W6's read-only inventory exposed the persisted row before that open. The driver's
+  `wake(board)` now explicitly uses the existing settle control to reopen a room with
+  persisted waits. A focused Node driver probe restarted the child process against the same
+  SQLite folder, observed the wait after a cold restart, then confirmed that `wake` clears
+  it and that reads of an absent room create no file. The marker-only start-up scan and
+  S467's restart without a room request are unchanged.
+
+Node `26.13.0`, npm `11.20.0`, Wrangler `4.156.0`. Added dependencies: none.
+
+| Check | Command or inspection | Result |
+| --- | --- | --- |
+| V1 | Byte-compare manifests, locks, inventories and runtime notices against `6e27cb6` | PASS. 20 files byte-identical. |
+| V2 | `npm ci --ignore-scripts --no-audit --no-fund` | PASS. 118 packages each on the clean candidate and an independent `ea4203c` checkout. |
+| V3 | `npm run typecheck` | PASS. Five workspace members. |
+| V4 | `npm test` | PASS. 1,443 passed, zero failed or skipped, including all 23 milestone checks. |
+| V5 | `BOARD_TEAM_FEATURES=off npm run build`, `npm run audit:licenses`, and `cmp` | PASS. One build, one audit, one byte comparison against notices v1. |
+| V6 | `BOARD_TEAM_FEATURES=on npm run build:fixtures`, `BOARD_TEAM_FEATURES=on npm run build`, `npm run audit:licenses`, and `cmp` | PASS. Two builds, one audit, one byte comparison against notices v3. |
+| V7 | `npm run build:server`, `npm run audit:licenses`, and `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` | PASS. Two server bundles, one audit, three dry-run bindings including `TEMPLATE_MEDIA (TemplateMedia)`. |
+| V8 | `git diff --name-status 6e27cb6..92cb693` and `git diff --check 6e27cb6..92cb693`, with hunk and protected-file inspection | PASS. 52 milestone paths and five repair paths. Protected UI, SQL, Wrangler, import streaming and the existing S37, S182, S219 and S432 tests retain the validated implementation. |
+
+The clean candidate install, typecheck, suite, builds, audits and dry run ran from 15:09:46 UTC
+to 15:09:57 UTC. This round changes the access contract, this brief,
+`tests/server/driver-node.ts` lines 199–206, `tests/server/driver-workerd.ts` lines 178–179,
+and `tests/server/imports.test.ts` lines 151–152.
+
+Unrun on this revision: `npm run test:server:node`, `npm run test:server:workerd`, the
+server-only performance and full-size proofs, and V10–V14. The focused probes run without
+Supabase. No escalation.

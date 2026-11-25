@@ -321,9 +321,10 @@ the server-only run.
   id exists and the import still accepts uploads and a later correct finish (201); a finish whose `poster` is held as a
   PNG is 400 `asset_missing`. A finish with `import` for an id never opened is 410 `upload_expired`, and that id's
   storage is erased afterwards.
-- **S456** another editor's upload or finish to Ana's import is 403 `role_too_low`; a workspace viewer's and a workspace
-  guest's open are 403 with `needed: "editor"`; a non-member's 404; a second `begin` while an upload holds the lease is
-  409 `upload_in_progress`; Ben made a viewer between his last upload and his finish is refused 403 and
+- **S456** another editor's upload or finish to Ana's import is 403 `role_too_low`. **Amendment A3 (2026-11-25).**
+  Opening an import answers 403 `role_too_low` with `needed: "editor"` for a workspace viewer or a guest with a board
+  grant, and 404 `not_found` for a guest without a board grant or a non-member (S58). A second `begin` while an upload
+  holds the lease is 409 `upload_in_progress`; Ben made a viewer between his last upload and his finish is refused 403 and
   no row exists; an opener who edits two workspaces using the other workspace's routes gets 410.
 - **S457** an import opened, given one upload and left: once the check has waited 75,000 ms, the room's storage is
   erased and no row exists; a further `PUT` or finish answers 410 `upload_expired`, and the storage is still erased.

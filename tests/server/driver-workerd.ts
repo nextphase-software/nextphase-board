@@ -175,7 +175,8 @@ export async function makeDriver(context: Context): Promise<Driver> {
         const query = `SELECT * FROM "${table}"`;
         const rows = sql ? sql.exec(query).toArray() : storage.all(query);
         return rows.map((row: any) => Object.fromEntries(
-          Object.entries(row).map(([key, value]) => [key, value instanceof Uint8Array ? { bytes: value.byteLength } : value])));
+          Object.entries(row).map(([key, value]) => [key, value instanceof ArrayBuffer || value instanceof Uint8Array
+            ? { bytes: value.byteLength } : value])));
       });
     },
     async close() {

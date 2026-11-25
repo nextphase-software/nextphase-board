@@ -7,10 +7,13 @@ lifecycle, timer, voting, spotlight, reaction, template, picture and video right
 [API v15](0003-api-v15.md) adds the staged import, template media and asset sizes; this version gives their rights.
 Every step reads the role in its own call; no earlier step, upload id or staged file counts as permission.
 
-| Step | Owner of the workspace | Editor of the workspace | Viewer of the workspace, or a workspace guest (a board grant counts for nothing here) | Outsider, removed or disabled |
+**Amendment A3 (2026-11-25).** For the import and template upload routes below, the workspace `authorize()`
+check follows the existing board create rules (S58). This also clarifies the route role check in API v15.
+
+| Step | Owner of the workspace | Editor of the workspace | Viewer of the workspace or a workspace guest | Outsider, removed or disabled |
 | --- | --- | --- | --- | --- |
-| Open an import; upload to it; finish it (`…/imports…`, `POST …/boards` with `import`) | Yes, only their own import | Yes, only their own import | No: 403 `role_too_low` (`needed: "editor"`), as today's board create (S136) | No: 404 `not_found` |
-| Open a template upload; upload to it | Yes, only their own | Yes, only their own | No: 403 | No: 404 |
+| Open an import; upload to it; finish it (`…/imports…`, `POST …/boards` with `import`) | Yes, only their own import | Yes, only their own import | 403 `role_too_low` (`needed: "editor"`) for every viewer and for guests with a board grant. 404 `not_found` for guests without a board grant | No: 404 `not_found` |
+| Open a template upload; upload to it | Yes, only their own | Yes, only their own | 403 `role_too_low` (`needed: "editor"`) for every viewer and for guests with a board grant. 404 `not_found` for guests without a board grant | No: 404 `not_found` |
 | Save or replace a template with `upload` | As today's save and replace rights (team templates v2), plus: the upload is their own (else 403) | Same | No (today) | No (today) |
 | Read a template's assets (`GET …/templates/:t/assets/:hash`) | Yes | Yes | Viewer: yes. Guest: 403 `role_too_low` (the `get_template` rights) | 404 |
 

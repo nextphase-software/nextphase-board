@@ -148,8 +148,8 @@ check(456, "import-other-person, import-demoted and import-workspace", async () 
   const [picture] = await assets(), id = await opened([picture]);
   await refused(put(importPath(id), picture, "editor"), 403, "role_too_low", "editor");
   await refused(finish(id, withMedia(picture), "editor"), 403, "role_too_low", "editor");
-  for (const role of ["viewer", "plain"]) await refused(request(importPath(), "POST", { assets: sizes([picture]) }, role), 403, "role_too_low", "editor");
-  await refused(request(importPath(), "POST", { assets: sizes([picture]) }, "outsider"), 404, "not_found");
+  for (const role of ["viewer", "granted"]) await refused(request(importPath(), "POST", { assets: sizes([picture]) }, role), 403, "role_too_low", "editor");
+  for (const role of ["plain", "outsider"]) await refused(request(importPath(), "POST", { assets: sizes([picture]) }, role), 404, "not_found");
   const otherWorkspace = await rpc("bootstrap_workspace", { name: "Other " + crypto.randomUUID(), owner_id: f.people.owner.id, owner_email: f.people.owner.email });
   await refused(put(importPath(id, otherWorkspace), picture), 410, "upload_expired");
   await refused(finish(id, withMedia(picture), "owner", otherWorkspace), 410, "upload_expired");

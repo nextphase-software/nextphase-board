@@ -196,7 +196,14 @@ export async function makeDriver(context: Context): Promise<Driver> {
       if (value.fenceUnreadable !== undefined) { await chmod(resolve(dataDir, "restore-fences.sqlite"), value.fenceUnreadable ? 0 : 0o600); return {}; }
       return ipc(value);
     },
-    async wake(board) { if (docker) { execFileSync("docker", ["restart", container], { stdio: "pipe" }); await ready(); } else { await stop(); await start(); } },
+    async wake(board) {
+      if (docker) { execFileSync("docker", ["restart", container], { stdio: "pipe" }); await ready(); return; }
+      await stop();
+      await start();
+      // Reopen existing rooms with buffered edits through the runner's normal path.
+      // Inventory reads can inspect cold files without reopening a room.
+      if ((await ipc({ board, readOnlyRows: "waiting" })).length) await ipc({ board, settled: true });
+    },
     async restoreFile(board, envelope, fenced) {
       const file = resolve(folder, "rewind.sqlite");
       await rm(file, { force: true });

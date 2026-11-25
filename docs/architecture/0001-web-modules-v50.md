@@ -335,3 +335,8 @@ closed or replaced or the board turns read-only, and a team arrival held while a
 cancelled at `requestedAt + 15,000`, finished when the live board returns before it; `thumbnailSize` and
 `makeThumbnail` with doubles (640 px, JPEG 0.85, PNG when any alpha is below 255, a GIF's first frame, undecodable →
 `null`); `readLinkPreview` for each status and malformed body; `aboutLine`'s three answers and texts.
+
+**Amendment A5 (2026-11-25).** X10-U13 sends the concurrent move and arrival through the room in both save orders.
+Case A accepts the move first and keeps the arrival's rectangle. Case B accepts the arrival first and keeps the
+moved place at 306 × 288. In both cases every client converges to the same valid document with the finish keys.
+In at least one case the save-order winner has the lower Yjs client ID (sync v18).

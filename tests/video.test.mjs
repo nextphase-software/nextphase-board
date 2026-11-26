@@ -239,6 +239,7 @@ test("X8-U12 Save a copy stops on the first unavailable asset in object order an
   const last={...b.objects[0],id:randomUUID(),generation:randomUUID(),order:1,poster:"a".repeat(64),asset:"b".repeat(64)};
   b.objects.push(last);m.tabPictures.clear();m.tabVideos.clear();
   replace(t,"window",new EventTarget());replace(t,"createImageBitmap",async()=>bitmap(2,3));
+  replace(t,"crypto",{randomUUID,subtle:{digest:async(_,data)=>Uint8Array.from(Buffer.from(hash(data),"hex")).buffer}});
   const hosted={subscribe:()=>noop,history:{},snapshot:{board:b},pictures:{
     async download(key){calls.push(key);return key===clip.posterHash?frame.bytes:null;},
     downloadVideo(key,progress,signal){calls.push(key);const gate=Promise.withResolvers();requests.push({...gate,signal});return gate.promise;}}};

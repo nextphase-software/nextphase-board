@@ -554,3 +554,18 @@ M	vitest.workerd.config.ts
 - **2026-11-26 — Server-only fix round 1 (outside the three-round cap).** On `codex/0001-W27-links-in-text`, test commit `ff95a6ad6ecdc453939e7b82d91440103ffe7292` resets the fixture clock after the S479 capture alarm and before the authenticated history read. Both runners previously reached that read and returned HTTP 401 `token_expired`. The no-new-capture assertion is unchanged. On Node 26.13.0 and npm 11.20.0, `npm run typecheck` passed in all five workspaces and `npm test` passed all 1,503 checks with zero failures or skips (08:46:19–08:46:26 EST, with no sleep or wake recorded). The Node and workerd server suites were unrun for this fix because the sandbox cannot start Supabase. Zero dependencies added.
 
 - **2026-11-26 — Cloud Checks fix round 2 (outside the three-round cap).** On `codex/0001-W27-links-in-text`, test commit `392ed03c23e8f0bd0691e36a22067d21268f4ded` updates the S429 storage-8 upgrade delta expectation from 16 to 17 at `tests/server/tables.test.ts:328`, after Node failed that assertion in Checks run `45831285625` on `a05a419`. The audit of `tests/server/` and `tests/*.mjs` found no other assertions pinned to schema 16 as the current version. Historical fixtures and previews retain their declared versions. On Node 26.13.0 and npm 11.20.0, `npm run typecheck` passed in all five workspaces and `npm test` passed all 1,503 checks with zero failures or skips (08:51:54–08:52:01 EST, with no sleep or wake recorded). The Node and workerd server suites were unrun in the sandbox. Zero dependencies added.
+
+- **2026-11-26 — Fix round 1 after independent review.** On `codex/0001-W27-links-in-text`, validated source and
+  test commit `14594eb86dd0436bbe484b9d44df41e3f0c3be50` fixes Edit link with no selection (R1, X11-W19), draws
+  the blurred editor's selection across wrapped lines (R2, X11-W20), and clears pending or shown cards when
+  their live link changes (R3, X11-W21). It changes `apps/web/src/App.tsx`, `apps/web/src/state/use-text-links.ts`,
+  `apps/web/src/text-links.ts`, `apps/web/src/ui/content-field.tsx`, `apps/web/style.css`,
+  `tests/modules.test.mjs` and `tests/text-links.test.mjs`. Amendment A4 commit
+  `923165de1b83e56db92fc332b71a8d868cb68901` changes this brief and the interaction v53 and web modules v51
+  contracts. A literal search of the brief and architecture contracts found no remaining reliance on the browser
+  painting a selection in the blurred editor.
+
+  On Node 26.13.0 and npm 11.20.0, `npm run typecheck` passed in all five workspaces and `npm test` passed all
+  1,506 checks with zero failures or skips. With the new tests in an archive of `c6e97a6`,
+  `node --test --test-name-pattern='X11-W(19|20|21)' tests/text-links.test.mjs` failed at all three expected
+  assertions. The browser pass and both server suites were unrun in the sandbox. Zero dependencies added.

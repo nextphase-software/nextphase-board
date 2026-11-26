@@ -72,6 +72,11 @@ and availability. The fit rule, placement and ten App.tsx substitutions are unch
 link being rendered for one selected object in both fitting and non-fitting bars, with the existing hidden state
 when the bar does not fit. This note and the web modules v51 amendment are committed together before the source changes.
 
+**Amendment A3 (2026-11-26).** The per-render address writer compares against its last written board, page and object.
+Add an X11-W check that a later render or delivery leaves an independently changed address alone, and that a subsequent
+selection change writes once. P4-U08 stays unchanged. Bound X8-U29's CSS slice as specified below, and update the current
+schema expectation and title of T-U11 from 16 to 17. Commit this note and the web modules v51 amendment before the source.
+
 **New (eight).**
 1. `packages/board-rules/src/text-link.ts` (document v23, web modules v51)
 2. `apps/web/src/text-links.ts`
@@ -187,7 +192,8 @@ This inventory authorizes expectation changes, not additional historical runs.
 | Server and room tests that seed stored older boards | They keep building older boards in the old shape at their declared versions; a stored schema-16 board loads and upgrades to 17 (X11-R01 group) |
 | `tests/text-runs.test.mjs` | Unchanged; must pass as written (`layoutRuns` and `Piece` keep their shapes; link spans come from the new `linkSpans`) |
 | `tests/board-export.test.mjs:385–392` (X6-U09, the complete `BoardDrawing` props) | The expected props gain `pixelScale: fit.scale`; nothing else changes |
-| `tests/workshop-voting.test.mjs:150` (App order assertion) and the `style.css` source checks in `tables`, `tidy-up`, `video-playback`, `workshop-voting` and `workshop-spotlight` tests | Unchanged; must pass as written |
+| `tests/workshop-voting.test.mjs:150` (App order assertion) and the `style.css` source checks in `tables`, `tidy-up`, `video-playback`, `workshop-voting` and `workshop-spotlight` tests | Unchanged except for the X8-U29 slice below; must pass |
+| `tests/video-playback.test.mjs` X8-U29 | Amendment A3 (2026-11-26): End the CSS slice at the first appended link rule, so the slice holds exactly the existing video rules. Every assertion stays unchanged. |
 | `tests/connectors.test.mjs:518–528` (calls `ContentField` without the new props) | Unchanged; must pass as written: `links` and `textSelection` are optional with no-op defaults |
 | `tests/pages.test.mjs:343,442` (prefix byte comparisons of `style.css`) | Unchanged; must pass as written: the new rules are appended after every existing rule |
 | `ui/format-preview.tsx`'s Objects-panel preview | Unchanged output for every existing document: links are ignored and spans of equal flags recombined |

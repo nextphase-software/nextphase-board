@@ -301,10 +301,13 @@ the last write made while `getSelection().settled` was true. A write while the s
 as it was. While `getSelection().settled` is false (a pointer gesture is in progress), selection-driven writes are
 skipped and no write is made whose only difference is `object`. A required page-change or address-repair write uses
 `settledObject` only if that id passes the same validity checks on page `next`, and otherwise omits `object`.
-Its existing per-render effect (the second one, no dependency list) also calls it
-whenever the board has been shown (`addressReady`, below) and the address differs from what it would write, so a page
-change, an adoption, a selection change, a remote delete (a stale id drops out) and entering or leaving a history
-preview all rewrite it with `replaceState`. It sets `input.team.addressObject` to the object it wrote (or `undefined`).
+**Amendment A3 (2026-11-26).** Its existing per-render effect (the second one, no dependency list) also calls the writer
+whenever the board has been shown (`addressReady`, below). It compares the board, page and object it would write
+against what it last wrote (`addressBoard`, `addressPage` and `addressObject`). It writes with `replaceState` when
+that tuple changes, subject to A1's rule for unsettled selection. This covers an adoption, page or selection change,
+remote delete or hide, and entering or leaving a history preview. The effect does not compare against the current URL
+or repair other navigation. Interaction v46's hashchange path still repairs the address as before. The writer sets
+`input.team.addressObject` to the object it wrote (or `undefined`).
 It writes nothing while an object open (below) is waiting for its layout, so an incoming `object` stays in the address
 until adoption settles.
 

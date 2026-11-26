@@ -640,3 +640,35 @@ the prerequisite base. Test line numbers refer to the validated source.
 | `tests/team-templates.test.mjs` | 48 |
 | `tests/video.test.mjs` | 88, 91, 102 |
 | `tests/workshop-voting.test.mjs` | 56 |
+
+### Fix round 1 (2026-11-25)
+
+- Validated source `b5a08bb132cf88d5528529b914e8a8fc774d5ff7` on `codex/0012-W5-link-preview-cards`.
+- The cloud run on `191a48e` passed S468–S478 on both runners and reported the S140, S429 and X8-U12 failures addressed here. [Checks run 45729454572](https://github.com/nextphase-software/nextphase-board/actions/runs/45729454572)
+
+| Changed line | Fix |
+| --- | --- |
+| `tests/server/shared.test.ts:996` | S140 expects the exported exact-2 MiB document at schema 16. The imported fixture stays at schema 15. |
+| `tests/server/tables.test.ts:328` | S429 expects the schema-only Yjs update to carry 16. The historical snapshots keep their declared versions. |
+| `tests/video.test.mjs:242` | X8-U12 supplies a deterministic SHA-256 implementation in its fixture so the existing wait observes the video request regardless of Web Crypto worker scheduling. The wait and assertions are unchanged. |
+
+The `tests/server/` sweep found no other current-schema assertions at 15 or future-schema fixtures at 16.
+S422 was left untouched. The video-only Save a copy path performs the same checks in the same order as on
+`6029f6a`. A 30 ms delay on the second video-poster digest reproduced the 1-versus-2 wait failure and the
+late `window` error on both `191a48e` and `6029f6a`. When the wait failed, the test removed its `window`
+fixture while the second Save a copy was still pending. Its listener cleanup then reached the removed
+global. Node attributed that rejection to X8-U00, where the shared harness was first initialized. With the
+fixture change, both tests passed under the same delay reproducer and emitted no asynchronous-activity warning.
+
+| Command | Result on the fix revision |
+| --- | --- |
+| `npm test`, run 1 | 1,468 passed, zero failed or skipped |
+| `npm test`, run 2 | 1,468 passed, zero failed or skipped |
+| `npm test`, run 3 | 1,468 passed, zero failed or skipped |
+| `node --test --test-concurrency=1 tests/video.test.mjs` | 13 passed, zero failed or skipped |
+| `git diff --check 191a48e..b5a08bb` | Passed |
+
+The commands used Node `26.13.0` and npm `11.20.0` and ran from 00:52:38 to 00:53:00 UTC on November 26.
+The host was on AC power and recorded no sleep or wake in that interval. None of the four test runs
+reported asynchronous activity after a test ended. Both server suites remain unrun locally because this
+sandbox cannot start the Supabase CLI. No production source or dependency changed.

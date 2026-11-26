@@ -144,6 +144,7 @@ test("S479 text links pass through room edits, validation, import, templates and
     const history = await versions(oldId);
     await driver.control({ fixedNow: Date.now() + 5_400_001 });
     await driver.control({ board: oldId, alarm: true });
+    await driver.control({ fixedNow: null });
     assert.deepEqual(await versions(oldId), history);
     console.log(`PASS: S479 text links (${runner})`);
   } catch (error) {

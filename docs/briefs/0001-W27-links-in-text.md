@@ -543,3 +543,5 @@ M	tests/video.test.mjs
 M	vitest.node.config.ts
 M	vitest.workerd.config.ts
 ```
+
+- **2026-11-26 — Server-only fix round 1 (outside the three-round cap).** On `codex/0001-W27-links-in-text`, test commit `ff95a6ad6ecdc453939e7b82d91440103ffe7292` resets the fixture clock after the S479 capture alarm and before the authenticated history read. Both runners previously reached that read and returned HTTP 401 `token_expired`. The no-new-capture assertion is unchanged. On Node 26.13.0 and npm 11.20.0, `npm run typecheck` passed in all five workspaces and `npm test` passed all 1,503 checks with zero failures or skips (08:46:19–08:46:26 EST, with no sleep or wake recorded). The Node and workerd server suites were unrun for this fix because the sandbox cannot start Supabase. Zero dependencies added.

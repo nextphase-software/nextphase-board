@@ -325,7 +325,7 @@ check(429, "stored room upgrades and history and backup restores retain tables a
     if (storage === 8 && schemaVersion === 13) {
       const old = new Y.Doc(); docs.add(old); Y.applyUpdate(old, update);
       const delta = Y.decodeUpdate(Y.encodeStateAsUpdate(c.doc, Y.encodeStateVector(old))).structs;
-      assert.equal(delta.length, 1); assert.equal(delta[0].content.getContent()[0], 16);
+      assert.equal(delta.length, 1); assert.equal(delta[0].content.getContent()[0], 17);
     }
     await c.peer.close(); peers.delete(c.peer);
     assert.deepEqual(await ok(versionRoot(id)), versions);

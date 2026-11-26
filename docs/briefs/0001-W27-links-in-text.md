@@ -387,3 +387,159 @@ features. No unresolved product decision is delegated to implementation.
 ## Implementation record
 
 Append-only. The implementer adds dated sections here.
+
+### 2026-11-26 — Source implementation and validation
+
+| Item | Value |
+| --- | --- |
+| Branch | `codex/0001-W27-links-in-text` |
+| Behaviour baseline | `547423950e6e6e98a2e1160e15723b96ce57005d` |
+| Prerequisite base | `a743f601c75cb4089324fbc34834fc1bfb9dd955` |
+| Amendments A1, A2 and A3 | `b509650f409237d3d5f2dc143070524d745234b5`, `47e9f6860dfb6741bf3a25e5e2addd9f4b75d080`, `3f41664712d4b2c4d62cc4ff1abef2fe999343c9` |
+| Validated source and tests | `6dc059f679bbc07fecfef2cb1765fc5462aabb4c` |
+| Toolchain | Node `26.13.0`, npm `11.20.0`, Wrangler `4.156.0` |
+| Added dependencies | 0 |
+
+| Check | Command and result on the validated source |
+| --- | --- |
+| V1 | **PASS.** Byte-compared 20 tracked manifests, locks, dependency inventories and runtime notices against `a743f60`. All matched. `cmp package-lock.json docs/architecture/0001-dependency-lock-v5.json` also passed. |
+| V2 | **PASS.** `npm ci --ignore-scripts --no-audit --no-fund` at each repository root. 118 packages installed on the clean candidate and 118 on an independent archive of `5474239`. |
+| V3 | **PASS.** `npm run typecheck` exited 0 for all five workspaces. |
+| V4 | **PASS.** `npm test` reported 1,503 tests, 1,503 passed, 0 failed, 0 skipped, 0 cancelled. That includes 15 X11-R checks and 19 X11-W checks including X11-W00. The module and effect guards passed. |
+| V5 | **PASS.** `BOARD_TEAM_FEATURES=off npm run build`, `npm run audit:licenses` and `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v1.txt` each exited 0. One team-off bundle. |
+| V6 | **PASS.** `npm run build:fixtures`, `BOARD_TEAM_FEATURES=on npm run build`, `npm run audit:licenses` and `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt` each exited 0. One fixtures build and one team-on bundle. |
+| V7 | **PASS.** `npm run build:server`, `npm run audit:licenses` and `WRANGLER_SEND_METRICS=false npx wrangler deploy --dry-run --outdir <scratch> -c apps/server/wrangler.json` each exited 0. Two server bundles, both with verified v2 notices. Dry run exited without deploying. |
+| V8 | **PASS.** `git diff --name-status a743f60..6dc059f679bbc07fecfef2cb1765fc5462aabb4c` listed 75 files (8 added, 67 modified), including the two amended packet files. `git diff --check` on the same range passed. Reviewed hunks against the deliverables and dispositions. `App.tsx` has the ten recorded substitutions and 264 newlines. The stylesheet prefix is byte-identical and followed by exactly the 21 link rules. The guide has exactly the two specified rows. The text-link `window.open` call uses `noopener,noreferrer`. The object-address writes use `replaceState`. |
+
+The web build commands used `BOARD_SUPABASE_URL=http://127.0.0.1:55321`, `BOARD_SUPABASE_ANON_KEY=synthetic`
+and `BOARD_SERVER_URL=http://127.0.0.1:8796`. These settings were used for bundling. Validation ran from
+07:42:45 to 07:42:56 EST on 2026-11-26. The independent baseline install ran from 07:42:53 to 07:42:54 EST,
+source typecheck from 07:42:47 to 07:42:48 EST and the full unit suite from 07:42:48 to 07:42:54 EST.
+`pmset -g log` showed no sleep or wake during that interval.
+
+The module counts were 30 state hooks, 22 scene parts, 37 screen parts, 19 rules-package files, 13 object-type
+modules, 57 team modules and 12 board-sync modules. The text-links, Pages and canvas input hooks each had two
+passive effects and the editor placement hook had three. The page keys, editing commands, geometry edits and object
+layouts hooks had none. No type-only compatibility edits were needed outside the source deliverables.
+
+A1 resolved differing address rules for unsettled selection. A2 kept the link controls in the measured context bar.
+A3 corrected address-write deduplication, bounded X8-U29 to the video CSS, and updated T-U11's current schema
+expectation. P4-U08 passed with its original assertions. The final suite had no failures or pending escalations.
+
+**Unrun.** `npm run test:server:node` and `npm run test:server:workerd`, including the S479 case registered on both
+runners, are left for V9 and the server-only run. The implementation sandbox does not start Supabase or a browser.
+V10–V14, including the browser scenarios, design captures, independent baseline failure checks and accepted regression
+runs, are left for the independent check run. No acceptance or merge is recorded here.
+
+#### Schema test dispositions
+
+Line numbers refer to the validated source. Historical fixture values and service-table counts were retained.
+
+| Test file | Changed lines |
+| --- | --- |
+| `tests/board-catalog.test.mjs` | 235, 322 |
+| `tests/board-file.test.mjs` | 56, 79, 139 |
+| `tests/connector-styles.test.mjs` | 45, 84, 478, 539 |
+| `tests/connectors.test.mjs` | 37 |
+| `tests/document.test.mjs` | 43, 117, 132, 135, 246, 293, 375 |
+| `tests/images.test.mjs` | 27, 56 |
+| `tests/link-cards.test.mjs` | 255 |
+| `tests/mind-map.test.mjs` | 66, 70, 74 |
+| `tests/pages.test.mjs` | 26, 57, 205, 209, 214, 315 |
+| `tests/room-imports.test.mjs` | 106 |
+| `tests/room-videos.test.mjs` | 163, 166 |
+| `tests/room.test.mjs` | 248 |
+| `tests/server/drawing-layout.test.ts` | 96, 97, 102, 133, 137, 144 |
+| `tests/server/mind-maps.test.ts` | 105, 107, 114, 122, 189, 213 |
+| `tests/server/pages.test.ts` | 91, 99, 102, 129 |
+| `tests/server/shared.test.ts` | 996 |
+| `tests/server/tables.test.ts` | 115, 118, 122, 322, 353 |
+| `tests/shapes.test.mjs` | 39 |
+| `tests/storage.test.mjs` | 92, 116, 132 |
+| `tests/strokes.test.mjs` | 32, 96 |
+| `tests/tables.test.mjs` | 34, 48, 381, 408, 410, 413 |
+| `tests/team-import.test.mjs` | 84 |
+| `tests/team-templates.test.mjs` | 48 |
+| `tests/video.test.mjs` | 91, 102 |
+
+#### Files changed
+
+`git diff --name-status` from the prerequisite base through the validated source.
+
+```text
+M	apps/server/src/routes/boards.ts
+M	apps/server/src/templates.ts
+M	apps/web/src/App.tsx
+M	apps/web/src/board-file.ts
+M	apps/web/src/page-links.ts
+M	apps/web/src/scene/board-drawing.tsx
+M	apps/web/src/scene/export-drawing.tsx
+M	apps/web/src/scene/note-body.tsx
+M	apps/web/src/scene/shape-body.tsx
+M	apps/web/src/state/use-canvas-input.ts
+M	apps/web/src/state/use-editor-placement.ts
+M	apps/web/src/state/use-geometry-edits.ts
+M	apps/web/src/state/use-object-layouts.ts
+M	apps/web/src/state/use-page-keys.ts
+M	apps/web/src/state/use-pages.ts
+A	apps/web/src/state/use-text-links.ts
+M	apps/web/src/storage.ts
+M	apps/web/src/team/hosted-board.ts
+M	apps/web/src/team/links.ts
+M	apps/web/src/team/team-app.tsx
+M	apps/web/src/team/templates-rules.ts
+A	apps/web/src/text-links.ts
+M	apps/web/src/text-runs.ts
+M	apps/web/src/ui/content-field.tsx
+M	apps/web/src/ui/context-bar.tsx
+M	apps/web/src/ui/format-preview.tsx
+A	apps/web/src/ui/link-bar.tsx
+A	apps/web/src/ui/link-hover-card.tsx
+M	apps/web/src/ui/table-controls.tsx
+M	apps/web/style.css
+M	docs/architecture/0001-web-modules-v51.md
+M	docs/briefs/0001-W27-links-in-text.md
+M	docs/guides/try-board.md
+M	packages/board-room/src/edits.ts
+M	packages/board-room/src/history.ts
+M	packages/board-room/src/room.ts
+M	packages/board-rules/src/document.ts
+M	packages/board-rules/src/marks.ts
+M	packages/board-rules/src/objects/registry.ts
+M	packages/board-rules/src/platform.d.ts
+A	packages/board-rules/src/text-link.ts
+M	packages/board-sync/src/codec.ts
+M	tests/README.md
+M	tests/board-catalog.test.mjs
+M	tests/board-export.test.mjs
+M	tests/board-file.test.mjs
+M	tests/connector-styles.test.mjs
+M	tests/connectors.test.mjs
+M	tests/document.test.mjs
+M	tests/images.test.mjs
+M	tests/link-cards.test.mjs
+M	tests/mind-map.test.mjs
+M	tests/modules.test.mjs
+M	tests/pages.test.mjs
+M	tests/room-imports.test.mjs
+M	tests/room-videos.test.mjs
+M	tests/room.test.mjs
+M	tests/server/drawing-layout.test.ts
+M	tests/server/mind-maps.test.ts
+M	tests/server/pages.test.ts
+M	tests/server/shared.test.ts
+M	tests/server/tables.test.ts
+A	tests/server/text-links.test.ts
+M	tests/shapes.test.mjs
+M	tests/storage.test.mjs
+M	tests/strokes.test.mjs
+M	tests/tables.test.mjs
+M	tests/team-import.test.mjs
+M	tests/team-templates.test.mjs
+A	tests/text-link-rules.test.mjs
+A	tests/text-links.test.mjs
+M	tests/video-playback.test.mjs
+M	tests/video.test.mjs
+M	vitest.node.config.ts
+M	vitest.workerd.config.ts
+```

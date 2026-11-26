@@ -291,10 +291,12 @@ fits. Nothing else in the hook changes; still no effect.
 `writeAddress(next, boardId)` writes `pageLink(location.href, next, hostedBoard, object)` where `object` is the **valid
 live selection**: exactly one id in `getSelection().ids` that is an object of the open board on page `next`, not hidden
 (`hiddenIds`), while no history preview is shown (`input.team?.history.previewing`); otherwise `undefined` (no
-`object`). **While the selection is not settled** (`getSelection().settled` false: a pointer gesture is in progress)
-selection-driven writes are skipped entirely: a write the page change or an address repair still needs keeps the
-address's current `object` value (`readObjectValue(location.href, hostedBoard)`) unchanged, and no write is made whose
-only difference is `object`. Its existing per-render effect (the second one, no dependency list) also calls it
+`object`). **Amendment A1 (2026-11-26).** The `settledObject` ref remembers the object id, or `undefined`, written by
+the last write made while `getSelection().settled` was true. A write while the selection is unsettled leaves this ref
+as it was. While `getSelection().settled` is false (a pointer gesture is in progress), selection-driven writes are
+skipped and no write is made whose only difference is `object`. A required page-change or address-repair write uses
+`settledObject` only if that id passes the same validity checks on page `next`, and otherwise omits `object`.
+Its existing per-render effect (the second one, no dependency list) also calls it
 whenever the board has been shown (`addressReady`, below) and the address differs from what it would write, so a page
 change, an adoption, a selection change, a remote delete (a stale id drops out) and entering or leaving a history
 preview all rewrite it with `replaceState`. It sets `input.team.addressObject` to the object it wrote (or `undefined`).

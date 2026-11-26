@@ -58,6 +58,14 @@ Planning source baseline main **5474239**. Use a fresh milestone worktree and br
 this packet, recording that prerequisite base separately from the behaviour baseline. New source files carry
 `SPDX-License-Identifier: Apache-2.0`. Only these files may change, plus the append-only Implementation record below.
 
+**Amendment A1 (2026-11-26).** Interaction v53 LT12 governs address writes while the selection is unsettled. The
+amended address rule in [web modules v51](../architecture/0001-web-modules-v51.md#the-address-and-object-links)
+retains the last settled object in a required page-change or address-repair write only while that object is still
+valid for the page being written. Add X11-W cases for repair to another page, same-page repair before and after the
+last settled object is deleted or hidden, suppression of object-only writes during an unsettled selection, and a
+settled single selection writing its object. This note and the web modules v51 amendment are committed together
+before the source changes.
+
 **New (eight).**
 1. `packages/board-rules/src/text-link.ts` (document v23, web modules v51)
 2. `apps/web/src/text-links.ts`

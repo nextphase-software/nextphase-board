@@ -8,9 +8,67 @@ import { editorName, tableKey } from "../table";
 import type { TableEntry } from "../table";
 import type { CellAddress } from "nextphase-board-rules/objects/registry.ts";
 import type { TableItem } from "nextphase-board-rules/document.ts";
-import { editRange, type EditorLinks } from "../text-links";
+import { editRange, toUnits, type EditorLinks } from "../text-links";
 
 type Edit = { start: number; end: number };
+
+function selectionHighlight(overlay: HTMLDivElement, field: HTMLTextAreaElement, range: Edit) {
+  const doc = overlay.ownerDocument;
+  const mirror = doc.createElement("div");
+  mirror.className = "link-selection-mirror";
+  const marks = doc.createElement("div");
+  // Keep the whole value in one text node so shaping and wrapping are independent of the range.
+  const value = doc.createTextNode(field.value);
+  mirror.append(value);
+  overlay.append(mirror, marks);
+  const selection = doc.createRange();
+  selection.setStart(value, toUnits(field.value, range.start));
+  selection.setEnd(value, toUnits(field.value, range.end));
+
+  function draw() {
+    const box = field.getBoundingClientRect();
+    const parent = overlay.parentElement!.getBoundingClientRect();
+    // Keep fractional widths at canvas zoom and deduct any scrollbar from the field's box.
+    Object.assign(overlay.style, {
+      left: box.left - parent.left + field.clientLeft + "px",
+      top: box.top - parent.top + field.clientTop + "px",
+      width: box.width - (field.offsetWidth - field.clientWidth) + "px",
+      height: box.height - (field.offsetHeight - field.clientHeight) + "px",
+    });
+    const style = getComputedStyle(field);
+    for (const property of ["font-family", "font-size", "font-weight", "font-style", "font-stretch",
+      "font-kerning", "font-feature-settings", "line-height", "letter-spacing", "word-spacing",
+      "tab-size", "text-align", "text-indent", "text-transform", "direction", "white-space",
+      "overflow-wrap", "word-break", "padding-top", "padding-right", "padding-bottom", "padding-left"]) {
+      mirror.style.setProperty(property, style.getPropertyValue(property));
+    }
+    const origin = mirror.getBoundingClientRect();
+    const lineHeight = parseFloat(style.lineHeight);
+    const highlights = [];
+    for (const rect of selection.getClientRects()) {
+      if (rect.width <= 0) continue;
+      const highlight = doc.createElement("span");
+      Object.assign(highlight.style, {
+        left: rect.left - origin.left - field.scrollLeft + "px",
+        top: rect.top - origin.top - field.scrollTop + (rect.height - lineHeight) / 2 + "px",
+        width: rect.width + "px",
+        height: lineHeight + "px",
+      });
+      highlights.push(highlight);
+    }
+    marks.replaceChildren(...highlights);
+  }
+
+  draw();
+  field.addEventListener("scroll", draw);
+  const observer = new ResizeObserver(draw);
+  observer.observe(field);
+  return () => {
+    field.removeEventListener("scroll", draw);
+    observer.disconnect();
+    overlay.replaceChildren();
+  };
+}
 
 type Props = {
   tableEntry: TableEntry;
@@ -81,6 +139,7 @@ export function ContentField({
   const node = !!item && isMindNode(item);
   const label = type && !type.richText && !node ? "Name" : "Content";
   const limit = type?.textLimit ?? 1000;
+  const highlight = inline && links?.open ? links.highlight : undefined;
   function track(e: SyntheticEvent<HTMLTextAreaElement>) {
     const field = e.currentTarget;
     setTextSelection(item ? { id: item.id,
@@ -151,6 +210,9 @@ export function ContentField({
           }
         }}
       />
+      {highlight && <div className="link-selection" aria-hidden="true" ref={overlay => {
+        if (overlay && editor.current) return selectionHighlight(overlay, editor.current, highlight);
+      }} />}
       <small>{count(text)} / {limit.toLocaleString("en-US")} code points</small>
     </>
   );

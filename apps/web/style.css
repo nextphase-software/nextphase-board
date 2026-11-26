@@ -1780,3 +1780,8 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
 .context button.link-button[aria-pressed=true] { background: #7051cf; color: white; border-radius: 6px; }
 .context button.link-button[aria-pressed=true]:hover:not(:disabled) { background: #6142be; color: white; border-radius: 6px; }
 .inline:has(textarea.link-open) { outline: 3px solid #7051cf; outline-offset: 4px; }
+.inline textarea.link-open { position: relative; z-index: 1; }
+.link-selection { position: absolute; overflow: hidden; pointer-events: none; }
+.link-selection-mirror { width: 100%; visibility: hidden; }
+.link-selection span { position: absolute; background: #aec9f4; }
+.inline textarea.link-open:focus + .link-selection { visibility: hidden; }

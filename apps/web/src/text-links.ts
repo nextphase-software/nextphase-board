@@ -155,6 +155,7 @@ export type LinkPointer = {
 };
 export type EditorLinks = {
   open: boolean;
+  highlight?: Range;
   key(event: KeyboardEvent): boolean;
   paste(event: ClipboardEvent): boolean;
   keepsEditing(next: EventTarget | null): boolean;

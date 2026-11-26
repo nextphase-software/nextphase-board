@@ -255,7 +255,7 @@ check(13, "only visible blocking surfaces count", async t => {
   assert(blockingSurfaceOpen(root([{ getClientRects: () => [1], visibility: "visible" }])));
 });
 
-check(14, "the scene draws separate Lines from spans and the stylesheet ends with the 21 rules", async () => {
+check(14, "the scene draws separate Lines from spans and the stylesheet ends with the link rules", async () => {
   await rules();
   for (const part of ["note-body", "shape-body"]) {
     const source = await readFile(new URL(`../apps/web/src/scene/${part}.tsx`, import.meta.url), "utf8");
@@ -266,8 +266,9 @@ check(14, "the scene draws separate Lines from spans and the stylesheet ends wit
   const contract = await readFile(new URL("../docs/architecture/0001-web-modules-v51.md", import.meta.url), "utf8");
   const block = contract.split("### CSS")[1].split("```css\n")[1].split("```")[0];
   assert.equal(block.trim().split("\n").length, 21);
+  const amendment = contract.split("#### Selection highlight CSS")[1].split("```css\n")[1].split("```")[0];
   const css = await readFile(new URL("../apps/web/style.css", import.meta.url), "utf8");
-  assert(css.endsWith(block));
+  assert(css.endsWith(block + amendment));
 });
 
 async function modules() {
@@ -288,6 +289,8 @@ async function modules() {
     export { usePages } from './state/use-pages.ts';
     export { useTextLinks } from './state/use-text-links.ts';
     export { ContextBar } from './ui/context-bar.tsx';
+    export { ContentField } from './ui/content-field.tsx';
+    export { LinkBar } from './ui/link-bar.tsx';
     export { begin, flush } from 'test-react';`, resolveDir: new URL("../apps/web/src/", import.meta.url).pathname },
     bundle: true, write: false, format: "esm", platform: "node", jsx: "automatic", define: { "process.env.NODE_ENV": '"production"' },
     plugins: [{ name: "scheduler", setup(build) {
@@ -427,4 +430,178 @@ check(17, "only a qualifying canvas paste replaces marks in one commit and leave
   assert.deepEqual(model.current.objects[0].marks, [mark(1, 3)]);
   assert.equal(model.current.objects[0].text, field.value);
   assert.deepEqual([field.selectionStart, field.selectionEnd], [1, 4]);
+});
+
+async function hoverFixture(t) {
+  const { linkBoxes } = await rules(), { layoutRuns, lineSources, linkSpans } = await textRuns();
+  globals(t);
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const m = await modules(), board = await fixture(), [note] = board.objects;
+  const field = { value: "🧭Lunch today", focus() {}, setSelectionRange(start, end) { this.selection = [start, end]; } };
+  const input = { board, model: { current: board }, pages: { id: note.page }, selected: new Set(), inline: false,
+    textSelection: null, editor: { current: field }, commandReason: "", selectionReason: "Select an object to duplicate or delete.",
+    tool: "Select", view: { x: 0, y: 0, z: 1 }, size: { w: 1200, h: 800 }, pos: p => ({ left: p.x, top: p.y }) };
+  let point;
+  function change(marks, text = field.value) {
+    const item = { ...note, marks, text, align: "left", displayHeight: note.height };
+    const runs = layoutRuns(item.text, marks, 200, measure);
+    const layout = { height: item.height, runs, links: linkSpans(item.text, marks, runs, lineSources(item.text, lineText(runs)), measure) };
+    const [box] = linkBoxes(item, layout);
+    if (box) point = { x: box.x + 2, y: box.y + 2 };
+    Object.assign(input, { board: { ...board, objects: [item, board.objects[1]] }, objects: [item], objectLayouts: new Map([[item.id, layout]]) });
+    input.model.current = input.board;
+  }
+  change([mark(1, 6)]);
+  const draw = () => { m.begin(); const links = m.useTextLinks(input); m.flush(); return links; };
+  function rest() { draw().pointer.move(point, { pointerType: "mouse", buttons: 0 }); }
+  function waited() { t.mock.timers.tick(300); return draw().card; }
+  return { input, field, change, draw, rest, waited, LinkBar: m.LinkBar };
+}
+
+check(19, "card Edit link selects and edits its object across selections, with command and Tidy up guards", async t => {
+  const { input, field, draw, rest, waited, LinkBar } = await hoverFixture(t);
+  const item = input.objects[0], actions = [];
+  input.select = id => { actions.push(["select", id]); input.selected = new Set([id]); input.selectionReason = ""; };
+  input.edit = target => { actions.push(["edit", target]); input.inline = true; };
+
+  rest();
+  assert(waited()?.editable);
+  input.commandReason = "Finish the current text edit first.";
+  draw().card.edit();
+  assert.deepEqual(actions, []);
+  input.commandReason = "";
+  input.tidyOpen = true;
+  assert.equal(draw().card, null);
+  input.tidyOpen = false;
+  input.readOnly = true;
+  rest();
+  assert.equal(waited()?.editable, false);
+  draw().card.edit();
+  assert.deepEqual(actions, []);
+  input.readOnly = false;
+
+  for (const selected of [[], [input.board.objects[1].id], input.board.objects.map(o => o.id)]) {
+    actions.length = 0;
+    input.selected = new Set(selected);
+    input.selectionReason = selected.length ? "" : "Select an object to duplicate or delete.";
+    rest();
+    waited().edit();
+    assert.deepEqual(actions, [["select", item.id], ["edit", item]]);
+    draw().placed(true);
+    const opened = draw();
+    assert.deepEqual(field.selection, [2, 7]);
+    assert.deepEqual(opened.editor.highlight, { start: 1, end: 6 });
+    const [address] = LinkBar({ bar: opened.controls.bar, top: 0 }).props.children;
+    assert.equal(address.props.value, external);
+    assert(address.props.autoFocus);
+    let selectedAddress = false;
+    address.props.onFocus({ currentTarget: { select() { selectedAddress = true; } } });
+    assert(selectedAddress);
+    opened.controls.bar.close();
+    // End editing before hovering again.
+    draw();
+    input.inline = false;
+  }
+});
+
+check(20, "the link bar's blurred editor highlights the stored range across wrapped lines", async t => {
+  const m = await modules(), [item] = (await fixture()).objects;
+  const value = "🧭Lakeside Hall and more";
+  const listeners = new Map();
+  const measuredStyles = { "font-family": "system-ui", "font-size": "18px", "line-height": "26px",
+    "padding-left": "4px", "white-space": "pre-wrap", "overflow-wrap": "break-word", "text-align": "center" };
+  const field = { value, clientWidth: 97, offsetWidth: 112, clientHeight: 70, offsetHeight: 70,
+    clientTop: 0, clientLeft: 0, scrollLeft: 0, scrollTop: 0,
+    getBoundingClientRect: () => ({ left: 101.5, top: 204.5, width: 111.5, height: 70 }),
+    addEventListener: (name, draw) => listeners.set(name, draw),
+    removeEventListener: (name, draw) => { assert.equal(listeners.get(name), draw); listeners.delete(name); },
+  };
+  let resized, observed, disconnected = false;
+  for (const [name, replacement] of Object.entries({
+    getComputedStyle: () => ({ lineHeight: measuredStyles["line-height"], getPropertyValue: key => measuredStyles[key] ?? "" }),
+    ResizeObserver: class {
+      constructor(callback) { resized = callback; }
+      observe(element) { observed = element; }
+      disconnect() { disconnected = true; }
+    },
+  })) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, name);
+    Object.defineProperty(globalThis, name, { configurable: true, value: replacement });
+    t.after(() => { if (previous) Object.defineProperty(globalThis, name, previous); else delete globalThis[name]; });
+  }
+  const node = () => ({
+    children: [], style: { setProperty(key, value) { this[key] = value; } },
+    append(...children) { this.children.push(...children); },
+    replaceChildren(...children) { this.children = children; },
+    getBoundingClientRect: () => ({ left: 101.5, top: 204.5 }),
+  });
+  const overlay = node(), boundaries = [];
+  overlay.parentElement = { getBoundingClientRect: () => ({ left: 100, top: 200 }) };
+  overlay.ownerDocument = {
+    createElement: node, createTextNode: text => ({ text }),
+    createRange: () => ({
+      setStart: (text, offset) => boundaries.push([text, offset]),
+      setEnd: (text, offset) => boundaries.push([text, offset]),
+      getClientRects: () => [
+        { left: 149, top: 207.5, width: 40, height: 20 },
+        { left: 117, top: 233.5, width: 27, height: 20 },
+        { left: 144, top: 233.5, width: 0, height: 20 },
+      ],
+    }),
+  };
+  function render(open, inline = true) {
+    return m.ContentField({ item, inline, text: value, editor: { current: field }, links: { open, highlight: { start: 1, end: 14 } } }).props.children;
+  }
+  const [, textarea, selection] = render(true);
+  assert.equal(textarea.props.className, "link-open");
+  assert.equal(textarea.props.value, value);
+  assert.equal(selection.props["aria-hidden"], "true");
+  const remove = selection.props.ref(overlay);
+  const [mirror, paint] = overlay.children;
+  assert.deepEqual(boundaries, [[mirror.children[0], 2], [mirror.children[0], 15]]);
+  assert.equal(mirror.children[0].text, value);
+  for (const [property, style] of Object.entries(measuredStyles)) assert.equal(mirror.style[property], style);
+  assert.equal(overlay.style.left, "1.5px");
+  assert.equal(overlay.style.top, "4.5px");
+  assert.equal(overlay.style.width, "96.5px");
+  const rectangles = () => paint.children.map(({ style: { left, top, width, height } }) => [left, top, width, height]);
+  assert.deepEqual(rectangles(), [["47.5px", "0px", "40px", "26px"], ["15.5px", "26px", "27px", "26px"]]);
+  field.scrollTop = 7; field.scrollLeft = 2; listeners.get("scroll")();
+  assert.deepEqual(rectangles(), [["45.5px", "-7px", "40px", "26px"], ["13.5px", "19px", "27px", "26px"]]);
+  field.clientWidth = 112; resized();
+  assert.equal(observed, field);
+  assert.equal(overlay.style.width, "111.5px");
+  const css = await readFile(new URL("../apps/web/style.css", import.meta.url), "utf8");
+  assert.match(css, /\.link-selection \{[^}]*pointer-events: none;/);
+  assert.match(css, /\.link-selection span \{[^}]*background: #aec9f4;/);
+  assert.match(css, /textarea\.link-open:focus \+ \.link-selection \{ visibility: hidden; \}/);
+  assert(!render(true, false)[2]);
+  assert(!render(false)[2]);
+  remove();
+  assert.equal(listeners.size, 0);
+  assert(disconnected);
+  assert.deepEqual(overlay.children, []);
+});
+
+check(21, "a pending or shown hover is dropped when its live link address, range or layout changes", async t => {
+  const { input, change, draw, rest, waited } = await hoverFixture(t);
+  const replacement = "https://example.org/";
+  rest();
+  change([mark(1, 6, replacement)]);
+  assert.equal(draw().card, null);
+  assert.equal(waited(), null);
+
+  rest();
+  assert.equal(waited()?.label.text, replacement);
+  change([mark(1, 6)]);
+  assert.equal(draw().card, null, "an Undo changing the address hides the old card");
+  rest();
+  assert.equal(waited()?.label.text, external);
+
+  change([mark(2, 6)]);
+  assert.equal(draw().card, null, "changing the run with the same address hides the old card");
+  rest();
+  assert.equal(waited()?.label.text, external);
+  input.objectLayouts = new Map();
+  assert.equal(draw().card, null, "a link missing from the drawn layout cannot keep its card");
 });

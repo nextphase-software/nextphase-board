@@ -7,7 +7,7 @@ import { hasText, objectKind, objectType } from "nextphase-board-rules/objects/r
 import { clipboardRefused, pageLink } from "../page-links";
 import {
   blockingSurfaceOpen, cardPlace, copyObjectLabel, isLinkShortcut, isMac, isPlainPasteKey, linkButton, linkLabel, linkTooltip,
-  linkUnder, LINK_WORDS, objectCopied, pastedLink, sameBoardLink, toUnits,
+  linkBoxes, linkUnder, LINK_WORDS, objectCopied, pastedLink, sameBoardLink, toUnits,
   type EditorLinks, type LinkBarModel, type LinkCardModel, type LinkControls, type LinkHit, type LinkPages, type LinkPointer, type LinkPress,
 } from "../text-links";
 import type { HostedBoard } from "../team/hosted-board";
@@ -44,6 +44,7 @@ type TextLinksInput = {
   tool: string;
   tidyOpen: boolean;
   barShown: boolean;
+  commandReason: string;
   selectionReason: string;
   ownCopy: (text: string) => boolean;
   view: View;
@@ -77,7 +78,16 @@ export function useTextLinks(input: TextLinksInput) {
 
   const key = JSON.stringify([board.boardId, pages.id, view.x, view.y, view.z, [...selected].sort(), inline]);
   const hoverAllowed = input.tool === "Select" && !busy && !composing && !inline && !tidyOpen && !input.hosted?.voting.mode && !open;
-  const validHover = (candidate: Hover) => hoverAllowed && candidate.key === key && objects.some(o => o.id === candidate.hit.id);
+  function validHover(candidate: Hover) {
+    if (!hoverAllowed || candidate.key !== key) return false;
+    const { id, run, href } = candidate.hit;
+    const object = objects.find(o => o.id === id);
+    const layout = objectLayouts.get(id);
+    if (!object || !hasText(object) || !layout) return false;
+    const live = linkAt(object.marks, count(object.text), run.start, run.end);
+    return live?.href === href && live.start === run.start && live.end === run.end &&
+      linkBoxes(object, layout).some(box => box.href === href && box.start >= run.start && box.end <= run.end);
+  }
   if (armed.current && !validHover(armed.current)) cancelShow();
   const shown = hover && validHover(hover) ? hover : null;
   if (hover && !shown) { cancelHide(); setHover(null); }
@@ -151,9 +161,13 @@ export function useTextLinks(input: TextLinksInput) {
     const object = model.current.objects.find(o => o.id === target.id);
     if (!object || !hasText(object) || readOnly) return false;
     const run = linkAt(object.marks, count(object.text), target.start, target.end);
-    if (target.start === target.end && !run) return false;
-    setBar({ ...target, ...(target.start === target.end && run ? { start: run.start, end: run.end } : {}),
-      text: object.text, value: run?.href ?? "", refused: false });
+    const range = target.start === target.end ? run : target;
+    if (!range) return false;
+    const field = editor.current;
+    if (target.start === target.end && field) {
+      field.setSelectionRange(toUnits(field.value, range.start), toUnits(field.value, range.end));
+    }
+    setBar({ id: target.id, start: range.start, end: range.end, text: object.text, value: run?.href ?? "", refused: false });
     return true;
   }
   function activateLink() {
@@ -188,6 +202,7 @@ export function useTextLinks(input: TextLinksInput) {
 
   const editorLinks: EditorLinks = {
     open: !!open,
+    highlight: open ? { start: open.start, end: open.end } : undefined,
     key(event) {
       if (isPlainPasteKey(event)) plainPaste.current = true;
       return inline && isLinkShortcut(event) && shortcut();
@@ -235,8 +250,8 @@ export function useTextLinks(input: TextLinksInput) {
       if (event.buttons || event.pointerType !== "mouse" && event.pointerType !== "pen" || !hoverAllowed) return;
       const next = hit(point);
       if (!next) { leave(); return; }
-      if (shown && sameRun(shown.hit, next)) { cancelShow(); cancelHide(); return; }
-      if (armed.current && sameRun(armed.current.hit, next)) return;
+      if (shown && sameRun(shown.hit, next) && shown.hit.href === next.href) { cancelShow(); cancelHide(); return; }
+      if (armed.current && sameRun(armed.current.hit, next) && armed.current.hit.href === next.href) return;
       leave();
       const candidate: Hover & { timer?: Timer } = { key, hit: next };
       candidate.timer = setTimeout(() => {
@@ -295,7 +310,7 @@ export function useTextLinks(input: TextLinksInput) {
       label: linkLabel(hit.href, board, location.href, input.hosted?.boardId), editable: !readOnly,
       copy: () => copy(hit.href, LINK_WORDS.copied),
       edit() {
-        if (readOnly || input.selectionReason) return;
+        if (readOnly || tidyOpen || input.commandReason) return;
         const target = objects.find(o => o.id === hit.id);
         if (!target || !hasText(target)) return;
         const run = linkAt(target.marks, count(target.text), hit.run.start, hit.run.end);

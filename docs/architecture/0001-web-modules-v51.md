@@ -79,7 +79,7 @@ and hit-testing a point against the drawn underline spans.
 | `toUnits(text, offset)` | The UTF-16 offset of code point `offset` in `text` (the inverse of `codePointOffset`) |
 | `type LinkPress` | `{ board: string; page: string; id: string; run: { start: number; end: number }; href: string; address: string }`: what a press on a linked span captured (the board's id, the open page, the object, its saved run, the stored address and `location.href`) |
 | `type LinkPointer` | `{ move(point: Point, event: { buttons: number; pointerType: string }): void; leave(): void; press(point: Point): LinkPress \| undefined; follow(press: LinkPress, up: Point): boolean; repeats(press: LinkPress \| undefined): boolean; doubled(point: Point): boolean }`: what `useCanvasInput` calls; `follow` answers whether it acted, `repeats` whether a press is the second press of a double-click on a link just followed, `doubled` whether a `dblclick` at `point` belongs to that double-click (it then clears the record) |
-| `type EditorLinks` | `{ open: boolean; key(event: KeyboardEvent): boolean; paste(event: ClipboardEvent): boolean; keepsEditing(next: EventTarget \| null): boolean; compositionStart(range: { start: number; end: number } \| null): void; compositionEdit(): { start: number; end: number } \| undefined }`: what `ContentField` calls (DOM event types; the field passes `nativeEvent`) |
+| `type EditorLinks` | `{ open: boolean; highlight?: { start: number; end: number }; key(event: KeyboardEvent): boolean; paste(event: ClipboardEvent): boolean; keepsEditing(next: EventTarget \| null): boolean; compositionStart(range: { start: number; end: number } \| null): void; compositionEdit(): { start: number; end: number } \| undefined }`: what `ContentField` calls (DOM event types; the field passes `nativeEvent`) |
 | `type LinkBarModel` | `{ value: string; refused: boolean; canApply: boolean; canRemove: boolean; left: number; change(value: string): void; submit(): void; apply(): void; remove(): void; close(): void }` |
 | `type LinkCardModel` | `{ left: number; top: number; label: LinkLabel; editable: boolean; copy(): void; edit(): void; enter(): void; leave(): void; measure(element: HTMLElement \| null): void }` |
 | `type LinkControls` | `{ link: LinkButtonState & { tooltip: string; run(): void }; copy: { shown: boolean; label: string; run(): void }; bar: LinkBarModel \| null }`: what `ContextBar` reads |
@@ -98,7 +98,7 @@ It imports only `nextphase-board-rules/*` (`document.ts`, `marks.ts`, `text-link
 | --- | --- |
 | `pointer: LinkPointer` | Hover (LT7) and following (LT8) |
 | `shortcut(): boolean` | Cmd/Ctrl+Shift+U from the canvas: runs the Link button's click when it is shown and enabled (LT2); answers whether it acted |
-| `editor: EditorLinks` | The canvas editor's shortcut, paste onto words (LT5), the composition's edit range, the editor's outline while the bar is open, and keeping the text session while focus is in the link bar |
+| `editor: EditorLinks` | The canvas editor's shortcut, paste onto words (LT5), the composition's edit range, the editor's outline and highlight range while the bar is open, and keeping the text session while focus is in the link bar |
 | `placed(accepted: boolean): void` | Called by `useEditorPlacement` once it has decided whether the canvas editor fits: opens a pending link bar (accepted) or drops it (fallback) |
 | `controls: LinkControls` | The Link button, Copy link to object (LT9) and the link bar (LT3, LT4) |
 | `card: LinkCardModel \| null` | The hover card while it shows |
@@ -106,7 +106,7 @@ It imports only `nextphase-board-rules/*` (`document.ts`, `marks.ts`, `text-link
 `TextLinksInput` is `{ hosted?: HostedBoard; pages: LinkPages; board; model; commit; objects; objectLayouts;
 selected: Set<string>; select; textSelection: TextSelection | null; inline: boolean; edit: (target?: Item) => void;
 editor: RefObject<HTMLTextAreaElement | null>; finishTextSession; scene: RefObject<HTMLDivElement | null>; readOnly:
-boolean; busy: boolean; composing: boolean; tool: string; tidyOpen: boolean; barShown: boolean; selectionReason:
+boolean; busy: boolean; composing: boolean; tool: string; tidyOpen: boolean; barShown: boolean; commandReason: string; selectionReason:
 string; ownCopy: (text: string) => boolean; view: View; size: Size; pos; setMessage }`. It holds, in state and refs:
 the card (its object, run, label and measured size) and its two timers (the 300 ms show and the 200 ms hide); the link
 bar (the object id, the range in code points, the object's `text` when it opened, the field text and whether the
@@ -121,8 +121,9 @@ refusal shows); a pending open (`{ id, start, end }`) waiting for the editor's p
   and `!blockingSurfaceOpen(document)`; otherwise the show is dropped (the pointer must leave and come back). The card and
   any pending show are read at render: when the key `[boardId, pages.id, view.x, view.y, view.z, selection key,
   inline]` they were armed with differs from the current one, when `busy`, `composing`, `inline`, `tidyOpen` or a link
-  bar holds, or when the object is no longer displayed, the card is `null` and its state and timer are cleared during
-  render (the pattern `useCanvasInput` uses for its hover), so pan, zoom, a page change, editing and a selection change
+  bar holds, or when the live layout no longer has the object's link run with the same range and stored address,
+  the card is `null` and its state and timer are cleared during render (the pattern `useCanvasInput` uses for its
+  hover), so pan, zoom, a page change, editing and a selection change
   hide it or cancel it at once with no effect. Its label is `linkLabel` of the current `board`; `editable` is
   `!readOnly`; its place is `cardPlace` of `pos` of the hit's `first` box (its bottom is the line's bottom) and the size
   the card's `measure` callback ref last read (`offsetWidth`, `offsetHeight`; state changes only when the size
@@ -146,8 +147,9 @@ refusal shows); a pending open (`{ id, start, end }`) waiting for the editor's p
   `inert` control whether the button is seen or usable. With `!barShown` the shortcut does nothing. The button's
   click while editing opens the bar for the range (a collapsed caret inside a link: that whole run,
   `linkAt`). Not editing, it records a pending open for the whole text and calls `edit()` (the bar's **Edit text**
-  route of `use-editor-placement.ts`, panel cleared and fallback included). **Edit link** on the card, for an editor
-  whose selection reason would be empty, records a pending open for the run, calls `select(id)` and then
+  route of `use-editor-placement.ts`, panel cleared and fallback included). **Edit link** on the card works for
+  editors with any selection, including an empty one, when `commandReason` is empty and Tidy up is closed. It
+  records a pending open for the run, calls `select(id)` and then
   `edit(object)`. The bar opens only from `placed(accepted)`, which `useEditorPlacement` calls from its existing fit
   effect after it has decided (that effect runs after its focus effect, so the canvas editor already has focus):
   `placed(true)` with a pending open for the selected object selects the pending range in the field
@@ -164,7 +166,8 @@ refusal shows); a pending open (`{ id, start, end }`) waiting for the editor's p
   (`setLink(o.marks, o.text, start, end, href)` or `setLink(…, null)`), then close. `close()` (Escape, Apply, Remove,
   an outside press) clears the bar's state and records a focus handoff. Every close path hands focus off only **after
   the commit** (effect 2): to the editor with the stored range selected when the object is still being edited, else
-  to the scene. `editor.open` is true while the bar is open (the editor's outline, below).
+  to the scene. `editor.open` is true while the bar is open and `editor.highlight` holds the stored range in code
+  points. Opening the bar from inside a link with a collapsed caret also selects the run in the field.
 - **Paste onto words** (`editor.paste`): only while `inline`, for a rich-text object with a non-empty range, no
   composition, no plain-text paste key noted by `editor.key` since the last paste, no file, `!ownCopy(text/plain)`
   (raw, untrimmed), and `pastedLink(text/plain)`: then `setLink` over the range in one commit, and it answers `true`
@@ -406,7 +409,7 @@ change.
 | `apps/web/src/scene/export-drawing.tsx` | Passes `pixelScale={fit.scale}` to `BoardDrawing` |
 | `apps/web/src/ui/context-bar.tsx` | A `textLinks: LinkControls` prop. The Link button after Strikethrough inside the Formatting group (`button.icon-button.link-button`, `LinkGlyph name="link" size={20}`, `aria-pressed`, `disabled`, `aria-describedby` `link-reason` or `selection-reason`, its `<span class="tooltip">`, its `mousedown` default prevented, no `title`). A `copyLink` element (the Copy link to object button: `button.icon-button`, `LinkGlyph name="copy-object" size={20}`, its tooltip, never disabled, its `mousedown` default prevented so the editor keeps focus and editing continues; only when `textLinks.copy.shown`) placed right after `moveToPage` in every branch: in `objectCommands` (default, link card and image bars, and the table bar's object mode for editors), as `TableControls`' new `copyLink` prop (below) and in the washi tape bar before Duplicate, and as `<>{moveToPage}{copyLink}</>` given to `StrokeControls` and `ConnectorControls` (so before Delete there; those two files do not change). While `textLinks.bar` is not `null` the section is hidden (`visible` false: `visibility: hidden`, `inert`, `aria-hidden`) and a sibling `<LinkBar bar={textLinks.bar} top={contextTop} />` follows it, with `bar.left = clamp(contextLeft + contextWidth / 2 − 178, 12, size.w − 368)` computed here (356 wide, its centre on the bar's centre, kept 12 px inside) |
 | `apps/web/src/ui/table-controls.tsx` | A `copyLink?: ReactNode` prop, rendered in **every** mode, for editors and viewers: in the table (object) mode for editors it is already inside `children` (`arrangeTools` then `objectCommands`), so it is not added twice; in the table mode for viewers (where `children` is dropped), and in the cell, row, column and cell-editing modes, it is rendered **last**. No other change |
-| `apps/web/src/ui/content-field.tsx` | Optional props `links?: EditorLinks` and `textSelection?: TextSelection \| null`, with no-op defaults: without `links` the field behaves as today (no shortcut, no paste-to-link, no outline class, blur unchanged), and without `textSelection` or a native `inputType` the edit is `undefined`, so existing callers and fixtures (`tests/connectors.test.mjs`) pass unchanged. With `links`, while `inline` and the object is rich text: in `onKeyDown`, `links.key(e.nativeEvent)` runs before the flag shortcuts and prevents the default when it answers `true`; `onPaste` calls `links.paste(e.nativeEvent)` and prevents the default when it answers `true`. `onBlur` returns at once, changing nothing, when `links.keepsEditing(e.relatedTarget)` (focus moved into `.link-bar`). The textarea has the class `link-open` while `links.open`. The edit range of **The text edit range** (`onChange`, composition). The table cell field is unchanged; the Objects panel's use gets no shortcut, paste-to-link or bar (`inline` false) and passes the edit range as the canvas editor does |
+| `apps/web/src/ui/content-field.tsx` | Optional props `links?: EditorLinks` and `textSelection?: TextSelection \| null`, with no-op defaults: without `links` the field behaves as today (no shortcut, no paste-to-link, no outline class, blur unchanged), and without `textSelection` or a native `inputType` the edit is `undefined`, so existing callers and fixtures (`tests/connectors.test.mjs`) pass unchanged. With `links`, while `inline` and the object is rich text: in `onKeyDown`, `links.key(e.nativeEvent)` runs before the flag shortcuts and prevents the default when it answers `true`; `onPaste` calls `links.paste(e.nativeEvent)` and prevents the default when it answers `true`. `onBlur` returns at once, changing nothing, when `links.keepsEditing(e.relatedTarget)` (focus moved into `.link-bar`). The textarea has the class `link-open` while `links.open`. It draws the selection highlight described in Amendment A4. The edit range of **The text edit range** (`onChange`, composition). The table cell field is unchanged; the Objects panel's use gets no shortcut, paste-to-link or bar (`inline` false) and passes the edit range as the canvas editor does |
 | `apps/web/src/ui/format-preview.tsx` | It ignores `link`: a preview is drawn only when some mark has a flag, and adjacent `segments` pieces with equal flags are joined before drawing, so the Objects panel's preview is today's |
 | `apps/web/src/storage.ts` | As storage v6: the board list's `newer` test is `schemaVersion > 17` |
 | `apps/web/src/board-file.ts` | As board file v7: the newer test is `schemaVersion > 17` |
@@ -422,6 +425,20 @@ paste copy marks whole); `state/use-hosted-board.ts` (centring waits for the lay
 `state/use-link-cards.ts` (they name `BoardV16`, `ItemV16`, which document v23 keeps as names of the current board and
 item). No other web file changes.
 
+### Amendment A4 (2026-11-26)
+
+While the link bar is open, `ui/content-field.tsx` puts an absolute, pointer-transparent, `aria-hidden` layer
+behind the inline textarea. A hidden mirror keeps the field value in one text node, with the field's available
+width, wrapping, padding, font, line height and alignment at the current zoom. The callback ref measures the
+stored range with a DOM Range using UTF-16 offsets, draws opaque `#aec9f4` rectangles for the measured lines
+and clips them to the field's scroll viewport. The rectangles follow field scrolling and resize. The textarea
+draws its original text and colour. When the field has focus, CSS hides the layer and the native selection shows.
+Closing the bar removes the layer and its ref disconnects the observer and scroll listener. The module and React
+effect counts are unchanged.
+
+The card's Edit link uses the existing `commandReason` through App.tsx substitution 6. The card also checks the
+current layout and stored run before retaining a pending show or a visible card.
+
 ### App.tsx wiring
 
 App.tsx changes only on existing lines, so it keeps its 264 newlines and the budget test's limit stays **264**.
@@ -434,7 +451,7 @@ Exactly these substitutions, applied in this order to the current App.tsx (each 
 | 3 | `edit, textEditing: !!textSession.current, invalidObjectText, animated: images.animated, bitmaps: images.bitmaps,` | `edit, textEditing: !!textSession.current, invalidObjectText, animated: images.animated, bitmaps: images.bitmaps, linkPointer: () => textLinks.pointer,` |
 | 4 | `composing, busy, readOnly, pos, tableCell: tableEntry.draft?.cell, setView,` | `composing, busy, readOnly, pos, tableCell: tableEntry.draft?.cell, setView, placed: (accepted) => textLinks.placed(accepted),` |
 | 5 | `command, clipboardCommand, openExport: exporter.open, toggleFormat,` | `command, clipboardCommand, openExport: exporter.open, openLink: () => textLinks.shortcut(), toggleFormat,` |
-| 6 | `getView: () => view, scene, getStore: () => store.current, isAlive: () => alive.current });` | `getView: () => view, scene, getStore: () => store.current, isAlive: () => alive.current }); const textLinks = useTextLinks({ hosted: team?.hosted, pages, board, model, commit, objects: displayedObjects, objectLayouts, selected, select, textSelection, inline, edit, editor, finishTextSession, scene, readOnly, busy, composing, tool, tidyOpen: tidy.open, barShown: size.w >= 768 && contextFits, selectionReason, ownCopy: tableData.ownCopy, view, size, pos, setMessage });` |
+| 6 | `getView: () => view, scene, getStore: () => store.current, isAlive: () => alive.current });` | `getView: () => view, scene, getStore: () => store.current, isAlive: () => alive.current }); const textLinks = useTextLinks({ hosted: team?.hosted, pages, board, model, commit, objects: displayedObjects, objectLayouts, selected, select, textSelection, inline, edit, editor, finishTextSession, scene, readOnly, busy, composing, tool, tidyOpen: tidy.open, barShown: size.w >= 768 && contextFits, commandReason, selectionReason, ownCopy: tableData.ownCopy, view, size, pos, setMessage });` |
 | 7 | `setTextSelection={setTextSelection} toggleFormat={toggleFormat}` | `setTextSelection={setTextSelection} toggleFormat={toggleFormat} links={textLinks.editor} textSelection={textSelection}` |
 | 8 | `<span id="selection-reason" className="sr-only">{selectionReason}</span>` | `<span id="selection-reason" className="sr-only">{selectionReason}</span><span id="link-reason" className="sr-only">{textLinks.controls.link.own ? textLinks.controls.link.reason : ""}</span>` |
 | 9 | `links={links.bar} tapeSelection={tapeSelection}` | `links={links.bar} textLinks={textLinks.controls} tapeSelection={tapeSelection}` |
@@ -449,10 +466,9 @@ list; its line-count assertion is unchanged and must pass.
 
 ### CSS
 
-`apps/web/style.css` gains exactly these **twenty-one** rules, appended **at the end of the file**, after every existing
-rule, so the prefix byte comparisons in `tests/pages.test.mjs` (everything before `/* Pages:`) are untouched. No other
-rule changes. Precedence: at equal specificity the later rule wins, and these come last; each override below is either
-of higher specificity or equal and later.
+`apps/web/style.css` gains these **twenty-one** rules followed by the A4 selection highlight rules. Both blocks
+follow every existing rule, so the prefix byte comparisons in `tests/pages.test.mjs` (everything before
+`/* Pages:`) are untouched. Each override below is either of higher specificity or equal and later.
 
 ```css
 .link-bar { position: absolute; display: flex; align-items: center; gap: 4px; box-sizing: border-box; width: 356px; height: 40px; padding: 6px; background: #302d36; color: white; border-radius: 10px; box-shadow: 0 4px 14px rgba(20,18,26,.22); z-index: 6; }
@@ -490,6 +506,18 @@ of higher specificity or equal and later.
 | `.context button.link-button[aria-pressed=true]` | `.context button`'s transparent background | 0,3,1 > 0,1,1 |
 | `.context button.link-button[aria-pressed=true]:hover:not(:disabled)` | `.context button:hover:not(:disabled)`'s `#29272e` icon (style.css line 293 at `5474239`) and the shared hover fill, so the hovered pressed Link keeps a white icon on `#6142be` | 0,5,1 > 0,3,1 |
 | `.inline:has(textarea.link-open)` | none: it adds today's `.inline:focus-within` look while focus is in the bar | 0,3,1 |
+
+#### Selection highlight CSS
+
+Amendment A4 appends the following after the twenty-one link rules.
+
+```css
+.inline textarea.link-open { position: relative; z-index: 1; }
+.link-selection { position: absolute; overflow: hidden; pointer-events: none; }
+.link-selection-mirror { width: 100%; visibility: hidden; }
+.link-selection span { position: absolute; background: #aec9f4; }
+.inline textarea.link-open:focus + .link-selection { visibility: hidden; }
+```
 
 Focus-visible for every new button (Link, Copy link to object, Remove link, Apply link, the card's Copy link and Edit
 link) is the shared `button:focus-visible` rule (3 px solid `#7051cf`, offset 3 px) and the shared
@@ -557,7 +585,12 @@ inside one link, across two, and a caret inside; `pastedLink` (one address, two 
 `historyUndo`; `toUnits` with astral characters; `blockingSurfaceOpen` on a small DOM double (a visible menu counts; one
 hidden by `display: none`, `[hidden]`, `visibility: hidden` or a hidden ancestor does not). In the same file, source checks that `scene/note-body.tsx` and `scene/shape-body.tsx` never
 write `underline` in a `textDecoration` and draw `Line`s from `layout.links`, and that `style.css` ends with the
-twenty-one rules above.
+twenty-one link rules followed by the A4 highlight rules.
+
+Post-check coverage in the same file includes X11-W19 (Edit link from an empty, different or multiple selection,
+the command reason, Tidy up and read-only), X11-W20 (the highlight's DOM presence, stored range, wrapped lines,
+scroll and resize geometry, and removal on field focus or bar close), and X11-W21 (a pending or shown hover is
+cleared on a range or address change or loss of the run from the layout, and resting again shows the current link).
 
 Existing files: `tests/modules.test.mjs` as above; `tests/text-runs.test.mjs`, `tests/pages.test.mjs`,
 `tests/page-links.test.mjs` and `tests/team.test.mjs` are unchanged and must pass (`Piece` keeps its shape, and the CSS

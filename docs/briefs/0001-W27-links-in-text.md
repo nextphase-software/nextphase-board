@@ -77,6 +77,13 @@ Add an X11-W check that a later render or delivery leaves an independently chang
 selection change writes once. P4-U08 stays unchanged. Bound X8-U29's CSS slice as specified below, and update the current
 schema expectation and title of T-U11 from 16 to 17. Commit this note and the web modules v51 amendment before the source.
 
+**Amendment A4 (2026-11-26).** The post-check fixes cover three findings. The card's Edit link works with any
+selection for an editor when no command reason or Tidy up preview blocks it. While the link bar is open and the
+canvas editor field is blurred, `ui/content-field.tsx` paints the range in opaque `#aec9f4` across wrapped lines
+under the original field text, as interaction v53 LT3 specifies. A shown or pending hover card is cleared when the
+live run's range or address changes or the layout loses the run. Web modules v51 specifies the highlight, the
+additional appended CSS, the command reason in App.tsx substitution 6 and the X11-W checks.
+
 **New (eight).**
 1. `packages/board-rules/src/text-link.ts` (document v23, web modules v51)
 2. `apps/web/src/text-links.ts`
@@ -101,7 +108,7 @@ schema expectation and title of T-U11 from 16 to 17. Commit this note and the we
 | 16 | `apps/web/src/state/use-pages.ts`, `state/use-canvas-input.ts`, `state/use-page-keys.ts`, `state/use-editor-placement.ts`, `state/use-geometry-edits.ts`, `state/use-object-layouts.ts` |
 | 17 | `apps/web/src/scene/note-body.tsx`, `scene/shape-body.tsx`, `scene/board-drawing.tsx`, `scene/export-drawing.tsx` |
 | 18 | `apps/web/src/ui/context-bar.tsx`, `ui/content-field.tsx`, `ui/format-preview.tsx` (links ignored, equal-flag spans recombined), `ui/table-controls.tsx` (only the Copy link slot) |
-| 19 | `apps/web/style.css` (only the twenty-one link rules, appended at the end of the file) |
+| 19 | `apps/web/style.css` (the twenty-one link rules followed by the A4 selection highlight rules, appended at the end of the file) |
 | 20 | `vitest.node.config.ts`, `vitest.workerd.config.ts` (only: `tests/server/text-links.test.ts` added to `include`) |
 | 21 | `tests/modules.test.mjs` and the schema-pinning tests (only the dispositions below) |
 | 22 | `tests/README.md` (the new test files) |
@@ -354,8 +361,8 @@ Review that:
 - `parseLink` and 0010-W4's page-link results are unchanged for links without `object`;
 - viewers can copy object links and follow links but never add, change or remove one by any path;
 - App.tsx and `style.css` change only as stated.
-- moving focus to the link bar's field does not end editing (today the editor's blur ends it), and the selected
-  words stay visibly selected while the bar is open, as the approved screen shows (interaction v53, LT3);
+- moving focus to the link bar's field keeps editing active and shows the editor-drawn highlight behind the
+  selected words as in the approved screen (interaction v53, LT3 and A4);
 - the underline's place and thickness come from interaction v53's values (±1 px), not from the canvas library's own
   underline.
 
@@ -365,8 +372,8 @@ Left for the check run and review after the second pre-commit read (the read cap
 - the hover card's show and cancel timing against menus and panels that open and close during the 300 ms rest;
 - the edit range passed to `remap` for word and line deletes, composition and paste (web modules v51), proved with
   links inside, at the start and at the end of a run;
-- the selected words' inactive-selection look and the kept editor outline while the bar is open, against the approved
-  `local-2-link-bar` screen (the approved screen shows the focused blue highlight);
+- the editor-drawn `#aec9f4` range highlight and the kept editor outline while the bar is open, against the approved
+  `local-2-link-bar` screen, including a wrapped range and the return to native selection when the field regains focus;
 - the underline's place and thickness within ±1 px at 100 % and 150 % and in a PNG export;
 - the wider context bar's fit (it can hide about 80 px sooner) and the A–J mask;
 - Copy link in every table mode for a viewer;

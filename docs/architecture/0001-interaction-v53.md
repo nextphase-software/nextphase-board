@@ -207,8 +207,11 @@ the approved design, editing "Lakeside Hall" at 1440 × 900, its box is 886, 282
 in its editing state with the range kept. While the bar is open:
 - the canvas editor keeps its editing outline, 3 px solid `#7051cf` with a 4 px offset (the look of today's
   `.inline:focus-within`, kept by a class set on the editor while the bar is open, because focus has left it);
-- the range stays selected in the editor's text field, which the browser shows with its own **inactive** selection
-  look; the approved screen's blue highlight is the field's focused look, seen again when focus returns;
+- **Amendment A4 (2026-11-26).** While the link bar is open and the editor field is blurred, the editor draws an
+  opaque `#aec9f4` highlight behind exactly the range's characters on every wrapped line. It follows the field's
+  wrapping, padding, font, line height, scroll position and zoom. The text, its colour and the layout stay the same.
+  The highlight is pointer-transparent and hidden from assistive technology. It goes away when the field regains
+  focus and its native selection shows, or when the bar closes;
 - the address field shows focus only by its own 1.5 px `#8a73e6` border: no extra focus ring (`outline: none`); its
   caret is the browser's native text caret (the approved screen drew a 1 × 15 px white stand-in for it).
 
@@ -337,7 +340,10 @@ show is cancelled.
 
 **When it hides.** **200 ms** after the pointer has left both the link run and the card (re-entering either within
 200 ms keeps it), and at once on pan, zoom, a page change, the start of any editing, Escape, a pointer press outside
-the card, or a selection change. At most one card shows at a time.
+the card, or a selection change. A shown card or pending show is valid only while the current layout still has
+that object's link run with the same range and stored address. A change to either, or loss of the run from the
+layout, clears the card or pending show at once. Resting on the words again picks up the current link. At most one
+card shows at a time.
 
 **Contents**, left to right: an icon, a label, a divider, **Copy link** (everyone), **Edit link** (editors only; absent
 for viewers).
@@ -379,8 +385,8 @@ is `Could not copy the link. Your browser blocked the clipboard.` Nothing is wri
 **Edit link** selects only that object, starts editing it through the real Edit text route, selects the link run under
 the card in the editor, and opens the link bar (LT3) prefilled with that link. When the route falls back to the Objects
 panel, the pending range is cleared before the fallback takes focus and the link bar does not open; the bar opens only
-after the placement has accepted the canvas editor, as for the Link button (LT2). It is shown only to editors and works only when the
-bar's selection reason would be empty; otherwise it does nothing.
+after the placement has accepted the canvas editor, as for the Link button (LT2). It is shown only to editors and
+works with any selection, including an empty one, when the editing command has no blocking reason and Tidy up is closed.
 
 ### LT8 — Following a link
 

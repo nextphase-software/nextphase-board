@@ -188,7 +188,8 @@ test("X8-U28 pressing within 20 px of a hovered video's centre selects it and st
 
 test("X8-U29 the video seek input resets shared input chrome and keeps its focus outline", async () => {
   const css = await readFile(new URL("../apps/web/style.css", import.meta.url), "utf8");
-  const strip = css.slice(css.indexOf(".video-player {"));
+  const start = css.indexOf(".video-player {"), end = css.indexOf(".link-bar {", start);
+  const strip = css.slice(start, end === -1 ? css.length : end);
   const seek = strip.match(/\.video-seek-box > \.video-seek\s*\{([^}]+)\}/)?.[1];
   assert.ok(seek, "The range input needs a rule scoped to its seek box");
   assert.match(seek, /\bpadding:\s*0\s*;/);

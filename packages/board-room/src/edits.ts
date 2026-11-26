@@ -33,7 +33,7 @@ export function evaluate(doc: Y.Doc, before: BoardV14, update: Uint8Array, stora
     let changed = promote(doc, candidate, update);
     let after: ReturnType<typeof readBoard>;
     try { after = readBoard(candidate); } catch { return { kind: "refused", reason: "invalid_update" }; }
-    if (after.schemaVersion !== 16) return { kind: "refused", reason: "invalid_document" };
+    if (after.schemaVersion !== 17) return { kind: "refused", reason: "invalid_document" };
     const pages = after.pages;
     if (after.objects.some(o => !pages.some(p => p.id === o.page))) return { kind: "refused", reason: "invalid_document" };
     const repaired = repair(candidate, before, after);
@@ -41,7 +41,7 @@ export function evaluate(doc: Y.Doc, before: BoardV14, update: Uint8Array, stora
     if (repaired.changed) after = readBoard(candidate);
     try {
       validate(after);
-      if (after.schemaVersion !== 16) throw Error();
+      if (after.schemaVersion !== 17) throw Error();
     } catch { return { kind: "refused", reason: "invalid_document" }; }
     try { canonical(after); } catch { return { kind: "refused", reason: "document_too_large" }; }
     try { checkTransition(before, after); } catch { return { kind: "refused", reason: "invalid_transition" }; }

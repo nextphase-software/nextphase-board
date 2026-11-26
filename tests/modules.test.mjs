@@ -56,7 +56,7 @@ test("the package holds exactly its modules", () => {
   assert.deepEqual(rulesParts, [
     "document.ts", "marks.ts", "objects/connector.ts", "objects/image.ts", "objects/link.ts", "objects/mind-node.ts", "objects/registry.ts",
     "objects/section.ts", "objects/shape.ts", "objects/sticky.ts", "objects/stroke.ts", "objects/table.ts", "objects/tape.ts", "objects/text.ts", "objects/video.ts",
-    "platform.d.ts", "styles.ts", "transition.ts",
+    "platform.d.ts", "styles.ts", "text-link.ts", "transition.ts",
   ]);
   for (const [name, content] of rulesContents) {
     assert.equal(content.split("\n")[0], "// SPDX-License-Identifier: Apache-2.0", name);
@@ -116,7 +116,7 @@ test("the import guards catch each forbidden form", () => {
   }
 });
 
-test("screen parts contain exactly the thirty-five screen modules named through 0012-W5 v1", () => {
+test("screen parts contain exactly the thirty-seven screen modules named through 0001-W27 v1", () => {
   assert.deepEqual(screenParts, [
     "arrange-controls.tsx",
     "board-panel.tsx",
@@ -137,7 +137,9 @@ test("screen parts contain exactly the thirty-five screen modules named through 
     "information-button.tsx",
     "information-controls.tsx",
     "information-panel.tsx",
+    "link-bar.tsx",
     "link-controls.tsx",
+    "link-hover-card.tsx",
     "move-to-page.tsx",
     "navigation-panel.tsx",
     "notice.tsx",
@@ -249,7 +251,7 @@ test("screen and scene guard detects equality and inequality in both operand ord
   }
 });
 
-test("state contains exactly the twenty-nine hooks named through 0012-W5 v1", () => {
+test("state contains exactly the thirty hooks named through 0001-W27 v1", () => {
   assert.deepEqual(files(new URL("state/", source)).sort(), [
     "use-board-document.ts",
     "use-canvas-input.ts",
@@ -276,6 +278,7 @@ test("state contains exactly the twenty-nine hooks named through 0012-W5 v1", ()
     "use-session-status.ts",
     "use-storage-session.ts",
     "use-text-entry.ts",
+    "use-text-links.ts",
     "use-tidy-up.ts",
     "use-validity.ts",
     "use-video-playback.ts",
@@ -465,7 +468,7 @@ test("rules modules ask the registry instead of naming types", () => {
   assert(!webRules.includes("document-adapter.ts"));
   assert(existsSync(new URL("../packages/board-sync/src/document-adapter.ts", import.meta.url)));
   const packageRules = readdirSync(rules).filter((name) => name.endsWith(".ts") && !name.endsWith(".d.ts")).sort();
-  assert.deepEqual(packageRules, ["document.ts", "marks.ts", "styles.ts", "transition.ts"]);
+  assert.deepEqual(packageRules, ["document.ts", "marks.ts", "styles.ts", "text-link.ts", "transition.ts"]);
   for (const name of [...webRules, ...files(new URL("state/", source)).map((n) => "state/" + n)]) {
     assert.deepEqual(typeNameUses(readFileSync(new URL(name, source), "utf8")), [], name);
   }
@@ -604,8 +607,8 @@ test("the hosted board hook holds exactly one passive effect", () => {
   assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });
 
-// Web modules v43, v45, v46 and v50: exact existing-line substitutions from the behaviour baseline.
-test("0012-W5 App composition changes only its recorded substitutions", () => {
+// Web modules v43, v45, v46, v50 and v51: exact existing-line substitutions from the behaviour baseline.
+test("0001-W27 App composition changes only its recorded substitutions", () => {
   const base = execFileSync("git", ["show", "3f4ad48:apps/web/src/App.tsx"], { encoding: "utf8" });
   const substitutions = [
   [
@@ -761,7 +764,17 @@ test("0012-W5 App composition changes only its recorded substitutions", () => {
     ["pasteFiles: (files) => void images.pasted(files, () => clipboardCommand(\"Paste\")), composing });", "pasteFiles: (files) => void images.pasted(files, () => clipboardCommand(\"Paste\")), composing }); const links = useLinkCards({ hosted: team?.hosted, page: pages.id, board, model, commit, select, selected, commandReason, tidyOpen: tidy.open, busy, composing, readOnly, editing: () => !!textSession.current, ownCopy: tableData.ownCopy, historyRef, updateHistory, lineCount, getView: () => view, scene, getStore: () => store.current, isAlive: () => alive.current });"],
     ["onPaste={tableData.paste(hostedPaste ?? images.paste(() => clipboardCommand(\"Paste\")))}", "onPaste={tableData.paste(links.paste(hostedPaste ?? images.paste(() => clipboardCommand(\"Paste\"))))}"],
     ["          tapeSelection={tapeSelection} tidy={tidy} board={pages.canvas()} moveToPage=", "          links={links.bar} tapeSelection={tapeSelection} tidy={tidy} board={pages.canvas()} moveToPage="],
-    ["        infoButton={infoButton} panel={panel} busy={busy} composing={composing} toggle={toggle}", "        infoButton={infoButton} panel={panel} busy={busy} composing={composing} toggle={toggle} linkLine={links.aboutLine}"]
+    ["        infoButton={infoButton} panel={panel} busy={busy} composing={composing} toggle={toggle}", "        infoButton={infoButton} panel={panel} busy={busy} composing={composing} toggle={toggle} linkLine={links.aboutLine}"],
+    ["import { useLinkCards } from \"./state/use-link-cards\";", "import { useLinkCards } from \"./state/use-link-cards\"; import { useTextLinks } from \"./state/use-text-links\"; import { LinkHoverCard } from \"./ui/link-hover-card\";"],
+    ["getObjects: () => allDisplayedObjects,", "getObjects: () => allDisplayedObjects, getSelection: () => ({ ids: selected, settled: !busy }),"],
+    ["edit, textEditing: !!textSession.current, invalidObjectText, animated: images.animated, bitmaps: images.bitmaps,", "edit, textEditing: !!textSession.current, invalidObjectText, animated: images.animated, bitmaps: images.bitmaps, linkPointer: () => textLinks.pointer,"],
+    ["composing, busy, readOnly, pos, tableCell: tableEntry.draft?.cell, setView,", "composing, busy, readOnly, pos, tableCell: tableEntry.draft?.cell, setView, placed: (accepted) => textLinks.placed(accepted),"],
+    ["command, clipboardCommand, openExport: exporter.open, toggleFormat,", "command, clipboardCommand, openExport: exporter.open, openLink: () => textLinks.shortcut(), toggleFormat,"],
+    ["getView: () => view, scene, getStore: () => store.current, isAlive: () => alive.current });", "getView: () => view, scene, getStore: () => store.current, isAlive: () => alive.current }); const textLinks = useTextLinks({ hosted: team?.hosted, pages, board, model, commit, objects: displayedObjects, objectLayouts, selected, select, textSelection, inline, edit, editor, finishTextSession, scene, readOnly, busy, composing, tool, tidyOpen: tidy.open, barShown: size.w >= 768 && contextFits, selectionReason, ownCopy: tableData.ownCopy, view, size, pos, setMessage });"],
+    ["setTextSelection={setTextSelection} toggleFormat={toggleFormat}", "setTextSelection={setTextSelection} toggleFormat={toggleFormat} links={textLinks.editor} textSelection={textSelection}"],
+    ["<span id=\"selection-reason\" className=\"sr-only\">{selectionReason}</span>", "<span id=\"selection-reason\" className=\"sr-only\">{selectionReason}</span><span id=\"link-reason\" className=\"sr-only\">{textLinks.controls.link.own ? textLinks.controls.link.reason : \"\"}</span>"],
+    ["links={links.bar} tapeSelection={tapeSelection}", "links={links.bar} textLinks={textLinks.controls} tapeSelection={tapeSelection}"],
+    ["<BoardQuestion {...boardQuestion} /><ExportDialog {...exporter.dialog} />", "<BoardQuestion {...boardQuestion} /><ExportDialog {...exporter.dialog} /><LinkHoverCard card={textLinks.card} />"],
 ];
   let expected = base;
   for (const [from, to] of substitutions) {
@@ -801,6 +814,12 @@ test("video playback owns two effects and the scene owns none", () => {
 
 test("the link cards hook holds exactly two passive effects", () => {
   const content = readFileSync(new URL("state/use-link-cards.ts", source), "utf8");
+  assert.equal((content.match(/\buseEffect\s*\(/g) ?? []).length, 2);
+  assert.doesNotMatch(content, /\buseLayoutEffect\b/);
+});
+
+test("the text links hook holds exactly two passive effects", () => {
+  const content = readFileSync(new URL("state/use-text-links.ts", source), "utf8");
   assert.equal((content.match(/\buseEffect\s*\(/g) ?? []).length, 2);
   assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });

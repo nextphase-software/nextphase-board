@@ -387,6 +387,7 @@ test("X6-U09 the drawing uses its detached root synchronously and cleans up thro
   assert(stageRef.current);
   assert.deepEqual(props, {
     board, only, objectLayouts, bitmaps, selected: new Set(), inline: false, faded: new Set(),
+    pixelScale: fit.scale,
     tableGesture: { ghost: null }, preview: null, movingIds: [],
     size: { w: 2, h: 2 }, view: { x: box.x + 1, y: box.y + 1, z: 1 },
   });

@@ -8,6 +8,9 @@ import { editorName, tableKey } from "../table";
 import type { TableEntry } from "../table";
 import type { CellAddress } from "nextphase-board-rules/objects/registry.ts";
 import type { TableItem } from "nextphase-board-rules/document.ts";
+import { editRange, type EditorLinks } from "../text-links";
+
+type Edit = { start: number; end: number };
 
 type Props = {
   tableEntry: TableEntry;
@@ -26,20 +29,22 @@ type Props = {
   selectedId: string;
   composing: boolean;
   beginTextSession: (item: Item | undefined) => void;
-  changeText: (value: string) => void;
+  changeText: (value: string, edit?: Edit) => void;
   setComposing: Dispatch<SetStateAction<boolean>>;
   setDrafts: Dispatch<SetStateAction<Record<string, string>>>;
-  commitText: (id: string, value: string) => void;
+  commitText: (id: string, value: string, edit?: Edit) => void;
   finishTextSession: () => void;
   setInline: Dispatch<SetStateAction<boolean>>;
   setTextSelection: Dispatch<SetStateAction<TextSelection | null>>;
   toggleFormat: (flag: Flag) => void;
+  links?: EditorLinks;
+  textSelection?: TextSelection | null;
 };
 
 export function ContentField({
   tableEntry, tableName, cellInvalidNotice, setMessage, editCell, changeCell, finishCellComposition, editor, inline, text, readOnly, busy, item, selectedId, composing, beginTextSession,
   changeText, setComposing, setDrafts, commitText, finishTextSession, setInline,
-  setTextSelection, toggleFormat,
+  setTextSelection, toggleFormat, links, textSelection,
 }: Props) {
   if (item && isTable(item)) {
     const draft = tableEntry.draft;
@@ -88,6 +93,7 @@ export function ContentField({
       <label htmlFor="content">{label}</label>
       <textarea
         id="content"
+        className={links?.open ? "link-open" : undefined}
         ref={editor}
         aria-label={inline ? label === "Name" ? "Edit selected name on canvas" : "Edit selected object on canvas" : label}
         value={text}
@@ -97,6 +103,7 @@ export function ContentField({
         onFocus={(e) => { beginTextSession(item); track(e); }}
         onSelect={track}
         onKeyDown={(e) => {
+          if (inline && type?.richText && links?.key(e.nativeEvent)) { e.preventDefault(); return; }
           if (type?.ends && inline && e.key === "Escape" && !composing && !e.nativeEvent.isComposing) {
             e.preventDefault(); e.stopPropagation(); finishTextSession(); setTextSelection(null); setInline(false); return;
           }
@@ -115,17 +122,28 @@ export function ContentField({
             : key === "i" && !e.shiftKey ? "italic" : key === "x" && e.shiftKey ? "strike" : null;
           if (flag) { e.preventDefault(); toggleFormat(flag); }
         }}
-        onChange={(e) => changeText(e.target.value)}
-        onCompositionStart={() => setComposing(true)}
+        onPaste={inline && type?.richText && links ? e => { if (links.paste(e.nativeEvent)) e.preventDefault(); } : undefined}
+        onChange={(e) => {
+          const value = e.target.value;
+          const edit = textSelection && textSelection.id === item?.id && text === item.text
+            ? editRange(textSelection, (e.nativeEvent as InputEvent | undefined)?.inputType, text, value) : undefined;
+          if (edit) changeText(value, edit); else changeText(value);
+        }}
+        onCompositionStart={() => {
+          links?.compositionStart(textSelection?.id === item?.id ? textSelection ?? null : null);
+          setComposing(true);
+        }}
         onCompositionEnd={(e) => {
           setComposing(false);
           const value = e.currentTarget.value;
+          const edit = links?.compositionEdit();
           setDrafts((d) => ({ ...d, [selectedId]: value }));
           if (item && validText(value, limit) && !readOnly) {
-            commitText(selectedId, value);
+            if (edit) commitText(selectedId, value, edit); else commitText(selectedId, value);
           }
         }}
-        onBlur={() => {
+        onBlur={(e) => {
+          if (links?.keepsEditing(e?.relatedTarget ?? null)) return;
           setTextSelection(null);
           if (!composing) {
             finishTextSession();

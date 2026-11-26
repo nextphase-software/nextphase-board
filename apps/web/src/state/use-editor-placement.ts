@@ -28,11 +28,12 @@ type Input = {
   busy: boolean;
   readOnly: boolean;
   pos: (o: { x: number; y: number }) => { left: number; top: number };
+  placed?: (accepted: boolean) => void;
 };
 
 export function useEditorPlacement({
   tableCell, setView, finishTextSession, setTool, scene, view, size, selected, item, itemHeight, inline, setInline,
-  composing, busy, readOnly, pos, text,
+  composing, busy, readOnly, pos, text, placed,
 }: Input) {
   const [panel, setPanel] = useState("");
   const fallbackFocus = useRef(false);
@@ -68,8 +69,8 @@ export function useEditorPlacement({
     setPanel("Objects");
     setInline(false);
   }
-  function edit() {
-    if (!item || !hasText(item) || readOnly || busy || composing) return;
+  function edit(target = item) {
+    if (!target || !hasText(target) || readOnly || busy || composing) return;
     finishTextSession();
     setPanel("");
     setInline(true);
@@ -110,7 +111,8 @@ export function useEditorPlacement({
       textBox({ ...item, height: itemHeight }).width * view.z < objectType(item.type).editorMinimum.width ||
       textBox({ ...item, height: itemHeight }).height * view.z < objectType(item.type).editorMinimum.height ||
       textUnits(item.textSize) * view.z < 12 || obscured
-    ) fallbackEditor();
+    ) { placed?.(false); fallbackEditor(); }
+    else placed?.(true);
   }, [inline, selected, view, size, composing, itemHeight, item?.width, item?.textSize, item?.connectorLayout?.labelPoint.x, item?.connectorLayout?.labelPoint.y, item?.connectorLayout ? text : undefined]);
   const tableBox = item && isTable(item) && item.tableLayout && tableCell && cellBox(item, item.tableLayout, tableCell);
   const tableEditorBox = tableBox ? { x: tableBox.x + TABLE_INSET, y: tableBox.y + TABLE_INSET,

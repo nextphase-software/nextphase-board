@@ -40,6 +40,7 @@ type Props = {
   preview: (Rectangle & StrokeKeys) | (Rectangle & TapeKeys) | { mapDrag: MapDrag } | null;
   size: { w: number; h: number };
   view: View;
+  pixelScale?: number;
   board: Board;
   objectLayouts: Map<string, ObjectLayout & { table?: TableLayout }>;
   selected: Set<string>;
@@ -47,7 +48,7 @@ type Props = {
   movingIds: readonly string[];
 };
 
-export function BoardDrawing({ tableGesture, tableSelection, tableCell, faded, bitmaps, loading, playing, connection, preview, size, view, board, objectLayouts, selected, inline, movingIds, stageRef, only }: Props) {
+export function BoardDrawing({ tableGesture, tableSelection, tableCell, faded, bitmaps, loading, playing, connection, preview, size, view, pixelScale, board, objectLayouts, selected, inline, movingIds, stageRef, only }: Props) {
   const rectangles = new Map(board.objects.filter(hasRectangle).map((o) => [o.id, { ...o, displayHeight: objectLayouts.get(o.id)!.height }]));
   const targets = dropTargets(board, new Set(movingIds), true, objectLayouts);
   const sections = new Set([...targets.values()].filter((id) => id !== null));
@@ -78,7 +79,7 @@ export function BoardDrawing({ tableGesture, tableSelection, tableCell, faded, b
           if (isMindNode(o)) return fade(<MindNodeBody key={o.id} o={o} layout={layout} editing={inline && selected.has(o.id)} zoom={view.z}
             outline={selected.has(o.id) && !drag?.branch.includes(o.id)} faded={!!drag?.branch.includes(o.id)} />);
           return fade(
-            objectType(o.type).shapePaint ? <ShapeBody key={o.id} o={o} layout={layout} selected={selected} inline={inline} view={view} /> : objectType(o.type).body === "note" ? <NoteBody key={o.id} o={o} layout={layout} selected={selected} inline={inline} view={view} />
+            objectType(o.type).shapePaint ? <ShapeBody key={o.id} o={o} layout={layout} selected={selected} inline={inline} view={view} pixelScale={pixelScale ?? view.z} /> : objectType(o.type).body === "note" ? <NoteBody key={o.id} o={o} layout={layout} selected={selected} inline={inline} view={view} pixelScale={pixelScale ?? view.z} />
               : <SectionBody key={o.id} o={o} selected={selected} inline={inline} dropTarget={sections.has(o.id)} />
           );
         })])}

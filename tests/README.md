@@ -798,6 +798,14 @@ Both server suites include `server/link-preview.test.ts` (S468–S478). Their sh
 owns the HTTP and HTTPS fixture servers. The browser checks use the separate test-only
 `tests/browser/link-preview-stack.mjs` launcher, with the check run's isolated team settings.
 
+## 0001-W27 links in text
+
+`npm test` includes `text-link-rules.test.mjs` (X11-R) for marks, the codec and
+room repair, local storage, board files, templates, history, and shared editing.
+It includes `text-links.test.mjs` (X11-W, including X11-W00) for object addresses,
+text layout and hit testing, editing, and the context bar. Both run without Supabase.
+The Node and workerd server suites include `server/text-links.test.ts` (S479).
+
 ## Node test server warnings
 
 S442 in `server/suite.test.ts` verifies that the driver captures the test

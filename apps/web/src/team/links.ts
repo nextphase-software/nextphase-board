@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { readHostedBoardLink } from "../page-links.ts";
 
-export type TeamLink = { kind: "local" | "bad" } | { kind: "board"; board: string; page?: string }
+export type TeamLink = { kind: "local" | "bad" } | { kind: "board"; board: string; page?: string; object?: string }
   | { kind: "home"; workspace?: string }
   | { kind: "trash"; workspace: string }
   | { kind: "invite"; invitation: string; board?: string };

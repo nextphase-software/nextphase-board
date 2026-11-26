@@ -19,6 +19,7 @@ import { makeTape, tapeGeometry, tapeEnds, moveTapeEnd } from "../tape";
 import type { FindActions } from "../find";
 import type { TidyActions } from "../tidy-up";
 import { editingCommandReason } from "../commands";
+import type { LinkPointer, LinkPress } from "../text-links";
 
 import type { BoardVoting } from "../team/voting";
 
@@ -26,6 +27,7 @@ import { hitBorder, hitCell, tableGhost, tableKey, tableBorders, type TableActio
 import type { CellAddress } from "nextphase-board-rules/objects/registry.ts";
 
 type Input = {
+  linkPointer?: () => LinkPointer;
   animated?: ReadonlySet<string>; bitmaps?: ReadonlyMap<string, ImageBitmap>;
   tableSelection?: TableSelection;
   chooseTable: (selection: TableSelection, table: TableItem) => void;
@@ -86,7 +88,7 @@ export function useCanvasInput({
   setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
   scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
   selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
-  handlesVisible, handlePoints, objectLayouts, displayedObjects, edit, textEditing, invalidObjectText, animated = new Set(), bitmaps = new Map(),
+  handlesVisible, handlePoints, objectLayouts, displayedObjects, edit, textEditing, invalidObjectText, animated = new Set(), bitmaps = new Map(), linkPointer,
 }: Input) {
   const tableDrag = useRef<{ object: TableItem; border: TableBorder; layout: TableLayout } | null>(null);
   const ghost = useRef<TableGhost | null>(null);
@@ -98,7 +100,8 @@ export function useCanvasInput({
   const hoverKey = hoverAllowed ? [model.current.boardId, page, tool, view.x, view.y, view.z].join("/") : "";
   const hovered = hoverAllowed && hover.key === hoverKey ? hover.id : "";
   if (hover.id && (!hoverAllowed || hover.key !== hoverKey)) setHover({ key: hoverKey, id: "" });
-  const pointerLeave = () => { if (hover.id) setHover({ key: hoverKey, id: "" }); };
+  const pointerLeave = () => { if (hover.id) setHover({ key: hoverKey, id: "" }); linkPointer?.().leave(); };
+  const linkPress = useRef<{ press: LinkPress; cx: number; cy: number; pointerId: number; crossed: boolean } | null>(null);
   const tableTarget = displayedObjects.find(o => o.id === tableSelection?.id);
   const selectedTable = tableTarget && isTable(tableTarget) ? tableTarget : undefined;
   const tapeEnd = useRef<{object:TapeItem & { page: string };end:number;pointer:number}|null>(null);
@@ -135,6 +138,7 @@ export function useCanvasInput({
     setSpacePan(false);
   }
   function cancel() {
+    linkPress.current = null;
     const d = drag.current;
     tapeEnd.current = null; tableDrag.current = null; ghost.current = null; setHoverAxis(undefined);
     if (d?.pan) setView(d.view);
@@ -233,6 +237,13 @@ export function useCanvasInput({
     }
   }
   function pointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    linkPress.current = null;
+    const links = linkPointer?.();
+    const eligible = links && e.button === 0 && e.isPrimary && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey &&
+      !inline && !composing && !drag.current && tool === "Select" && !voting?.mode && !tidy?.open && !spacePanRef.current &&
+      (e.target === e.currentTarget || e.target instanceof HTMLCanvasElement);
+    const press = eligible ? links.press(point(e)) : undefined;
+    const repeated = links?.repeats(press);
     trackPointer(e);
     if (
       e.target !== e.currentTarget &&
@@ -332,6 +343,7 @@ export function useCanvasInput({
       };
     } else if (tool === "Select") {
       if (hit) {
+        if (press && !repeated) linkPress.current = { press, cx: e.clientX, cy: e.clientY, pointerId: e.pointerId, crossed: false };
         if (e.shiftKey) {
           select(toggleGroup(model.current.objects, selected, hit.id));
         } else {
@@ -374,10 +386,16 @@ export function useCanvasInput({
       drag.current.pointerId = e.pointerId;
       e.currentTarget.setPointerCapture(e.pointerId);
       setBusy(true);
+    } else if (linkPress.current) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setBusy(true);
     }
   }
   function pointerMove(e: React.PointerEvent<HTMLDivElement>) {
     trackPointer(e);
+    const link = linkPress.current;
+    if (link?.pointerId === e.pointerId) link.crossed ||= Math.hypot(e.clientX - link.cx, e.clientY - link.cy) >= 3;
+    linkPointer?.().move(point(e), e);
     const d = drag.current;
     const hit = hoverAllowed && e.buttons === 0 ? hitObject(displayedObjects, point(e), view.z) : undefined;
     const id = hit && isMedia(hit) && hasPlayMark(hit, animated, bitmaps) && !selected.has(hit.id) ? hit.id : "";
@@ -466,6 +484,11 @@ export function useCanvasInput({
     }
   }
   function pointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    const link = linkPress.current;
+    const follow = link && link.pointerId === e.pointerId && !link.crossed &&
+      Math.hypot(e.clientX - link.cx, e.clientY - link.cy) < 3 && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey &&
+      tool === "Select" && !inline && !voting?.mode && !tidy?.open ? link.press : undefined;
+    if (link?.pointerId === e.pointerId) linkPress.current = null;
     if(!drag.current&&voting?.pointerUp(e,hitObject(displayedObjects,point(e),view.z))){releaseCapture(e.pointerId);return;}
     const d = drag.current;
     if (d?.connection?.reconnect && e.pointerId !== d.pointerId) return;
@@ -480,7 +503,11 @@ export function useCanvasInput({
       }
       setBoard({...model.current});releaseCapture(d?.pointerId);return;
     }
-    if (!d) return;
+    if (!d) {
+      if (link?.pointerId === e.pointerId) releaseCapture(e.pointerId);
+      if (follow) linkPointer?.().follow(follow, point(e));
+      return;
+    }
     const delta = Math.hypot(e.clientX - d.cx, e.clientY - d.cy);
     if (d.id === table.tool) {
       const dimensions = tableGhost(d, point(e), !!d.crossed || delta >= 3);
@@ -593,8 +620,10 @@ export function useCanvasInput({
     }
     setSelectionBox(null);
     releaseCapture(d.pointerId);
+    if (follow) linkPointer?.().follow(follow, point(e));
   }
   function doubleClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (linkPointer?.().doubled(point(e))) return;
     if(voting?.mode||tidy?.open)return;
     if (spacePanRef.current || composing || busy || isDrawingTool(tool) || tool === "Comment") return;
     const p = point(e);
@@ -619,9 +648,9 @@ export function useCanvasInput({
   }
   function lostPointerCapture() {
     voting?.cancelPointer();
-    if (drag.current) {
+    if (drag.current || linkPress.current) {
       const d = drag.current;
-      if (d.pan) setView(d.view);
+      if (d?.pan) setView(d.view);
       cancel();
     }
   }

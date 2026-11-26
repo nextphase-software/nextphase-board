@@ -56,12 +56,13 @@ export function TeamApp() {
       const board = active.current, destination = location.hash;
       const target = parseLink(destination);
       if (board && target.kind === "board" && target.board === board.boardId) {
-        board.openLinkedPage(target.page);
+        board.openLinkedPage(target.page, target.object);
         return;
       }
       if (board?.counts.waiting) {
         const ownLink = board.page ? pageLink(location.href, board.page, board.boardId) : boardLink(location.href, board.boardId);
         history.pushState(null, "", ownLink);
+        if (board.page && board.addressObject) history.replaceState(null, "", pageLink(location.href, board.page, board.boardId, board.addressObject));
         leaveHandler.current(() => { board.stop(); active.current = null; location.hash = destination; });
         return;
       }

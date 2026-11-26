@@ -58,17 +58,17 @@ export function useGeometryEdits({
     const box = measureNode(value, o.parent === null);
     return { ...box, x: outerSide(model.current.objects, o.id) === "left" ? o.x + o.width - box.width : o.x };
   }
-  function commitText(id: string, value: string) {
+  function commitText(id: string, value: string, edit?: { start: number; end: number }) {
     commit({
       ...model.current,
       objects: model.current.objects.map((o) =>
         o.id === id && hasText(o) && o.text !== value
-          ? { ...o, ...(hasRectangle(o) ? { height: objectType(o.type).growsWithText ? savedHeight(o, lineCount(o, value), textUnits(o.textSize)) : o.height } : {}), ...nodeBox(o, value), text: value, marks: remap(o.marks, o.text, value) }
+          ? { ...o, ...(hasRectangle(o) ? { height: objectType(o.type).growsWithText ? savedHeight(o, lineCount(o, value), textUnits(o.textSize)) : o.height } : {}), ...nodeBox(o, value), text: value, marks: remap(o.marks, o.text, value, edit) }
           : o
       ),
     });
   }
-  function changeText(input: string) {
+  function changeText(input: string, edit?: { start: number; end: number }) {
     if (!item || !hasText(item) || readOnly) return;
     // A node has no line breaks: pasted ones become spaces.
     const value = isMindNode(item) ? input.replace(/\r\n|[\n\r\u2028\u2029]/g, " ") : input;
@@ -76,7 +76,7 @@ export function useGeometryEdits({
     setDrafts((d) => ({ ...d, [item.id]: value }));
     setStatus("Unsaved");
     if (validText(value, objectType(item.type).textLimit) && !composing) {
-      commitText(item.id, value);
+      commitText(item.id, value, edit);
     }
   }
   function create(tool: string, x: number, y: number, native = false, released = false, dimensions?: { columns: number; rows: number }) {

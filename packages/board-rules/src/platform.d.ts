@@ -2,3 +2,4 @@
 // The only globals the board rules use beyond ES2022. Browsers, Workers and Node all provide them.
 declare const crypto: { randomUUID(): `${string}-${string}-${string}-${string}-${string}` };
 declare class TextEncoder { encode(input?: string): Uint8Array }
+declare class URL { constructor(url: string); readonly href: string; readonly protocol: string; readonly hostname: string; readonly username: string; readonly password: string }

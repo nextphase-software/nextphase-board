@@ -4,9 +4,10 @@ import type { BoardV14 as Board } from 'nextphase-board-rules/document.ts';
 import { addPage, deletePage, duplicatePage, duplicatePageReason, fallbackPage, movePage, movedSet, moveToPage, pageBoard, pageObjects, renamePage, PAGE_LIMIT } from '../pages';
 import { fitView, freeArea, type View } from '../view';
 import { objectBox, unionBoxes } from '../find';
+import { hiddenIds } from '../mind-map';
 import {
   captureStartupPage, takeStartupAdoption, startupPagePending, pageLink, resolvePage, COPY_PAGE_LINK,
-  copiedPageNotice, clipboardRefused, missingPageNotice,
+  copiedPageNotice, clipboardRefused, missingPageNotice, missingObjectNotice,
 } from '../page-links.ts';
 import type { ResolvedItem } from '../geometry';
 import type { HostedBoard } from '../team/hosted-board';
@@ -17,6 +18,7 @@ type Input = {
   commit: (board: Board, record?: boolean, orderIds?: readonly string[], opens?: string, movedPages?: readonly string[]) => void; finishTextSession: () => void;
   select: (value: string | Iterable<string>) => void; setMessage: (value: string) => void;
   getView: () => View; setView: (view: View, following?: boolean) => void; getObjects: () => readonly ResolvedItem[];
+  getSelection?: () => { ids: ReadonlySet<string>; settled: boolean };
   openingReason: () => string; editingReason: () => string;
 };
 type Drag = { id: string; y: number; active: boolean; gap: number };
@@ -38,11 +40,13 @@ export function usePages(input: Input) {
   const click = useRef<ReturnType<typeof setTimeout> | undefined>(undefined), skipClick = useRef(false);
   const same = state.boardId === board.boardId;
   const id = same && board.pages.some(p => p.id === state.id) ? state.id : remembered(board);
-  if (!same) { views.current.clear(); setState({ ...state, boardId: board.boardId, id, open: false, menu: '', editing: '', drag: null, moveOpen: false, go: null }); }
+  const settledObject = useRef<string | undefined>(undefined);
+  const pendingCentre = useRef<{ boardId: string; id: string } | undefined>(undefined);
+  if (!same) { views.current.clear(); settledObject.current = undefined; setState({ ...state, boardId: board.boardId, id, open: false, menu: '', editing: '', drag: null, moveOpen: false, go: null }); }
   const currentPage = useRef(id); currentPage.current = id;
   const preview = useRef<{ active: boolean; page?: string }>({ active: false });
   const arrival = useRef({ board: '', opening: input.hosted, localPlaceholder: input.hosted ? undefined : board.boardId,
-    addressBoard: '', addressPage: '' });
+    addressBoard: '', addressPage: '', addressObject: undefined as string | undefined });
   // Clear the local-only startup message before hosted chrome is measured.
   if (arrival.current.opening) { arrival.current.opening = false; setMessage(''); }
   const canEdit = input.canEdit !== false;
@@ -60,15 +64,55 @@ export function usePages(input: Input) {
   function remember(next: string, boardId = model.current.boardId) {
     try { localStorage.setItem(rememberedPageKey(boardId), next); } catch { /* Optional browser preference. */ }
   }
-  function writeAddress(next: string, boardId = model.current.boardId) {
-    if (input.team?.pendingPage) return;
-    const link = pageLink(location.href, next, input.hosted ? boardId : undefined);
-    history.replaceState(history.state, '', link);
-    arrival.current.addressBoard = boardId;
-    arrival.current.addressPage = next;
+  function withoutObject(address: string) {
+    const url = new URL(address);
+    if (!input.hosted) {
+      const parts = url.search.slice(1).split('&');
+      url.search = parts.filter(part => !new URLSearchParams('?' + part).has('object')).join('&');
+    } else {
+      const split = url.hash.indexOf('?');
+      if (split >= 0) {
+        const parts = url.hash.slice(split + 1).split('&').filter(part => !part.startsWith('object='));
+        url.hash = url.hash.slice(0, split) + (parts.length ? '?' + parts.join('&') : '');
+      }
+    }
+    return url.href;
   }
-  function showOpeningPage(next: Board, value: string | undefined, showNotice: boolean) {
-    const { page, missing } = resolvePage(next.pages, value, remembered(next));
+  function writeAddress(next: string, boardId = model.current.boardId, source: 'page' | 'hash' | 'render' = 'page', opening?: { id?: string }) {
+    if (input.team?.pendingPage || pendingCentre.current) return;
+    const selection = input.getSelection?.(), settled = selection?.settled !== false;
+    const selected = opening ? opening.id : selection?.ids.size === 1 ? selection.ids.values().next().value : undefined;
+    const candidate = settled ? selected : settledObject.current;
+    const current = model.current;
+    const object = candidate && current.boardId === boardId && !input.team?.history?.previewing &&
+      current.objects.some(o => o.id === candidate && o.page === next) && !hiddenIds(current.objects).has(candidate)
+      ? candidate : undefined;
+    const last = arrival.current;
+    if (source === 'render' && last.addressBoard === boardId && last.addressPage === next &&
+        (!settled || last.addressObject === object)) return;
+    const hosted = input.hosted ? boardId : undefined;
+    const address = location.href;
+    if (source === 'hash' && !settled && withoutObject(address) === pageLink(address, next, hosted)) return;
+    history.replaceState(history.state, '', pageLink(address, next, hosted, object));
+    if (settled) settledObject.current = object;
+    if (input.team) input.team.addressObject = object;
+    last.addressBoard = boardId;
+    last.addressPage = next;
+    last.addressObject = object;
+  }
+  function centre(object: ResolvedItem, view: View) {
+    const box = objectBox(object);
+    input.setView({ x: box.x + box.width / 2, y: box.y + box.height / 2, z: view.z });
+  }
+  function showOpeningPage(next: Board, value: string | undefined, showNotice: boolean, object?: string) {
+    const target = object === undefined ? undefined : next.objects.find(o => o.id === object);
+    const { page, missing } = resolvePage(next.pages, target?.page ?? value,
+      object === undefined ? remembered(next) : next.pages[0].id);
+    if (object !== undefined) {
+      const visible = target && !hiddenIds(next.objects).has(target.id);
+      select(visible ? target.id : '');
+      if (visible) pendingCentre.current = { boardId: next.boardId, id: target.id };
+    }
     const leaving = currentPage.current;
     currentPage.current = page.id;
     input.stepPage.current = page.id;
@@ -79,9 +123,10 @@ export function usePages(input: Input) {
       input.team.page = page.id;
       if (page.id !== leaving) input.team.pageChanged();
     }
-    if (missing && showNotice) setMessage(missingPageNotice(page.name));
+    if (showNotice && object !== undefined && !target) setMessage(missingObjectNotice);
+    else if (missing && showNotice) setMessage(missingPageNotice(page.name));
   }
-  function openPage(next: string, force = false, fitSource = next, following = false): View | undefined {
+  function openPage(next: string, force = false, fitSource = next, following = false, write = true): View | undefined {
     if (!force && input.openingReason() || !model.current.pages.some(p => p.id === next)) return;
     finishTextSession(); select('');
     const view = transitionView.current ?? input.getView();
@@ -104,21 +149,32 @@ export function usePages(input: Input) {
       input.team.page = next;
       if (next !== leaving) input.team.pageChanged();
     }
-    if (next !== leaving) writeAddress(next);
+    if (next !== leaving && write) writeAddress(next);
     return next === leaving ? view : target;
   }
-  function openLinkedPage(value?: string) {
+  function openLinkedPage(value?: string, object?: string, source: 'hash' | 'click' = 'hash') {
     const current = currentPage.current;
-    if (value !== undefined) {
-      const reason = input.openingReason();
+    if (value !== undefined || object !== undefined) {
+      const reason = source === 'hash' ? input.openingReason() : '';
       if (reason) setMessage(reason);
+      else if (object !== undefined) {
+        const live = model.current, view = input.getView();
+        const target = live.objects.find(o => o.id === object);
+        const { page } = resolvePage(live.pages, target?.page ?? value, live.pages[0].id);
+        openPage(page.id, source === 'click', page.id, false, false);
+        const displayed = target && !hiddenIds(live.objects).has(target.id) ? input.getObjects().find(o => o.id === target.id) : undefined;
+        if (displayed) { select(displayed.id); centre(displayed, view); }
+        if (!target) setMessage(missingObjectNotice);
+        if (source === 'hash') writeAddress(page.id, live.boardId, 'hash', { id: displayed?.id });
+        return;
+      }
       else {
         const { page, missing } = resolvePage(model.current.pages, value, currentPage.current);
-        if (page.id !== currentPage.current) openPage(page.id);
+        if (page.id !== currentPage.current || source === 'click') openPage(page.id, source === 'click');
         if (missing) setMessage(missingPageNotice(page.name));
       }
     }
-    if (currentPage.current === current) writeAddress(current);
+    if (currentPage.current === current && source === 'hash') writeAddress(current, model.current.boardId, 'hash');
   }
   function closeList(focus = false) {
     if (focus || panel.current?.contains(document.activeElement) || pageMenu.current?.contains(document.activeElement)) button.current?.focus();
@@ -183,16 +239,23 @@ export function usePages(input: Input) {
     const off = input.team?.subscribePresence(() => setState(s => ({ ...s })));
     return () => { off?.(); document.removeEventListener('pointerdown', outside, true); };
   }, []);
+  const addressReady = () => input.hosted ? arrival.current.board === board.boardId && !input.team?.pendingPage
+    : board.boardId !== arrival.current.localPlaceholder && !startupPagePending();
   // Focus after React has installed the new row or menu; no DOM state owns pages.
   useEffect(() => {
     const arrived = arrival.current;
     const adoption = !input.hosted && takeStartupAdoption(board.boardId);
     if (adoption) {
       arrived.localPlaceholder = undefined;
-      showOpeningPage(adoption.board, adoption.value, adoption.showNotice);
-    } else if ((input.hosted ? arrived.board === board.boardId : board.boardId !== arrived.localPlaceholder && !startupPagePending())
-      && (arrived.addressBoard !== board.boardId || arrived.addressPage !== id)) {
-      writeAddress(id, board.boardId);
+      showOpeningPage(adoption.board, adoption.value, adoption.showNotice, adoption.object);
+    } else if (addressReady()) {
+      if (pendingCentre.current) {
+        const pending = pendingCentre.current;
+        const object = pending.boardId === board.boardId && input.getObjects().find(o => o.id === pending.id);
+        if (object && object.page === id) { centre(object, input.getView()); pendingCentre.current = undefined; }
+        else if (pending.boardId !== board.boardId || !board.objects.some(o => o.id === pending.id)) pendingCentre.current = undefined;
+      }
+      writeAddress(id, board.boardId, 'render');
     }
     const live = (id: string) => board.pages.some(p => p.id === id);
     if ((!canEdit && (closeEditorMenu && state.menu || state.editing || state.drag || state.moveOpen)) || state.menu && !live(state.menu) || state.editing && !live(state.editing) || state.drag && !live(state.drag.id)) {
@@ -235,7 +298,7 @@ export function usePages(input: Input) {
         input.team.pendingPage = undefined;
         input.team.onLinkedPage = openLinkedPage;
       }
-      showOpeningPage(next, pending?.value, true);
+      showOpeningPage(next, pending?.value, true, pending?.object);
       return;
     }
     const current = currentPage.current;
@@ -250,7 +313,7 @@ export function usePages(input: Input) {
     if (change.origin === 'own' && input.team?.historyPage) afterHistory(before, next, input.team.historyPage);
     arrival.current.board = next.boardId;
   }
-  return { id, local: true, canEdit, changed, people: (page: string) => input.team?.pagePeople(page) ?? { shown: [], overflow: 0, name: '' },
+  return { id, local: true, canEdit, changed, openLink: openLinkedPage, get addressReady() { return addressReady(); }, people: (page: string) => input.team?.pagePeople(page) ?? { shown: [], overflow: 0, name: '' },
     voteReason: (page: string) => input.team?.votePageReason(page) ?? '', list: board.pages, open: same && state.open, menu: closeEditorMenu ? '' : state.menu, editing: canEdit ? state.editing : '',
     name: state.name, drag: canEdit ? state.drag : null, moveOpen: canEdit && state.moveOpen, go: state.go, get openingReason() { return input.openingReason(); }, get editingReason() { return editReason(); },
     get addReason() { return editReason() || (board.pages.length >= 50 ? PAGE_LIMIT : ''); }, duplicateReason: (target: string) => editReason() || duplicatePageReason(board, target),

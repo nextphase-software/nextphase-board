@@ -1758,3 +1758,25 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
 .video-seek:active:not(:disabled)::-webkit-slider-thumb { box-shadow: 0 0 0 4px #ffffff4d; }
 .video-seek:active:not(:disabled)::-moz-range-thumb { box-shadow: 0 0 0 4px #ffffff4d; }
 .video-seek:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+
+.link-bar { position: absolute; display: flex; align-items: center; gap: 4px; box-sizing: border-box; width: 356px; height: 40px; padding: 6px; background: #302d36; color: white; border-radius: 10px; box-shadow: 0 4px 14px rgba(20,18,26,.22); z-index: 6; }
+.link-bar input { box-sizing: border-box; width: 280px; height: 28px; padding: 0 8px; border: 1.5px solid #8a73e6; border-radius: 6px; background: #1d1b21; color: white; font: 13px system-ui; }
+.link-bar input::placeholder { color: #8f8a96; }
+.link-bar input:focus-visible { outline: none; }
+.link-bar input[aria-invalid=true] { border-color: #ff8a80; }
+.link-bar button, .link-card button { width: 28px; height: 28px; min-width: 28px; min-height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: white; }
+.link-bar button:disabled { opacity: .38; }
+.link-bar .link-apply:not(:disabled) { background: #7051cf; }
+.link-bar button:hover:not(:disabled), .link-card button:hover:not(:disabled) { background: #57525f; color: white; }
+.link-bar .link-apply:hover:not(:disabled) { background: #6142be; }
+.link-bar .link-refusal { position: absolute; left: 0; top: calc(100% + 4px); box-sizing: border-box; width: max-content; max-width: 360px; margin: 0; padding: 6px 10px; border-radius: 6px; background: #302d36; color: #ffb4ab; font: 12px/1.35 system-ui; }
+.link-card { position: absolute; display: flex; align-items: center; gap: 2px; box-sizing: border-box; height: 36px; padding: 0 4px 0 10px; background: #302d36; color: white; border-radius: 8px; box-shadow: 0 4px 14px rgba(20,18,26,.22); white-space: nowrap; font: 500 13px/1 system-ui; z-index: 6; }
+.link-card .link-icon { display: inline-flex; width: 16px; height: 16px; margin-right: 8px; color: #d9d6de; }
+.link-card .link-icon svg { width: 16px; height: 16px; }
+.link-card .link-label { max-width: 260px; margin-right: 8px; overflow: hidden; text-overflow: ellipsis; }
+.link-card .link-label.muted { color: #b9b5bf; font-style: italic; }
+.link-card .divider { width: 1px; height: 20px; margin: 0 4px; background: rgba(255,255,255,.18); }
+.link-card button svg { width: 18px; height: 18px; }
+.context button.link-button[aria-pressed=true] { background: #7051cf; color: white; border-radius: 6px; }
+.context button.link-button[aria-pressed=true]:hover:not(:disabled) { background: #6142be; color: white; border-radius: 6px; }
+.inline:has(textarea.link-open) { outline: 3px solid #7051cf; outline-offset: 4px; }

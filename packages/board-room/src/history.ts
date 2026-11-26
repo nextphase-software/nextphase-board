@@ -35,7 +35,7 @@ export function documentBytes(rows: Row[], board: string): { board: Board; data:
   if (data.length > STORED_DOCUMENT_LIMIT) throw Error('document_too_large');
   let at = 0; for (const row of rows) { data.set(row.bytes as Uint8Array, at); at += (row.bytes as Uint8Array).length; }
   const text = new TextDecoder().decode(data), value = validate(JSON.parse(text));
-  if (![10, 11, 12, 13, 14, 15, 16].includes(value.schemaVersion) || value.boardId !== board || canonical(value) !== text) throw Error('bad_document');
+  if (![10, 11, 12, 13, 14, 15, 16, 17].includes(value.schemaVersion) || value.boardId !== board || canonical(value) !== text) throw Error('bad_document');
   return { board: value, data };
 }
 export class History {
@@ -76,7 +76,7 @@ export class History {
     // Compare only valid older representations: new types and kinds cannot
     // appear in a legacy copy, and an upgrade alone captures no version.
     const legacy: Prepared[] = [];
-    for (const version of [10, 11, 12, 13, 14, 15] as const) {
+    for (const version of [10, 11, 12, 13, 14, 15, 16] as const) {
       const { pages: _pages, ...current } = this.host.board;
       const older = version >= 13 ? { ...this.host.board, schemaVersion: version }
         : { ...current, schemaVersion: version, objects: current.objects.map(({ page: _page, ...o }) => o) };

@@ -73,3 +73,51 @@ export function layoutRuns(text: string, marks: readonly Mark[], maxWidth: numbe
 export function lineOffset(align: "left" | "center" | "right", maxWidth: number, lineWidth: number): number {
   return align === "center" ? (maxWidth - lineWidth) / 2 : align === "right" ? maxWidth - lineWidth : 0;
 }
+
+export type LinkSpan = { href: string; start: number; end: number; line: number; x: number; width: number; lineWidth: number };
+export type LineSource = { start: number; length: number };
+
+export function lineSources(text: string, lineTexts: string[]): LineSource[] {
+  let offset = 0, start = 0;
+  return lineTexts.map(line => {
+    const found = text.indexOf(line, offset);
+    if (found < 0) return { start, length: 0 };
+    start += Array.from(text.slice(offset, found)).length;
+    const length = Array.from(line).length, source = { start, length };
+    offset = found + line.length;
+    start += length;
+    return source;
+  });
+}
+
+export function linkSpans(text: string, marks: readonly Mark[], lines: RunLine[], sources: LineSource[], measure: Measure): LinkSpan[] {
+  const spans: LinkSpan[] = [];
+  const links: { start: number; end: number; href: string }[] = [];
+  for (const { start, end, link } of marks) if (link) {
+    const last = links.at(-1);
+    if (last?.end === start && last.href === link) last.end = end;
+    else links.push({ start, end, href: link });
+  }
+  if (!links.length) return spans;
+  const length = Array.from(text).length;
+  for (const [line, { pieces, width: lineWidth }] of lines.entries()) {
+    const source = sources[line];
+    if (!source) continue;
+    const sourceEnd = Math.min(length, source.start + source.length);
+    let offset = source.start;
+    for (const piece of pieces) {
+      const chars = Array.from(piece.text), pieceEnd = Math.min(sourceEnd, offset + chars.length);
+      for (const link of links) {
+        if (link.end <= offset) continue;
+        if (link.start >= pieceEnd) break;
+        const start = Math.max(offset, link.start), end = Math.min(pieceEnd, link.end);
+        if (start >= end) continue;
+        const prefix = measure(chars.slice(0, start - offset).join(""), piece.style);
+        const width = measure(chars.slice(0, end - offset).join(""), piece.style) - prefix;
+        spans.push({ href: link.href, start, end, line, x: piece.x + prefix, width, lineWidth });
+      }
+      offset += chars.length;
+    }
+  }
+  return spans;
+}

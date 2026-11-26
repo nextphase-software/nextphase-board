@@ -230,9 +230,9 @@ export class Room {
       if (!details) throw new RoomError(404, "not_found");
       if (!page) throw new RoomError(503, "service_unavailable");
       const adapter = new Adapter();
-      const input = document ?? { schemaVersion: 16 as const, boardId: this.boardId, title: details.title, pages: [{ id: this.boardId, name: "Page 1" }], objects: [], retiredGenerations: [] };
+      const input = document ?? { schemaVersion: 17 as const, boardId: this.boardId, title: details.title, pages: [{ id: this.boardId, name: "Page 1" }], objects: [], retiredGenerations: [] };
       try {
-        if (![13, 14, 15, 16].includes(validate(input).schemaVersion)) throw Error();
+        if (![13, 14, 15, 16, 17].includes(validate(input).schemaVersion)) throw Error();
       } catch { throw new RoomError(400, "invalid_document"); }
       const board = upgrade(input);
       adapter.set(board);
@@ -271,7 +271,7 @@ export class Room {
     const legacy = meta(storage, "storage_version") === 7;
     const decoded = readBoard(this.doc, legacy);
     validate(decoded);
-    if (decoded.schemaVersion === 16) this.board = decoded;
+    if (decoded.schemaVersion === 17) this.board = decoded;
     else storage.transaction(() => {
       if (legacy) resetVoting(storage);
       this.upgradeStored(decoded, legacy);
@@ -304,13 +304,13 @@ export class Room {
   // Snapshot the upgraded map at the existing revision, without a person's edit.
   private upgradeStored(decoded: DecodedBoard, legacy: boolean) {
     const version = decoded.schemaVersion;
-    if (![10, 11, 12, 13, 14, 15].includes(version) || legacy && version > 13) throw Error("invalid_document");
+    if (![10, 11, 12, 13, 14, 15, 16].includes(version) || legacy && version > 13) throw Error("invalid_document");
     this.doc.transact(() => {
       if (version < 13) {
         convertPages(this.doc, upgrade(decoded).pages);
         for (const value of this.doc.getMap<Y.Map<unknown>>("objects").values()) value.set("page", this.boardId);
       } else if (legacy && decoded.schemaVersion === 13) convertPages(this.doc, decoded.pages);
-      this.doc.getMap("board").set("schemaVersion", 16);
+      this.doc.getMap("board").set("schemaVersion", 17);
     });
     this.board = readLiveBoard(this.doc); validate(this.board);
   }

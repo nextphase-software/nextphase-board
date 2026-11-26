@@ -63,15 +63,15 @@ test("MM-U1 the mindNode record holds its keys, values and defaults", async () =
 
 test("MM-U2 schema 11: new boards, reading 1 to 10, newer versions and canonical keys", async () => {
   const { empty, upgrade, validate, canonical, add } = await rules();
-  assert.equal(empty().schemaVersion, 16);
+  assert.equal(empty().schemaVersion, 17);
   for (let version = 1; version <= 11; version++) {
     const board = { ...withoutPages(empty()), schemaVersion: version, title: "Old" };
     assert.equal(validate(board).schemaVersion, version);
-    assert.equal(upgrade(board).schemaVersion, 16);
+    assert.equal(upgrade(board).schemaVersion, 17);
   }
   const ten = add({ ...empty(), title: "Ten" }, "sticky", 0, 0), old = { ...withoutPages(ten), schemaVersion: 10 };
   assert.deepEqual(withoutPages(upgrade(old)).objects, old.objects);
-  assert.throws(() => validate({ ...empty(), title: "New", schemaVersion: 17 }));
+  assert.throws(() => validate({ ...empty(), title: "New", schemaVersion: 18 }));
   const { board } = await starter();
   const parsed = JSON.parse(canonical(board));
   assert.deepEqual(Object.keys(parsed.objects[0]), ["id", "generation", "type", "page", "text", "color", "textSize", "align", "group", "marks", "section",

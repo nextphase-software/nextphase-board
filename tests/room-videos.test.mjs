@@ -160,10 +160,10 @@ test("X8-U39 exact codec ranges, live schema, schema-only upgrade and per-type a
   const f=await fixture(t),{readBoard,readLiveBoard}=await import("../packages/board-sync/src/codec.ts"),
     {Adapter}=await import("../packages/board-sync/src/document-adapter.ts"),{storedBoardUpdate,version13Board,withoutPages}=await import("./import-fixture.mjs");
   const a=new Adapter();t.after(()=>a.destroy());
-  for(const version of [10,11,12,13,14,15,16]){
+  for(const version of [10,11,12,13,14,15,16,17]){
     const b={...f.room.board,schemaVersion:version},doc=new Y.Doc();
     try {Y.applyUpdate(doc,storedBoardUpdate(version<13?withoutPages(b):b,version<13));assert.equal(readBoard(doc).schemaVersion,version);
-      if(version!==16)assert.throws(()=>readLiveBoard(doc));else assert.equal(readLiveBoard(doc).schemaVersion,16);
+      if(version===17)assert.equal(readLiveBoard(doc).schemaVersion,17);else assert.throws(()=>readLiveBoard(doc));
     }finally{doc.destroy();}
   }
   const legacy=new Y.Doc();try{Y.applyUpdate(legacy,storedBoardUpdate(version13Board(f.room.board),true));

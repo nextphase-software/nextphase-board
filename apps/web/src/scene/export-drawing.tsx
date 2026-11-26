@@ -13,7 +13,7 @@ export const drawExport: DrawExport<Parameters<typeof BoardDrawing>[0]["objectLa
       const root = createRoot(host);
       try {
         flushSync(() => root.render(
-          <BoardDrawing board={board} only={only} objectLayouts={objectLayouts} bitmaps={bitmaps}
+          <BoardDrawing board={board} only={only} objectLayouts={objectLayouts} bitmaps={bitmaps} pixelScale={fit.scale}
             stageRef={stageRef} selected={new Set()} inline={false} faded={new Set()}
             tableGesture={{ ghost: null }} preview={null} movingIds={[]}
             size={{ w: 2, h: 2 }} view={{ x: box.x + 1, y: box.y + 1, z: 1 }} />,

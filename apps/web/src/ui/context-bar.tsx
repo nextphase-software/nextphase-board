@@ -24,9 +24,12 @@ import type { TableItem } from "nextphase-board-rules/document.ts";
 
 import type { LinkBar } from "../link-cards";
 import { LinkControls } from "./link-controls";
+import { LINK_WORDS, type LinkControls as TextLinkControls } from "../text-links";
+import { LinkBar as TextLinkBar, LinkGlyph } from "./link-bar";
 
 type Props = {
   links: LinkBar;
+  textLinks: TextLinkControls;
   tableSelection?: TableSelection;
   tableDraft?: string;
   tableResizing: boolean;
@@ -94,7 +97,7 @@ type Props = {
 };
 
 export function ContextBar({ tableSelection, tableDraft, tableResizing, cellInvalidNotice, setMessage, tableAction, tableSize, editCell, exportTable,
-  moveToPage, links, tapeSelection, tidy, board, imageCount, imagesOnly, description, strokeSelection, strokeCommands, connectorObjects, connectorCommands, connectorPopup, connectorOnly, connectorCount, duplicateReason, shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
+  moveToPage, links, textLinks, tapeSelection, tidy, board, imageCount, imagesOnly, description, strokeSelection, strokeCommands, connectorObjects, connectorCommands, connectorPopup, connectorOnly, connectorCount, duplicateReason, shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
   inline, richText, finishTextSession, setInline, scene, edit, text, colourControl, colourButton,
   selectionReason, colourLabel, swatchOpen, setArrangeFor, setSwatchFor, selectionKey,
   selectionColor, swatches, contextWidth, size, closeSwatches, changeStyle, selectionSize,
@@ -134,7 +137,11 @@ export function ContextBar({ tableSelection, tableDraft, tableResizing, cellInva
           <ArrangeControls prefix="menu-arrange" choose={(name) => { if (name === "Connect") { closeArrange(); arrange(name); } else { arrange(name); closeArrange(); } }} arrangementReason={arrangementReason} />
         </div>}
       </span>}</>;
-  const objectCommands = <>{moveToPage}{(["Duplicate", "Delete"] as const).map((name) => (
+  const copyLink = textLinks?.copy.shown && <button className="icon-button" aria-label={textLinks.copy.label}
+    onMouseDown={e => e.preventDefault()} onClick={textLinks.copy.run}>
+    <LinkGlyph name="copy-object" size={20} /><span className="tooltip">{textLinks.copy.label}</span>
+  </button>;
+  const objectCommands = <>{moveToPage}{copyLink}{(["Duplicate", "Delete"] as const).map((name) => (
         <button key={name} className="icon-button" aria-label={name}
           aria-describedby={name === "Duplicate" && duplicateReason !== selectionReason ? "duplicate-reason" : "selection-reason"} disabled={!!(name === "Duplicate" ? duplicateReason : selectionReason)}
           onClick={() => command(name)}>
@@ -143,8 +150,10 @@ export function ContextBar({ tableSelection, tableDraft, tableResizing, cellInva
       ))}</>;
   const table = item && isTable(item) && tableSelection && selected.size === 1 ? item : undefined;
   // Keep the measured element mounted while hiding the table bar during a drag.
-  const visible = contextFits && !(table && tableResizing);
+  const linkBar = textLinks?.bar;
+  const visible = contextFits && !(table && tableResizing) && !linkBar;
   return (
+    <>
     <section
       ref={contextBar}
       className="context"
@@ -161,7 +170,7 @@ export function ContextBar({ tableSelection, tableDraft, tableResizing, cellInva
           if (cellInvalidNotice) { setMessage(cellInvalidNotice); return; }
           finishTextSession(); setInline(false); scene.current?.focus();
         }} draft={inline ? tableDraft : undefined} invalid={!!cellInvalidNotice} readOnly={readOnly} composing={composing}
-        reason={selectionReason} action={tableAction} size={tableSize} exportTable={exportTable}>{arrangeTools}{objectCommands}</TableControls> : tapeSelection.only ? <><TapeControls selection={tapeSelection} commands={strokeCommands} reason={selectionReason} />{moveToPage}{(["Duplicate","Delete"] as const).map(name=><button key={name} className="icon-button" aria-label={name} disabled={!!(name==="Duplicate"?duplicateReason:selectionReason)} onClick={()=>command(name)}><Icon name={name} /><span className="tooltip">{name}</span></button>)}</> : strokeSelection.only ? <StrokeControls moveToPage={moveToPage} selection={strokeSelection} commands={strokeCommands} reason={selectionReason} remove={() => command("Delete")} /> : connectorOnly ? <ConnectorControls moveToPage={moveToPage} objects={connectorObjects} commands={connectorCommands} popup={connectorPopup} count={selected.size} empty={!text} reason={selectionReason} edit={edit} remove={() => command("Delete")} /> : <>
+        reason={selectionReason} action={tableAction} size={tableSize} exportTable={exportTable} copyLink={copyLink}>{arrangeTools}{objectCommands}</TableControls> : tapeSelection.only ? <><TapeControls selection={tapeSelection} commands={strokeCommands} reason={selectionReason} />{moveToPage}{copyLink}{(["Duplicate","Delete"] as const).map(name=><button key={name} className="icon-button" aria-label={name} disabled={!!(name==="Duplicate"?duplicateReason:selectionReason)} onClick={()=>command(name)}><Icon name={name} /><span className="tooltip">{name}</span></button>)}</> : strokeSelection.only ? <StrokeControls moveToPage={<>{moveToPage}{copyLink}</>} selection={strokeSelection} commands={strokeCommands} reason={selectionReason} remove={() => command("Delete")} /> : connectorOnly ? <ConnectorControls moveToPage={<>{moveToPage}{copyLink}</>} objects={connectorObjects} commands={connectorCommands} popup={connectorPopup} count={selected.size} empty={!text} reason={selectionReason} edit={edit} remove={() => command("Delete")} /> : <>
       {links.only ? <LinkControls bar={links} reason={selectionReason} /> : imagesOnly ? <ImageControls count={imageCount} control={description} /> : <>
       <ShapeControls part="kind" selection={shapeSelection} commands={shapeCommands} reason={selectionReason} popup={shapePopup} />
       {(!shapeSelection.objects.length || connectorCount > 0 || strokeSelection.objects.length > 0 || tapeSelection.objects.length > 0) && <span>{item ? objectType(item.type).label : selected.size + " objects"}</span>}
@@ -246,6 +255,12 @@ export function ContextBar({ tableSelection, tableDraft, tableResizing, cellInva
           }}>
           <Icon name={flag} /><span className="tooltip">{selectionReason || FLAG_LABELS[flag]}</span>
         </button>)}
+        {textLinks && <button className="icon-button link-button" aria-label={LINK_WORDS.link}
+          aria-pressed={textLinks.link.pressed} disabled={textLinks.link.disabled}
+          aria-describedby={textLinks.link.disabled ? textLinks.link.own ? "link-reason" : "selection-reason" : undefined}
+          onMouseDown={e => e.preventDefault()} onClick={textLinks.link.run}>
+          <LinkGlyph name="link" size={20} /><span className="tooltip">{textLinks.link.tooltip}</span>
+        </button>}
       </span>
       </>}
       </>}
@@ -262,5 +277,7 @@ export function ContextBar({ tableSelection, tableDraft, tableResizing, cellInva
       {objectCommands}
       </>}
     </section>
+    {linkBar && <TextLinkBar bar={{ ...linkBar, left: clamp(contextLeft + contextWidth / 2 - 178, 12, size.w - 368) }} top={contextTop} />}
+    </>
   );
 }

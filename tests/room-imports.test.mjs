@@ -103,7 +103,7 @@ test("X9-U21 claim validates kinds, releases, and promotion preserves staged row
   assert.equal(f.meta().some(row => row.key === "import"), false);
   assert(f.storage.all("SELECT uploaded_at FROM pictures").every(row => row.uploaded_at === f.env.now()));
   assert.deepEqual(f.storage.all("SELECT hash, part, length(data) AS size FROM picture_parts ORDER BY hash, part"), oldParts);
-  assert.deepEqual(JSON.parse(await room.export(person)), { ...document, schemaVersion: 16 });
+  assert.deepEqual(JSON.parse(await room.export(person)), { ...document, schemaVersion: 17 });
   assert.deepEqual(await room.assetSizes(person, [video.hash, "0".repeat(64), picture.hash]), [video, picture]);
   await rejects(f.open(), 409, "room_exists");
 });

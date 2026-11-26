@@ -10,7 +10,7 @@ import { cornerPoint, type Corner } from "../resize";
 import { boundingBox } from "../selection";
 import { textUnits } from "nextphase-board-rules/styles.ts";
 import { remap } from "nextphase-board-rules/marks.ts";
-import { layoutRuns, type RunStyle, type RunLine, lineOffset } from "../text-runs";
+import { layoutRuns, type RunStyle, type RunLine, lineOffset, lineSources, linkSpans, type LinkSpan } from "../text-runs";
 import type { Drag } from "../gesture";
 
 import { connectorLayout, labelEditorBox, type ConnectorLayout } from "../connectors";
@@ -56,7 +56,7 @@ function measureNode(text: string, root: boolean) { return nodeBox(text, root, m
 function runLines(object: Item, text = object.text ?? "") {
   if (!hasRectangle(object) || !hasText(object)) return null;
   const marks = text === object.text ? object.marks : remap(object.marks, object.text, text);
-  return marks.length || usesShapePaint(object) ? layoutRuns(text, marks, textBox(object).width,
+  return marks.some(mark => mark.bold || mark.italic || mark.strike) || usesShapePaint(object) ? layoutRuns(text, marks, textBox(object).width,
     (value, style) => measure(value, style, textUnits(object.textSize))) : null;
 }
 function lineCount(object: Item, text = object.text ?? ""): number {
@@ -83,36 +83,60 @@ function measureCell(text: string, width: number, fontSize: number) {
   return lines;
 }
 
+const lineTexts = (lines: RunLine[]) => lines.map(line => line.pieces.map(piece => piece.text).join(""));
+
 export function useObjectLayouts({
   tableDraft, tableSelection, board, objects = board.objects, selected, selectedId, item, text, inline, textEditing, invalidObjectText, tool, readOnly, composing, busy, drag,
 }: Input) {
   const objectLayouts = useMemo(() => {
-    const layouts = new Map(board.objects.filter(hasRectangle).map((o): [string, { height: number; runs: RunLine[] | null; limited: boolean; fadeStart: number; fadeEnd: number; fits?: boolean; fitHeight?: number; connector?: ConnectorLayout; table?: TableLayout }] => {
+    const layouts = new Map(board.objects.filter(hasRectangle).map((o): [string, { height: number; runs: RunLine[] | null; links: LinkSpan[]; limited: boolean; fadeStart: number; fadeEnd: number; fits?: boolean; fitHeight?: number; connector?: ConnectorLayout; table?: TableLayout }] => {
     if (isTable(o)) {
       const table = layoutTable(o, measureCell, tableDraft?.cell.id === o.id ? tableDraft : undefined);
-      return [o.id, { height: table.box.height, table, runs: null, limited: false, fadeStart: 0, fadeEnd: 0 }];
+      return [o.id, { height: table.box.height, table, runs: null, links: [], limited: false, fadeStart: 0, fadeEnd: 0 }];
     }
     if (isMindNode(o)) return [o.id, { height: o.height, runs: nodeLines(inline && o.id === selectedId ? text : o.text, o.parent === null, measureText),
-      limited: false, fadeStart: 0, fadeEnd: 0 }];
+      links: [], limited: false, fadeStart: 0, fadeEnd: 0 }];
     if (!hasText(o) || !objectType(o.type).richText) return [o.id, { height: o.height, runs: null,
-      limited: false, fadeStart: 0, fadeEnd: 0 }];
+      links: [], limited: false, fadeStart: 0, fadeEnd: 0 }];
     // Uncommitted composition/invalid input may grow the editor's preview only.
+    const fontSize = textUnits(o.textSize), width = textBox(o).width;
+    const measureRun = (value: string, style: RunStyle) => measure(value, style, fontSize);
+    const linked = o.marks.some(mark => mark.link);
     if (usesShapePaint(o)) {
-      const layout = (width: number) => layoutRuns(o.text, o.marks, width, (value, style) => measure(value, style, textUnits(o.textSize)));
-      const measured = shapeTextLayout(o, layout, (value, style) => measure(value, style, textUnits(o.textSize)));
-      return [o.id, { height: o.height, runs: measured.lines, fits: measured.fits,
-        fitHeight: measured.fits ? o.height : fitHeight(o, layout, (value, style) => measure(value, style, textUnits(o.textSize))),
+      const layout = (width: number) => layoutRuns(o.text, o.marks, width, measureRun);
+      const measured = shapeTextLayout(o, layout, measureRun);
+      let links: LinkSpan[] = [];
+      if (linked) {
+        const full = lineTexts(layout(width)), shown = lineTexts(measured.lines);
+        const sources = lineSources(o.text, full);
+        const last = shown.length - 1;
+        if (last >= 0 && sources[last] && !measured.fits) sources[last].length = Math.max(0, Array.from(shown[last]).length - 1);
+        links = linkSpans(o.text, o.marks, measured.lines, sources, measureRun);
+      }
+      return [o.id, { height: o.height, runs: measured.lines, links, fits: measured.fits,
+        fitHeight: measured.fits ? o.height : fitHeight(o, layout, measureRun),
         limited: !measured.fits, fadeStart: 0, fadeEnd: 0 }];
     }
     const lines = lineCount(o, inline && o.id === selectedId ? text : o.text);
-    const fontSize = textUnits(o.textSize);
     const height = displayHeight(o, lines, fontSize);
     const innerHeight = height - 2 * TEXT_INSET;
     const lineHeight = fontSize * TEXT_LAYOUT.lineHeight;
     const visibleLines = Math.floor(innerHeight / lineHeight);
+    const runs = runLines(o);
+    let links: LinkSpan[] = [];
+    if (linked) {
+      let drawn = runs;
+      if (!drawn) {
+        const measurement = new Konva.Text({ ...TEXT_LAYOUT, fontSize, width, text: o.text, align: o.align });
+        drawn = measurement.textArr.map(({text, width}) => ({ width, pieces: [{ text, style: {}, x: 0, width }] }));
+        measurement.destroy();
+      }
+      links = linkSpans(o.text, o.marks, drawn, lineSources(o.text, lineTexts(drawn)), measureRun);
+    }
     return [o.id, {
       height,
-      runs: runLines(o),
+      runs,
+      links,
       limited: neededHeight(lines, fontSize) > allowedHeight(o.y),
       fadeStart: Math.max(0, visibleLines - 1) * lineHeight,
       fadeEnd: Math.max(1, Math.min(innerHeight, Math.max(1, visibleLines) * lineHeight)),
@@ -121,7 +145,7 @@ export function useObjectLayouts({
     const rectangles = new Map(board.objects.filter(hasRectangle).map((o) => [o.id, { ...o, displayHeight: layouts.get(o.id)!.height }]));
     for (const o of board.objects.filter(hasEnds)) {
       const connector = connectorLayout(o, rectangles, (value) => measure(value, {}, 18));
-      layouts.set(o.id, { height: connector.bounds.height, connector, runs: null, limited: false, fadeStart: 0, fadeEnd: 0 });
+      layouts.set(o.id, { height: connector.bounds.height, connector, runs: null, links: [], limited: false, fadeStart: 0, fadeEnd: 0 });
     }
     return layouts;
   }, [board.objects, inline, selectedId, text, tableDraft]);

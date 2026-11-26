@@ -74,10 +74,10 @@ function AxisMenu({ axis, table, action }: { axis: TableAxis; table: TableItem; 
 }
 
 const divider = <span className="divider" aria-hidden="true" />;
-export function TableControls({ table, selection, edit, done, draft, invalid, readOnly, composing, reason, action, size, exportTable, children }: {
+export function TableControls({ table, selection, edit, done, draft, invalid, readOnly, composing, reason, action, size, exportTable, children, copyLink }: {
   table: TableItem; selection: TableSelection; edit: () => void; done: () => void; draft?: string; invalid: boolean;
   readOnly: boolean; composing: boolean; reason: string; action: (a: TableAction) => void;
-  size: (value: Style["textSize"]) => void; exportTable?: (() => boolean) & { disabled?: boolean; reason?: string }; children?: ReactNode;
+  size: (value: Style["textSize"]) => void; exportTable?: (() => boolean) & { disabled?: boolean; reason?: string }; children?: ReactNode; copyLink?: ReactNode;
 }) {
   const editing = draft !== undefined, mode = tableMode(selection, editing);
   const length = count(draft ?? cellText(table, anchorCell(table, selection)));
@@ -96,24 +96,27 @@ export function TableControls({ table, selection, edit, done, draft, invalid, re
       </button>}
       {divider}{children}
     </>}
+    {readOnly && copyLink}
   </>;
   if (editing) return <>
     <span>Cell</span>{divider}
     <button onMouseDown={e => e.preventDefault()} disabled={composing} onClick={done}><Icon name="Done" />Done</button>
-    {divider}{counter}
+    {divider}{counter}{copyLink}
   </>;
-  if (readOnly) return <><span>Cell</span>{divider}{counter}</>;
+  if (readOnly) return <><span>Cell</span>{divider}{counter}{copyLink}</>;
   if (mode === "Cell") return <>
     <span>Cell</span>{divider}
     <button disabled={!!reason} onClick={edit}><Icon name="pencil" />Edit text</button>{divider}{counter}
     <AxisMenu axis="row" table={table} action={action} />
     <AxisMenu axis="column" table={table} action={action} />
     <TableButton name="Delete content" icon="Delete content" reason={reason} action={() => action({ at: "clear" })} />
+    {copyLink}
   </>;
   const axis = mode === "Row" ? "row" : "column";
   return <><span>{mode}</span>{divider}
     <AxisMenu axis={axis} table={table} action={action} />
     <TableButton name={"Delete " + axis} icon="Delete axis" reason={reason || tableReason(table, axis, "delete")}
       action={() => action({ axis, at: "delete" })} />
+    {copyLink}
   </>;
 }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { validMarks, type Mark } from "./marks.ts";
+import { linkAddress } from "./text-link.ts";
 import { OBJECT_TYPES, objectType, extraValues, objectKeys, hasEnds, hasRectangle, eligibleIdea, rectangleType, type ImageKeys, type VideoKeys, type LinkKeys, isVideo, pictureOf, type RectangleType, type TextRectangleType, type PointsType, type StrokeKeys, hasText, type EndsType, type EndsKeys, type Rectangle, type ShapeKeys, type ConnectorStyle, defaultConnectorStyle, connectorStyleOf, typeWithEnds, isMindNode, type MindNodeKeys, type TapeKeys, usesShapePaint, validShape, isTable, table, createTable, canonicalTable, MAX_BOARD_CELLS, type TableKeys, type PlacementType } from "./objects/registry.ts";
 import { ALIGNMENTS, COLORS, TEXT_SIZES, type Style } from "./styles.ts";
 export type ItemV1 = {
@@ -72,12 +73,13 @@ export type BoardV8 = BoardFields & { schemaVersion: 8; objects: ItemV8[] };
 export type BoardV9 = BoardFields & { schemaVersion: 9; objects: ItemV9[] };
 export type BoardV10 = BoardFields & { schemaVersion: 10; objects: ItemV10[] };
 type LegacyBoardV12 = BoardFields & { schemaVersion: 12; objects: LegacyItemV12[] };
-export type BoardV12 = BoardV16;
+export type BoardV12 = BoardV17;
 export type BoardV13 = BoardFields & { schemaVersion: 13; pages: Page[]; objects: ItemV13[] };
-export type BoardV16 = BoardFields & { schemaVersion: 16; pages: Page[]; objects: ItemV16[] };
-export type BoardV15 = BoardV16;
-export type BoardV14 = BoardV16;
-export type Board = BoardFields & { pages?: Page[]; schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16; objects: Item[] };
+export type BoardV17 = BoardFields & { schemaVersion: 17; pages: Page[]; objects: ItemV16[] };
+export type BoardV16 = BoardV17;
+export type BoardV15 = BoardV17;
+export type BoardV14 = BoardV17;
+export type Board = BoardFields & { pages?: Page[]; schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17; objects: Item[] };
 const uuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export const tableCellCount = (items: readonly Item[]) => items.filter(isTable).reduce((sum, t) => sum + t.rows.length * t.columns.length, 0);
@@ -100,7 +102,7 @@ export function validate(value: unknown): Board {
       ...(b.schemaVersion >= 13 ? ["pages"] : []),
       "objects",
       "retiredGenerations",
-    ]) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].includes(b.schemaVersion) || typeof b.boardId !== "string" || !uuid.test(b.boardId) ||
+    ]) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(b.schemaVersion) || typeof b.boardId !== "string" || !uuid.test(b.boardId) ||
     typeof b.title !== "string" || !validText(b.title, 120, true) ||
     !Array.isArray(b.objects) || b.objects.length > 250 ||
     !Array.isArray(b.retiredGenerations) || b.retiredGenerations.length > 10000
@@ -129,7 +131,15 @@ export function validate(value: unknown): Board {
         !TEXT_SIZES.some((s) => s.name === styled.textSize) ||
         !ALIGNMENTS.some((a) => a.name === styled.align)) throw Error("Invalid style");
     }
-    if (b.schemaVersion >= 4 && hasText(o) && !validMarks((o as ItemV4).marks, count(o.text))) throw Error("Invalid marks");
+    if (b.schemaVersion >= 4 && hasText(o)) {
+      const { marks } = o as ItemV4;
+      if (!validMarks(marks, count(o.text))) throw Error("Invalid marks");
+      for (const mark of marks) if (Object.hasOwn(mark, "link")) {
+        if (b.schemaVersion !== 17 || !objectType(o.type).richText) throw Error("Invalid marks");
+        const result = linkAddress(mark.link!);
+        if (!result.ok || result.href !== mark.link) throw Error("Invalid marks");
+      }
+    }
     ids.add(o.id);
     gens.add(o.generation);
   }
@@ -214,7 +224,7 @@ export function validPageName(name: unknown): name is string {
 // Page metadata is excluded from the inherited payload budget (document v18).
 export function payloadBytes(text: string): number {
   const value = JSON.parse(text);
-  if (value.schemaVersion === 13 || value.schemaVersion === 14 || value.schemaVersion === 15 || value.schemaVersion === 16) {
+  if (value.schemaVersion === 13 || value.schemaVersion === 14 || value.schemaVersion === 15 || value.schemaVersion === 16 || value.schemaVersion === 17) {
     delete value.pages;
     for (const object of value.objects) delete object.page;
     return new TextEncoder().encode(JSON.stringify(value)).length;
@@ -248,6 +258,7 @@ export function markOf(m: Mark): Mark {
     ...(m.bold ? { bold: true } : {}),
     ...(m.italic ? { italic: true } : {}),
     ...(m.strike ? { strike: true } : {}),
+    ...(Object.hasOwn(m, "link") ? { link: m.link } : {}),
   };
 }
 // Adoption is deliberately separate from decoding/canonicalization: opening
@@ -268,17 +279,18 @@ function legacyUpgrade(b: Board): LegacyBoardV12 {
     }),
   };
 }
-export function upgrade(b: Board): BoardV16 {
-  if (b.schemaVersion === 16) return b as BoardV16;
-  if (b.schemaVersion === 15) return { ...b, pages: b.pages!, objects: b.objects as StoredItemV15[], schemaVersion: 16 };
-  if (b.schemaVersion === 13 || b.schemaVersion === 14) return { ...b, pages: b.pages!, objects: b.objects as StoredItemV14[], schemaVersion: 16 };
+export function upgrade(b: Board): BoardV17 {
+  if (b.schemaVersion === 17) return b as BoardV17;
+  if (b.schemaVersion === 16) return { ...b, schemaVersion: 17 } as BoardV17;
+  if (b.schemaVersion === 15) return { ...b, pages: b.pages!, objects: b.objects as StoredItemV15[], schemaVersion: 17 };
+  if (b.schemaVersion === 13 || b.schemaVersion === 14) return { ...b, pages: b.pages!, objects: b.objects as StoredItemV14[], schemaVersion: 17 };
   const older = legacyUpgrade(b);
-  return { ...older, schemaVersion: 16, pages: [{ id: b.boardId, name: "Page 1" }],
+  return { ...older, schemaVersion: 17, pages: [{ id: b.boardId, name: "Page 1" }],
     objects: older.objects.map((o) => ({ ...o, page: b.boardId })) };
 }
-export function empty(): BoardV16 {
+export function empty(): BoardV17 {
   const boardId = crypto.randomUUID();
-  return { schemaVersion: 16, boardId, title: "", pages: [{ id: boardId, name: "Page 1" }], objects: [], retiredGenerations: [] };
+  return { schemaVersion: 17, boardId, title: "", pages: [{ id: boardId, name: "Page 1" }], objects: [], retiredGenerations: [] };
 }
 // Every identifier namespace shares one freshness rule, including IDs allocated
 // earlier in a multi-object command.
@@ -291,7 +303,7 @@ export function freshIdentifier(board: Board, extra: readonly string[] = []): st
   do id = crypto.randomUUID(); while (used.has(id));
   return id;
 }
-export function add(input: Board, type: PlacementType, x: number, y: number, page = input.boardId, dimensions?: { columns: number; rows: number }): BoardV16 {
+export function add(input: Board, type: PlacementType, x: number, y: number, page = input.boardId, dimensions?: { columns: number; rows: number }): BoardV17 {
   const b = upgrade(input);
   if (b.objects.length >= 250) throw Error("250 object limit reached");
   const record = objectType(type);

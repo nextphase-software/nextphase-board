@@ -218,7 +218,7 @@ export class LocalStore {
             const e = typeof raw === "string" ? JSON.parse(raw) : null;
             if (Number.isSafeInteger(e?.formatVersion) && e.formatVersion > 1) return true;
             const b = typeof e?.payload === "string" ? JSON.parse(e.payload) : null;
-            return Number.isSafeInteger(b?.schemaVersion) && b.schemaVersion > 16;
+            return Number.isSafeInteger(b?.schemaVersion) && b.schemaVersion > 17;
           } catch { return false; }
         });
         return { ...(prior ?? entryDefaults(key)), head, state: newer ? "newer" : "damaged" };

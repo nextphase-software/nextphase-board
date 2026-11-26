@@ -37,6 +37,15 @@ export function objectType(type: string): ObjectType {
   return record;
 }
 
+export function objectKind(type: string): { kind: string; icon: string | null } {
+  const record = objectType(type);
+  const kinds: Partial<Record<ObjectType["type"], string>> = {
+    mindNode: "mind map node", link: "link card", stroke: "drawing", tape: "washi tape",
+  };
+  return { kind: kinds[record.type] ?? record.type,
+    icon: record.type === stroke.type ? "Draw" : record.type === image.type ? "Image" : record.tool };
+}
+
 export function typeForTool(tool: string): PlacementType {
   const record = placementTool(tool);
   if (!record) throw new Error("Unknown object tool: " + tool);

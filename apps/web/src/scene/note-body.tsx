@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
-import { Group, Rect, Text } from "react-konva";
+import { Group, Line, Rect, Text } from "react-konva";
 import type { RectangleItem as Item } from "nextphase-board-rules/document.ts";
 import { TEXT_INSET, TEXT_LAYOUT } from "../geometry";
 import { objectType } from "nextphase-board-rules/objects/registry.ts";
 import { textUnits } from "nextphase-board-rules/styles.ts";
-import { lineOffset, type RunLine } from "../text-runs";
+import { lineOffset, type LinkSpan, type RunLine } from "../text-runs";
 import type { View } from "../view";
 
 export type ObjectLayout = {
   connector?: import("../connectors").ConnectorLayout;
   height: number;
   runs: RunLine[] | null;
+  links: LinkSpan[];
   limited: boolean;
   fadeStart: number;
   fadeEnd: number;
@@ -22,9 +23,11 @@ type Props = {
   selected: Set<string>;
   inline: boolean;
   view: View;
+  pixelScale: number;
 };
 
-export function NoteBody({ o, layout, selected, inline, view }: Props) {
+export function NoteBody({ o, layout, selected, inline, view, pixelScale }: Props) {
+  const font = textUnits(o.textSize), thickness = Math.max(1, Math.round(font * pixelScale / 16)) / pixelScale;
   return (
     <Group>
       <Rect
@@ -76,6 +79,13 @@ export function NoteBody({ o, layout, selected, inline, view }: Props) {
             fillLinearGradientEndPoint={{ x: 0, y: layout.fadeEnd - i * textUnits(o.textSize) * TEXT_LAYOUT.lineHeight }}
             fillLinearGradientColorStops={[0, objectType(o.type).textColor(o), 1, objectType(o.type).textColor(o) + "00"]}
           />))}
+          {layout.links.map(span => {
+            const x = o.x + TEXT_INSET + lineOffset(o.align, o.width - 2 * TEXT_INSET, span.lineWidth) + span.x;
+            const lineTop = o.y + TEXT_INSET + span.line * font * TEXT_LAYOUT.lineHeight;
+            const y = lineTop + font * 1.45 / 2 + 0.47 * font + thickness / 2;
+            return <Line key={`${span.line}:${span.start}`} points={[x, y, x + span.width, y]}
+              stroke={objectType(o.type).textColor(o)} strokeWidth={thickness} lineCap="butt" listening={false} />;
+          })}
         </Group>
       )}
     </Group>

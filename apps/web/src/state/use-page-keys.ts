@@ -5,6 +5,7 @@ import type { ClipboardCommand } from "../clipboard";
 import type { Flag } from "nextphase-board-rules/marks.ts";
 
 import { nativePasteKey } from "../images.ts";
+import { isLinkShortcut } from "../text-links";
 import { hiddenIds, type MapCommand } from "../mind-map";
 
 import type { BoardVoting } from "../team/voting";
@@ -13,6 +14,7 @@ type Input = {
   voting?: BoardVoting;
   chooseImages: () => void;
   openExport?: () => boolean;
+  openLink?: () => boolean;
   command: (name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut" | MapCommand) => string | undefined;
   clipboardCommand: (name: ClipboardCommand) => void;
   toggleFormat: (flag: Flag) => void;
@@ -33,7 +35,7 @@ type Input = {
 };
 
 export function usePageKeys({
-  page, voting, chooseImages, openExport, command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
+  page, voting, chooseImages, openExport, openLink, command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
   setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
 }: Input) {
   function pageKeyDown(e: React.KeyboardEvent<HTMLElement>) {
@@ -50,6 +52,10 @@ export function usePageKeys({
     }
     if (!nativeText && (e.ctrlKey || e.metaKey) && !e.altKey) {
       const key = e.key.toLowerCase();
+      if (e.target === scene.current && !composing && isLinkShortcut(e.nativeEvent)) {
+        if (openLink?.()) e.preventDefault();
+        return;
+      }
       if (key === "e" && e.shiftKey && e.target === scene.current && !composing && !e.nativeEvent.isComposing) {
         const mac = navigator.platform.startsWith("Mac");
         if ((mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey) && openExport?.()) e.preventDefault();

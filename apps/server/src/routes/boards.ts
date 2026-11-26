@@ -56,7 +56,7 @@ export function boards(app: ServerApp, runtime: Runtime) {
     if (imported) {
       try {
         const board = validate(value.document);
-        if (board.schemaVersion !== 13 && board.schemaVersion !== 14 && board.schemaVersion !== 15 && board.schemaVersion !== 16) throw Error();
+        if (board.schemaVersion !== 13 && board.schemaVersion !== 14 && board.schemaVersion !== 15 && board.schemaVersion !== 16 && board.schemaVersion !== 17) throw Error();
         document = upgrade(board);
       } catch { throw new RoomError(400, "invalid_document"); }
       if (staged && typeof importId === "string") {

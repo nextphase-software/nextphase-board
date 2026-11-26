@@ -66,6 +66,12 @@ last settled object is deleted or hidden, suppression of object-only writes duri
 settled single selection writing its object. This note and the web modules v51 amendment are committed together
 before the source changes.
 
+**Amendment A2 (2026-11-26).** The Link button and Copy link to object, including the table bar's copy slot, are
+part of the measured regular context bar independently of `barShown`. The existing hidden state controls visibility
+and availability. The fit rule, placement and ten App.tsx substitutions are unchanged. Add an X11-W case for Copy
+link being rendered for one selected object in both fitting and non-fitting bars, with the existing hidden state
+when the bar does not fit. This note and the web modules v51 amendment are committed together before the source changes.
+
 **New (eight).**
 1. `packages/board-rules/src/text-link.ts` (document v23, web modules v51)
 2. `apps/web/src/text-links.ts`

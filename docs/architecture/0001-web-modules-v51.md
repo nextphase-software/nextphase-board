@@ -141,8 +141,10 @@ refusal shows); a pending open (`{ id, start, end }`) waiting for the editor's p
   `repeats(press)` is true when `followed` is set, `press` names the same object and run, and the press starts within
   500 ms of `at` (the second press of a double-click on the link just followed); any other press clears `followed`.
 - **The Link button** (`controls.link`) is `linkButton` of the selection with `selectionReason` and the editor's range
-  (`textSelection` while `inline`, else the whole text); with `!barShown` the button's click and the shortcut do
-  nothing. Its click while editing opens the bar for the range (a collapsed caret inside a link: that whole run,
+  (`textSelection` while `inline`, else the whole text). **Amendment A2 (2026-11-26).** The Link button stays in the
+  regular bar's Formatting group independently of `barShown`. The bar's existing visibility, `aria-hidden` and
+  `inert` control whether the button is seen or usable. With `!barShown` the shortcut does nothing. The button's
+  click while editing opens the bar for the range (a collapsed caret inside a link: that whole run,
   `linkAt`). Not editing, it records a pending open for the whole text and calls `edit()` (the bar's **Edit text**
   route of `use-editor-placement.ts`, panel cleared and fallback included). **Edit link** on the card, for an editor
   whose selection reason would be empty, records a pending open for the run, calls `select(id)` and then
@@ -167,8 +169,11 @@ refusal shows); a pending open (`{ id, start, end }`) waiting for the editor's p
   composition, no plain-text paste key noted by `editor.key` since the last paste, no file, `!ownCopy(text/plain)`
   (raw, untrimmed), and `pastedLink(text/plain)`: then `setLink` over the range in one commit, and it answers `true`
   (the field prevents the default; the text does not change, so no `remap` runs).
-- **Copy link to object** (`controls.copy`): shown when exactly one object is selected and `barShown`; label
-  `copyObjectLabel(objectKind(o.type).kind)`; its click calls `navigator.clipboard.writeText(pageLink(location.href,
+- **Copy link to object** (`controls.copy`): **Amendment A2 (2026-11-26).** With exactly one object selected, the
+  button is part of the measured regular context bar, in every table mode as well, independently of `barShown`.
+  The existing bar visibility, `aria-hidden` and `inert` govern whether the button is seen or usable. The button is
+  absent from the Tidy up bar and the link bar. The fit rule, placement and App.tsx substitutions are unchanged.
+  The label is `copyObjectLabel(objectKind(o.type).kind)`; its click calls `navigator.clipboard.writeText(pageLink(location.href,
   o.page, hosted?.boardId, o.id))` inside the click and then `setMessage` with `objectCopied(kind, !!hosted)` or
   `clipboardRefused`. The card's Copy link writes the stored `href` the same way, with `LINK_WORDS.copied`.
 

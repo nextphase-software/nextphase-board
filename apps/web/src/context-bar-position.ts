@@ -25,7 +25,7 @@ export function contextBarPosition({
   bounds, pos, view, size, contextWidth, layout, inline, item, itemHeight, dotsVisible = false, editorBox,
 }: ContextBarPositionInput) {
   const table = item && isTable(item) && item.tableLayout && item.tableSelection ? item : undefined;
-  const anchor = table && table.tableSelection!.kind !== "row" ? selectionBox(table, table.tableLayout!, table.tableSelection!) : bounds;
+  const anchor = table && table.tableSelection!.kind !== "row" && table.tableSelection!.kind !== "rows" ? selectionBox(table, table.tableLayout!, table.tableSelection!) : bounds;
   const contextLeft = anchor
     ? clamp(pos(anchor).left + anchor.width * view.z / 2 - contextWidth / 2,
       12, Math.max(12, size.w - contextWidth - 12)) : 12;

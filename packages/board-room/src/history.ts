@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { isMedia } from "nextphase-board-rules/objects/registry.ts";
+import { isMedia, isTable } from "nextphase-board-rules/objects/registry.ts";
 import { cleanPictures, markPictures, validatePictures } from "./pictures.ts";
 import * as Y from 'yjs';
 import { readBoard } from 'nextphase-board-sync/codec.ts';
@@ -35,7 +35,7 @@ export function documentBytes(rows: Row[], board: string): { board: Board; data:
   if (data.length > STORED_DOCUMENT_LIMIT) throw Error('document_too_large');
   let at = 0; for (const row of rows) { data.set(row.bytes as Uint8Array, at); at += (row.bytes as Uint8Array).length; }
   const text = new TextDecoder().decode(data), value = validate(JSON.parse(text));
-  if (![10, 11, 12, 13, 14, 15, 16, 17].includes(value.schemaVersion) || value.boardId !== board || canonical(value) !== text) throw Error('bad_document');
+  if (![10, 11, 12, 13, 14, 15, 16, 17, 18].includes(value.schemaVersion) || value.boardId !== board || canonical(value) !== text) throw Error('bad_document');
   return { board: value, data };
 }
 export class History {
@@ -72,22 +72,34 @@ export class History {
     await this.host.lifecycle.active();
     const next = meta(this.s, 'history_next_at'), now = this.env.now();
     if (reason === 'checkpoint' && now < next) return;
-    const prepared = await this.prepare(this.host.board);
-    // Compare only valid older representations: new types and kinds cannot
-    // appear in a legacy copy, and an upgrade alone captures no version.
-    const legacy: Prepared[] = [];
-    for (const version of [10, 11, 12, 13, 14, 15, 16] as const) {
-      const { pages: _pages, ...current } = this.host.board;
-      const older = version >= 13 ? { ...this.host.board, schemaVersion: version }
-        : { ...current, schemaVersion: version, objects: current.objects.map(({ page: _page, ...o }) => o) };
-      let valid: Board;
-      try { valid = validate(older); } catch { continue; }
-      legacy.push(await this.prepare(valid));
+    const current = this.host.board;
+    const previousHash = this.s.all("SELECT value FROM meta WHERE key = 'history_capture_sha256'")[0]?.value;
+    const previousBytes = meta(this.s, 'history_capture_bytes');
+    const matches = (p: Prepared) => previousHash === p.sha256 && previousBytes === p.data.length;
+    let same = false;
+    // Compare older representations before preparing a new capture: a stored
+    // board at the legacy cap can load, yet its upgraded form cannot be saved.
+    if (!current.objects.some(o => isTable(o) && o.merges.length)) {
+      const { pages, ...unpaged } = current;
+      const objects = current.objects.map(o => {
+        if (!isTable(o)) return o;
+        const { merges: _merges, ...table } = o;
+        return table;
+      });
+      for (const version of [10, 11, 12, 13, 14, 15, 16, 17] as const) {
+        const older = version >= 13 ? { ...unpaged, pages, schemaVersion: version, objects }
+          : { ...unpaged, schemaVersion: version, objects: objects.map(({ page: _page, ...o }) => o) };
+        let prepared: Prepared;
+        try { prepared = await this.prepare(validate(older)); }
+        catch { continue; }
+        if (matches(prepared)) { same = true; break; }
+      }
     }
-    const same = [prepared, ...legacy].some((p) => p && this.s.all("SELECT value FROM meta WHERE key = 'history_capture_sha256'")[0]?.value === p.sha256 && meta(this.s, 'history_capture_bytes') === p.data.length);
+    const prepared = same ? undefined : await this.prepare(current);
+    same ||= !!prepared && matches(prepared);
     await this.host.lifecycle.active();
     this.s.transaction(() => {
-      if (!same) this.capture(prepared, meta(this.s, 'revision'), meta(this.s, 'restore_generation'), reason);
+      if (!same) this.capture(prepared!, meta(this.s, 'revision'), meta(this.s, 'restore_generation'), reason);
       else {
         this.prune();
         cleanPictures(this.s, this.host.board, now, this.host.uploads);

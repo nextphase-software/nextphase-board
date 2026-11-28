@@ -153,7 +153,7 @@ test("placement flips by panel and edge, clamps both axes and fits narrow window
 async function clientFixture(sync) {
   const Y = await import("yjs"), { Adapter } = await import("../packages/board-sync/src/document-adapter.ts");
   const { empty, upgrade } = await import("../packages/board-rules/src/document.ts");
-  const seed = new Adapter(); seed.set(upgrade(empty()));
+  const seed = new Adapter(); seed.set(upgrade({ ...empty(), title: "Comments" }));
   const timers = new Set(), wires = [], events = []; let now = 0;
   const clock = { now: () => now, after(ms, run) { const timer = { at: now + ms, run }; timers.add(timer); return () => timers.delete(timer); } };
   const joined = { kind: "joined", role: "editor", epoch: 2, restoreGeneration: 0, revision: 0,

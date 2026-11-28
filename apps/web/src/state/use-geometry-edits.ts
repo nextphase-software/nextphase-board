@@ -146,7 +146,7 @@ export function useGeometryEdits({
   }
   function resizedTableBorder(table: TableItem, border: TableBorder, start: TableLayout, delta: number) {
     const axis = border.axis, row = axis === "row";
-    const size = row ? start.rows[border.index] : table.columns[border.index].width;
+    const size = row ? table.rows[border.index].height : table.columns[border.index].width;
     const minimum = row ? Math.min(1000, start.minimums[border.index]) : 64;
     const next = resizeAxis(table, axis, border.id, Math.max(minimum, size + delta));
     return row ? boundTable(next) : growTableRows(next);
@@ -169,7 +169,7 @@ export function useGeometryEdits({
   function resizeStart(): ResizeStart[] {
     return model.current.objects.filter(hasRectangle).filter((o) => !isTape(o) && !isLink(o)).filter((o) => selected.has(o.id)).map((object) => ({
       object, rectangle: { x: object.x, y: object.y, width: object.width,
-        height: objectLayouts.get(object.id)!.height },
+        height: isTable(object) ? object.height : objectLayouts.get(object.id)!.height },
     }));
   }
   function resizeStillValid(start: ResizeStart[]) {

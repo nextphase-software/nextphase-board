@@ -2,7 +2,7 @@
 import * as Y from "yjs";
 import { canonical, freshIdentifier, validate, type BoardV14, type ItemV14 } from "nextphase-board-rules/document.ts";
 import { checkTransition } from "nextphase-board-rules/transition.ts";
-import { hasEnds, isLink, isMindNode, isTable, sizeTable, setCell, type TableAxis } from "nextphase-board-rules/objects/registry.ts";
+import { hasEnds, isLink, isMindNode, isTable, sizeTable, setCell, cellKey, type TableAxis, type TableMerge } from "nextphase-board-rules/objects/registry.ts";
 import { readLiveBoard } from "./codec.ts";
 
 import type { TableItem } from "nextphase-board-rules/document.ts";
@@ -23,6 +23,8 @@ function textIdentity(text: Y.Text) {
   return parts.join("|");
 }
 export function capture(doc: Y.Doc): State {
+  const live = readLiveBoard(doc);
+  try { validate(live); } catch { throw Error("invalid_document"); }
   const units = new Map<string, Map<string, Unit>>();
   const board = doc.getMap("board");
   units.set("", new Map([["title", { value: board.get("title"), identity: identity(board._map.get("title")) }]]));
@@ -36,6 +38,10 @@ export function capture(doc: Y.Doc): State {
     if (table) {
       values.set("tableIdentity", { value: id, identity: identity(map._item) });
       const rows = captureAxis(map, values, "row", "height"), columns = captureAxis(map, values, "column", "width");
+      const merges = map.get("mergeMap") as Y.Map<{ rows: number; columns: number }>;
+      for (const [key, value] of merges) {
+        values.set("merge:" + key, { value: { ...value }, identity: identity(merges._map.get(key)) });
+      }
       const cells = map.get("cells") as Y.Map<Y.Text>;
       for (const [key, text] of cells) {
         const [row, column] = key.split(":");
@@ -44,7 +50,7 @@ export function capture(doc: Y.Doc): State {
       }
     }
     for (const [key, value] of map) {
-      if (table && ["columnMap", "rowMap", "cells"].includes(key)) continue;
+      if (table && ["columnMap", "rowMap", "cells", "mergeMap"].includes(key)) continue;
       if (["generation", "type"].includes(key)) continue;
       const snapshot = table && (key === "place" || key === "tableStyle")
         ? { ...value as Record<string, unknown> } : value;
@@ -53,7 +59,7 @@ export function capture(doc: Y.Doc): State {
     }
     units.set(id, values);
   }
-  return { board: readLiveBoard(doc), units };
+  return { board: live, units };
 }
 function captureAxis(map: Y.Map<unknown>, values: Map<string, Unit>, axis: TableAxis, size: "width" | "height") {
   const entries = map.get(axis + "Map") as Y.Map<Y.Map<unknown>>;
@@ -131,7 +137,8 @@ function restoreTable(table: TableItem, step: Step, state: State): { table: Tabl
   if (table.cells.some(c => (!rows.some(r => r.id === c.row) || !columns.some(col => col.id === c.column)) &&
     !keys.has("cell:" + c.row + ":" + c.column))) return;
   const replaceCells = new Set<string>();
-  let next = sizeTable({ ...table, rows, columns, cells: table.cells.filter(c =>
+  const merges = table.merges.filter(merge => !keys.has("merge:" + cellKey(merge)));
+  let next = sizeTable({ ...table, rows, columns, merges, cells: table.cells.filter(c =>
     rows.some(r => r.id === c.row) && columns.some(col => col.id === c.column)) });
   for (const entry of step) {
     if (entry.key.startsWith("cell:")) {
@@ -139,10 +146,19 @@ function restoreTable(table: TableItem, step: Step, state: State): { table: Tabl
       if (entry.before === undefined) continue;
       if (!rows.some(r => r.id === row) || !columns.some(c => c.id === column)) return;
       if (entry.after === undefined) replaceCells.add(key);
-      next = setCell(next, { row, column }, entry.before as string);
-    } else if (!entry.key.startsWith("row:") && !entry.key.startsWith("column:")) next = applyUnit(next, entry.key, entry.before) as TableItem;
+      const address = { row, column }, text = entry.before as string;
+      next = setCell(next, address, text);
+      if (text && !next.cells.some(cell => cellKey(cell) === key && cell.text === text)) return;
+    } else if (!entry.key.startsWith("row:") && !entry.key.startsWith("column:") && !entry.key.startsWith("merge:")) {
+      next = applyUnit(next, entry.key, entry.before) as TableItem;
+    }
   }
-  return { table: next, hint: { table: table.id, orders, replaceCells } };
+  const restored = step.flatMap(entry => {
+    if (!entry.key.startsWith("merge:") || entry.before === undefined) return [];
+    const [row, column] = entry.key.slice(6).split(":");
+    return [{ row, column, ...entry.before as Pick<TableMerge, "rows" | "columns"> }];
+  });
+  return { table: { ...next, merges: [...merges, ...restored] }, hint: { table: table.id, orders, replaceCells } };
 }
 
 // A history belongs to one connection. It observes assignment identities, not
@@ -281,7 +297,7 @@ export class SharedUndo {
     board.pages = [...pageValues].sort(([a, x], [b, y]) => x.order < y.order ? -1 : x.order > y.order ? 1 : a < b ? -1 : a > b ? 1 : 0).map(([id, p]) => ({ id, name: p.name }));
     board = { ...board, objects: board.objects.map((object, order) => ({ ...object, order })),
       retiredGenerations: [...new Set(board.retiredGenerations)].sort() };
-    try { validate(board); canonical(board); checkTransition(state.board, board); }
+    try { canonical(board); checkTransition(state.board, board); }
     catch { return "undo_invalid"; }
     if (equal(board, state.board)) return "changed_by_others";
     // Only successful restoration retargets the connection's older steps.

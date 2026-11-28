@@ -112,14 +112,14 @@ async function change(s: Subjects, c: Client, mutate: (t: TableItem) => TableIte
 function fork(doc: Y.Doc) { const next = new Y.Doc(); Y.applyUpdate(next, Y.encodeStateAsUpdate(doc)); docs.add(next); return next; }
 
 check(425, "create and import bounded schema-14 tables and read legacy schema 13", async s => {
-  assert.equal((await exported(await create())).schemaVersion, 17);
+  assert.equal((await exported(await create())).schemaVersion, 18);
   const b = seed(s, 3, 4), t = tableAt(b);
   const served = await exported(await create(b));
-  assert.equal(served.schemaVersion, 17);
+  assert.equal(served.schemaVersion, 18);
   assert.deepEqual(tableAt(served), t);
   const { boardId, pages, title, retiredGenerations } = b;
   const legacy = { schemaVersion: 13, boardId, title, pages, objects: [], retiredGenerations };
-  assert.equal((await exported(await create(legacy))).schemaVersion, 17);
+  assert.equal((await exported(await create(legacy))).schemaVersion, 18);
   const refuses = async (document: unknown) => {
     const r = await request(`/workspaces/${fixture.workspace}/boards`, "owner", "POST", { title, document });
     assert.equal(r.status, 400);
@@ -319,13 +319,13 @@ check(429, "stored room upgrades and history and backup restores retain tables a
     const versions = await ok(versionRoot(id)), receipts = await driver.rows(id, "receipts");
     await driver.control({ board: id, roomSQL }); await driver.wake(id);
     const live = await exported(id);
-    assert.equal(live.schemaVersion, 17); assert.deepEqual(live, s.rules.upgrade(legacy));
+    assert.equal(live.schemaVersion, 18); assert.deepEqual(live, s.rules.upgrade(legacy));
     const c = await join(s, id, "owner");
     assert(!c.doc.getMap("board").has("pages")); assert(c.doc.getMap("board").get("pageMap") instanceof Y.Map);
     if (storage === 8 && schemaVersion === 13) {
       const old = new Y.Doc(); docs.add(old); Y.applyUpdate(old, update);
       const delta = Y.decodeUpdate(Y.encodeStateAsUpdate(c.doc, Y.encodeStateVector(old))).structs;
-      assert.equal(delta.length, 1); assert.equal(delta[0].content.getContent()[0], 17);
+      assert.equal(delta.length, 1); assert.equal(delta[0].content.getContent()[0], 18);
     }
     await c.peer.close(); peers.delete(c.peer);
     assert.deepEqual(await ok(versionRoot(id)), versions);
@@ -350,7 +350,7 @@ check(429, "stored room upgrades and history and backup restores retain tables a
   const bytes = new TextEncoder().encode(s.rules.canonical(legacy));
   await driver.control({ board: oldBoard, roomSQL: [{ sql: "DELETE FROM version_chunks WHERE version_id=?", bindings: [oldVersion.id] },
     { sql: `INSERT INTO version_chunks VALUES (?,0,x'${Buffer.from(bytes).toString("hex")}')`, bindings: [oldVersion.id] }] });
-  await restore(oldBoard, oldVersion.id); assert.equal((await exported(oldBoard)).schemaVersion, 17);
+  await restore(oldBoard, oldVersion.id); assert.equal((await exported(oldBoard)).schemaVersion, 18);
 });
 
 check(430, "saving and inserting a team template twice remaps all table IDs", async s => {
@@ -375,4 +375,240 @@ check(430, "saving and inserting a team template twice remaps all table IDs", as
     assert.deepEqual(copy.columns.map(c => c.width), t.columns.map(c => c.width));
     assert.equal(s.table.cellText(copy, cell(copy)), "Keep me");
   }
+});
+
+function declared17(boardId = rowId()) {
+  const columns = Array.from({ length: 2 }, () => ({ id: rowId(), width: 192 }));
+  const rows = Array.from({ length: 2 }, () => ({ id: rowId(), height: 64 }));
+  const table = { id: rowId(), generation: rowId(), type: "table" as const, page: boardId, columns, rows,
+    cells: [{ row: rows[0].id, column: columns[0].id, text: "Legacy anchor" }],
+    textSize: "medium" as const, group: null, section: null, x: 0, y: 0, width: 384, height: 128, order: 0 };
+  return { schemaVersion: 17 as const, boardId, title: "Table check", pages: [{ id: boardId, name: "Page 1" }],
+    objects: [table], retiredGenerations: [] };
+}
+function span(table: TableItem, top: number, left: number, bottom: number, right: number) {
+  return { from: cell(table, top, left), to: cell(table, bottom, right) };
+}
+
+check(480, "merge and split updates, malformed results, schema create and import, and legacy template response", async s => {
+  const seeded = seed(s, 4, 4), table = tableAt(seeded), target = span(table, 0, 0, 1, 1);
+  const base = setTable(seeded, text(s, text(s, table, target.to, "Covered"), cell(table, 1, 0), "Also covered"));
+  const board = await create(base), [owner, editor] = await pair(s, board);
+  const open = s.codec.readLiveBoard(owner.doc), merged = s.table.mergeRange(tableAt(open), target);
+  await send(s, owner, write(s, owner.doc, setTable(open, merged)));
+  Y.applyUpdate(editor.doc, s.sync.decode((await editor.peer.next("update")).update));
+  assert.deepEqual(s.codec.readLiveBoard(editor.doc), await exported(board));
+  assert.deepEqual(tableAt(await exported(board)).merges, merged.merges);
+  const texts = map(editor.doc, table).get("cells") as Y.Map<Y.Text>;
+  assert.equal(texts.get(s.table.cellKey(target.to))?.toString(), "");
+  assert.equal(texts.get(s.table.cellKey(cell(table, 1, 0)))?.toString(), "");
+  await change(s, owner, table => s.table.splitMerge(table, target.from));
+  Y.applyUpdate(editor.doc, s.sync.decode((await editor.peer.next("update")).update));
+  assert.deepEqual(tableAt(s.codec.readLiveBoard(editor.doc)).merges, []);
+  assert.deepEqual(tableAt(await exported(board)).merges, []);
+
+  const accepted = await create(setTable(base, merged));
+  const before = await exported(accepted), beforeEdits = await driver.rows(accepted, "edits");
+  const key = s.table.cellKey(target.from), covered = s.table.cellKey(target.to);
+  type Mutate = (m: Y.Map<unknown>) => void;
+  const mergeMap = (m: Y.Map<unknown>) => m.get("mergeMap") as Y.Map<unknown>;
+  const malformed: Mutate[] = [m => m.delete("mergeMap"),
+    m => mergeMap(m).set("not a cell", { rows: 1, columns: 2 }),
+    m => { mergeMap(m).set("deleted invalid key", { rows: 1, columns: 2 }); mergeMap(m).delete("deleted invalid key"); },
+    ...[{ rows: 2 }, { rows: 2, columns: 2, extra: 1 }, { rows: 1.5, columns: 2 }, new Y.Map([["rows", 2], ["columns", 2]])]
+      .map(value => (m: Y.Map<unknown>) => mergeMap(m).set(key, value))];
+  const invalid: Mutate[] = [
+    m => mergeMap(m).set(covered, { rows: 2, columns: 2 }),
+    m => mergeMap(m).set(key, { rows: 1, columns: 1 }),
+    m => mergeMap(m).set(key, { rows: 5, columns: 1 }),
+    m => mergeMap(m).set(key, { rows: 1, columns: 5 }),
+    m => mergeMap(m).set(rowId() + ":" + target.from.column, { rows: 1, columns: 2 }),
+    m => mergeMap(m).set(target.from.row + ":" + rowId(), { rows: 2, columns: 1 }),
+    m => (m.get("cells") as Y.Map<Y.Text>).get(covered)!.insert(0, "Text in a covered cell"),
+  ];
+  for (const [cases, reason] of [[malformed, "invalid_update"], [invalid, "invalid_document"]] as const) {
+    for (const mutate of cases) {
+      const client = await join(s, accepted, "owner"), doc = fork(client.doc), vector = Y.encodeStateVector(doc);
+      mutate(map(doc, table));
+      await send(s, client, Y.encodeStateAsUpdate(doc, vector), reason);
+      assert.deepEqual(await exported(accepted), before);
+      assert.deepEqual(await driver.rows(accepted, "edits"), beforeEdits);
+      await client.peer.close();
+      peers.delete(client.peer);
+    }
+  }
+  const noTable = await create(), client = await join(s, noTable, "owner");
+  {
+    const doc = fork(client.doc), vector = Y.encodeStateVector(doc);
+    doc.getMap("board").set("schemaVersion", 17);
+    await send(s, client, Y.encodeStateAsUpdate(doc, vector), "invalid_document");
+  }
+  assert.deepEqual(await driver.rows(noTable, "edits"), []);
+
+  // Construct a version-17 table snapshot through the old map shape, then
+  // add an illegal mergeMap assignment while the client still declares 17.
+  const legacy = declared17(noTable), legacyDoc = stored17(legacy);
+  docs.add(legacyDoc);
+  const wrongClient = await join(s, noTable, "owner"), wrong = fork(wrongClient.doc), vector = Y.encodeStateVector(wrong);
+  wrong.getMap("board").set("schemaVersion", 17);
+  const legacyMap = legacyDoc.getMap<Y.Map<unknown>>("objects").get(legacy.objects[0].id)!;
+  const wrongTable = legacyMap.clone();
+  wrong.getMap("objects").set(legacy.objects[0].id, wrongTable);
+  wrongTable.set("mergeMap", new Y.Map());
+  await send(s, wrongClient, Y.encodeStateAsUpdate(wrong, vector), "invalid_update");
+  assert.deepEqual(await driver.rows(noTable, "edits"), []);
+
+  const workspace = `/workspaces/${fixture.workspace}`;
+  const historical = declared17();
+  for (const document of [setTable(base, merged), historical]) {
+    const normal = await exported(await create(document));
+    assert.deepEqual(tableAt(normal), s.rules.upgrade(document).objects[0]);
+    const stage = (await ok(workspace + "/imports", "owner", "POST", {
+      assets: [{ hash: "a".repeat(64), type: "image/png", bytes: 1 }],
+    }, 201)).import;
+    const imported = await ok(workspace + "/boards", "owner", "POST", { title: "Table check", document, import: stage }, 201);
+    const served = await exported(imported.id);
+    assert.equal(served.schemaVersion, 18);
+    assert.deepEqual(tableAt(served), s.rules.upgrade(document).objects[0]);
+  }
+
+  const templates = workspace + "/templates";
+  const template = (objects: unknown[], name: string) => ({ name, description: "", sourceBoard: accepted, objects });
+  const { generation: _g, page: _p, order: _o, ...object } = tableAt(before);
+  const saved = await ok(templates, "owner", "POST", template([object], "Merged table"), 201);
+  const rejected = await request(templates, "owner", "POST", template([{ ...object, merges: [...object.merges, ...object.merges] }], "Overlaps"));
+  assert.equal(rejected.status, 400);
+  assert.equal((await rejected.json() as any).error.reason, "bad_request");
+  const { generation: _lg, page: _lp, order: _lo, ...legacyObject } = historical.objects[0];
+  const old = await ok(templates, "owner", "POST", template([{ ...legacyObject, merges: [] }], "Legacy table"), 201);
+  const json = JSON.stringify([legacyObject]), byteCount = Buffer.byteLength(json);
+  const sql = await fetch(context.helperUrl + "/sql", { method: "POST", body: JSON.stringify({
+    sql: `UPDATE nextphase_board.templates SET objects=$legacy$${json}$legacy$::jsonb, content_bytes=${byteCount} WHERE id='${old.id}'`,
+  }) });
+  assert.equal(sql.status, 200, await sql.clone().text());
+  assert.deepEqual((await ok(templates + "/" + old.id)).objects, [legacyObject]);
+  const listed = (await ok(templates)).templates;
+  assert.deepEqual(listed.find((entry: any) => entry.id === old.id).objects, [legacyObject]);
+  assert.deepEqual(listed.find((entry: any) => entry.id === saved.id).objects, [object]);
+});
+
+function stored17(b: ReturnType<typeof declared17>) {
+  const doc = new Y.Doc(), root = doc.getMap("board"), t = b.objects[0];
+  root.set("schemaVersion", 17); root.set("boardId", b.boardId); root.set("title", b.title);
+  const pageMap = new Y.Map(), page = new Y.Map([["name", "Page 1"], ["order", "V"]]);
+  root.set("pageMap", pageMap); pageMap.set(b.boardId, page);
+  const object = new Y.Map<unknown>(["generation", "type", "page", "order", "group", "section"].map(key =>
+    [key, t[key as keyof typeof t]]));
+  doc.getMap("objects").set(t.id, object);
+  object.set("place", { x: t.x, y: t.y }); object.set("tableStyle", { textSize: t.textSize });
+  object.set("rowMap", new Y.Map(t.rows.map((row, i) => [row.id, new Y.Map<unknown>([["order", i ? "j" : "V"], ["height", row.height]])])));
+  object.set("columnMap", new Y.Map(t.columns.map((column, i) => [column.id, new Y.Map<unknown>([["order", i ? "j" : "V"], ["width", column.width]])])));
+  object.set("cells", new Y.Map(t.rows.flatMap(r => t.columns.map(c => [r.id + ":" + c.id,
+    new Y.Text(t.cells.find(at => at.row === r.id && at.column === c.id)?.text ?? "")]))));
+  return doc;
+}
+
+async function waitTable<T>(read: () => T | Promise<T>, accepts: (value: T) => boolean) {
+  const end = Date.now() + 5000;
+  do {
+    const value = await read();
+    if (accepts(value)) return value;
+    await new Promise(resolve => setTimeout(resolve, 5));
+  } while (Date.now() < end);
+  assert.fail("Table operation did not settle in five seconds");
+}
+
+check(481, "real sessions keep concurrent moves and inserts, refuse invalid spans, and restore schema 17 history", async s => {
+  const { BoardSession } = s.sync, sessions: InstanceType<typeof BoardSession>[] = [];
+  async function joinSession(board: string, who: string, clientId: number) {
+    const out: string[] = [];
+    let peer: Peer;
+    const session = await BoardSession.join({ clientId,
+      clock: { now: Date.now, after(ms, action) { const timer = setTimeout(action, ms); return () => clearTimeout(timer); } },
+      ticket: () => ok(`/boards/${board}/join-tickets`, who, "POST", undefined, 201),
+      open: async issued => {
+        peer = await driver.connect(`/boards/${board}/join?ticket=${issued.ticket}`); peers.add(peer);
+        const current = peer;
+        return { send: data => out.push(data), close: () => { void current.close(); }, listen: handlers => current.listen(handlers) };
+      } });
+    sessions.push(session);
+    return { session, deliver() {
+      assert.equal(out.length, 1);
+      peer.send(out.shift()!);
+    } };
+  }
+  try {
+    for (const scenario of ["two moves", "move and insert", "merge and insert", "merge and move text"]) {
+      const b = seed(s, 4, 6), t = tableAt(b), anchor = span(t, 1, 0, 2, 1);
+      const board = await create(scenario === "merge and move text"
+        ? setTable(b, text(s, t, cell(t, 4, 0), "Do not cover")) : b);
+      const a = await joinSession(board, "owner", 41), z = await joinSession(board, "editor", 42);
+      const ownerBoard = a.session.board, editorBoard = z.session.board;
+      const row = rowId(), movedA = [t.rows[0].id], movedZ = [t.rows[4].id];
+      const first = scenario.startsWith("merge") ? s.table.mergeRange(tableAt(ownerBoard), anchor)
+        : s.table.moveAxis(tableAt(ownerBoard), "row", movedA, 3);
+      const second = scenario.endsWith("insert") ? s.table.insertAxis(tableAt(editorBoard), "row", row, scenario.startsWith("merge") ? 2 : 5)
+        : s.table.moveAxis(tableAt(editorBoard), "row", movedZ, scenario === "two moves" ? 6 : 2);
+      const hint = (moved: string[]): TableOrderHint => ({ table: t.id, axis: "row", moved });
+      const idA = a.session.edit(setTable(ownerBoard, first), undefined, undefined, undefined, scenario.startsWith("merge") ? undefined : hint(movedA));
+      const idZ = z.session.edit(setTable(editorBoard, second), undefined, undefined, undefined, hint(scenario.endsWith("insert") ? [row] : movedZ));
+      a.deliver();
+      await waitTable(() => a.session.requests.get(idA)?.state, state => state === "saved");
+      z.deliver();
+      const refused = scenario === "merge and move text";
+      const result = await waitTable(() => z.session.requests.get(idZ), request => request?.state === "saved" || request?.state === "refused");
+      assert.equal(result?.state, refused ? "refused" : "saved");
+      if (refused) assert.equal(result?.reason, "invalid_document");
+      const stored = await exported(board), key = s.rules.canonical(stored), rows = tableAt(stored).rows.map(r => r.id);
+      await waitTable(() => [a.session.board, z.session.board], boards => boards.every(b => s.rules.canonical(b) === key));
+      assert(s.rules.validate(stored));
+      const original = t.rows.map(r => r.id);
+      if (scenario === "two moves") assert.deepEqual(rows, [original[1], original[2], original[0], original[3], original[5], original[4]]);
+      if (scenario === "move and insert") assert.deepEqual(rows, [original[1], original[2], original[0], original[3], original[4], row, original[5]]);
+      if (scenario === "merge and insert") assert.deepEqual(rows, [original[0], original[1], row, ...original.slice(2)]);
+      if (refused) assert.deepEqual(rows, original);
+      if (scenario.startsWith("merge")) assert.deepEqual(tableAt(stored).merges, [{ ...anchor.from, rows: 2, columns: 2 }]);
+      assert.equal((await driver.rows(board, "edits")).length, refused ? 1 : 2);
+      a.session.close(); z.session.close();
+    }
+  } finally { for (const session of sessions) session.close(); }
+
+  const board = await create(), legacy = declared17(board), doc = stored17(legacy);
+  docs.add(doc);
+  const path = `/boards/${board}/versions`, old = (await ok(path)).versions[0];
+  const json = Buffer.from(s.rules.canonical(legacy)), encoded = Buffer.from(Y.encodeStateAsUpdate(doc));
+  const digest = Buffer.from(await crypto.subtle.digest("SHA-256", json)).toString("hex");
+  const object = legacy.objects[0];
+  await driver.control({ board, roomSQL: [
+    { sql: "DELETE FROM snapshot_chunks" },
+    { sql: `INSERT INTO snapshot_chunks VALUES (0,'json',0,x'${json.toString("hex")}')` },
+    { sql: `INSERT INTO snapshot_chunks VALUES (0,'yjs',0,x'${encoded.toString("hex")}')` },
+    { sql: "DELETE FROM version_chunks WHERE version_id=?", bindings: [old.id] },
+    { sql: `INSERT INTO version_chunks VALUES (?,0,x'${json.toString("hex")}')`, bindings: [old.id] },
+    { sql: "UPDATE meta SET value=? WHERE key='history_capture_sha256'", bindings: [digest] },
+    { sql: "UPDATE meta SET value=? WHERE key='history_capture_bytes'", bindings: [json.length] },
+    { sql: "INSERT INTO identifiers VALUES (?,?,0)", bindings: [object.id, object.generation] },
+  ] });
+  await driver.wake(board);
+  const upgraded = await exported(board);
+  assert.deepEqual(upgraded, s.rules.upgrade(legacy));
+  const client = await join(s, board, "owner");
+  assert.equal((map(client.doc, tableAt(upgraded)).get("mergeMap") as Y.Map<unknown>).size, 0);
+  assert.equal(Y.decodeUpdate(Y.encodeStateAsUpdate(client.doc, Y.encodeStateVector(doc))).structs.length, 2);
+  assert.equal((await driver.rows(board, "edits")).length, 0);
+  await client.peer.close(); peers.delete(client.peer);
+  assert.equal((await ok(path)).versions.length, 1);
+  assert.deepEqual((await ok(path + "/" + old.id)).document, legacy);
+
+  const editor = await join(s, board, "owner");
+  await change(s, editor, table => s.table.mergeRange(table, span(table, 0, 0, 1, 1)));
+  await editor.peer.close(); peers.delete(editor.peer);
+  const versions = await waitTable(() => ok(path), value => value.versions.length === 2);
+  const current = (await ok(path + "/" + versions.versions[0].id)).document;
+  assert.equal(current.schemaVersion, 18);
+  assert.equal(current.objects[0].merges.length, 1);
+  await ok(path + "/" + old.id + "/restore", "owner", "POST",
+    { requestId: rowId(), expectedRevision: versions.head.revision, expectedGeneration: versions.head.generation });
+  assert.deepEqual(await exported(board), upgraded);
+  assert.equal((await ok(path + "/" + old.id)).document.schemaVersion, 17);
 });

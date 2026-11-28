@@ -88,7 +88,7 @@ async function seedStored(board: any) {
   await sql(writes);await driver.wake(f.a);return board;
 }
 check(411,'new hosted boards have version 13 and exactly the default page',async()=>{
-  const b=await exported();assert.equal(b.schemaVersion,17);assert.deepEqual(b.pages,[{id:f.a,name:'Page 1'}]);assert.deepEqual(b.objects,[]);
+  const b=await exported();assert.equal(b.schemaVersion,18);assert.deepEqual(b.pages,[{id:f.a,name:'Page 1'}]);assert.deepEqual(b.objects,[]);
 });
 check(412,'stored 11 and 12 including maximum payload upgrade without an edit receipt revision or history version',async()=>{
   const {rules}=await modules(),{sizedBoard,withoutPages}=await import('../import-fixture.mjs');
@@ -96,10 +96,10 @@ check(412,'stored 11 and 12 including maximum payload upgrade without an edit re
   for(const old of [{...withoutPages(rules.add({...rules.empty(),title:'Stored 11'},'sticky',0,0)),schemaVersion:11},
     {...withoutPages(rules.add({...rules.empty(),title:'Stored 12'},'sticky',0,0)),schemaVersion:12},sizedBoard(2097152,12)]){
     const before=(await versions()).head,receipts=await rows('receipts');const stored=await seedStored(old),served=await exported();
-    assert.equal(served.schemaVersion,17);assert.deepEqual(served.pages,[{id:f.a,name:'Page 1'}]);assert(served.objects.every((o:any)=>o.page===f.a));
+    assert.equal(served.schemaVersion,18);assert.deepEqual(served.pages,[{id:f.a,name:'Page 1'}]);assert(served.objects.every((o:any)=>o.page===f.a));
     assert.deepEqual(served.objects.map(({page,...o}:any)=>o),stored.objects);assert.deepEqual(await rows('edits'),[]);assert.deepEqual(await rows('receipts'),receipts);
     assert.deepEqual((await versions()).head,before);assert.equal((await versions()).versions.length,count);
-    await driver.wake(f.a);assert.equal((await exported()).schemaVersion,17);
+    await driver.wake(f.a);assert.equal((await exported()).schemaVersion,18);
   }
 });
 check(413,'page additions renames reorder deletes and existing object page changes save; missing page refuses',async()=>{
@@ -126,7 +126,7 @@ check(415,'stored version 12 history restores as 13 and a current snapshot round
   const json=new TextEncoder().encode(rules.canonical(old));await sql([{sql:'DELETE FROM version_chunks WHERE version_id=?',bindings:[initial.id]},
     {sql:`INSERT INTO version_chunks VALUES (?,0,${hex(json)})`,bindings:[initial.id]}]);
   const restore=async(id:string)=>{const head=(await versions()).head;return ok(`/boards/${f.a}/versions/${id}/restore`,'owner','POST',{requestId:crypto.randomUUID(),expectedRevision:head.revision,expectedGeneration:head.generation});};
-  await restore(initial.id);let b=await exported();assert.equal(b.schemaVersion,17);assert.deepEqual(b.pages,[{id:f.a,name:'Page 1'}]);assert.equal(b.title,old.title);
+  await restore(initial.id);let b=await exported();assert.equal(b.schemaVersion,18);assert.deepEqual(b.pages,[{id:f.a,name:'Page 1'}]);assert.equal(b.title,old.title);
   const saved=await ok(`/boards/${f.a}/versions`,'owner','POST',{requestId:crypto.randomUUID(),name:'Current',description:''});await restore(saved.version.id);assert.deepEqual(await exported(),b);
 });
 check(416,'templates refuse stored page fields and insert valid version 13 objects',async()=>{

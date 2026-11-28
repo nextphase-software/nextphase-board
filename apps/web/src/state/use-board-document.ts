@@ -76,20 +76,22 @@ export function useBoardDocument({ readOnly, setStatus, hosted, nameSent }: Inpu
     if (tableCellCount(raw.objects) > MAX_BOARD_CELLS) throw Error("A board holds at most 5,000 table cells.");
     let next = settle(model.current, raw, textSession.current?.id);
     if (JSON.stringify(next) === JSON.stringify(model.current)) return;
-    if (hosted && arrivalOf) { apply(next, undefined, movedPages, tableHint, arrivalOf); return; }
+    if (hosted && arrivalOf) return apply(next, undefined, movedPages, tableHint, arrivalOf) ? model.current : undefined;
     pendingAdd.current = null;
-    let step: Step | undefined;
+    let step: Step | undefined, nextHistory: History | undefined;
     if (recordObject) {
       finishTextSession();
       next = settle(model.current, raw);
       if (JSON.stringify(next) === JSON.stringify(model.current)) return;
       const prior = historyRef.current.past.at(-1);
-      updateHistory(record(historyRef.current, model.current, next, orderIds, stepPage.current));
-      if (historyRef.current.past.at(-1) !== prior) step = historyRef.current.past.at(-1);
+      nextHistory = record(historyRef.current, model.current, next, orderIds, stepPage.current);
+      if (nextHistory.past.at(-1) !== prior) step = nextHistory.past.at(-1);
     }
     const before = model.current, group = opens && hosted ? crypto.randomUUID() : undefined;
     if (!apply(next, group ?? nameGroup.current ?? textSession.current?.group, movedPages, tableHint)) return;
+    if (nextHistory) updateHistory(nextHistory);
     if (opens) pendingAdd.current = { id: opens, before, group, step: hosted ? undefined : step };
+    return model.current;
   }
   function apply(next: Board, group?: string, movedPages?: readonly string[], tableHint?: TableOrderHint, arrivalOf?: string) {
     const titleChanged = next.title !== model.current.title;

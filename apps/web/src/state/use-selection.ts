@@ -7,7 +7,7 @@ import { isTape, isTable, objectType, isLink, isMedia, hasText, hasPoints, usesS
 import { colorEntry, commonStyle } from "nextphase-board-rules/styles.ts";
 
 import { numberedObjectLabel } from "../sections";
-import { announceCell, validTableSelection, type TableSelection } from "../table";
+import { selectionAnnouncement, validTableSelection, type TableSelection } from "../table";
 
 type Input = {
   board: Board;
@@ -35,11 +35,11 @@ export function useSelection({ board, drafts, textSelection }: Input) {
   const table = item && isTable(item) ? item : undefined;
   const tableSelection = table ? level?.selection.id === table.id
     ? validTableSelection(table, level.selection, false, "own").selection ?? undefined : { kind: "table" as const, id: table.id } : undefined;
-  const tableAnnouncement = tableSelection?.kind === "cell" ? level?.announcement ?? "" : "";
+  const tableAnnouncement = tableSelection?.id === level?.selection.id ? level?.announcement ?? "" : "";
   function setSelected(ids: Set<string>) { setLevel(null); setIds(ids); }
-  function chooseTable(next: TableSelection, table: TableItem) {
+  function chooseTable(next: TableSelection, table: TableItem, announcement?: string) {
     setIds(new Set([next.id]));
-    setLevel({ selection: next, announcement: next.kind === "cell" ? announceCell(table, next) : "" });
+    setLevel({ selection: next, announcement: announcement ?? selectionAnnouncement(table, next) });
   }
   const shapes = textIdeas.filter(usesShapePaint), otherObjects = textIdeas.filter((o) => !usesShapePaint(o));
   const shapeSelection = { objects: shapes, hasOther: otherObjects.length > 0,

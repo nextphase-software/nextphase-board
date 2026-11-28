@@ -79,7 +79,7 @@ async function mentionRoom() {
 test('M-U07 immutable normalized comment retries capture ranges, epoch and restore generation without replay or board Undo',async()=>{
  const {BoardSession,encode}=await import('../packages/board-sync/src/session.ts');const {mentionProblem}=await import('../packages/board-sync/src/mentions.ts');
  const {Adapter}=await import('../packages/board-sync/src/document-adapter.ts');const {empty,upgrade}=await import('../packages/board-rules/src/document.ts');const Y=await import('yjs');
- const adapter=new Adapter();adapter.set(upgrade(empty()));let handler,epoch=2,generation=7;const sent=[];
+ const adapter=new Adapter();adapter.set(upgrade({...empty(),title:"Mentions"}));let handler,epoch=2,generation=7;const sent=[];
  const joined=()=>({kind:'joined',epoch,restoreGeneration:generation,role:'editor',revision:0,update:encode(Y.encodeStateAsUpdate(adapter.doc)),self:{},present:[]});
  const session=await BoardSession.join({ticket:async()=>'',clock:{now:()=>0,after:()=>()=>{}},open:async()=>({send:s=>sent.push(s),close:()=>{},listen:h=>{handler=h;h.message(JSON.stringify(joined()));h.message(JSON.stringify({kind:'comments_snapshot',done:true}));}})});
  try{

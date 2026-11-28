@@ -703,6 +703,17 @@ budgets and placement, clipboard routing and copy, the import and export
 controls, and the real encoded hosted edit size. Run
 `node --test tests/table-csv.test.mjs` or include it in `npm test`.
 
+0011-W3 adds X12-W00–X12-W13 in `tests/table-arrange.test.mjs` for unmerged
+table regressions, selection, layout, controls, pointer and keyboard handling,
+and the wiring and style boundaries. T-U16–T-U30 in `tests/tables.test.mjs`
+cover the rules, codec, shared edits, room persistence, history and hosted
+Undo. The checks titled `0011-W3 …` in `tests/document.test.mjs`,
+`tests/storage.test.mjs`, `tests/table-csv.test.mjs` and
+`tests/team-templates.test.mjs` cover document and storage upgrades, export,
+and the team template reads and writes. All run in `npm test` without
+Supabase or a browser. S480 and S481 in `tests/server/tables.test.ts` run in
+both server suites with the separate local stack.
+
 ## Node server shutdown (0003-B1)
 
 NB-120 ran on `codex/0003-B1-node-stop-hang` from `0252f46`. Validated source

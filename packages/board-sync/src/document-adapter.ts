@@ -54,15 +54,23 @@ function writeTable(map: Y.Map<unknown>, table: TableItem, changed: boolean, hin
     return result;
   };
   const columnMap = child<Y.Map<unknown>>("columnMap"), rowMap = child<Y.Map<unknown>>("rowMap"), cells = child<Y.Text>("cells");
+  const mergeMap = child<{ rows: number; columns: number }>("mergeMap");
+  const merges = new Map(table.merges.map(merge => [cellKey(merge), { rows: merge.rows, columns: merge.columns }]));
+  const mergesChanged = mergeMap.size !== merges.size ||
+    [...merges].some(([key, value]) => JSON.stringify(mergeMap.get(key)) !== JSON.stringify(value));
   const desired = new Map(table.cells.map(c => [cellKey(c), c.text]));
   const live = new Set(table.rows.flatMap(row => table.columns.map(column => cellKey({ row: row.id, column: column.id }))));
   const axisChanged = <K extends "width" | "height">(axis: Y.Map<Y.Map<unknown>>, entries: ({ id: string } & Record<K, number>)[], size: K) =>
     axis.size !== entries.length || [...axis].sort(([a, x], [b, y]) => compareKeys(String(x.get("order")), String(y.get("order"))) || compareKeys(a, b))
       .some(([id, entry], i) => id !== entries[i].id || entry.get(size) !== entries[i][size]);
-  if (!changed && !placeChanged && !styleChanged && !axisChanged(columnMap, table.columns, "width") &&
+  if (!changed && !placeChanged && !styleChanged && !mergesChanged && !axisChanged(columnMap, table.columns, "width") &&
       !axisChanged(rowMap, table.rows, "height") && !hint && [...live].every(key => (cells.get(key)?.toString() ?? "") === (desired.get(key) ?? ""))) return;
   writeAxis(columnMap, table.columns, "width", hint?.axis === "column" ? hint.moved : undefined, hint?.orders?.column);
   writeAxis(rowMap, table.rows, "height", hint?.axis === "row" ? hint.moved : undefined, hint?.orders?.row);
+  for (const key of mergeMap.keys()) if (!merges.has(key)) mergeMap.delete(key);
+  for (const [key, value] of merges) {
+    if (JSON.stringify(mergeMap.get(key)) !== JSON.stringify(value)) mergeMap.set(key, value);
+  }
   for (const key of cells.keys()) if (!live.has(key) || hint?.replaceCells?.has(key)) cells.delete(key);
   for (const key of live) {
     let text = cells.get(key);

@@ -121,8 +121,8 @@ check(6, "format normalization, flag toggles, segments and mark validation prese
 check(7, "schema 17 validates rich-text links and writes keys in canonical order", async () => {
   await rule();
   const { canonical, validate, upgrade } = await document(), board = await linkedBoard(), old = stored16(board.boardId);
-  assert.equal(validate(board).schemaVersion, 17);
-  assert.deepEqual(upgrade(old), { ...old, schemaVersion: 17 });
+  assert.equal(validate(board).schemaVersion, 18);
+  assert.deepEqual(upgrade(old), { ...old, schemaVersion: 18 });
   assert.equal(validate(old).schemaVersion, 16);
   assert.throws(() => validate({ ...board, schemaVersion: 16 }), /Invalid marks/);
   const item = board.objects[1];
@@ -161,7 +161,7 @@ check(9, "local storage and the catalogue keep schema 17 and reject malformed an
   }
   const store = new LocalStore();
   const other = randomUUID(), records = new Map([[boardKeys("original").head, await envelope(payload)],
-    [boardKeys(other).head, await raw(b => ({ ...b, schemaVersion: 18 }))]]);
+    [boardKeys(other).head, await raw(b => ({ ...b, schemaVersion: 19 }))]]);
   store.records = async () => records;
   const result = await store.refreshList();
   assert.deepEqual(result.map(row => row.state).sort(), ["newer", "valid"]);
@@ -179,7 +179,7 @@ check(10, "board files preserve links and legacy bytes, with no assets, staging 
   assert.equal(await importBoard(file, async body => { assert.deepEqual(body, { title: board.title, document: board }); return "sent"; }), "sent");
   const legacy = stored16(board.boardId), old = asFile(await writeBoardFile(upgrade(legacy), legacy));
   assert.equal(canonical((await readBoardBundle(old)).board), canonical(legacy));
-  assert.equal((await readBoardBundle(asFile(await writeBoardFile(upgrade(legacy))))).board.schemaVersion, 17);
+  assert.equal((await readBoardBundle(asFile(await writeBoardFile(upgrade(legacy))))).board.schemaVersion, 18);
   const malformed = async candidate => {
     const document = JSON.stringify(candidate), payload = JSON.stringify({ document, assets: [] });
     return asFile(JSON.stringify({ format: "nextphase-board", fileVersion: 3, payload, sha256: await digest(payload) }));
@@ -206,7 +206,7 @@ check(11, "team template save, server validation and add retain marks without me
   assert.deepEqual(snapshot.objects.map(o => o.marks), board.objects.map(o => o.marks));
   const { objects } = templateObjects(snapshot.objects);
   const template = templateBoard(objects);
-  assert.equal(template.schemaVersion, 17);
+  assert.equal(template.schemaVersion, 18);
   const added = insertActivity({ ...empty(), title: "Template copy" }, template, { x: 0, y: 0, z: 1 }, { w: 1200, h: 800 }).board;
   assert.deepEqual(validate(added).objects.map(o => o.marks), board.objects.map(o => o.marks));
   const { createConnector } = await import("../apps/web/src/connectors.ts");
@@ -242,7 +242,7 @@ check(12, "history capture and preview read back links at their declared schema"
   const version = (await room.history.list(person)).versions[0];
   const preview = await room.history.preview(person, version.id);
   assert.equal(canonical(preview.document), canonical(initial));
-  assert.equal(preview.document.schemaVersion, 17);
+  assert.equal(preview.document.schemaVersion, 18);
 });
 
 check(13, "schema 16 rooms adopt at 17 without a revision or duplicate history capture", async t => {
@@ -256,8 +256,8 @@ check(13, "schema 16 rooms adopt at 17 without a revision or duplicate history c
   const version = room.history.capture(legacy, 0, 0, "checkpoint");
   room.initialized = false;
   await room.load();
-  assert.deepEqual(room.board, { ...old, schemaVersion: 17 });
-  assert.equal(room.doc.getMap("board").get("schemaVersion"), 17);
+  assert.deepEqual(room.board, { ...old, schemaVersion: 18 });
+  assert.equal(room.doc.getMap("board").get("schemaVersion"), 18);
   const before = await room.history.list(person);
   await room.history.automatic("last_close");
   assert.deepEqual(await room.history.list(person), before);

@@ -2,80 +2,23 @@
 import type { ReactNode } from "react";
 import { TEXT_SIZES, type Style } from "nextphase-board-rules/styles.ts";
 import { count, type TableItem } from "nextphase-board-rules/document.ts";
-import { cellText, type TableAxis } from "nextphase-board-rules/objects/registry.ts";
+import { cellText, mergeOf } from "nextphase-board-rules/objects/registry.ts";
 import { anchorCell, tableMode, tableReason, type TableAction, type TableSelection } from "../table";
 import { Icon } from "../icons";
+import { ARRANGE_WORDS as words, arrangeRefusal, mergeShown } from "../table-arrange";
+import { chosenIds, countText } from "../table-selection";
+import { AxisMenu } from "./table-menu";
 
 type IconName = Parameters<typeof Icon>[0]["name"];
-function TableButton({ name, icon, reason, action }: { name: string; icon: IconName; reason?: string; action: () => void }) {
-  return <button className="icon-button" aria-label={name} title={reason || name} disabled={!!reason} onClick={action}>
-    <Icon name={icon} /><span className="tooltip">{reason || name}</span>
+function TableButton({ name, icon, reason, tip = name, action }: { name: string; icon: IconName; reason?: string; tip?: string; action: () => void }) {
+  return <button className="icon-button" aria-label={name} title={reason || tip} disabled={!!reason} onClick={action}>
+    <Icon name={icon} /><span className="tooltip">{reason || tip}</span>
   </button>;
 }
 
-function AxisMenu({ axis, table, action }: { axis: TableAxis; table: TableItem; action: (a: TableAction) => void }) {
-
-  const row = axis === "row", heading = row ? "Row" : "Column", name = heading + " options";
-  const entries = [
-    { at: "before", name: row ? "Add row above" : "Add column to the left", key: row ? "⌥⇧↩" : "⌥[" },
-    { at: "after", name: row ? "Add row below" : "Add column to the right", key: row ? "⌥↩" : "⌥]" },
-    { at: "delete", name: "Delete " + axis, key: "⌫" },
-  ] as const;
-  function toggle(container: HTMLElement, open: boolean, restoreFocus = false) {
-    const button = container.querySelector<HTMLButtonElement>(".table-menu-button")!;
-    const menu = container.querySelector<HTMLElement>(".table-menu")!;
-    menu.hidden = !open;
-    button.setAttribute("aria-expanded", String(open));
-    if (open) (menu.querySelector<HTMLButtonElement>("button:not(:disabled)") ?? menu).focus();
-    else if (restoreFocus) button.focus();
-  }
-  return <span className="table-menu-control" ref={node => {
-    if (!node) return;
-    const outside = (e: Event) => {
-      if (e.target instanceof Node && !node.contains(e.target) &&
-          node.querySelector('.table-menu-button[aria-expanded="true"]')) toggle(node, false);
-    };
-    document.addEventListener("pointerdown", outside, true);
-    document.addEventListener("focusin", outside);
-    return () => { document.removeEventListener("pointerdown", outside, true); document.removeEventListener("focusin", outside); };
-  }}>
-    <button className="icon-button table-menu-button" aria-haspopup="menu" aria-expanded="false"
-      aria-label={name} onClick={e => toggle(e.currentTarget.parentElement!, e.currentTarget.getAttribute("aria-expanded") === "false")}>
-      <Icon name={row ? "Row options" : "Column options"} />
-      <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
-      <span className="tooltip">{name}</span>
-    </button>
-    <div role="menu" aria-label={name} className="page-menu table-menu" hidden tabIndex={-1}
-      onKeyDown={e => {
-        e.stopPropagation();
-        if (e.nativeEvent.isComposing) return;
-        if (e.key === "Escape") {
-          e.preventDefault(); toggle(e.currentTarget.parentElement!, false, true);
-        } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-          e.preventDefault();
-          const buttons = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
-          const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
-          buttons[(i + (e.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length]?.focus();
-        }
-      }}>
-      <div className="table-menu-heading">{heading}</div>
-      {entries.map(item => {
-        const reason = tableReason(table, axis, item.at === "delete" ? "delete" : "add");
-        return <div key={item.at}>
-          {item.at === "delete" && <div role="separator" />}
-          <button role="menuitem" disabled={!!reason} title={reason || undefined} className={item.at === "delete" ? "table-danger" : undefined}
-            onClick={e => { toggle(e.currentTarget.closest<HTMLElement>(".table-menu-control")!, false); action({ axis, at: item.at }); }}>
-            <span>{item.name}</span><small>{item.key}</small>
-          </button>
-        </div>;
-      })}
-    </div>
-  </span>;
-}
-
 const divider = <span className="divider" aria-hidden="true" />;
-export function TableControls({ table, selection, edit, done, draft, invalid, readOnly, composing, reason, action, size, exportTable, children, copyLink }: {
-  table: TableItem; selection: TableSelection; edit: () => void; done: () => void; draft?: string; invalid: boolean;
+export function TableControls({ table, selection, cells = 0, edit, done, draft, invalid, readOnly, composing, reason, action, size, exportTable, children, copyLink }: {
+  table: TableItem; selection: TableSelection; cells: number; edit: () => void; done: () => void; draft?: string; invalid: boolean;
   readOnly: boolean; composing: boolean; reason: string; action: (a: TableAction) => void;
   size: (value: Style["textSize"]) => void; exportTable?: (() => boolean) & { disabled?: boolean; reason?: string }; children?: ReactNode; copyLink?: ReactNode;
 }) {
@@ -104,19 +47,30 @@ export function TableControls({ table, selection, edit, done, draft, invalid, re
     {divider}{counter}{copyLink}
   </>;
   if (readOnly) return <><span>Cell</span>{divider}{counter}{copyLink}</>;
+  const merge = mergeShown(table, selection) && <TableButton name={words.merge} icon={words.merge} tip={words.mergeTip}
+    reason={reason || arrangeRefusal(table, selection, { at: "merge" }, cells)?.reason} action={() => action({ at: "merge" })} />;
+  const clear = <TableButton name="Delete content" icon="Delete content" reason={reason} action={() => action({ at: "clear" })} />;
+  if (mode === "Cells") return <><span>{mode}</span>{divider}<small>{countText(table, selection)}</small>{merge}{clear}{copyLink}</>;
   if (mode === "Cell") return <>
     <span>Cell</span>{divider}
     <button disabled={!!reason} onClick={edit}><Icon name="pencil" />Edit text</button>{divider}{counter}
-    <AxisMenu axis="row" table={table} action={action} />
-    <AxisMenu axis="column" table={table} action={action} />
-    <TableButton name="Delete content" icon="Delete content" reason={reason} action={() => action({ at: "clear" })} />
+    <AxisMenu axis="row" table={table} selection={selection} cells={cells} action={action} />
+    <AxisMenu axis="column" table={table} selection={selection} cells={cells} action={action} />
+    {mergeOf(table, anchorCell(table, selection)) && <button className="icon-button table-split" aria-label={words.split}
+      aria-pressed={true} title={words.splitTip} disabled={!!reason} onClick={() => action({ at: "split" })}>
+      <Icon name={words.split} /><span className="tooltip">{words.splitTip}</span>
+    </button>}
+    {clear}
     {copyLink}
   </>;
-  const axis = mode === "Row" ? "row" : "column";
+  const axis = mode === "Row" || mode === "Rows" ? "row" : "column";
+  const several = chosenIds(table, selection, axis).length > 1, remove = { axis, at: "delete" } as const;
   return <><span>{mode}</span>{divider}
-    <AxisMenu axis={axis} table={table} action={action} />
-    <TableButton name={"Delete " + axis} icon="Delete axis" reason={reason || tableReason(table, axis, "delete")}
-      action={() => action({ axis, at: "delete" })} />
+    {several && <small>{countText(table, selection)}</small>}
+    <AxisMenu axis={axis} table={table} selection={selection} cells={cells} action={action} />
+    {merge}
+    <TableButton name={words.remove(axis, several)} icon="Delete axis"
+      reason={reason || arrangeRefusal(table, selection, remove, cells)?.reason} action={() => action(remove)} />
     {copyLink}
   </>;
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { assetEntries, held, isPictureType, isVideoType, readPicture, storePicture, readVideo, VideoUploads, type AssetEntry, type AssetType, type VideoType, type PictureType } from "./pictures.ts";
-import { pictureOf, isVideo } from "nextphase-board-rules/objects/registry.ts";
+import { isTable, pictureOf, isVideo } from "nextphase-board-rules/objects/registry.ts";
 import { Reactions } from "./reactions.ts";
 import { Spotlight } from "./spotlight.ts";
 import { WorkshopVoting, resetVoting } from "./voting.ts";
@@ -230,9 +230,9 @@ export class Room {
       if (!details) throw new RoomError(404, "not_found");
       if (!page) throw new RoomError(503, "service_unavailable");
       const adapter = new Adapter();
-      const input = document ?? { schemaVersion: 17 as const, boardId: this.boardId, title: details.title, pages: [{ id: this.boardId, name: "Page 1" }], objects: [], retiredGenerations: [] };
+      const input = document ?? { schemaVersion: 18 as const, boardId: this.boardId, title: details.title, pages: [{ id: this.boardId, name: "Page 1" }], objects: [], retiredGenerations: [] };
       try {
-        if (![13, 14, 15, 16, 17].includes(validate(input).schemaVersion)) throw Error();
+        if (![13, 14, 15, 16, 17, 18].includes(validate(input).schemaVersion)) throw Error();
       } catch { throw new RoomError(400, "invalid_document"); }
       const board = upgrade(input);
       adapter.set(board);
@@ -271,11 +271,12 @@ export class Room {
     const legacy = meta(storage, "storage_version") === 7;
     const decoded = readBoard(this.doc, legacy);
     validate(decoded);
-    if (decoded.schemaVersion === 17) this.board = decoded;
+    if (decoded.schemaVersion === 18) this.board = decoded;
     else storage.transaction(() => {
+      canonical(decoded);
       if (legacy) resetVoting(storage);
       this.upgradeStored(decoded, legacy);
-      snapshot(storage, this.doc, this.board, meta(storage, "revision"));
+      snapshot(storage, this.doc, this.board, meta(storage, "revision"), { loadTimeUpgrade: true });
       if (legacy) setMeta(storage, "storage_version", 8);
     });
     if (meta(storage, "storage_version") === 8) storage.transaction(() => setMeta(storage, "storage_version", 9));
@@ -304,13 +305,16 @@ export class Room {
   // Snapshot the upgraded map at the existing revision, without a person's edit.
   private upgradeStored(decoded: DecodedBoard, legacy: boolean) {
     const version = decoded.schemaVersion;
-    if (![10, 11, 12, 13, 14, 15, 16].includes(version) || legacy && version > 13) throw Error("invalid_document");
+    if (![10, 11, 12, 13, 14, 15, 16, 17].includes(version) || legacy && version > 13) throw Error("invalid_document");
     this.doc.transact(() => {
       if (version < 13) {
         convertPages(this.doc, upgrade(decoded).pages);
         for (const value of this.doc.getMap<Y.Map<unknown>>("objects").values()) value.set("page", this.boardId);
       } else if (legacy && decoded.schemaVersion === 13) convertPages(this.doc, decoded.pages);
-      this.doc.getMap("board").set("schemaVersion", 17);
+      this.doc.getMap("board").set("schemaVersion", 18);
+      for (const object of this.doc.getMap<Y.Map<unknown>>("objects").values()) {
+        if (isTable({ type: String(object.get("type")) })) object.set("mergeMap", new Y.Map());
+      }
     });
     this.board = readLiveBoard(this.doc); validate(this.board);
   }

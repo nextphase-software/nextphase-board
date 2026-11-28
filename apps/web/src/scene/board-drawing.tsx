@@ -23,7 +23,8 @@ import { NoteBody, type ObjectLayout } from "./note-body";
 import { LinkBody } from "./link-body";
 import { ImageBody } from "./image-body";
 
-import { TableBody, TableGhostBody } from "./table-body";
+import { TableBody, TableDragGhost, TableGhostBody } from "./table-body";
+import type { TableDragDrawing } from "../table-arrange";
 import type { CellSelection, TableSelection, TableGhost, TableBorder, TableLayout } from "../table";
 
 type Props = {
@@ -31,6 +32,7 @@ type Props = {
   only?: ReadonlySet<string>;
   tableGesture: { ghost: TableGhost | null; border?: TableBorder };
   tableSelection?: TableSelection;
+  tableDrag?: TableDragDrawing | null;
   tableCell?: CellSelection;
   faded: ReadonlySet<string>;
   loading?: ReadonlySet<string>;
@@ -48,11 +50,12 @@ type Props = {
   movingIds: readonly string[];
 };
 
-export function BoardDrawing({ tableGesture, tableSelection, tableCell, faded, bitmaps, loading, playing, connection, preview, size, view, pixelScale, board, objectLayouts, selected, inline, movingIds, stageRef, only }: Props) {
+export function BoardDrawing({ tableGesture, tableSelection, tableDrag, tableCell, faded, bitmaps, loading, playing, connection, preview, size, view, pixelScale, board, objectLayouts, selected, inline, movingIds, stageRef, only }: Props) {
   const rectangles = new Map(board.objects.filter(hasRectangle).map((o) => [o.id, { ...o, displayHeight: objectLayouts.get(o.id)!.height }]));
   const targets = dropTargets(board, new Set(movingIds), true, objectLayouts);
   const sections = new Set([...targets.values()].filter((id) => id !== null));
   const hidden = hiddenIds(board.objects), drag = preview && "mapDrag" in preview ? preview.mapDrag : undefined;
+  const dragged = tableDrag && board.objects.find(o => o.id === tableDrag.table);
   const map = (pass: "lines" | "over") => <MindMapLayer only={only} key={pass} pass={pass} objects={board.objects} hidden={hidden} selected={selected} drag={drag} view={view} size={size} />;
   return (
     <Stage ref={stageRef} width={size.w} height={size.h} listening={false}>
@@ -72,7 +75,7 @@ export function BoardDrawing({ tableGesture, tableSelection, tableCell, faded, b
           if (isImage(o)) return fade(<ImageBody key={o.id} object={o} bitmap={playing?.id === o.id ? playing.bitmap : bitmaps.get(o.asset)} loading={loading?.has(o.asset)} selected={selected.has(o.id)} zoom={view.z} />);
           if (isTable(o)) return fade(<TableBody key={o.id} object={o} layout={layout.table!}
             selection={tableSelection?.id === o.id ? tableSelection : undefined} editing={tableCell}
-            border={tableSelection?.id === o.id ? tableGesture.border : undefined} zoom={view.z} selected={selected.has(o.id)} />);
+            border={tableSelection?.id === o.id ? tableGesture.border : undefined} drag={tableDrag?.table === o.id ? tableDrag : undefined} zoom={view.z} selected={selected.has(o.id)} />);
           if (isTape(o)) return fade(<TapeBody key={o.id} object={o} selected={selected.has(o.id)} zoom={view.z} />);
           if (hasPoints(o)) return fade(<StrokeBody key={o.id} object={o} selected={selected.has(o.id)} zoom={view.z} />);
           if (!hasRectangle(o)) return null;
@@ -90,6 +93,7 @@ export function BoardDrawing({ tableGesture, tableSelection, tableCell, faded, b
           ideas={board.objects.filter(hasRectangle).filter((o) => targets.get(o.id) === id).map((o) =>
             ({ ...o, displayHeight: objectLayouts.get(o.id)!.height })) as Parameters<typeof SectionDropHint>[0]["ideas"]} />)}
         {preview && !("mapDrag" in preview) && ("pattern" in preview ? <TapeBody object={preview} zoom={view.z} /> : <StrokeBody object={preview} zoom={view.z} />)}
+        {tableDrag && dragged && isTable(dragged) && <TableDragGhost object={dragged} layout={objectLayouts.get(dragged.id)!.table!} drag={tableDrag} zoom={view.z} />}
       </Layer>
     </Stage>
   );

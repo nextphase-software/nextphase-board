@@ -252,7 +252,7 @@ test("X10-U07 Change back to text preserves bounds, section and Undo restores th
 test("X10-U08 schema 16 validates the card sizes, fields and schema 15 upgrade", async () => {
   const { c, empty, board, card } = await loading(), r = await rules();
   const { validLink } = await source("packages/board-rules/src/objects/link.ts");
-  assert.equal(r.empty().schemaVersion, 17);
+  assert.equal(r.empty().schemaVersion, 18);
   const older = { ...empty, schemaVersion: 15 };
   assert.deepEqual(r.upgrade(older), empty); assert.equal(older.schemaVersion, 15);
   assert.throws(() => r.validate({ ...board, schemaVersion: 15 }));

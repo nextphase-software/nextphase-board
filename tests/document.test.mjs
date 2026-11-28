@@ -40,7 +40,7 @@ test("malformed schemas, duplicate identities and invalid geometry fail closed",
   const b = add({ ...empty(), title: "Example" }, "text", 0, 0);
   for (
     const mutate of [
-      (x) => x.schemaVersion = 18,
+      (x) => x.schemaVersion = 19,
       (x) => x.unknown = true,
       (x) => x.objects[0].id = x.boardId,
       (x) => x.objects[0].x = Infinity,
@@ -114,7 +114,7 @@ nodeTest("v1 canonical bytes stay exact and upgrading adds only defaults", () =>
   const decoded = validate(JSON.parse(bytes));
   assert.equal(canonical(decoded), bytes);
   const upgraded = upgrade(decoded);
-  assert.equal(upgraded.schemaVersion, 17);
+  assert.equal(upgraded.schemaVersion, 18);
   assert(upgraded.objects.every((o) => o.group === null));
   assert(upgraded.objects.every((o) => o.marks.length === 0));
   assert.deepEqual(legacy(upgraded), b);
@@ -129,10 +129,10 @@ nodeTest("v1 canonical bytes stay exact and upgrading adds only defaults", () =>
   adapter.destroy();
 });
 nodeTest("v2 accepts every style combination on both object types", () => {
-  assert.equal(emptyV2().schemaVersion, 17);
+  assert.equal(emptyV2().schemaVersion, 18);
   for (const type of ["sticky", "text"]) {
     const b = addV2({ ...emptyV2(), title: "Styles" }, type, 0, 0);
-    assert.equal(b.schemaVersion, 17);
+    assert.equal(b.schemaVersion, 18);
     assert.equal(b.objects[0].group, null);
     assert.deepEqual(b.objects[0].marks, []);
     for (const key of ["color", "textSize", "align"]) assert.equal(b.objects[0][key], objectType(type).defaultStyle[key]);
@@ -243,7 +243,7 @@ for (const version of [1, 2, 3, 4, 5, 6]) nodeTest(`v${version} exact bytes surv
   const upgraded = upgrade(decoded);
   assert.equal(canonical(decoded), bytes);
   assert.deepEqual(decoded, before);
-  assert.equal(upgraded.schemaVersion, 17);
+  assert.equal(upgraded.schemaVersion, 18);
   assert.deepEqual(upgraded.objects.map((o) => o.group), version >= 3 ? old.objects.map((o) => o.group) : [null, null]);
   assert.deepEqual(upgraded.objects.map((o) => o.marks), version >= 4 ? old.objects.map((o) => o.marks) : [[], []]);
   assert(upgraded.objects.every((o) => o.section === null));
@@ -290,7 +290,7 @@ nodeTest("v4 marks roundtrip, canonical order and strict validation", () => {
   b.objects[0].marks = [{ start: 0, end: 2, bold: true, italic: true, strike: true }, { start: 2, end: 4, italic: true }];
   const bytes = canonical(b);
   assert.deepEqual(validate(JSON.parse(bytes)), b);
-  assert.equal(JSON.parse(bytes).schemaVersion, 17);
+  assert.equal(JSON.parse(bytes).schemaVersion, 18);
   assert.deepEqual(Object.keys(JSON.parse(bytes).objects[0].marks[0]), ["start", "end", "bold", "italic", "strike"]);
   const shuffled = structuredClone(b);
   shuffled.objects = shuffled.objects.map((o) => Object.fromEntries(Object.entries({
@@ -372,7 +372,50 @@ nodeTest("v5 section membership and exact bytes survive the v9 in-memory upgrade
   b.objects[1].marks = [{ start: 0, end: 5, bold: true }];
   const bytes = canonical(b), read = validate(JSON.parse(bytes)), before = structuredClone(read);
   const current = upgrade(read);
-  assert.equal(current.schemaVersion, 17); assert.deepEqual(withoutPages(current).objects, b.objects);
+  assert.equal(current.schemaVersion, 18); assert.deepEqual(withoutPages(current).objects, b.objects);
   assert.deepEqual(read, before); assert.equal(canonical(read), bytes);
   assert.equal(upgrade(current), current);
+});
+
+nodeTest("0011-W3 older table documents keep their canonical bytes and upgrade only merges and schema", async () => {
+  const r = await import("../packages/board-rules/src/document.ts");
+  const id = () => crypto.randomUUID(), boardId = id();
+  const board = { schemaVersion: 17, boardId, title: "Before merges", pages: [{ id: boardId, name: "Page 1" }],
+    objects: [], retiredGenerations: [] };
+  for (let order = 0; order < 2; order++) {
+    const columns = [{ id: id(), width: 192 }], rows = [{ id: id(), height: 64 }, { id: id(), height: 88 }];
+    board.objects.push({ id: id(), generation: id(), type: "table", page: boardId, columns, rows,
+      cells: [{ row: rows[1].id, column: columns[0].id, text: "Saved" }],
+      textSize: "medium", group: null, section: null, x: 0, y: 0, width: 192, height: 152, order });
+  }
+  const initial = r.canonical(board);
+  for (const schemaVersion of [14, 17]) {
+    const old = { ...board, schemaVersion }, payload = r.canonical(old), current = r.upgrade(old);
+    assert.equal(current.schemaVersion, 18);
+    assert.deepEqual(current.objects, old.objects.map(t => ({ ...t, merges: [] })));
+    assert.deepEqual(r.validate(JSON.parse(payload)), old);
+    assert.equal(r.payloadBytes(r.canonical(current)) - r.payloadBytes(payload), 24);
+  }
+  assert.equal(r.canonical(board), initial);
+  assert.equal(JSON.parse(initial).objects.some(t => Object.hasOwn(t, "merges")), false);
+});
+
+nodeTest("0011-W3 canonical measures schema 17 before upgrade and schema 18 on the next write", async () => {
+  const r = await import("../packages/board-rules/src/document.ts");
+  const { sizedBoard } = await import("./import-fixture.mjs");
+  const max = 2097152, keyBytes = Buffer.byteLength(',"merges":[]');
+  const row = crypto.randomUUID(), column = crypto.randomUUID();
+  const table = { id: crypto.randomUUID(), generation: crypto.randomUUID(), type: "table", columns: [{ id: column, width: 192 }],
+    rows: [{ id: row, height: 64 }], cells: [{ row, column, text: "Saved" }], textSize: "medium",
+    group: null, section: null, x: 0, y: 0, width: 192, height: 64, order: sizedBoard().objects.length };
+  for (const slack of [0, keyBytes]) {
+    const legacy = sizedBoard(max - slack - 1 - Buffer.byteLength(JSON.stringify(table)), 17);
+    legacy.objects.push({ ...table, page: legacy.pages[0].id });
+    assert.equal(r.payloadBytes(r.canonical(legacy)), max - slack);
+    const upgraded = r.upgrade(r.validate(legacy));
+    assert.equal(upgraded.schemaVersion, 18);
+    assert.deepEqual(upgraded.objects.at(-1).merges, []);
+    if (slack) assert.equal(r.payloadBytes(r.canonical(upgraded)), max);
+    else assert.throws(() => r.canonical(upgraded), /Board too large/);
+  }
 });

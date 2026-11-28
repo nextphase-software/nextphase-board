@@ -805,3 +805,18 @@ test("X5-U22 nested hosted viewer paste reaches the read-only refusal", async (t
   assert.equal(e.prevented, 1);
   assert.equal(h.props.model.current, board);
 });
+
+test("0011-W3 merged CSV writes only the anchor and importing the CSV keeps cells separate", async () => {
+  const m = await csv(), r = await rules();
+  const k = await import("../packages/board-rules/src/objects/table.ts");
+  const b = r.add(await blank(), "table", 0, 0, undefined, { columns: 3, rows: 3 }), t = b.objects[0];
+  const selected = fill(t, [["Task", "Owner", "Status"], ["Ship", "Ana", "Doing"], ["Read", "Ben", "Done"]]);
+  const merged = k.mergeRange(selected, { from: k.cellAt(t, 1, 0), to: k.cellAt(t, 2, 1) });
+  const out = m.tableCsv(merged);
+  assert.equal(out, "\uFEFFTask,Owner,Status\r\nShip,,Doing\r\n,,Done\r\n");
+  const imported = await m.readCsvFile(file("Merged.csv", out, "text/csv"));
+  assert.equal(imported.reason, undefined);
+  const pasted = batch(m, await blank(), [imported]);
+  assert.deepEqual(pasted.board.objects[0].merges, []);
+  assert.deepEqual(matrix(pasted.board.objects[0]), [["Task", "Owner", "Status"], ["Ship", "", "Doing"], ["", "", "Done"]]);
+});

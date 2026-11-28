@@ -14,6 +14,7 @@ export type MapDrag = { node: string; branch: string[]; root: boolean; target: s
 export type NodeDrop = { preview: true } | { preview?: false; target: string | null; side: "left" | "right" };
 export type Drag = {
   tableCellClick?: boolean;
+  arrange?: true;
   mapDrag?: MapDrag;
   drawing?: { positions: { x: number; y: number }[]; tool: string };
   connection?: ConnectionDrag;

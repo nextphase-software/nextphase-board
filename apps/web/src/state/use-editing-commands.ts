@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRef, useState, type ClipboardEvent, type Dispatch, type DragEvent, type RefObject, type SetStateAction } from "react";
 import type { Board as SavedBoard, BoardV14 as Board, ItemV14 as Item } from "nextphase-board-rules/document.ts";
-import { count } from "nextphase-board-rules/document.ts";
+import { count, tableCellCount } from "nextphase-board-rules/document.ts";
 import { catalog } from "../activities/catalog";
 import { activityPreview, insertActivity, readActivity, type Activity, type Preview } from "../activities";
 import { codePointOffset, formatted, toggle, type Flag } from "nextphase-board-rules/marks.ts";
@@ -28,13 +28,15 @@ import type { HostedBoard } from "../team/hosted-board";
 import type { TableItem } from "nextphase-board-rules/document.ts";
 import type { TableOrderHint } from "nextphase-board-sync/document-adapter.ts";
 import { anchorCell, boundTable, growTable, layoutTable, tableReason, type MeasureCell, type TableAction, type TableSelection } from "../table";
+import { arrangeTable } from "../table-arrange";
+import { keepSelection } from "../table-selection";
 import { addTableData, isCanvasPasteTarget, isCsvFile, isSpreadsheetData, readCsvFile, readSpreadsheet, tableCsv, tableCsvName,
   type TableDataAnchor, type TableDataItem } from "../table-csv";
 
 type Input = {
   tableSelection?: TableSelection;
   tableMeasure: MeasureCell;
-  chooseTable: (selection: TableSelection, table: TableItem) => void;
+  chooseTable: (selection: TableSelection, table: TableItem, announcement?: string) => void;
   growTableRows: (table: TableItem) => TableItem;
   pages?: import("../pages").PageNavigation;
   hosted?: HostedBoard;
@@ -44,7 +46,7 @@ type Input = {
   growHeight: number;
   growAvailable: boolean;
   model: RefObject<Board>;
-  commit: (input: SavedBoard, recordObject?: boolean, orderIds?: readonly string[], opens?: string, movedPages?: readonly string[], tableHint?: TableOrderHint) => void;
+  commit: (input: SavedBoard, recordObject?: boolean, orderIds?: readonly string[], opens?: string, movedPages?: readonly string[], tableHint?: TableOrderHint) => Board | undefined;
   historyRef: RefObject<History>;
   updateHistory: (next: History) => void;
   setDrafts: Dispatch<SetStateAction<Record<string, string>>>;
@@ -406,15 +408,35 @@ export function useEditingCommands({
     }
   }
   function tableAction(action: TableAction) {
-    if (!tableSelection || commandReason) return;
+    // A drop has already released the gesture, but the last render may
+    // still hold the gesture's command reason until React processes setBusy.
+    const drop = action.at === "move" && "to" in action;
+    if (!tableSelection || (drop ? editingCommandReason({ ...editingState, pointerGesture: false }) : commandReason)) return;
     const t = model.current.objects.find(o => o.id === tableSelection.id);
     if (!t || !isTable(t)) return;
+    const multi = tableSelection.kind === "range" || tableSelection.kind === "cells" ||
+      tableSelection.kind === "rows" || tableSelection.kind === "columns";
+    if (action.at !== "end" && action.at !== "delete" && action.at !== "clear" || multi && action.at !== "end") {
+      const result = arrangeTable(t, tableSelection, action, () => crypto.randomUUID(), tableCellCount(model.current.objects));
+      if (!result || "refusal" in result) return;
+      finishTextSession();
+      try {
+        const saved = commit({ ...model.current, objects: model.current.objects.map(o => o.id === t.id ? boundTable(result.table) : o) },
+          true, undefined, undefined, undefined, result.hint);
+        const table = saved?.objects.find(o => o.id === t.id);
+        if (table && isTable(table)) {
+          chooseTable(result.selection, table, result.announcement);
+          scene.current?.focus();
+        }
+      } catch (error) { setMessage(String(error)); }
+      return;
+    }
     const anchor = anchorCell(t, tableSelection), index = cellIndex(t, anchor);
     let next = t, nextCell = anchor, hint: TableOrderHint | undefined;
     if (action.at === "clear") {
       if (!cellText(t, anchor)) return;
       next = setCell(t, anchor, "");
-    } else {
+    } else if (action.at === "end" || action.at === "delete") {
       const { axis, at } = action, deleting = at === "delete";
       const reason = tableReason(t, axis, deleting ? "delete" : "add");
       if (reason) { setMessage(reason); return; }
@@ -423,7 +445,7 @@ export function useEditingCommands({
         nextCell = cellAt(next, Math.min(index.row, next.rows.length - 1), Math.min(index.column, next.columns.length - 1))!;
       } else {
         const id = crypto.randomUUID();
-        next = insertAxis(t, axis, id, at === "end" ? undefined : index[axis] + Number(at === "after"));
+        next = insertAxis(t, axis, id);
         nextCell = { ...anchor, [axis]: id };
         hint = { table: t.id, axis, moved: [id] };
       }
@@ -435,7 +457,7 @@ export function useEditingCommands({
     } catch (error) { setMessage(String(error)); return; }
     const saved = model.current.objects.find(o => o.id === t.id);
     if (saved && isTable(saved) && saved.rows.some(r => r.id === nextCell.row) && saved.columns.some(c => c.id === nextCell.column))
-      chooseTable({ kind: "cell", id: t.id, ...nextCell }, saved);
+      chooseTable(keepSelection(saved, { kind: "cell", id: t.id, ...nextCell }), saved);
     scene.current?.focus();
   }
   function tableSize(value: Style["textSize"]) {

@@ -224,7 +224,7 @@ test('F1-U14 canvas fit keys require physical shifted digits, canvas focus and i
   const handler=source.slice(source.indexOf('  function sceneKeyDown('),source.indexOf('  function pointerDown('));
   const js=(await transform(handler,{loader:'ts'})).code;
   const make=new Function('state',`with(state){${js};return sceneKeyDown;}`);
-  const calls=[],canvas={},state={composing:false,inline:false,textEditing:false,busy:false,drag:{current:null},tidy:{open:false},
+  const calls=[],canvas={},state={tableSelection:undefined,composing:false,inline:false,textEditing:false,busy:false,drag:{current:null},tidy:{open:false},
     find:{zoomToFit:()=>calls.push('all'),zoomToSelection:()=>calls.push('selection')},voting:null,readOnly:true,
     drawingKey:()=>null,isDrawingTool:()=>false,toolForKey:()=>null,tool:'Select'};
   const event=patch=>({key:'!',code:'Digit1',target:canvas,currentTarget:canvas,shiftKey:true,ctrlKey:false,metaKey:false,altKey:false,nativeEvent:{isComposing:false},preventDefault(){this.prevented=true;},stopPropagation(){this.stopped=true;},...patch});

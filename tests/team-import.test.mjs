@@ -81,7 +81,7 @@ test("team import upgrades schema 9 to 10 preserving every object", async () => 
   const { canonical } = await import("../packages/board-rules/src/document.ts");
   const board = { ...withoutPages(richBoard()), schemaVersion: 9 }, bodies = [];
   await importBoard(file(envelope(canonical(board))), async (body) => { bodies.push(body); });
-  assert.deepEqual(bodies, [{ title: board.title, document: { ...board, schemaVersion: 17, pages: [{ id: board.boardId, name: "Page 1" }], objects: board.objects.map(o => ({ ...o, page: board.boardId })) } }]);
+  assert.deepEqual(bodies, [{ title: board.title, document: { ...board, schemaVersion: 18, pages: [{ id: board.boardId, name: "Page 1" }], objects: board.objects.map(o => ({ ...o, page: board.boardId })) } }]);
 });
 
 async function roomFixture() {

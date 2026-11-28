@@ -24,7 +24,7 @@ const drawn = (b) => b.objects.map((o) => ({ ...o, displayHeight: o.height }));
 
 test("v10 image keys, order, canonical bytes and every field boundary", () => {
   const b = withImage(), o = b.objects[0];
-  assert.equal(b.schemaVersion, 17);
+  assert.equal(b.schemaVersion, 18);
   assert.deepEqual(Object.keys(JSON.parse(canonical(b)).objects[0]), ["id","generation","type","page","group","section","asset","pixelWidth","pixelHeight","description","x","y","width","height","order"]);
   assert.equal(canonical(validate(JSON.parse(canonical(b)))), canonical(b));
   for (const key of ["pixelWidth", "pixelHeight"]) {
@@ -53,7 +53,7 @@ test("versions 1 to 9 preserve exact payload and upgrade without mutating the sa
     if (version < 3) delete o.group; if (version < 4) delete o.marks; if (version < 5) delete o.section;
     const old = { ...withoutPages(current), schemaVersion: version, objects: [{ ...o }] }; delete old.objects[0].page; const bytes = canonical(old), copy = structuredClone(old);
     const read = validate(JSON.parse(bytes)), upgraded = upgrade(read);
-    assert.equal(canonical(read), bytes); assert.deepEqual(old, copy); assert.equal(upgraded.schemaVersion, 17);
+    assert.equal(canonical(read), bytes); assert.deepEqual(old, copy); assert.equal(upgraded.schemaVersion, 18);
     assert.equal(record(emptyHistory(), upgraded, upgraded).past.length, 0);
   }
 });

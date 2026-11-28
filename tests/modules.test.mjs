@@ -116,7 +116,7 @@ test("the import guards catch each forbidden form", () => {
   }
 });
 
-test("screen parts contain exactly the thirty-seven screen modules named through 0001-W27 v1", () => {
+test("screen parts contain exactly the thirty-eight screen modules named through 0011-W3 v1", () => {
   assert.deepEqual(screenParts, [
     "arrange-controls.tsx",
     "board-panel.tsx",
@@ -151,6 +151,7 @@ test("screen parts contain exactly the thirty-seven screen modules named through
     "shapes-panel.tsx",
     "stroke-controls.tsx",
     "table-controls.tsx",
+    "table-menu.tsx",
     "tape-controls.tsx",
     "templates-panel.tsx",
     "tidy-up-bar.tsx",
@@ -251,7 +252,7 @@ test("screen and scene guard detects equality and inequality in both operand ord
   }
 });
 
-test("state contains exactly the thirty hooks named through 0001-W27 v1", () => {
+test("state contains exactly the thirty-one hooks named through 0011-W3 v1", () => {
   assert.deepEqual(files(new URL("state/", source)).sort(), [
     "use-board-document.ts",
     "use-canvas-input.ts",
@@ -277,6 +278,7 @@ test("state contains exactly the thirty hooks named through 0001-W27 v1", () => 
     "use-selection.ts",
     "use-session-status.ts",
     "use-storage-session.ts",
+    "use-table-arrange.ts",
     "use-text-entry.ts",
     "use-text-links.ts",
     "use-tidy-up.ts",
@@ -348,6 +350,11 @@ test("the viewport and scene size hooks each hold exactly one passive effect", (
     assert.equal((content.match(/\buseEffect\s*\(/g) ?? []).length, 1, name);
     assert.doesNotMatch(content, /\buseLayoutEffect\b/, name);
   }
+});
+
+test("the table arrange hook contains no effects", () => {
+  const content = readFileSync(new URL("state/use-table-arrange.ts", source), "utf8");
+  assert.doesNotMatch(content, /\buse(?:Layout)?Effect\b/);
 });
 
 test("the geometry edits hook contains no effects", () => {
@@ -607,8 +614,8 @@ test("the hosted board hook holds exactly one passive effect", () => {
   assert.doesNotMatch(content, /\buseLayoutEffect\b/);
 });
 
-// Web modules v43, v45, v46, v50 and v51: exact existing-line substitutions from the behaviour baseline.
-test("0001-W27 App composition changes only its recorded substitutions", () => {
+// Web modules v43, v45, v46, v50, v51 and v52: exact existing-line substitutions from the behaviour baseline.
+test("0011-W3 App composition changes only its recorded substitutions", () => {
   const base = execFileSync("git", ["show", "3f4ad48:apps/web/src/App.tsx"], { encoding: "utf8" });
   const substitutions = [
   [
@@ -775,6 +782,15 @@ test("0001-W27 App composition changes only its recorded substitutions", () => {
     ["<span id=\"selection-reason\" className=\"sr-only\">{selectionReason}</span>", "<span id=\"selection-reason\" className=\"sr-only\">{selectionReason}</span><span id=\"link-reason\" className=\"sr-only\">{textLinks.controls.link.own ? textLinks.controls.link.reason : \"\"}</span>"],
     ["links={links.bar} tapeSelection={tapeSelection}", "links={links.bar} textLinks={textLinks.controls} tapeSelection={tapeSelection}"],
     ["<BoardQuestion {...boardQuestion} /><ExportDialog {...exporter.dialog} />", "<BoardQuestion {...boardQuestion} /><ExportDialog {...exporter.dialog} /><LinkHoverCard card={textLinks.card} />"],
+  ["import { LinkHoverCard } from \"./ui/link-hover-card\";", "import { LinkHoverCard } from \"./ui/link-hover-card\"; import { useTableArrange } from \"./state/use-table-arrange\";"],
+  ["linkPointer: () => textLinks.pointer,", "linkPointer: () => textLinks.pointer, tablePointer: () => tableArrange.pointer,"],
+  ["cancelDrag: tableGesture.cancelDrag,", "cancelDrag: () => { tableGesture.cancelDrag(); tableArrange.cancel(); },"],
+  ["ownCopy: tableData.ownCopy, view, size, pos, setMessage });", "ownCopy: tableData.ownCopy, view, size, pos, setMessage }); const tableArrange = useTableArrange({ table: resolvedTable, selection: tableSelection, choose: chooseTable, action: tableAction, readOnly, editing: inline, busy: busy || composing || tool !== \"Select\" || tidy.open, drag, setBusy, board, view, size, scene });"],
+  ["tableGesture={tableGesture} faded={find.faded}", "tableGesture={tableGesture} tableDrag={tableArrange.drawing} faded={find.faded}"],
+  ["select={chooseTable} focus={tableGesture.focus} />", "select={chooseTable} focus={tableGesture.focus} arrange={tableArrange.buttons} cells={tableArrange.cells} />"],
+  ["tableResizing={tableGesture.resizing}", "tableResizing={tableGesture.resizing || tableArrange.dragging} tableCells={tableArrange.cells}"],
+  ["openLink: () => textLinks.shortcut(),", "openLink: () => textLinks.shortcut(), arranging: () => tableArrange.dragging,"],
+  ["onKeyDown={pageKeyDown} onKeyDownCapture={images.guardGesture}", "onKeyDown={pageKeyDown} onKeyDownCapture={images.guardGesture} className={tableArrange.dragging ? \"table-dragging\" : undefined}"],
 ];
   let expected = base;
   for (const [from, to] of substitutions) {

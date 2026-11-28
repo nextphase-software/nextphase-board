@@ -41,7 +41,7 @@ export function useHostedBoard({ hosted, model, load, setBoard, setTitle, setRea
       const table = next && isTable(next) && old?.page === next.page ? next : undefined;
       const draft = tables.entry.draft;
       const label = hosted.presence.others.find(p => p.connection === change.connection)?.label;
-      const result = validTableSelection(table, selection, !!draft, change.origin, label);
+      const result = validTableSelection(table, selection, !!draft, change.origin, label, old && isTable(old) ? old : undefined);
       if (!result.selection || result.selection !== selection) {
         if (draft || composing) tables.focus();
         tables.cancelDrag();

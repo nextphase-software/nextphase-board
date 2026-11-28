@@ -89,7 +89,7 @@ test("mixed v2 head and v1 previous decode while legacy raw bytes remain exact",
   assert.equal(canonical((await decode(pair[1])).board), legacyPayload);
 });
 test("a correctly hashed unknown document version is rejected with raw bytes unchanged", async () => {
-  const payload = JSON.stringify({ ...b, schemaVersion: 18 });
+  const payload = JSON.stringify({ ...b, schemaVersion: 19 });
   const raw = JSON.stringify({ formatVersion: 1, storageRevision: 1, payload, sha256: await digest(payload) });
   const pair = [raw, undefined];
   await assert.rejects(decode(raw));
@@ -113,7 +113,7 @@ test("v7 grouped head and exact v2 previous decode without rewriting either reco
   const grouped = groupObjects(upgraded, new Set(upgraded.objects.slice(0, 2).map((o) => o.id)));
   const head = await wrap(2, grouped), pair = [head, previous], before = structuredClone(pair);
   const loaded = await readPair(pair);
-  assert.equal(loaded.board.schemaVersion, 17);
+  assert.equal(loaded.board.schemaVersion, 18);
   assert.deepEqual(loaded.board, grouped);
   assert.equal(loaded.board.objects[2].group, null);
   assert.equal((await decode(pair[1])).envelope.payload, bytes);
@@ -129,7 +129,7 @@ test("v7 shapes head and v5 previous decode without rewriting either record", as
   current.objects[1] = { ...current.objects[1], shape: "circle", fill: { mode: "transparent", color: "#7a3cf0" }, border: { style: "dashed", color: "#204060" } };
   const pair = [await wrap(2, current), previous], before = structuredClone(pair);
   const loaded = await readPair(pair);
-  assert.deepEqual(loaded.board, current); assert.equal(loaded.board.schemaVersion, 17);
+  assert.deepEqual(loaded.board, current); assert.equal(loaded.board.schemaVersion, 18);
   assert.equal(canonical((await decode(previous)).board), beforePayload);
   assert.deepEqual(pair, before);
 });
@@ -145,4 +145,54 @@ test("v7 connector head and v6 previous decode without rewriting either record",
   assert.equal((await decode(pair[1])).board.schemaVersion, 6);
   assert.equal(canonical((await decode(pair[1])).board), canonical(old));
   assert.deepEqual(pair, before);
+});
+
+test("0011-W3 storage decodes merged tables exactly and refuses invalid merge documents", async () => {
+  const r = await import("../packages/board-rules/src/document.ts");
+  const k = await import("../packages/board-rules/src/objects/table.ts");
+  const s = await import("../apps/web/src/storage.ts");
+  let board = r.add(r.add({ ...r.empty(), title: "Arranged" }, "table", 0, 0), "table", 600, 0);
+  const t = board.objects[0], from = k.cellAt(t, 0, 0), to = k.cellAt(t, 1, 1);
+  const merged = k.mergeRange(k.setCell(t, from, "Anchor"), { from, to });
+  board = { ...board, objects: [merged, board.objects[1]] };
+  const raw = await wrap(1, board);
+  const decoded = await s.decode(raw);
+  assert.equal(decoded.envelope.payload, r.canonical(board));
+  assert.deepEqual(decoded.board.objects.map(o => o.merges), [merged.merges, []]);
+  const { id, generation, type, page, columns, rows, cells, textSize, group, section, x, y, width, height, order } = t;
+  const historical = { id, generation, type, page, columns, rows, cells, textSize, group, section, x, y, width, height, order };
+  const legacy = { ...board, schemaVersion: 17, objects: [historical] };
+  const legacyRaw = await wrap(2, legacy), opened = await s.decode(legacyRaw);
+  assert.equal(opened.envelope.payload, r.canonical(legacy));
+  assert.deepEqual(r.upgrade(opened.board).objects[0].merges, []);
+  for (const [schemaVersion, table] of [[18, historical], [17, t],
+    [18, { ...merged, merges: [merged.merges[0], merged.merges[0]] }],
+    [18, { ...merged, cells: [{ ...to, text: "Covered" }] }]]) {
+    const payload = JSON.stringify({ ...board, schemaVersion, objects: [table] });
+    const bad = JSON.stringify({ formatVersion: 1, storageRevision: 1, payload, sha256: await s.digest(payload) });
+    const memory = [bad, undefined], before = [...memory];
+    await assert.rejects(s.readPair(memory));
+    assert.deepEqual(memory, before);
+  }
+});
+
+test("0011-W3 local storage reads an exact-cap legacy table and refuses its next save", async () => {
+  const r = await import("../packages/board-rules/src/document.ts");
+  const s = await import("../apps/web/src/storage.ts");
+  const { sizedBoard } = await import("./import-fixture.mjs");
+  const max = 2097152, row = crypto.randomUUID(), column = crypto.randomUUID();
+  const table = { id: crypto.randomUUID(), generation: crypto.randomUUID(), type: "table", columns: [{ id: column, width: 192 }],
+    rows: [{ id: row, height: 64 }], cells: [], textSize: "medium", group: null, section: null, x: 0, y: 0, width: 192, height: 64,
+    order: sizedBoard().objects.length };
+  const legacy = sizedBoard(max - 1 - Buffer.byteLength(JSON.stringify(table)), 17);
+  legacy.objects.push({ ...table, page: legacy.pages[0].id });
+  const raw = await wrap(1, legacy);
+  const opened = await s.readPair([raw, undefined]);
+  assert.equal(r.payloadBytes(opened.envelope.payload), max);
+  const upgraded = r.upgrade(opened.board), store = new s.LocalStore();
+  store.expected = [raw, undefined];
+  assert.equal(upgraded.schemaVersion, 18);
+  assert.deepEqual(upgraded.objects.at(-1).merges, []);
+  assert.throws(() => store.save(upgraded, 1), /Board too large/);
+  assert.deepEqual(store.expected, [raw, undefined]);
 });

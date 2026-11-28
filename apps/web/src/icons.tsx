@@ -43,6 +43,8 @@ const paths = {
   Delete: "M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6",
 };
 const tableIcons = {
+  "Merge cells": [2.5, 4.5, 15, 11, 2, "M6 10h8M8 8l-2 2 2 2M12 8l2 2-2 2"],
+  "Split cell": [2.5, 4.5, 15, 11, 2, "M10 4.5v11M3.5 10h3M13.5 10h3"],
   Table: [3, 4, 14, 12, 2, "M3 8.5h14M3 12.3h14M8 4v12"],
   "Add row": [3, 3, 14, 8, 1.5, "M3 7h14M10 13.5v4M8 15.5h4"],
   "Add column": [3, 3, 8, 14, 1.5, "M7 3v14M13.5 10h4M15.5 8v4"],

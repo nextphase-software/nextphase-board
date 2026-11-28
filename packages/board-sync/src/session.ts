@@ -13,7 +13,7 @@ import * as Y from "yjs";
 import { type BoardV14 } from "nextphase-board-rules/document.ts";
 import { Adapter, type TableOrderHint } from "./document-adapter.ts";
 import { readLiveBoard } from "./codec.ts";
-import { capture, SharedUndo } from "./undo.ts";
+import { capture, SharedUndo, type State } from "./undo.ts";
 import { normalizeText, textProblem, type CommentOperation, type CommentRequest, type CommentThread } from "./comments.ts";
 
 export type Role = "owner" | "editor" | "viewer";
@@ -156,7 +156,8 @@ export class BoardSession<T = unknown> {
   epoch = 0;
   restoreGeneration = 0;
   revision = 0;
-  get board() { return readLiveBoard(this.adapter.doc); }
+  private held?: State;
+  get board() { return this.held?.board ?? readLiveBoard(this.adapter.doc); }
   get doc() { return this.adapter.doc; }
   private constructor(options: SessionOptions<T>) { this.options = options; }
   static async join<T>(options: SessionOptions<T>): Promise<BoardSession<T>> {
@@ -300,7 +301,9 @@ export class BoardSession<T = unknown> {
       this.votingSnapshot=voteProjection(message.voting)?message.voting:undefined;
       this.present.clear(); for (const presence of message.present) this.present.set(presence.connection, presence);
       this.joined = true; this.accepted = true;
-      const board = this.board;
+      const beforeReplay = capture(this.doc);
+      this.held = undefined;
+      const board = beforeReplay.board;
       this.recovery = [...this.requests].filter(([, value]) => value.state === "waiting").map(([id, value]) => {
         if (value.touched.some((object) => !board.objects.some((current) => current.id === object.id) &&
           board.retiredGenerations.includes(object.generation))) value.notKept = true;
@@ -308,6 +311,10 @@ export class BoardSession<T = unknown> {
         return id;
       });
       this.recovering = this.recovery.length > 0;
+      if (this.recovering) {
+        try { capture(this.doc); }
+        catch { this.held = beforeReplay; }
+      }
       const first = this.recovery[0];
       // Observers of joined must already see Saving, never Saved for work
       // that is about to be resent. A listener can still interrupt this send.
@@ -322,28 +329,28 @@ export class BoardSession<T = unknown> {
     } else if (message.kind === "left") this.present.delete(message.connection);
     else if (message.kind === "update" || message.kind === "saved") {
       if (message.kind === "saved" && !request) return;
-      if (message.update) {
-        const before = capture(this.doc);
-        Y.applyUpdate(this.doc, decode(message.update));
-        this.history.observe(before, capture(this.doc), message.kind === "saved");
-        this.change = message.kind === "update" ? { origin: "remote", connection: message.connection } : { origin: "own" };
-      }
+      const visible = this.applyBoardUpdate(message);
+      if (!this.joined) return;
       this.revision = Math.max(this.revision, message.revision);
       if (message.kind === "saved") {
         request!.state = "saved"; request!.revision = message.revision;
         this.cancelDeadline(message.requestId);
-        this.report(message);
-        if (this.recovering) {
-          const next = this.recovery.find((id) => this.requests.get(id)!.state === "waiting");
-          if (next) this.sendRequest(next);
-          else {
-            const requests = this.recovery.length;
-            this.recovering = false; this.recovery = [];
-            this.report({ kind: "recovered", requests });
-          }
-        }
+      }
+      if (this.held && ![...this.requests.values()].some(outstanding)) {
+        this.reloadInvalidBoard();
         return;
       }
+      if (visible) this.report(message);
+      if (message.kind === "saved" && this.recovering) {
+        const next = this.recovery.find((id) => this.requests.get(id)!.state === "waiting");
+        if (next) this.sendRequest(next);
+        else {
+          const requests = this.recovery.length;
+          this.recovering = false; this.recovery = [];
+          this.report({ kind: "recovered", requests });
+        }
+      }
+      return;
     } else if (message.kind === "received") {
       if (request && (request.state === "sent" || request.state === "received")) {
         request.state = "received"; this.deadline(message.requestId);
@@ -367,6 +374,33 @@ export class BoardSession<T = unknown> {
       this.sendEdit(Y.encodeStateAsUpdate(this.doc, decode(message.stateVector)), undefined, touched);
     }
     this.report(message);
+  }
+  private reloadInvalidBoard() {
+    this.drop("refused_edit");
+    this.rejoin();
+  }
+  private applyBoardUpdate(message: { kind: "update" | "saved"; update?: string; connection?: string }) {
+    if (!message.update && !this.held) return true;
+    const held = this.held;
+    const before = held ?? capture(this.doc);
+    let after: State;
+    try {
+      if (message.update) Y.applyUpdate(this.doc, decode(message.update));
+      after = capture(this.doc);
+    } catch {
+      this.held = before;
+      return false;
+    }
+    try {
+      this.history.observe(before, after, !held && message.kind === "saved");
+    } catch {
+      this.held = before;
+      this.reloadInvalidBoard();
+      return false;
+    }
+    this.held = undefined;
+    this.change = message.kind === "update" ? { origin: "remote", connection: message.connection } : { origin: "own" };
+    return true;
   }
   private applyComment(message: any) {
     if (message.kind === "comments_snapshot") {
@@ -418,34 +452,51 @@ export class BoardSession<T = unknown> {
     this.report({ kind: "comment_request", requestId });
     return requestId;
   }
-  private blocked() { return !this.joined || this.recovering ? "join_required" : this.role === "viewer" ? "role_too_low" : null; }
+  private blocked() { return !this.joined || this.recovering || this.held ? "join_required" : this.role === "viewer" ? "role_too_low" : null; }
   edit(board: BoardV14, group?: string, movedPages?: readonly string[], page?: string, tableHint?: TableOrderHint, arrivalOf?: string): string {
     const blocked = this.blocked(); if (blocked) return blocked;
     return this.write(board, undefined, group, movedPages, page, tableHint, arrivalOf);
   }
   private write(board: BoardV14, direction?: "undo" | "redo", group?: string, movedPages?: readonly string[], page?: string, tableHint?: TableOrderHint, arrivalOf?: string) {
-    const previous = this.board;
     const before = capture(this.doc), vector = Y.encodeStateVector(this.doc);
     this.adapter.set(board, movedPages, direction ? this.history.pageOrders : undefined, tableHint);
-    this.change = { origin: "own" };
-    const after = capture(this.doc);
-    if (arrivalOf) this.history.amend(before, after, arrivalOf);
-    else this.history.record(before, after, direction, group, page);
     const touched = board.objects.filter((object) => JSON.stringify(object) !==
-      JSON.stringify(previous.objects.find((old) => old.id === object.id)))
+      JSON.stringify(before.board.objects.find((old) => old.id === object.id)))
       .map(({ id, generation }) => ({ id, generation }));
-    return this.sendEdit(Y.encodeStateAsUpdate(this.doc, vector), group, touched, arrivalOf);
+    return this.sendEdit(Y.encodeStateAsUpdate(this.doc, vector), group, touched, arrivalOf, {
+      before,
+      record: after => {
+        if (arrivalOf) this.history.amend(before, after, arrivalOf);
+        else this.history.record(before, after, direction, group, page);
+      },
+    });
   }
-  private sendEdit(update: Uint8Array, group?: string, touched: Request["touched"] = [], arrivalOf?: string) {
+  private sendEdit(update: Uint8Array, group?: string, touched: Request["touched"] = [], arrivalOf?: string,
+      step?: { before: State; record(after: State): void }) {
     const requestId = crypto.randomUUID(), encoded = encode(update);
     const text = JSON.stringify({ kind: "edit", epoch: this.epoch, requestId, update: encoded, restoreGeneration: this.restoreGeneration });
     const request: Request = { state: "sent", update: encoded, text, touched, ...(arrivalOf ? { arrivalOf } : {}), ...(group ? { group } : {}) };
     this.requests.set(requestId, request);
     if (sizeOf(text) > 1048576) {
       request.state = "refused"; request.reason = "message_too_large";
-      this.drop("refused_edit");
-      this.rejoin(); this.report({ kind: "refused", requestId, reason: "message_too_large" });
-    } else this.sendRequest(requestId);
+      if (step) this.held = step.before;
+      this.reloadInvalidBoard();
+      this.report({ kind: "refused", requestId, reason: "message_too_large" });
+      return requestId;
+    }
+    if (step) {
+      try { step.record(capture(this.doc)); }
+      catch {
+        const reason = "invalid_document";
+        request.state = "refused"; request.reason = reason;
+        this.held = step.before;
+        this.reloadInvalidBoard();
+        this.report({ kind: "refused", requestId, reason });
+        return reason;
+      }
+      this.change = { origin: "own" };
+    }
+    this.sendRequest(requestId);
     return requestId;
   }
   private deadline(id: string) {

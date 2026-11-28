@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { validate, validText, type BoardV14 } from "nextphase-board-rules/document.ts";
-import { hasEnds, hasRectangle } from "nextphase-board-rules/objects/registry.ts";
+import { hasEnds, hasRectangle, isTable } from "nextphase-board-rules/objects/registry.ts";
 import { buildSnapshot, type Snapshot } from "../clipboard.ts";
 import { connectorLayout } from "../connectors.ts";
 
@@ -42,13 +42,18 @@ function containsNul(value: unknown): boolean {
   return typeof value === "string" ? value.includes("\u0000") : !!value && typeof value === "object" &&
     Object.entries(value).some(([k, v]) => k.includes("\u0000") || containsNul(v));
 }
-export function templateBoard(objects: unknown): BoardV14 {
+export function legacyTemplateObjects(objects: unknown): unknown {
+  if (!Array.isArray(objects)) return objects;
+  return objects.map(object => object && typeof object === "object" && !Array.isArray(object) &&
+    isTable(object) && !Object.hasOwn(object, "merges") ? { ...object, merges: [] } : object);
+}
+export function templateBoard(objects: unknown, read = false): BoardV14 {
   if (!Array.isArray(objects) || objects.length < 1 || objects.length > 250 || containsNul(objects) || objects.some(o =>
     !o || typeof o !== "object" || Array.isArray(o) || "generation" in o || "order" in o || "page" in o)) throw Error("Invalid template");
   const boardId = crypto.randomUUID();
-  const board = validate({ schemaVersion: 17, boardId, pages: [{ id: boardId, name: "Page 1" }], title: "Template", retiredGenerations: [],
+  const board = validate({ schemaVersion: 18, boardId, pages: [{ id: boardId, name: "Page 1" }], title: "Template", retiredGenerations: [],
     objects: objects.map((o, order) => ({ ...o, page: boardId, order, generation: crypto.randomUUID() })) }) as BoardV14;
-  if (contentBytes(objects) > TEMPLATE_BYTES) throw Error("This is too large for a template. Select fewer objects.");
+  if (!read && contentBytes(objects) > TEMPLATE_BYTES) throw Error("This is too large for a template. Select fewer objects.");
   return board;
 }
 export function templateSnapshot(board: BoardV14, selected: ReadonlySet<string>, drawn: Parameters<typeof buildSnapshot>[2], page = board.pages[0].id) {
@@ -76,8 +81,10 @@ export function parseTemplate(value: unknown): Template {
   if (!t || typeof t !== "object" || Object.keys(t).sort().join() !== keys.sort().join() || !uuid.test(t.id) ||
     !validName(t.name) || !validDescription(t.description) || typeof t.creatorLabel !== "string" || typeof t.sourceTitle !== "string" ||
     !time(t.createdAt) || !time(t.updatedAt) || typeof t.canManage !== "boolean" || !Array.isArray(t.objects) || t.objectCount !== t.objects.length) throw Error("Invalid template response");
-  templateBoard(t.objects);
-  return t;
+  if (contentBytes(t.objects) > TEMPLATE_BYTES) throw Error("This is too large for a template. Select fewer objects.");
+  const objects = legacyTemplateObjects(t.objects) as Template["objects"];
+  templateBoard(objects, true);
+  return { ...t, objects };
 }
 export function parseTemplateDetail(value: unknown): TemplateDetail {
   if (!value || typeof value !== "object") throw Error("Invalid template response");

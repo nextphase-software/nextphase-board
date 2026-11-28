@@ -19,15 +19,18 @@ import { makeTape, tapeGeometry, tapeEnds, moveTapeEnd } from "../tape";
 import type { FindActions } from "../find";
 import type { TidyActions } from "../tidy-up";
 import { editingCommandReason } from "../commands";
-import type { LinkPointer, LinkPress } from "../text-links";
+import { isMac, type LinkPointer, type LinkPress } from "../text-links";
+import { chooseCell, chooseHow } from "../table-selection";
+import type { TablePointer } from "../table-arrange";
 
 import type { BoardVoting } from "../team/voting";
 
-import { hitBorder, hitCell, tableGhost, tableKey, tableBorders, type TableAction, type TableBorder, type TableGhost, type TableLayout, type TableSelection } from "../table";
+import { TABLE_LEVEL, hitBorder, hitCell, tableGhost, tableKey, tableBorders, type TableAction, type TableBorder, type TableGhost, type TableLayout, type TableSelection } from "../table";
 import type { CellAddress } from "nextphase-board-rules/objects/registry.ts";
 
 type Input = {
   linkPointer?: () => LinkPointer;
+  tablePointer?: () => TablePointer;
   animated?: ReadonlySet<string>; bitmaps?: ReadonlyMap<string, ImageBitmap>;
   tableSelection?: TableSelection;
   chooseTable: (selection: TableSelection, table: TableItem) => void;
@@ -88,7 +91,7 @@ export function useCanvasInput({
   setMessage, create, resizeStart, resizeStillValid, resizedBoard, movedBoard,
   scene, view, size, drag, busy, setBusy, spacePanRef, setSpacePan, setSelectionBox,
   selected, select, tool, setTool, readOnly, composing, inline, setInline, setPanel,
-  handlesVisible, handlePoints, objectLayouts, displayedObjects, edit, textEditing, invalidObjectText, animated = new Set(), bitmaps = new Map(), linkPointer,
+  handlesVisible, handlePoints, objectLayouts, displayedObjects, edit, textEditing, invalidObjectText, animated = new Set(), bitmaps = new Map(), linkPointer, tablePointer,
 }: Input) {
   const tableDrag = useRef<{ object: TableItem; border: TableBorder; layout: TableLayout } | null>(null);
   const ghost = useRef<TableGhost | null>(null);
@@ -100,7 +103,7 @@ export function useCanvasInput({
   const hoverKey = hoverAllowed ? [model.current.boardId, page, tool, view.x, view.y, view.z].join("/") : "";
   const hovered = hoverAllowed && hover.key === hoverKey ? hover.id : "";
   if (hover.id && (!hoverAllowed || hover.key !== hoverKey)) setHover({ key: hoverKey, id: "" });
-  const pointerLeave = () => { if (hover.id) setHover({ key: hoverKey, id: "" }); linkPointer?.().leave(); };
+  const pointerLeave = () => { if (hover.id) setHover({ key: hoverKey, id: "" }); linkPointer?.().leave(); tablePointer?.().leave(); };
   const linkPress = useRef<{ press: LinkPress; cx: number; cy: number; pointerId: number; crossed: boolean } | null>(null);
   const tableTarget = displayedObjects.find(o => o.id === tableSelection?.id);
   const selectedTable = tableTarget && isTable(tableTarget) ? tableTarget : undefined;
@@ -138,6 +141,7 @@ export function useCanvasInput({
     setSpacePan(false);
   }
   function cancel() {
+    tablePointer?.().cancel();
     linkPress.current = null;
     const d = drag.current;
     tapeEnd.current = null; tableDrag.current = null; ghost.current = null; setHoverAxis(undefined);
@@ -172,6 +176,9 @@ export function useCanvasInput({
     if (readOnly) cancel();
   }, [readOnly]);
   function tableKeys(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape" && tablePointer?.().dragging()) {
+      e.preventDefault(); e.stopPropagation(); tablePointer().cancel(); return true;
+    }
     if (e.key === "Escape" && (drag.current?.id === table.tool || tableDrag.current)) {
       e.preventDefault(); e.stopPropagation(); cancel(); return true;
     }
@@ -180,6 +187,7 @@ export function useCanvasInput({
       if (result) {
         e.preventDefault(); e.stopPropagation();
         if ("action" in result) tableAction(result.action);
+        else if ("choose" in result) chooseTable(result.choose, selectedTable);
         else if ("select" in result) chooseTable({ kind: "cell", id: selectedTable.id, ...result.select }, selectedTable);
         else if ("edit" in result) tableGeometry.editCell(selectedTable, result.edit);
         else if ("exit" in result) select(result.exit ? "" : selectedTable.id);
@@ -193,7 +201,10 @@ export function useCanvasInput({
     return false;
   }
   function sceneKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    if (e.target !== e.currentTarget || composing || e.nativeEvent?.isComposing) return;
+    if (e.target !== e.currentTarget || composing || e.nativeEvent?.isComposing) {
+      if ((composing || e.nativeEvent?.isComposing) && tableSelection && tableSelection.kind !== TABLE_LEVEL) e.stopPropagation();
+      return;
+    }
     if (e.shiftKey && (e.code === "Digit1" || e.code === "Digit2") && !e.ctrlKey && !e.metaKey && !e.altKey &&
       !inline && !textEditing && !e.nativeEvent.isComposing && !busy && !drag.current && !tidy?.open) {
       e.preventDefault(); e.stopPropagation(); e.code === "Digit1" ? find?.zoomToFit() : find?.zoomToSelection(); return;
@@ -306,6 +317,16 @@ export function useCanvasInput({
         pointerId: e.pointerId, connection: { source: dot.id, start: dot.start, pointer: p, target: null } };
       setBusy(true); scene.current?.focus(); e.currentTarget.setPointerCapture(e.pointerId); e.preventDefault(); return;
     }
+    if (tool === "Select" && selectedTable?.tableLayout && tableSelection && tableSelection.kind !== TABLE_LEVEL &&
+        (e.shiftKey || e.ctrlKey || e.metaKey)) {
+      const how = chooseHow(e, isMac(navigator.platform));
+      const hit = how && hitObject(displayedObjects, p, view.z);
+      const cell = hit && hit.id === selectedTable.id ? hitCell(selectedTable, selectedTable.tableLayout, p) : undefined;
+      if (cell) {
+        chooseTable(chooseCell(selectedTable, tableSelection, cell, readOnly ? undefined : how), selectedTable);
+        scene.current?.focus(); e.preventDefault(); return;
+      }
+    }
     const handle = handlesVisible ? nearestHandle(handlePoints, p, view.z) : undefined;
     if (handle) {
       drag.current = {
@@ -396,6 +417,8 @@ export function useCanvasInput({
     const link = linkPress.current;
     if (link?.pointerId === e.pointerId) link.crossed ||= Math.hypot(e.clientX - link.cx, e.clientY - link.cy) >= 3;
     linkPointer?.().move(point(e), e);
+    tablePointer?.().move(point(e), e);
+    if (drag.current?.arrange) return;
     const d = drag.current;
     const hit = hoverAllowed && e.buttons === 0 ? hitObject(displayedObjects, point(e), view.z) : undefined;
     const id = hit && isMedia(hit) && hasPlayMark(hit, animated, bitmaps) && !selected.has(hit.id) ? hit.id : "";
@@ -484,6 +507,7 @@ export function useCanvasInput({
     }
   }
   function pointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (drag.current?.arrange) return;
     const link = linkPress.current;
     const follow = link && link.pointerId === e.pointerId && !link.crossed &&
       Math.hypot(e.clientX - link.cx, e.clientY - link.cy) < 3 && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey &&
@@ -647,6 +671,7 @@ export function useCanvasInput({
     cancel();
   }
   function lostPointerCapture() {
+    if (drag.current?.arrange) return;
     voting?.cancelPointer();
     if (drag.current || linkPress.current) {
       const d = drag.current;

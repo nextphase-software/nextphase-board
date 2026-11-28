@@ -5,8 +5,8 @@ import type { BoardV12 } from "nextphase-board-rules/document.ts";
 import { bytes } from "./protocol.ts";
 import type { Storage } from "./storage.ts";
 const CHUNK = 1048576;
-export function snapshot(storage: Storage, doc: Y.Doc, board: BoardV12, revision: number) {
-  for (const [kind, value] of [["json", bytes(canonical(board))], ["yjs", Y.encodeStateAsUpdate(doc)]] as const) {
+export function snapshot(storage: Storage, doc: Y.Doc, board: BoardV12, revision: number, options?: { loadTimeUpgrade: true }) {
+  for (const [kind, value] of [["json", bytes(canonical(board, options))], ["yjs", Y.encodeStateAsUpdate(doc)]] as const) {
     storage.exec("DELETE FROM snapshot_chunks WHERE snapshot_revision = ? AND kind = ?", revision, kind);
     for (let offset = 0, index = 0; offset < value.length; offset += CHUNK, index++) {
       storage.exec("INSERT INTO snapshot_chunks VALUES (?, ?, ?, ?)", revision, kind, index, value.slice(offset, offset + CHUNK));

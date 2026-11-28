@@ -1683,6 +1683,23 @@ main:has(> .vote-hover) > .scene > .resize-handle { z-index:2; }
 .table-menu-heading { font: 600 12px/1.4 var(--np-font); color: #525d6c; padding: 8px 10px 6px; }
 .context .table-menu[hidden], .table-menu-button[aria-expanded="true"] .tooltip { display: none; }
 .context:has(.table-menu:not([hidden])) { z-index: 6; }
+.scene > .table-insert { position: absolute; transform: translate(-50%, -50%); display: grid; place-items: center; width: 24px; height: 24px; min-width: 24px; min-height: 24px; margin: 0; padding: 0; border: 0; border-radius: 12px; background: transparent; pointer-events: auto; cursor: pointer; }
+.scene > .table-insert:hover:not(:disabled), .scene > .table-insert:active:not(:disabled) { background: transparent; }
+.scene > .table-insert:focus-visible { outline: 2px solid #518de0; outline-offset: 2px; }
+.scene > .table-insert:disabled { opacity: .45; cursor: not-allowed; }
+.table-insert-dot { display: grid; place-items: center; width: 8px; height: 8px; border-radius: 4px; background: #8fbdf5; }
+.table-insert-dot svg { display: none; }
+.table-insert:hover:not(:disabled) .table-insert-dot, .table-insert:active:not(:disabled) .table-insert-dot, .table-insert:focus-visible:not(:disabled) .table-insert-dot { width: 18px; height: 18px; border-radius: 9px; background: #518de0; box-shadow: 0 1px 3px rgba(20,18,26,.25); }
+.table-insert:hover:not(:disabled) .table-insert-dot svg, .table-insert:active:not(:disabled) .table-insert-dot svg, .table-insert:focus-visible:not(:disabled) .table-insert-dot svg { display: block; }
+.table-insert-line { position: absolute; background: #8fbdf5; pointer-events: none; visibility: hidden; }
+.table-insert:hover:not(:disabled) .table-insert-line, .table-insert:active:not(:disabled) .table-insert-line, .table-insert:focus-visible:not(:disabled) .table-insert-line { visibility: visible; }
+.table-insert-row .tooltip { bottom: auto; top: 50%; left: auto; right: calc(50% + 17px); transform: translateY(-50%); }
+.table-insert-column .tooltip { bottom: calc(50% + 17px); }
+.table-insert:hover .tooltip, .table-insert:focus-visible .tooltip { visibility: visible; }
+main.table-dragging, main.table-dragging * { cursor: grabbing !important; }
+.scene > .table-drag-square { position: absolute; transform: translate(-50%, -50%); width: 16px; height: 16px; border-radius: 4px; background: #518de0; pointer-events: none; }
+.context button.table-split[aria-pressed=true] { background: #7051cf; color: white; border-radius: 8px; }
+.context button.table-split[aria-pressed=true]:hover:not(:disabled) { background: #6142be; color: white; border-radius: 8px; }
 
 .export-dialog { width: min(440px, calc(100% - 24px)); }
 .export-dialog h2 { margin-bottom: 18px; }

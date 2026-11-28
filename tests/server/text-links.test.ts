@@ -84,7 +84,7 @@ test("S479 text links pass through room edits, validation, import, templates and
     connector.text = "label";
     const created = await create(document.title, document), id = created.id as string;
     const saved = await exported(id);
-    assert.equal(saved.schemaVersion, 17);
+    assert.equal(saved.schemaVersion, 18);
     assert.deepEqual(saved.objects.find((o: { id: string }) => o.id === source.id).marks, source.marks);
 
     const editor = await join(id, "editor"), observer = await join(id, "owner");
@@ -139,7 +139,7 @@ test("S479 text links pass through room edits, validation, import, templates and
       { sql: "UPDATE meta SET value=? WHERE key='history_capture_bytes'", bindings: [json.length] },
     ] });
     await driver.wake(oldId);
-    assert.equal((await exported(oldId)).schemaVersion, 17);
+    assert.equal((await exported(oldId)).schemaVersion, 18);
     assert.equal((await request(`/boards/${oldId}/versions/${old.id}`)).document.schemaVersion, 16);
     const history = await versions(oldId);
     await driver.control({ fixedNow: Date.now() + 5_400_001 });

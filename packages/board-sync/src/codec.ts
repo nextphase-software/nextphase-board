@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as Y from "yjs";
 import { compareKeys, validOrderKey } from "./order-keys.ts";
-import type { Board, BoardV10, BoardV13, BoardV17, StoredItemV15, ItemV10, MindNodeItem, ItemV13, StoredItemV14 as ItemV14, ItemV16 } from "nextphase-board-rules/document.ts";
+import type { Board, BoardV10, BoardV13, BoardV18, StoredItemV15, ItemV10, MindNodeItem, ItemV13, StoredItemV14, StoredItemV16, TableItem, TableItemV14 } from "nextphase-board-rules/document.ts";
 import { linkAddress } from "nextphase-board-rules/text-link.ts";
-import { hasEnds, hasRectangle, hasText, objectType, isTable, TABLE_ID } from "nextphase-board-rules/objects/registry.ts";
+import { hasEnds, hasRectangle, hasText, objectType, isTable, TABLE_ID, type TableMerge } from "nextphase-board-rules/objects/registry.ts";
 
 import { TEXT_SIZES } from "nextphase-board-rules/styles.ts";
 
 type WithoutPage<T> = T extends unknown ? Omit<T, "page"> : never;
 type StoredBoard<V extends number, Items> = Omit<Board, "objects" | "pages" | "schemaVersion"> & { schemaVersion: V; objects: Items[] };
 export type DecodedBoard = BoardV10 | StoredBoard<11, WithoutPage<ItemV10 | MindNodeItem>> | StoredBoard<12, WithoutPage<ItemV13>> | BoardV13 |
-  (StoredBoard<14, ItemV14> & { pages: BoardV17["pages"] }) | (StoredBoard<15, StoredItemV15> & { pages: BoardV17["pages"] }) |
-  (StoredBoard<16, ItemV16> & { pages: BoardV17["pages"] }) | BoardV17;
+  (StoredBoard<14, StoredItemV14> & { pages: BoardV18["pages"] }) | (StoredBoard<15, StoredItemV15> & { pages: BoardV18["pages"] }) |
+  (StoredBoard<16 | 17, StoredItemV16> & { pages: BoardV18["pages"] }) | BoardV18;
 
 function exact(value: unknown, keys: readonly string[]): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value) || value instanceof Y.AbstractType ||
@@ -42,8 +42,8 @@ function axisEntries<K extends "width" | "height">(value: unknown, size: K) {
     return { id, order, units };
   }).sort((a, b) => compareKeys(a.order, b.order) || compareKeys(a.id, b.id));
 }
-function readTable(value: Y.Map<unknown>, id: string, common: string[]): ItemV14 {
-  const keys = [...common, "place", "tableStyle", "columnMap", "rowMap", "cells"];
+function readTable(value: Y.Map<unknown>, id: string, common: string[], version: number): TableItem | TableItemV14 {
+  const keys = [...common, "place", "tableStyle", "columnMap", "rowMap", "cells", ...(version >= 18 ? ["mergeMap"] : [])];
   const table = map(value, keys);
   if (table.size !== keys.length) return invalid();
   const place = exact(table.get("place"), ["x", "y"]), style = exact(table.get("tableStyle"), ["textSize"]);
@@ -59,13 +59,28 @@ function readTable(value: Y.Map<unknown>, id: string, common: string[]): ItemV14
     const content = text.toString();
     if (content) cells.set(key, content);
   }
+  const merges: TableMerge[] = [];
+  if (version >= 18) {
+    const rowOrder = new Map(rows.map((row, i) => [row.id, i]));
+    const columnOrder = new Map(columns.map((column, i) => [column.id, i]));
+    for (const [key, value] of tableMap(table.get("mergeMap"), key => !!sharedCell(key))) {
+      const { rows, columns } = exact(value, ["rows", "columns"]);
+      if (Object.getPrototypeOf(value) !== Object.prototype || !Number.isInteger(rows) || !Number.isInteger(columns)) return invalid();
+      merges.push({ ...sharedCell(key)!, rows: rows as number, columns: columns as number });
+    }
+    const live = (merge: TableMerge) => rowOrder.has(merge.row) && columnOrder.has(merge.column);
+    merges.sort((a, b) => !live(a) || !live(b)
+      ? Number(live(b)) - Number(live(a)) || compareKeys(a.row + ":" + a.column, b.row + ":" + b.column)
+      : rowOrder.get(a.row)! - rowOrder.get(b.row)! || columnOrder.get(a.column)! - columnOrder.get(b.column)!);
+  }
   return { id, ...Object.fromEntries(common.map(key => [key, table.get(key)])), ...place, ...style, columns, rows,
     cells: rows.flatMap(({id: row}) => columns.flatMap(({id: column}) => {
       const text = cells.get(row + ":" + column);
       return text ? [{ row, column, text }] : [];
     })),
+    ...(version >= 18 ? { merges } : {}),
     width: columns.reduce((sum, c) => sum + c.width, 0), height: rows.reduce((sum, r) => sum + r.height, 0),
-  } as ItemV14;
+  } as TableItem | TableItemV14;
 }
 
 // Check the complete mapping before projecting it. Silently discarding an
@@ -76,14 +91,14 @@ export function readBoard(doc: Y.Doc, legacy = false): DecodedBoard {
   }
   const board = map(doc.getMap("board"), ["schemaVersion", "boardId", "title", "pageMap", "pages"]);
   const version = board.get("schemaVersion");
-  if (typeof version !== "number" || ![10, 11, 12, 13, 14, 15, 16, 17].includes(version)) return invalid();
+  if (typeof version !== "number" || ![10, 11, 12, 13, 14, 15, 16, 17, 18].includes(version)) return invalid();
   const paged = version >= 13;
   if (!paged && (board.has("pages") || board.has("pageMap"))) return invalid();
   if (!legacy && board.has("pages") || legacy && (version > 13 ||
       version === 13 && (!board.has("pages") || board.has("pageMap")))) throw Error("invalid_update");
-  let pages: BoardV17["pages"] | undefined;
+  let pages: BoardV18["pages"] | undefined;
   if (paged) {
-    if (legacy && board.has("pages")) pages = board.get("pages") as BoardV17["pages"];
+    if (legacy && board.has("pages")) pages = board.get("pages") as BoardV18["pages"];
     else {
       const pageMap = board.get("pageMap");
       if (!(pageMap instanceof Y.Map) || [...pageMap._map.keys()].some(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))) throw Error("invalid_update");
@@ -100,12 +115,12 @@ export function readBoard(doc: Y.Doc, legacy = false): DecodedBoard {
   if ([...retired.values()].some((value) => value !== true)) throw Error("invalid_update");
   const items = [...objects.entries()].map(([id, value]) => {
     if (!(value instanceof Y.Map) || typeof value.get("type") !== "string") throw Error("invalid_update");
-    const type = value.get("type") as ItemV16["type"];
+    const type = value.get("type") as StoredItemV16["type"];
     let record;
     try { record = objectType(type); } catch { throw Error("invalid_update"); }
     const object = { type };
     const common = ["generation", "type", "order", "group", "section", ...(paged ? ["page"] : [])];
-    if (isTable(object)) return readTable(value, id, common);
+    if (isTable(object)) return readTable(value, id, common, version);
     const keys = [...common, ...record.extraKeys];
     if (hasEnds(object)) {
       // The adapter groups ends and connector style into atomic values.
@@ -135,7 +150,7 @@ export function readBoard(doc: Y.Doc, legacy = false): DecodedBoard {
       if (!Array.isArray(marks)) throw Error("invalid_update");
       result.marks = marks.map((mark) => {
         const entry = exact(mark, ["start", "end", "bold", "italic", "strike", "link"]);
-        if (version === 17 && Object.hasOwn(entry, "link")) {
+        if (version >= 17 && Object.hasOwn(entry, "link")) {
           const link = entry.link;
           if (typeof link !== "string") return invalid();
           const address = linkAddress(link);
@@ -147,7 +162,7 @@ export function readBoard(doc: Y.Doc, legacy = false): DecodedBoard {
     for (const key of ["fill", "border"] as const) {
       if (key in result) exact(result[key], key === "fill" ? ["mode", "color"] : ["style", "color"]);
     }
-    return result as ItemV16;
+    return result as StoredItemV16;
   });
   return {
     schemaVersion: version,
@@ -159,8 +174,8 @@ export function readBoard(doc: Y.Doc, legacy = false): DecodedBoard {
   } as DecodedBoard;
 }
 
-export function readLiveBoard(doc: Y.Doc): BoardV17 {
+export function readLiveBoard(doc: Y.Doc): BoardV18 {
   const board = readBoard(doc);
-  if (board.schemaVersion !== 17) return invalid();
+  if (board.schemaVersion !== 18) return invalid();
   return board;
 }

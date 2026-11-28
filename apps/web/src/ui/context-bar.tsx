@@ -33,6 +33,7 @@ type Props = {
   tableSelection?: TableSelection;
   tableDraft?: string;
   tableResizing: boolean;
+  tableCells: number;
   cellInvalidNotice: string;
   setMessage: (value: string) => void;
   tableAction: (action: TableAction) => void;
@@ -96,7 +97,7 @@ type Props = {
   command: (name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut" | MapCommand) => void;
 };
 
-export function ContextBar({ tableSelection, tableDraft, tableResizing, cellInvalidNotice, setMessage, tableAction, tableSize, editCell, exportTable,
+export function ContextBar({ tableSelection, tableDraft, tableResizing, tableCells, cellInvalidNotice, setMessage, tableAction, tableSize, editCell, exportTable,
   moveToPage, links, textLinks, tapeSelection, tidy, board, imageCount, imagesOnly, description, strokeSelection, strokeCommands, connectorObjects, connectorCommands, connectorPopup, connectorOnly, connectorCount, duplicateReason, shapeSelection, shapeCommands, shapePopup, contextBar, contextFits, contextLeft, contextTop, item, selected, readOnly, composing, busy,
   inline, richText, finishTextSession, setInline, scene, edit, text, colourControl, colourButton,
   selectionReason, colourLabel, swatchOpen, setArrangeFor, setSwatchFor, selectionKey,
@@ -165,7 +166,7 @@ export function ContextBar({ tableSelection, tableDraft, tableResizing, cellInva
         visibility: visible ? "visible" : "hidden",
       }}
     >
-      {table && tableSelection ? <TableControls key={JSON.stringify(tableSelection)} table={table} selection={tableSelection}
+      {table && tableSelection ? <TableControls key={JSON.stringify(tableSelection)} table={table} selection={tableSelection} cells={tableCells}
         edit={() => editCell(table, anchorCell(table, tableSelection))} done={() => {
           if (cellInvalidNotice) { setMessage(cellInvalidNotice); return; }
           finishTextSession(); setInline(false); scene.current?.focus();

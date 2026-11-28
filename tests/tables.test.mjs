@@ -31,7 +31,7 @@ async function shared(initial) {
 
 test("T-U01 table rules place bounded dimensions and canonicalize nested keys and cells", async () => {
   const r = await document(), t = await tableRules(), b = await board(), base = b.objects[0];
-  assert.equal(b.schemaVersion, 17);
+  assert.equal(b.schemaVersion, 18);
   assert.deepEqual([base.x, base.y, base.width, base.height], [-500, -250, 384, 128]);
   assert.equal(new Set([...base.rows, ...base.columns].map(a => a.id)).size, 4);
   const large = (await board(3, 4)).objects[0];
@@ -45,7 +45,7 @@ test("T-U01 table rules place bounded dimensions and canonicalize nested keys an
   assert.deepEqual(canonical.cells.map(c => c.text), ["First", "Last"]);
   assert.throws(() => r.validate({ ...b, schemaVersion: 13 }));
   const legacy = { ...b, schemaVersion: 13, objects: [] };
-  assert.equal(r.upgrade(legacy).schemaVersion, 17);
+  assert.equal(r.upgrade(legacy).schemaVersion, 18);
   assert.equal(JSON.parse(r.canonical(legacy)).schemaVersion, 13);
 });
 
@@ -378,7 +378,7 @@ test("T-U10 row growth and each edit, geometry or structure operation are single
   }
 });
 
-test("T-U11 stored schema 13 pageMap upgrades to 17 through a schema-only snapshot with no edit", async () => {
+test("T-U11 stored schema 13 pageMap upgrades to 18 through a schema-only snapshot with no edit", async () => {
   await tableRules();
   const { NodeStorage } = await import("../apps/server/src/node-storage.ts"), { Room } = await import("../packages/board-room/src/room.ts");
   const { meta, setMeta } = await import("../packages/board-room/src/storage.ts");
@@ -405,12 +405,12 @@ test("T-U11 stored schema 13 pageMap upgrades to 17 through a schema-only snapsh
     const tables = () => ["edits", "receipts", "versions", "version_chunks"].map(t => storage.all("SELECT * FROM " + t));
     const before = tables();
     room.initialized = false; await room.load();
-    assert.equal(room.board.schemaVersion, 17);
+    assert.equal(room.board.schemaVersion, 18);
     const delta = Y.decodeUpdate(Y.encodeStateAsUpdate(room.doc, Y.encodeStateVector(stored))).structs;
-    assert.equal(delta.length, 1); assert.equal(delta[0].content.getContent()[0], 17);
+    assert.equal(delta.length, 1); assert.equal(delta[0].content.getContent()[0], 18);
     await room.history.automatic("last_close");
     assert.deepEqual(tables(), before); assert.equal(meta(storage, "revision"), 0);
-    room.initialized = false; await room.load(); assert.equal(room.board.schemaVersion, 17);
+    room.initialized = false; await room.load(); assert.equal(room.board.schemaVersion, 18);
   } finally { room.doc.destroy(); stored.destroy(); storage.close(); }
 });
 
@@ -514,5 +514,709 @@ test("T-U15 moving the selected cell updates a polite sr-only status and leaves 
     const markup = renderAfter(keys);
     assert.match(markup, /<aside class="notice" role="status" hidden=""><\/aside>/);
     assert.ok(markup.includes(`<span class="sr-only" role="status" aria-live="polite" aria-atomic="true">${announcement}</span>`), markup);
+  }
+});
+
+function legacyTable(b, order = 0, rowCount = 2, columnCount = 2) {
+  const columns = Array.from({ length: columnCount }, () => ({ id: uuid(), width: 192 }));
+  const rows = Array.from({ length: rowCount }, () => ({ id: uuid(), height: 64 }));
+  return { id: uuid(), generation: uuid(), type: "table", page: b.pages[0].id, columns, rows, cells: [],
+    textSize: "medium", group: null, section: null, x: 0, y: 0, width: columnCount * 192, height: rowCount * 64, order };
+}
+
+function legacyBoard(schemaVersion = 17, count = 1, rows = 2, columns = 2) {
+  const boardId = uuid();
+  const b = { schemaVersion, boardId, title: "Legacy tables", pages: [{ id: boardId, name: "Page 1" }],
+    objects: [], retiredGenerations: [] };
+  b.objects = Array.from({ length: count }, (_, i) => legacyTable(b, i, rows, columns));
+  return b;
+}
+
+function legacyShared(b, rebalance) {
+  const doc = new Y.Doc(), { schemaVersion, boardId, title } = b, pages = new Y.Map();
+  doc.getMap("board").set("schemaVersion", schemaVersion);
+  doc.getMap("board").set("boardId", boardId);
+  doc.getMap("board").set("title", title);
+  doc.getMap("board").set("pageMap", pages);
+  const pageOrder = rebalance(b.pages.map(p => p.id));
+  for (const page of b.pages) pages.set(page.id, new Y.Map([["name", page.name], ["order", pageOrder.get(page.id)]]));
+  for (const t of b.objects) {
+    const orders = (axis, size) => {
+      const keys = rebalance(axis.map(entry => entry.id));
+      return new Y.Map(axis.map(entry => [entry.id, new Y.Map([["order", keys.get(entry.id)], [size, entry[size]]])]));
+    };
+    const texts = new Map(t.cells.map(c => [c.row + ":" + c.column, c.text]));
+    const cells = new Y.Map(t.rows.flatMap(r => t.columns.map(c => {
+      const key = r.id + ":" + c.id;
+      return [key, new Y.Text(texts.get(key) ?? "")];
+    })));
+    const common = ["generation", "type", "page", "order", "group", "section"].map(key => [key, t[key]]);
+    doc.getMap("objects").set(t.id, new Y.Map([...common, ["place", { x: t.x, y: t.y }], ["tableStyle", { textSize: t.textSize }],
+      ["rowMap", orders(t.rows, "height")], ["columnMap", orders(t.columns, "width")], ["cells", cells]]));
+  }
+  return doc;
+}
+const rangeAt = (t, top, left, bottom, right) => ({ from: address(t, top, left), to: address(t, bottom, right) });
+const idsAt = (t, axis, ...indices) => indices.map(i => (axis === "row" ? t.rows : t.columns)[i].id);
+const fill = (t, rule) => t.rows.reduce((table, _, r) => t.columns.reduce((next, _, c) =>
+  rule.setCell(next, address(t, r, c), `R${r + 1}C${c + 1}`), table), t);
+const tableStep = (b, t) => withTable(b, () => t);
+
+test("T-U16 document 18 checks merge shape, spans and covered text and writes canonical order", async () => {
+  const k = await tableRules(), r = await document(), b = await board(4, 4), t = b.objects[0];
+  assert.equal(b.schemaVersion, 18);
+  assert.deepEqual(t.merges, []);
+  const top = address(t), end = address(t, 2, 2);
+  const first = { columns: 2, rows: 2, ...top }, last = { columns: 2, rows: 2, ...end };
+  const voice = { ...top, text: "Anchor" };
+  const valid = { ...t, merges: [last, first], cells: [voice] };
+  const json = JSON.parse(r.canonical(tableStep(b, valid))).objects[0];
+  assert.deepEqual(Object.keys(json), ["id", "generation", "type", "page", "columns", "rows", "cells", "merges", "textSize", "group", "section", "x", "y", "width", "height", "order"]);
+  assert.deepEqual(json.merges.map(Object.keys), Array(2).fill(["row", "column", "rows", "columns"]));
+  assert.deepEqual(json.merges.map(m => m.row), [top.row, end.row]);
+  const legacy = legacyBoard();
+  assert.throws(() => r.validate({ ...legacy, objects: [{ ...legacy.objects[0], merges: [] }] }), /Invalid object$/);
+  assert.throws(() => r.validate({ ...legacy, schemaVersion: 18 }), /Invalid object$/);
+  for (const merge of [{ ...first, extra: true }, { ...top, rows: 2 }, { ...first, row: top.column }, { ...first, column: uuid() },
+    ...["rows", "columns"].flatMap(key => [0, -1, 1.5, "2"].map(value => ({ ...first, [key]: value }))),
+    { ...first, rows: 1, columns: 1 }, { ...last, rows: 3 }, { ...last, columns: 3 }]) {
+    assert.throws(() => r.validate(tableStep(b, { ...t, merges: [merge] })), /Invalid object paint/);
+  }
+  for (const merges of [[first, first], [first, { ...first, ...address(t, 1, 1) }], [first, { ...last, ...address(t, 1, 0) }]]) {
+    assert.throws(() => r.validate(tableStep(b, { ...t, merges })), /Invalid object paint/);
+  }
+  assert.throws(() => r.validate(tableStep(b, { ...valid, cells: [{ ...address(t, 1, 1), text: "Covered" }] })), /Invalid object paint/);
+  assert(k.validTable(valid));
+});
+
+test("T-U17 merge bounds grow across a chain, merge preserves the anchor and split returns its cells", async () => {
+  const k = await tableRules(), b = await board(5, 5), t = fill(b.objects[0], k);
+  const first = k.mergeRange(t, rangeAt(t, 0, 1, 1, 1));
+  const chain = k.mergeRange(first, rangeAt(t, 1, 2, 1, 3));
+  const picked = rangeAt(t, 0, 0, 0, 2);
+  const expected = { top: 0, left: 0, bottom: 1, right: 3 };
+  assert.deepEqual(k.rangeBounds(chain, picked), expected);
+  assert.deepEqual(k.rangeBounds(chain, { from: picked.to, to: picked.from }), expected);
+  assert.equal(k.rangeBounds(t, { ...picked, to: { ...picked.to, column: uuid() } }), undefined);
+  assert.equal(k.canMerge(t, rangeAt(t, 4, 4, 4, 4)), "single");
+  assert.equal(k.canMerge(chain, rangeAt(t, 0, 1, 1, 1)), "single");
+  assert.equal(k.canMerge(t, { ...picked, to: { row: uuid(), column: uuid() } }), "invalid");
+  assert.equal(k.canMerge(chain, picked), null);
+  const merged = k.mergeRange(chain, picked), anchor = address(t), cover = address(t, 1, 2);
+  assert.deepEqual(merged.merges, [{ ...anchor, rows: 2, columns: 4 }]);
+  assert.deepEqual(k.mergeOf(merged, cover), merged.merges[0]);
+  assert.equal(k.cellText(merged, anchor), "R1C1");
+  assert.equal(k.cellText(merged, cover), "");
+  assert.equal(k.cellText(merged, address(t, 2, 2)), "R3C3");
+  assert.equal(k.setCell(merged, cover, "refused"), merged);
+  assert.equal(k.cellText(k.setCell(merged, anchor, "kept"), anchor), "kept");
+  assert.equal(k.splitMerge(merged, cover), merged);
+  assert.equal(k.splitMerge(merged, address(t, 4, 4)), merged);
+  const split = k.splitMerge(merged, anchor);
+  assert.equal(split.cells, merged.cells);
+  assert.deepEqual(split.merges, []);
+  const emptyAnchor = k.mergeRange(k.setCell(t, anchor, ""), rangeAt(t, 0, 0, 1, 1));
+  assert.equal(k.cellText(emptyAnchor, anchor), "");
+  assert.deepEqual(k.mergeRange(t, rangeAt(t, 0, 0, 0, 4)).merges[0], { ...anchor, rows: 1, columns: 5 });
+  assert.deepEqual(k.mergeRange(t, rangeAt(t, 0, 1, 4, 2)).merges[0], { ...address(t, 0, 1), rows: 5, columns: 2 });
+});
+
+test("T-U18 effective insert gaps, sizes, covered and anchor deletion keep valid merge spans", async () => {
+  const k = await tableRules(), t = fill((await board(4, 4)).objects[0], k);
+  const merged = k.mergeRange(t, rangeAt(t, 1, 1, 2, 2));
+  for (const axis of ["row", "column"]) {
+    const entries = axis === "row" ? "rows" : "columns", dim = axis === "row" ? "height" : "width";
+    for (const [at, expected, grows] of [[1, 1, false], [2, 2, true], [3, 3, false], [2.9, 2, true], [NaN, 0, false],
+      [-2, 2, true], [-1, 3, false], [-Infinity, 0, false], [Infinity, 4, false], [9, 4, false]]) {
+      const id = uuid(), next = k.insertAxis(merged, axis, id, at, 80.4);
+      assert.deepEqual(next[entries][expected], { id, [dim]: 80 });
+      assert.equal(next.merges[0][entries], grows ? 3 : 2);
+      assert(k.validTable(next));
+    }
+    for (const size of [63, 63.9, 1000.1, 1001, NaN, Infinity, "80"]) {
+      assert.equal(k.insertAxis(merged, axis, uuid(), 2, size), merged);
+    }
+    for (const size of [64, 1000]) assert.equal(k.insertAxis(merged, axis, uuid(), 2, size)[entries][2][dim], size);
+    assert.equal(k.insertAxis(merged, axis, uuid())[entries].at(-1)[dim], axis === "row" ? 64 : 192);
+    assert.equal(k.insertAxis(merged, axis, t.rows[1].id), merged);
+    const shrunk = k.deleteAxis(merged, axis, merged[entries][2].id);
+    assert.equal(shrunk.merges[0][entries], 1);
+    assert.equal(shrunk.merges[0][axis], merged.merges[0][axis]);
+    const moved = k.deleteAxis(merged, axis, merged[entries][1].id);
+    assert.equal(moved.merges[0][axis], merged[entries][2].id);
+    assert.equal(k.cellText(moved, moved.merges[0]), "");
+    assert(k.validTable(moved));
+    const only = axis === "row" ? k.mergeRange(t, rangeAt(t, 1, 1, 1, 2)) : k.mergeRange(t, rangeAt(t, 1, 1, 2, 1));
+    assert.deepEqual(k.deleteAxis(only, axis, only[entries][1].id).merges, []);
+    const oneCell = axis === "row" ? k.mergeRange(t, rangeAt(t, 1, 1, 2, 1)) : k.mergeRange(t, rangeAt(t, 1, 1, 1, 2));
+    assert.deepEqual(k.deleteAxis(oneCell, axis, oneCell[entries][2].id).merges, []);
+    const single = k.createTable(1, 1);
+    assert.equal(k.deleteAxis(single, axis, single[entries][0].id), single);
+  }
+});
+
+test("T-U19 moving and duplicating axis runs preserve text, set sizes and whole merges", async () => {
+  const k = await tableRules(), t = fill((await board(5, 5)).objects[0], k);
+  const merged = k.mergeRange(t, rangeAt(t, 1, 1, 2, 2));
+  for (const axis of ["row", "column"]) {
+    const entries = axis === "row" ? "rows" : "columns", id = i => merged[entries][i].id;
+    assert.equal(k.canMove(merged, axis, [uuid()], 0), "invalid");
+    assert.equal(k.canMove(merged, axis, [id(1), id(1)], 0), "invalid");
+    assert.equal(k.canMove(merged, axis, [id(0)], 2.5), "invalid");
+    assert.equal(k.canMove(merged, axis, [id(0), id(2)], 5), "notRun");
+    for (const gap of [-1, 0, 1, 6]) assert.equal(k.canMove(merged, axis, [id(0)], gap), "edge");
+    assert.equal(k.canMove(merged, axis, [id(0)], 2), "merge");
+    assert.equal(k.canMove(merged, axis, [id(1)], 4), "merge");
+    assert.equal(k.canDuplicate(merged, axis, [id(1)]), "merge");
+    assert.equal(k.canDuplicate(merged, axis, [id(1), id(3)]), "notRun");
+    const limit = axis === "row" ? k.createTable(2, 49) : k.createTable(19, 2);
+    assert.equal(k.canDuplicate(limit, axis, [limit[entries][0].id, limit[entries][2].id]), "limit");
+    for (const [picked, gap, expected] of [[[1, 2], 0, [1, 2, 0, 3, 4]], [[1, 2], 5, [0, 3, 4, 1, 2]],
+      [[3], 4, [0, 1, 2, 3, 4]], [[3], 5, [0, 1, 2, 4, 3]], [[4], 3, [0, 1, 2, 4, 3]], [[0], 3, [1, 2, 0, 3, 4]]]) {
+      const next = k.moveAxis(merged, axis, picked.map(id), gap);
+      assert.deepEqual(next[entries].map(e => e.id), expected.map(id));
+      assert.equal(next.cells, merged.cells);
+      assert.equal(next.merges, merged.merges);
+      assert(k.validTable(next));
+    }
+    const copies = [uuid(), uuid()], duplicate = k.duplicateAxis(merged, axis, [id(2), id(1)], () => copies.shift());
+    const copied = duplicate[entries].slice(3, 5);
+    assert.deepEqual(copied.map(({ id: _id, ...size }) => size), merged[entries].slice(1, 3).map(({ id: _id, ...size }) => size));
+    assert.deepEqual(duplicate.merges[1], { ...merged.merges[0], [axis]: copied[0].id });
+    assert.equal(k.cellText(duplicate, duplicate.merges[1]), "R2C2");
+    assert.equal(k.duplicateAxis(merged, axis, [id(0)], () => merged.columns[0].id), merged);
+    assert.equal(k.duplicateAxis(merged, axis, [id(1), id(2)], () => "bad"), merged);
+    assert(k.validTable(duplicate));
+  }
+  const copied = k.remapTable(merged);
+  assert.deepEqual(copied.merges, [{ ...address(copied, 1, 1), rows: 2, columns: 2 }]);
+  assert.equal(k.cellText(copied, copied.merges[0]), "R2C2");
+});
+
+test("T-U20 Tab and arrows visit each merged cell once and top-left layout grows the last row only", async () => {
+  const k = await tableRules(), w = await web(), t = (await board(4, 4)).objects[0];
+  const anchor = address(t, 1, 1), covered = address(t, 2, 2);
+  const merged = k.setCell(k.mergeRange(t, rangeAt(t, 1, 1, 2, 2)), anchor, "A\nB\nC\nD\nE");
+  const cases = { ArrowDown: [3, 1], ArrowUp: [0, 1], ArrowLeft: [1, 0], ArrowRight: [1, 3] };
+  for (const [arrow, [row, column]] of Object.entries(cases)) {
+    assert.deepEqual(k.neighbourCell(merged, anchor, arrow), address(t, row, column));
+    assert.deepEqual(k.neighbourCell(merged, covered, arrow), address(t, row, column));
+  }
+  assert.equal(k.neighbourCell(merged, address(t), "ArrowUp"), undefined);
+  assert.deepEqual(k.neighbourCell(merged, address(t, 3, 2), "ArrowUp"), anchor);
+  assert.deepEqual(k.nextCell(merged, anchor, 1), address(t, 1, 3));
+  assert.deepEqual(k.nextCell(merged, covered, -1), address(t, 1, 0));
+  assert.deepEqual(k.nextCell(merged, address(t, 1, 0), 1), anchor);
+  const measure = text => text.split("\n").length;
+  const layout = w.layoutTable(merged, measure);
+  assert.deepEqual(layout.rows, [64, 64, 96, 64]);
+  assert.deepEqual(layout.unmerged, [64, 64, 64, 64]);
+  assert.deepEqual(w.growTable(merged, measure).rows, t.rows);
+});
+
+test("T-U21 codec validates mergeMap shape before document validation and reads anchors canonically", async () => {
+  const k = await tableRules(), r = await document(), b = await board(4, 4), t = b.objects[0];
+  const doc = await shared(tableStep(b, { ...t, merges: [{ ...address(t, 2, 2), rows: 2, columns: 2 }, { ...address(t), rows: 2, columns: 2 }] }));
+  const key = k.cellKey(address(t)), other = k.cellKey(address(t, 1, 1));
+  const { rebalance } = await import("../packages/board-sync/src/order-keys.ts");
+  const { readBoard } = await import("../packages/board-sync/src/codec.ts");
+  const { capture } = await import("../packages/board-sync/src/undo.ts");
+  try {
+    assert.deepEqual(doc.read().objects[0].merges.map(k.cellKey), [key, k.cellKey(address(t, 2, 2))]);
+    const legacy = legacyShared(legacyBoard(), rebalance);
+    const object = [...legacy.getMap("objects").values()][0];
+    try {
+      assert.equal(Object.hasOwn(readBoard(legacy).objects[0], "merges"), false);
+      object.set("mergeMap", new Y.Map()); assert.throws(() => readBoard(legacy), /invalid_update/);
+      object.delete("mergeMap"); assert.throws(() => readBoard(legacy), /invalid_update/);
+    } finally { legacy.destroy(); }
+    for (const mutate of [m => m.delete("mergeMap"), m => m.set("mergeMap", {}),
+      m => { m.get("mergeMap").set("bad", { rows: 2, columns: 2 }); m.get("mergeMap").delete("bad"); },
+      ...[{ rows: 2 }, { rows: 2, columns: 1, extra: 1 }, { rows: 1.5, columns: 1 }, new Y.Map([["rows", 2], ["columns", 2]])]
+        .map(value => m => m.get("mergeMap").set(key, value))]) {
+      const bad = await shared(doc.doc);
+      try { mutate(tableMap(bad.doc, t.id)); assert.throws(bad.read, /invalid_update/); } finally { bad.adapter.destroy(); }
+    }
+    for (const mutate of [m => m.get("mergeMap").set(key, { rows: 1, columns: 1 }),
+      m => m.get("mergeMap").set(key, { rows: 2, columns: 5 }), m => m.get("mergeMap").set(other, { rows: 2, columns: 1 }),
+      m => m.get("mergeMap").set(uuid() + ":" + t.columns[0].id, { rows: 1, columns: 2 }),
+      m => m.get("mergeMap").set(t.rows[0].id + ":" + uuid(), { rows: 1, columns: 2 }),
+      m => m.get("cells").get(other).insert(0, "covered")]) {
+      const bad = await shared(doc.doc);
+      try {
+        mutate(tableMap(bad.doc, t.id)); assert.throws(() => r.validate(bad.read()), /Invalid object paint/);
+        assert.throws(() => capture(bad.doc), /invalid_document/);
+      } finally { bad.adapter.destroy(); }
+    }
+  } finally { doc.adapter.destroy(); }
+});
+
+test("T-U22 writer updates merges and covered texts atomically, writes only moved order keys and cleans fallback intersections", async () => {
+  const k = await tableRules(), r = await document(), seed = await board(4, 6), b = withTable(seed, t => fill(t, k));
+  const sharedBoard = await shared(b), t = b.objects[0], map = tableMap(sharedBoard.doc, t.id);
+  const paths = [];
+  map.observeDeep(events => paths.push(events.map(e => [e.path, [...e.keysChanged ?? []]])));
+  try {
+    const old = rangeAt(t, 0, 1, 0, 2), big = rangeAt(t, 0, 0, 1, 2);
+    sharedBoard.write(b => withTable(b, t => k.mergeRange(t, old)));
+    paths.length = 0;
+    sharedBoard.write(b => withTable(b, t => k.mergeRange(t, big)));
+    assert.equal(paths.length, 1);
+    const changes = paths.pop();
+    assert.deepEqual(new Set(changes.find(([path]) => path[0] === "mergeMap")[1]),
+      new Set([k.cellKey(old.from), k.cellKey(big.from)]));
+    assert.equal(changes.filter(([p]) => p[0] === "cells").length, 4);
+    assert.equal(map.get("cells").get(k.cellKey(address(t, 1, 1))).toString(), "");
+    sharedBoard.write(b => b);
+    assert.equal(paths.length, 0);
+    sharedBoard.write(b => withTable(b, t => k.splitMerge(t, big.from)));
+    assert.deepEqual(paths.pop(), [[["mergeMap"], [k.cellKey(big.from)]]]);
+    for (const count of [1, 3]) {
+      const live = sharedBoard.read().objects[0], moved = live.rows.slice(0, count).map(row => row.id);
+      sharedBoard.write(b => withTable(b, t => k.moveAxis(t, "row", moved, t.rows.length)), { table: t.id, axis: "row", moved });
+      assert.deepEqual(paths.pop().sort(), moved.map(id => [["rowMap", id], ["order"]]).sort());
+    }
+    const live = sharedBoard.read().objects[0], moved = idsAt(live, "row", 2);
+    const orphan = uuid() + ":" + live.columns[0].id, missing = k.cellKey(address(live, 0, 2));
+    map.get("cells").delete(missing); map.get("cells").set(orphan, new Y.Text("old"));
+    paths.length = 0;
+    sharedBoard.write(b => withTable(b, t => k.moveAxis(t, "row", moved, 0)), { table: t.id, axis: "row", moved });
+    assert.deepEqual(new Set(paths.pop().find(([path]) => path[0] === "cells")[1]), new Set([orphan, missing]));
+    assert(map.get("cells").get(missing) instanceof Y.Text);
+    for (const order of ["tie", "rebalance"]) {
+      const rows = map.get("rowMap"), t = sharedBoard.read().objects[0];
+      const low = "1".repeat(64), high = low.slice(0, -1) + "2";
+      rows.get(t.rows[0].id).set("order", order === "tie" ? "A" : low);
+      rows.get(t.rows[1].id).set("order", order === "tie" ? "A" : high);
+      const current = sharedBoard.read().objects[0], moving = [current.rows[3].id];
+      paths.length = 0;
+      const expected = k.moveAxis(current, "row", moving, 1);
+      sharedBoard.write(b => tableStep(b, expected), { table: t.id, axis: "row", moved: moving });
+      assert.deepEqual(sharedBoard.read().objects[0].rows, expected.rows);
+      assert(paths.pop().filter(([path]) => path[0] === "rowMap").length > 1);
+    }
+    const current = sharedBoard.read().objects[0], target = rangeAt(current, 0, 0, 1, 1);
+    sharedBoard.write(b => withTable(b, t => k.mergeRange(t, target)));
+    const newRow = uuid(), base = sharedBoard.read().objects[0];
+    sharedBoard.write(b => withTable(b, t => k.insertAxis(t, "row", newRow, 1)), { table: t.id, axis: "row", moved: [newRow] });
+    assert.equal(map.get("mergeMap").get(k.cellKey(target.from)).rows, 3);
+    const copyRows = [uuid(), uuid(), uuid()], ids = base.rows.slice(0, 2).map(row => row.id);
+    ids.splice(1, 0, newRow);
+    let i = 0;
+    sharedBoard.write(b => withTable(b, t => k.duplicateAxis(t, "row", ids, () => copyRows[i++])), { table: t.id, axis: "row", moved: copyRows });
+    const after = sharedBoard.read();
+    assert.deepEqual(after.objects[0].rows.slice(3, 6).map(row => row.id), copyRows);
+    assert.deepEqual(map.get("mergeMap").get(copyRows[0] + ":" + target.from.column), { rows: 3, columns: 2 });
+    assert(r.validate(after));
+  } finally { sharedBoard.adapter.destroy(); }
+});
+
+async function tableClients(t, initial) {
+  const { BoardSession, encode, decode } = await import("../packages/board-sync/src/session.ts");
+  const { evaluate } = await import("../packages/board-room/src/edits.ts");
+  const server = await shared(initial);
+  t.after(() => server.adapter.destroy());
+  let revision = 0;
+  const clients = [];
+  async function join(clientId) {
+    const client = { sent: [], reports: [], joins: 0, deliver: message => client.handlers.message(JSON.stringify(message)) };
+    client.session = await BoardSession.join({ clientId, clock: { now: () => 0, after: () => () => {} }, ticket: async () => "ticket",
+      open: async () => ({
+        send: text => client.sent.push(JSON.parse(text)), close() {}, listen(handlers) {
+          client.handlers = handlers;
+          client.joins++;
+          client.deliver({ kind: "joined", role: "editor", epoch: 1, restoreGeneration: 0, revision, self: {}, present: [],
+            update: encode(Y.encodeStateAsUpdate(server.doc)) });
+        },
+      }) });
+    client.session.subscribe(event => client.reports.push(event));
+    client.edit = (fn, { axis, moved } = {}) => client.session.edit(withTable(client.session.board, fn), undefined, undefined,
+      undefined, axis ? { table: initial.objects[0].id, axis, moved } : undefined);
+    clients.push(client);
+    t.after(() => client.session.close());
+    return client;
+  }
+  function accept(client, delivery = {}) {
+    const frame = client.sent.shift();
+    assert.equal(frame.kind, "edit");
+    const result = evaluate(server.doc, server.read(), decode(frame.update), { all: () => [] });
+    if (result.kind === "refused") {
+      client.deliver({ kind: "refused", requestId: frame.requestId, reason: result.reason });
+      return result;
+    }
+    assert.equal(result.kind, "complete");
+    Y.applyUpdate(server.doc, result.update);
+    result.doc.destroy();
+    revision++;
+    for (const peer of clients) {
+      if (delivery.skip === peer) continue;
+      const own = peer === client;
+      const data = own && delivery.append ? Y.mergeUpdates([delivery.append, result.update]) : result.update;
+      peer.deliver({ kind: own ? "saved" : "update", requestId: frame.requestId, revision, connection: "ana", update: encode(data) });
+    }
+    return result;
+  }
+  return { join, accept, server, converge() { for (const { session } of clients) assert.deepEqual(session.board, server.read()); } };
+}
+
+test("T-U23 room accepts independent axis edits and refuses the later move or typing that violates a merge", async test => {
+  const k = await tableRules(), r = await document();
+  // Use stable ids in actual client sessions and room evaluation for both orders.
+  for (const kind of ["moves", "move and insert", "merge and insert", "merge and move text", "merge and type"]) for (const reverse of [false, true]) {
+    const seed = await board(4, 6), b = kind === "merge and move text"
+      ? withTable(seed, t => k.setCell(t, address(t, 4, 0), "Must survive")) : seed;
+    const t = b.objects[0], mesh = await tableClients(test, b), a = await mesh.join(11), z = await mesh.join(22);
+    const merge = rangeAt(t, 1, 0, 2, 1), inserted = uuid();
+    const moveA = idsAt(t, "row", 0), moveZ = idsAt(t, "row", 4);
+    if (kind === "moves" || kind === "move and insert") {
+      a.edit(t => k.moveAxis(t, "row", moveA, 3), { axis: "row", moved: moveA });
+    } else a.edit(t => k.mergeRange(t, merge));
+    if (kind === "moves") z.edit(t => k.moveAxis(t, "row", moveZ, 6), { axis: "row", moved: moveZ });
+    else if (kind.endsWith("insert")) z.edit(t => k.insertAxis(t, "row", inserted, kind.startsWith("merge") ? 2 : 5), { axis: "row", moved: [inserted] });
+    else if (kind === "merge and move text") z.edit(t => k.moveAxis(t, "row", moveZ, 2), { axis: "row", moved: moveZ });
+    else z.edit(t => k.setCell(t, merge.to, "Concurrent typing"));
+    const order = reverse ? [z, a] : [a, z];
+    assert.equal(mesh.accept(order[0]).kind, "complete");
+    const final = mesh.accept(order[1]);
+    if (kind === "merge and type" || kind === "merge and move text") {
+      assert.deepEqual(final, { kind: "refused", reason: "invalid_document" });
+      await new Promise(setImmediate);
+      assert.equal(order[1].joins, 2);
+    } else {
+      assert.equal(final.kind, "complete");
+      const live = mesh.server.read().objects[0];
+      if (kind === "moves") assert.deepEqual(live.rows.map(row => row.id), idsAt(t, "row", 1, 2, 0, 3, 5, 4));
+      if (kind === "move and insert") assert.deepEqual(live.rows.map(row => row.id), [...idsAt(t, "row", 1, 2, 0, 3, 4), inserted, t.rows[5].id]);
+      if (kind === "merge and insert") {
+        assert.equal(live.rows[2].id, inserted);
+        assert.deepEqual(live.merges, [{ ...merge.from, rows: 2, columns: 2 }]);
+      }
+    }
+    assert(r.validate(mesh.server.read()));
+    mesh.converge();
+  }
+});
+
+test("T-U24 competing merges use save order and malformed or invalid room changes keep the stored board", async test => {
+  const k = await tableRules(), { evaluate } = await import("../packages/board-room/src/edits.ts");
+  const b = await board(4, 4), t = b.objects[0];
+  for (const [first, second, outcome] of [
+    [rangeAt(t, 0, 0, 0, 1), rangeAt(t, 0, 0, 1, 0), "same anchor"],
+    [rangeAt(t, 0, 0, 1, 1), rangeAt(t, 1, 1, 2, 2), "overlap"],
+    [rangeAt(t, 0, 0, 1, 1), rangeAt(t, 2, 2, 3, 3), "disjoint"],
+  ]) for (const reverse of [false, true]) {
+    const mesh = await tableClients(test, b), a = await mesh.join(15), z = await mesh.join(24);
+    a.edit(t => k.mergeRange(t, first)); z.edit(t => k.mergeRange(t, second));
+    const [x, y] = reverse ? [z, a] : [a, z];
+    assert.equal(mesh.accept(x).kind, "complete");
+    const answer = mesh.accept(y), live = mesh.server.read().objects[0];
+    if (outcome === "overlap") {
+      assert.deepEqual(answer, { kind: "refused", reason: "invalid_document" });
+      assert.deepEqual(live.merges, k.mergeRange(t, reverse ? second : first).merges);
+      await new Promise(setImmediate);
+    } else {
+      assert.equal(answer.kind, "complete");
+      assert.deepEqual(live.merges, (outcome === "same anchor" ? k.mergeRange(t, reverse ? first : second)
+        : k.mergeRange(k.mergeRange(t, first), second)).merges);
+    }
+    mesh.converge();
+  }
+  const baseRange = rangeAt(t, 1, 1, 1, 2), grew = rangeAt(t, 1, 1, 2, 2);
+  for (const reverse of [false, true]) {
+    const mesh = await tableClients(test, tableStep(b, k.mergeRange(t, baseRange)));
+    const a = await mesh.join(15), z = await mesh.join(24);
+    a.edit(t => k.mergeRange(t, grew)); z.edit(t => k.splitMerge(t, baseRange.from));
+    for (const client of reverse ? [z, a] : [a, z]) assert.equal(mesh.accept(client).kind, "complete");
+    assert.deepEqual(mesh.server.read().objects[0].merges, [{ ...baseRange.from, rows: 2, columns: 2 }]);
+    mesh.converge();
+  }
+  const replacement = rangeAt(t, 0, 0, 1, 2);
+  for (const reverse of [false, true]) {
+    const original = tableStep(b, k.mergeRange(t, baseRange));
+    const mesh = await tableClients(test, original), a = await mesh.join(15), z = await mesh.join(24);
+    const other = rangeAt(t, 0, 1, 2, 2);
+    a.edit(t => k.mergeRange(t, replacement));
+    z.edit(t => k.mergeRange(t, other));
+    const [first, last] = reverse ? [z, a] : [a, z];
+    assert.equal(mesh.accept(first).kind, "complete");
+    assert.deepEqual(mesh.accept(last), { kind: "refused", reason: "invalid_document" });
+    assert.deepEqual(mesh.server.read().objects[0].merges, k.mergeRange(original.objects[0], reverse ? other : replacement).merges);
+    await new Promise(setImmediate);
+    mesh.converge();
+  }
+  const full = await board(2, 49), mesh = await tableClients(test, full);
+  const a = await mesh.join(15), z = await mesh.join(24), first = uuid(), second = uuid();
+  a.edit(t => k.insertAxis(t, "row", first, 4), { axis: "row", moved: [first] });
+  z.edit(t => k.insertAxis(t, "row", second, 6), { axis: "row", moved: [second] });
+  assert.equal(mesh.accept(a).kind, "complete");
+  assert.deepEqual(mesh.accept(z), { kind: "refused", reason: "invalid_document" });
+  assert.equal(mesh.server.read().objects[0].rows.length, 50);
+  assert.equal(mesh.server.read().objects[0].rows[4].id, first);
+  await new Promise(setImmediate);
+  mesh.converge();
+  const original = await shared(tableStep(b, k.mergeRange(t, baseRange)));
+  test.after(() => original.adapter.destroy());
+  for (const [mutate, reason] of [
+    [m => m.get("mergeMap").set("bad", { rows: 1, columns: 2 }), "invalid_update"],
+    [m => m.get("mergeMap").set(k.cellKey(address(t, 1, 0)), { rows: 1, columns: 2 }), "invalid_document"],
+    [m => m.get("cells").get(k.cellKey(baseRange.to)).insert(0, "invalid"), "invalid_document"],
+  ]) {
+    const peer = await shared(original.doc);
+    try {
+      const vector = Y.encodeStateVector(peer.doc), snapshot = Y.encodeStateAsUpdate(original.doc);
+      mutate(tableMap(peer.doc, t.id));
+      assert.deepEqual(evaluate(original.doc, original.read(), Y.encodeStateAsUpdate(peer.doc, vector), { all: () => [] }), { kind: "refused", reason });
+      assert.deepEqual(Y.encodeStateAsUpdate(original.doc), snapshot);
+    } finally { peer.adapter.destroy(); }
+  }
+});
+
+test("T-U25 invalid optimistic merge holds the client and a valid update or saved releases it", async test => {
+  const k = await tableRules(), { capture } = await import("../packages/board-sync/src/undo.ts");
+  for (const recovery of ["refusal", "update", "saved", "reconcile throws"]) {
+    const seed = await board(4, 4), t = seed.objects[0], mesh = await tableClients(test, seed);
+    const a = await mesh.join(12), b = await mesh.join(30);
+    const ra = rangeAt(t, 0, 0, 1, 1), rb = rangeAt(t, 1, 1, 2, 2);
+    a.edit(t => k.mergeRange(t, ra)); b.edit(t => k.mergeRange(t, rb));
+    const old = b.session.board, events = b.reports.length;
+    assert.equal(mesh.accept(a).kind, "complete");
+    assert.throws(() => capture(b.session.doc), /invalid_document/);
+    assert.deepEqual(b.session.board, old);
+    assert.equal(b.reports.length, events);
+    assert.equal(b.edit(t => t), "join_required");
+    assert.equal(b.session.undo(), "join_required");
+    assert.equal(b.session.redo(), "join_required");
+    assert.equal(b.sent.length, 1);
+    if (recovery === "refusal") {
+      assert.deepEqual(mesh.accept(b), { kind: "refused", reason: "invalid_document" });
+      await new Promise(setImmediate);
+      assert.equal(b.joins, 2);
+    } else {
+      if (recovery === "reconcile throws") b.session.history.observe = () => { throw Error("Cannot reconcile"); };
+      a.edit(t => k.splitMerge(t, ra.from));
+      const split = mesh.accept(a, recovery === "saved" ? { skip: b } : undefined);
+      assert.equal(split.kind, "complete");
+      if (recovery === "reconcile throws") {
+        await new Promise(setImmediate);
+        assert.equal(b.joins, 2);
+        continue;
+      }
+      if (recovery === "update") {
+        assert.equal(b.reports.length, events + 1);
+        assert.equal(b.session.change.origin, "remote");
+        assert.deepEqual(b.session.board.objects[0].merges, k.mergeRange(t, rb).merges);
+      } else assert.equal(b.reports.length, events);
+      assert.equal(mesh.accept(b, recovery === "saved" ? { append: split.update } : undefined).kind, "complete");
+      assert.equal(b.session.change.origin, "own");
+      assert.equal(b.joins, 1);
+    }
+    mesh.converge();
+  }
+});
+
+test("T-U26 hosted Undo restores all replaced merges and texts in one step and refuses a stale split", async test => {
+  const k = await tableRules(), r = await document();
+  for (const largerAnchor of ["same", "different"]) {
+    const seed = await board(4, 4), t = fill(seed.objects[0], k);
+    const oldRange = rangeAt(t, 1, 1, 1, 2), small = k.mergeRange(t, oldRange);
+    const wanted = largerAnchor === "same" ? rangeAt(t, 1, 1, 2, 2) : rangeAt(t, 0, 0, 2, 2);
+    const b = tableStep(seed, small), mesh = await tableClients(test, b), a = await mesh.join(17), z = await mesh.join(18);
+    a.edit(t => k.mergeRange(t, wanted));
+    assert.equal(mesh.accept(a).kind, "complete");
+    const expanded = mesh.server.read();
+    assert.equal(a.session.history.past.length, 1);
+    assert(a.session.requests.has(a.session.undo()));
+    assert.equal(mesh.accept(a).kind, "complete");
+    assert.equal(r.canonical(mesh.server.read()), r.canonical(b));
+    assert(a.session.requests.has(a.session.redo()));
+    assert.equal(mesh.accept(a).kind, "complete");
+    assert.deepEqual(mesh.server.read(), expanded);
+    a.edit(t => k.splitMerge(t, wanted.from)); assert.equal(mesh.accept(a).kind, "complete");
+    z.edit(t => k.setCell(t, wanted.to, "Peer typed here")); assert.equal(mesh.accept(z).kind, "complete");
+    assert.equal(a.session.undo(), "undo_invalid");
+    assert.equal(a.sent.length, 0);
+    mesh.converge();
+  }
+  const seed = await board(3, 4), t = seed.objects[0], at = address(t, 1, 1);
+  const b = tableStep(seed, k.setCell(t, at, "Restore this"));
+  const rewritten = await tableClients(test, b), owner = await rewritten.join(17), editor = await rewritten.join(18);
+  owner.edit(t => k.mergeRange(t, rangeAt(t, 0, 1, 1, 1)));
+  assert.equal(rewritten.accept(owner).kind, "complete");
+  editor.edit(t => k.mergeRange(t, rangeAt(t, 0, 1, 2, 1)));
+  assert.equal(rewritten.accept(editor).kind, "complete");
+  assert.equal(owner.session.undo(), "changed_by_others");
+  assert.equal(owner.sent.length, 0);
+  rewritten.converge();
+
+  const mesh = await tableClients(test, b), a = await mesh.join(15), z = await mesh.join(25);
+  a.edit(t => k.mergeRange(t, rangeAt(t, 0, 1, 1, 1)));
+  assert.equal(mesh.accept(a).kind, "complete");
+  // The other peer can submit a move planned before seeing the merge.
+  const moved = [at.row];
+  z.edit(t => ({ ...t, rows: [t.rows[0], t.rows[2], t.rows[1], t.rows[3]] }), { axis: "row", moved });
+  assert.equal(mesh.accept(z).kind, "complete");
+  z.edit(t => k.mergeRange(t, rangeAt(t, 2, 0, 2, 1)));
+  assert.equal(mesh.accept(z).kind, "complete");
+  const saved = mesh.server.read();
+  assert.equal(a.session.undo(), "changed_by_others");
+  assert.equal(a.sent.length, 0);
+  assert.deepEqual(mesh.server.read(), saved);
+  mesh.converge();
+});
+
+test("T-U27 hosted axis Undo restores row orders, ids and merge entries atomically", async () => {
+  const k = await tableRules(), r = await document(), { SharedUndo, capture } = await import("../packages/board-sync/src/undo.ts");
+  const b = await board(4, 5), t = k.mergeRange(fill(b.objects[0], k), rangeAt(b.objects[0], 1, 0, 2, 1));
+  const base = tableStep(b, t), run = idsAt(t, "row", 1, 2), inserted = uuid(), copies = [uuid(), uuid()];
+  for (const [change, moved] of [
+    [t => k.moveAxis(t, "row", run, 5), run],
+    [t => { let i = 0; return k.duplicateAxis(t, "row", run, () => copies[i++]); }, copies],
+    [t => k.insertAxis(t, "row", inserted, 2), [inserted]],
+    [t => k.deleteAxis(t, "row", t.rows[1].id), undefined],
+  ]) {
+    const a = await shared(base), undo = new SharedUndo();
+    try {
+      const before = capture(a.doc);
+      a.write(b => withTable(b, change), moved ? { table: t.id, axis: "row", moved } : undefined);
+      const after = capture(a.doc); undo.record(before, after);
+      const restored = undo.take(after, "undo");
+      assert.equal(typeof restored, "object", String(restored));
+      a.adapter.set(restored, undefined, undefined, undo.tableHint);
+      assert.equal(r.canonical(a.read()), r.canonical(base));
+      assert.equal(undo.past.length, 0);
+    } finally { a.adapter.destroy(); }
+  }
+});
+
+async function legacyRoom(test, legacy) {
+  const { createHash } = await import("node:crypto"), { Room } = await import("../packages/board-room/src/room.ts");
+  const { NodeStorage } = await import("../apps/server/src/node-storage.ts"), { setMeta } = await import("../packages/board-room/src/storage.ts");
+  const { rebalance } = await import("../packages/board-sync/src/order-keys.ts"), r = await document();
+  const storage = new NodeStorage(":memory:"), id = legacy.boardId, now = 1795676400000;
+  const env = { storage, lifecycle: { lifecycle: async () => ({ state: "active", generation: 0 }) },
+    access: { board: async () => ({ id, title: legacy.title, createdAt: new Date(now).toISOString() }),
+      role: async () => "owner", changes: async () => ({ changes: [], latest: 0, lowestKept: 1 }) },
+    now: () => now, fence: async () => 0, raiseFence: async floor => floor + 1,
+    hash: async data => createHash("sha256").update(data).digest("hex"),
+    randomId: uuid, connections: () => [], schedule: async () => {} };
+  const room = new Room(id, env), old = legacyShared(legacy, rebalance);
+  test.after(() => { room.doc.destroy(); old.destroy(); storage.close(); });
+  await room.create();
+  const prepared = await room.history.prepare(legacy), revision = 0;
+  storage.transaction(() => {
+    storage.exec("DELETE FROM snapshot_chunks");
+    for (const [kind, value] of [["yjs", Y.encodeStateAsUpdate(old)], ["json", prepared.data]]) {
+      for (let offset = 0; offset < value.length; offset += 1048576) storage.exec(
+        "INSERT INTO snapshot_chunks VALUES (?,?,?,?)", revision, kind, offset / 1048576, value.slice(offset, offset + 1048576));
+    }
+    setMeta(storage, "history_capture_sha256", prepared.sha256);
+    setMeta(storage, "history_capture_bytes", prepared.data.length);
+    for (const o of legacy.objects) storage.exec("INSERT INTO identifiers VALUES (?,?,0)", o.id, o.generation);
+  });
+  room.initialized = false; await room.load();
+  return { room, old, storage, r, prepared, person: { id: uuid(), email: "owner@example.test", expiresAt: Number.MAX_SAFE_INTEGER } };
+}
+
+function sizedLegacyTableBoard(r, size) {
+  const b = legacyBoard(17, 3, 50, 20);
+  let remaining = size - r.payloadBytes(JSON.stringify(b));
+  for (const table of b.objects) for (const row of table.rows) for (const column of table.columns) {
+    const at = { row: row.id, column: column.id, text: "" };
+    const overhead = Buffer.byteLength(JSON.stringify(at)) + Number(table.cells.length > 0);
+    if (remaining > overhead + 1) {
+      const added = Math.min(1000, remaining - overhead);
+      table.cells.push({ ...at, text: "x".repeat(added) });
+      remaining -= overhead + added;
+    }
+  }
+  if (remaining > 0) {
+    const first = b.objects[0].cells[0];
+    first.text = "é".repeat(remaining) + first.text.slice(remaining);
+  }
+  assert.equal(r.payloadBytes(r.canonical(b)), size);
+  return b;
+}
+
+test("T-U28 schema 17 table room adds only mergeMap and the version, preserves preview and captures the first merge", async test => {
+  const k = await tableRules(), legacy = legacyBoard(), { room, old, storage, r, prepared, person } = await legacyRoom(test, legacy);
+  assert.equal(room.board.schemaVersion, 18);
+  assert.deepEqual(room.board, r.upgrade(legacy));
+  const delta = Y.decodeUpdate(Y.encodeStateAsUpdate(room.doc, Y.encodeStateVector(old))).structs;
+  assert.equal(delta.length, 2);
+  assert.equal(tableMap(room.doc, legacy.objects[0].id).get("mergeMap").size, 0);
+  assert.equal(storage.all("SELECT * FROM edits").length, 0);
+  const version = room.history.capture(prepared, 0, 0, "checkpoint");
+  assert.deepEqual((await room.history.preview(person, version.id)).document, legacy);
+  await room.history.automatic("last_close");
+  assert.equal(storage.all("SELECT * FROM versions").length, 2);
+  const { evaluate } = await import("../packages/board-room/src/edits.ts"), client = await shared(room.doc);
+  try {
+    const update = client.write(b => withTable(b, t => k.mergeRange(t, rangeAt(t, 0, 0, 1, 1))));
+    const result = evaluate(room.doc, room.board, update, storage);
+    assert.equal(result.kind, "complete");
+    Y.applyUpdate(room.doc, result.update);
+    room.board = result.board; result.doc.destroy();
+    await room.history.automatic("last_close");
+    assert.equal(storage.all("SELECT * FROM versions").length, 3);
+    const { versions: [current], head } = await room.history.list(person);
+    assert.deepEqual((await room.history.preview(person, current.id)).document.objects[0].merges, room.board.objects[0].merges);
+    const restore = await room.restoreVersion(person, version.id, {
+      requestId: uuid(), expectedRevision: head.revision, expectedGeneration: head.generation,
+    });
+    assert.deepEqual(room.board, r.upgrade(legacy));
+    assert.deepEqual((await room.history.preview(person, restore.restoredVersionId)).document, room.board);
+    assert.deepEqual((await room.history.preview(person, version.id)).document, legacy);
+  } finally { client.adapter.destroy(); }
+});
+
+test("T-U29 room upgrade writes the legacy cap snapshot once and enforces the cap again on edits", async test => {
+  const r = await document(), { evaluate } = await import("../packages/board-room/src/edits.ts");
+  const legacy = sizedLegacyTableBoard(r, 2097152), { room, storage } = await legacyRoom(test, legacy);
+  const snapshot = Buffer.concat(storage.all("SELECT bytes FROM snapshot_chunks WHERE kind='json' ORDER BY chunk_index").map(row => row.bytes));
+  assert.equal(r.payloadBytes(snapshot.toString()), 2097152 + 3 * Buffer.byteLength(',"merges":[]'));
+  assert.equal(JSON.parse(snapshot).schemaVersion, 18);
+  assert.throws(() => r.canonical(room.board), /Board too large/);
+  const client = await shared(room.doc);
+  try {
+    const update = client.write(b => ({ ...b, title: b.title + "!" }));
+    assert.deepEqual(evaluate(room.doc, room.board, update, storage), { kind: "refused", reason: "document_too_large" });
+    assert.equal(storage.all("SELECT * FROM edits").length, 0);
+  } finally { client.adapter.destroy(); }
+});
+
+test("T-U30 board files and media-free team imports carry merges byte for byte", async () => {
+  const k = await tableRules(), r = await document();
+  const { readBoardBundle, writeBoardFile } = await import("../apps/web/src/board-file.ts");
+  const { importBoard } = await import("../apps/web/src/team/import.ts");
+  const { digest } = await import("../apps/web/src/storage.ts");
+  let b = await board(3, 3);
+  for (let i = 0; i < 2; i++) b = r.add(b, "table", i * 300, 0);
+  const base = b;
+  b = { ...b, objects: b.objects.map((t, i) => i > 1 ? t : k.mergeRange(fill(t, k),
+    i === 0 ? rangeAt(t, 0, 0, 1, 1) : rangeAt(t, 0, 0, 0, 1))) };
+  const raw = await writeBoardFile(b), normal = JSON.parse(raw), bundle = JSON.parse(normal.payload);
+  const file = raw => new File([raw], "Tables.nextboard");
+  assert.deepEqual(bundle.assets, JSON.parse(JSON.parse(await writeBoardFile(base)).payload).assets);
+  assert.equal(bundle.document, r.canonical(b));
+  const restored = await readBoardBundle(file(raw));
+  assert.deepEqual(restored.board, b);
+  assert.equal(await writeBoardFile(restored.board), raw);
+  const posted = [];
+  await importBoard(file(raw), async input => posted.push(input));
+  assert.deepEqual(posted, [{ document: b, title: b.title }]);
+  const legacy = legacyBoard(), old = await writeBoardFile(legacy);
+  assert.equal(await writeBoardFile(r.upgrade(legacy), (await readBoardBundle(file(old))).board), old);
+  assert.deepEqual((await readBoardBundle(file(await writeBoardFile(r.upgrade(legacy))))).board.objects[0].merges, []);
+  const first = b.objects[0], merge = first.merges[0];
+  for (const bad of [
+    { ...b, schemaVersion: 17 },
+    { ...legacy, schemaVersion: 18 },
+    tableStep(b, { ...first, merges: [merge, { ...merge, ...address(first, 1, 1) }] }),
+    tableStep(b, { ...first, merges: [{ ...merge, columns: 4 }] }),
+    tableStep(b, { ...first, merges: [{ ...merge, columns: 1, rows: 1 }] }),
+    tableStep(b, { ...first, cells: [...first.cells, { ...address(first, 1, 1), text: "covered" }] }),
+  ]) {
+    const payload = JSON.stringify({ document: JSON.stringify(bad), assets: [] });
+    await assert.rejects(readBoardBundle(file(JSON.stringify({ ...normal, payload, sha256: await digest(payload) }))), /it is not a valid board/);
   }
 });

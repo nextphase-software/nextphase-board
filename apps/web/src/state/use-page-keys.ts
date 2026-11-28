@@ -15,6 +15,7 @@ type Input = {
   chooseImages: () => void;
   openExport?: () => boolean;
   openLink?: () => boolean;
+  arranging?: () => boolean;
   command: (name: "Undo" | "Redo" | "Duplicate" | "Delete" | "Cut" | MapCommand) => string | undefined;
   clipboardCommand: (name: ClipboardCommand) => void;
   toggleFormat: (flag: Flag) => void;
@@ -35,10 +36,14 @@ type Input = {
 };
 
 export function usePageKeys({
-  page, voting, chooseImages, openExport, openLink, command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
+  page, voting, chooseImages, openExport, openLink, arranging, command, clipboardCommand, toggleFormat, model, cancel, scene, busy, composing, select,
   setInline, panel, setPanel, templatesButton, objectsButton, boardButton, infoButton, navButton,
 }: Input) {
   function pageKeyDown(e: React.KeyboardEvent<HTMLElement>) {
+    if (arranging?.()) {
+      if (e.key === "Escape") { e.preventDefault(); cancel(); }
+      return;
+    }
     if(voting?.mode&&e.target===scene.current){if(e.key==='Delete'||e.key==='Backspace')e.preventDefault();return;}
     const nativeText = e.target instanceof Element &&
       !!e.target.closest("input,textarea,[contenteditable]:not([contenteditable=false])");

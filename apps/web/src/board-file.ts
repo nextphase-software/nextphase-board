@@ -64,7 +64,7 @@ export async function readBoardBundle(file: { size: number; arrayBuffer: () => P
   }
   let board;
   try { board = JSON.parse(document); } catch { return refuse(FILE_REASONS[3]); }
-  if (Number.isSafeInteger(board?.schemaVersion) && board.schemaVersion > 17) refuse(FILE_REASONS[4]);
+  if (Number.isSafeInteger(board?.schemaVersion) && board.schemaVersion > 18) refuse(FILE_REASONS[4]);
   try { validate(board); if (canonical(board) !== document) refuse(FILE_REASONS[3]); }
   catch { return refuse(FILE_REASONS[3]); }
   const validated = board as Board;

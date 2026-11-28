@@ -45,7 +45,7 @@ unit(1, "selection and whole board use Copy snapshots with normalized sections a
 });
 unit(2, "both validators wrap document 10 and preserve stored objects", async () => {
   const r = await rules(), s = await server(), value = objects(fixture()), before = structuredClone(value);
-  assert.equal(r.templateBoard(value).schemaVersion, 17); validate(r.templateBoard(value));
+  assert.equal(r.templateBoard(value).schemaVersion, 18); validate(r.templateBoard(value));
   assert.deepEqual(s.templateObjects(value).objects, value); assert.deepEqual(value, before);
   assert.equal(s.templateObjects(value).objectCount, value.length);
 });
@@ -144,4 +144,66 @@ unit(12, "controller pending excludes duplicate writes and late replies after cl
   const pending = c.change("save", { name: t.name, description: "" }, undefined, t.objects);
   assert.equal(c.pending, true); assert.equal(await c.change("save", { name: t.name, description: "" }, undefined, t.objects), "failed"); assert.equal(writes, 1);
   c.stop(); resolve(t); await pending; assert.equal(writes, 1);
+});
+
+function legacyTableObjects() {
+  const row = randomUUID(), column = randomUUID();
+  return [{ id: randomUUID(), type: "table", columns: [{ id: column, width: 192 }],
+    rows: [{ id: row, height: 64 }], cells: [], textSize: "medium", group: null, section: null,
+    x: 0, y: 0, width: 192, height: 64 }];
+}
+
+test("0011-W3 template save and Add remap anchors and a mixed catalogue upgrades only legacy tables", async () => {
+  const r = await rules(), s = await server();
+  const k = await import("../packages/board-rules/src/objects/table.ts");
+  const b = add(empty(), "table", 0, 0), t = b.objects[0], from = k.cellAt(t, 0, 0), to = k.cellAt(t, 1, 1);
+  const merged = { ...b, objects: [k.mergeRange(k.setCell(t, from, "Template anchor"), { from, to })] };
+  const { snapshot } = r.templateSnapshot(merged, new Set(), drawn(merged));
+  const value = s.templateObjects(snapshot.objects).objects;
+  const old = response(legacyTableObjects()), saved = response(value), ordinary = response();
+  const oldObject = old.objects[0], normalized = r.legacyTemplateObjects([null, 42, oldObject, value[0], ordinary.objects[0]]);
+  assert.deepEqual(normalized[2], { ...oldObject, merges: [] });
+  assert.equal(normalized[3], value[0]);
+  assert.equal(normalized[4], ordinary.objects[0]);
+  assert.equal(r.legacyTemplateObjects(null), null);
+  const list = r.parseTemplates({ templates: [old, saved, ordinary], limit: 25, canSave: true }).templates;
+  assert.equal(list.length, 3);
+  assert.deepEqual(list.find(template => template.id === old.id).objects[0].merges, []);
+  assert.equal(Object.hasOwn(oldObject, "merges"), false);
+  const template = r.templateBoard(list.find(template => template.id === saved.id).objects);
+  const { board } = insertActivity(b, template, { x: 0, y: 0, z: 1 }, { w: 1440, h: 900 });
+  const copy = board.objects[1];
+  assert.notEqual(copy.id, t.id);
+  assert.notEqual(copy.rows[0].id, from.row);
+  assert.notEqual(copy.columns[0].id, from.column);
+  assert.deepEqual(copy.merges, [{ ...k.cellAt(copy, 0, 0), rows: 2, columns: 2 }]);
+  assert.equal(k.cellText(copy, copy.merges[0]), "Template anchor");
+  assert.throws(() => r.templateBoard(old.objects), /Invalid object/);
+  assert.throws(() => s.templateObjects(old.objects), e => e.status === 400);
+  const bad = [{ ...value[0], merges: [...value[0].merges, ...value[0].merges] }];
+  assert.throws(() => r.parseTemplate(response(bad)), /Invalid object/);
+  assert.throws(() => s.templateObjects(bad), e => e.status === 400);
+});
+
+test("0011-W3 legacy template at the stored byte cap lists and previews but strict Add and write refuse", async () => {
+  const r = await rules(), s = await server(), target = r.TEMPLATE_BYTES;
+  const value = sized(target), [legacy] = legacyTableObjects();
+  value[0] = legacy;
+  let remaining = target - r.contentBytes(value);
+  for (const item of value.slice(1)) {
+    if (!remaining) break;
+    if (remaining > 0) {
+      const n = Math.min(1000 - item.text.length, remaining);
+      item.text += "x".repeat(n); remaining -= n;
+    } else {
+      const n = Math.min(item.text.length, -remaining);
+      item.text = item.text.slice(n); remaining += n;
+    }
+  }
+  assert.equal(r.contentBytes(value), target);
+  const { templates: [read] } = r.parseTemplates({ templates: [response(value)], limit: 25, canSave: true });
+  assert.equal(r.contentBytes(read.objects), target + 12);
+  assert.deepEqual(r.templateBoard(read.objects, true).objects[0].merges, []);
+  assert.throws(() => r.templateBoard(read.objects), /This is too large for a template/);
+  assert.throws(() => s.templateObjects(read.objects), e => e.status === 413 && e.message === "template_too_large");
 });

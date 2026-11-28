@@ -87,7 +87,7 @@ export function TemplatesSection({ hosted, commands, disabled }: { hosted: Hoste
       : <div className="template-cards">{controller.templates.map(template => {
         const by = `By ${template.creatorLabel} · from ${template.sourceTitle}`;
         return <article className={"template-card" + (controller.newId === template.id ? " team-template-new" : "")} key={template.id}>
-          <div className="template-preview"><PreviewImage preview={activityPreview(templateBoard(template.objects).objects)} />
+          <div className="template-preview"><PreviewImage preview={activityPreview(templateBoard(template.objects, true).objects)} />
             <button className="add-template primary" aria-label={"Add template: " + template.name} disabled={disabled || adds.adding}
               onClick={() => { void controller.add(template, hosted, commands); }}>Add template</button>
             {template.canManage && <button className="team-template-more" data-template={template.id}

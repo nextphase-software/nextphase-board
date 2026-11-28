@@ -449,3 +449,88 @@ A2: web modules v52's held-session recovery and the brief's T-U16 split-Undo cod
 A3: legacy byte cap on writes, snapshots.ts upgrade path, drop line inside merges, held-session wording, canDuplicate order, test file list, move receipt wording (planner amendment)
 
 A4: comments and mentions fixtures given valid titles (test-only; capture() validates)
+
+### 2026-11-27 implementation
+
+Branch `codex/0011-W3-arrange-table-cells`. Validated source and tests
+`54a7d07886e593e532c11877f1fa4dfd3d551be9`. Prerequisite base `d98458553a2dc5c98afab9688ae7ec8f76a70697`
+and independent behaviour baseline `8fd36fb3ddcb5d755878eeff8a532493cf3a0801`.
+Node 26.13.0, npm 11.20.0 and Wrangler 4.156.0. Added dependencies, service
+migrations and import exceptions: none.
+
+| Check | Command and result | Start–end (UTC, 2026-11-28) |
+| --- | --- | --- |
+| V1 | PASS. Byte-compared the six package manifests, `package-lock.json`, five dependency locks, five dependency inventories and three runtime notices against the prerequisite base using `git ls-tree`, `git show` and byte equality. All 20 matched. | |
+| V2 | PASS. `npm ci --ignore-scripts --no-audit --no-fund` added 118 packages on the clean candidate and 118 on the independent baseline. | Candidate 03:09:01–03:09:02. Baseline 03:09:02–03:09:08. |
+| V3 | PASS. `npm run typecheck` passed across all five workspaces. | 03:09:02–03:09:05 |
+| V4 | PASS. `npm test` passed 1,543 of 1,543 checks, 0 failed and 0 skipped. Includes T-U16–T-U30 (15), X12-W00–X12-W13 (14), seven named document, storage, CSV and team-template checks, and the App wiring and effect guards. | 03:09:02–03:09:11 |
+| V5 | PASS. `BOARD_TEAM_FEATURES=off npm run build`, `npm run audit:licenses` and `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v1.txt`. One team-off build and one notice match. | 03:09:02–03:09:03 |
+| V6 | PASS. `npm run build:fixtures`, `BOARD_TEAM_FEATURES=on npm run build` with synthetic loopback settings, `npm run audit:licenses` and `cmp apps/web/dist/THIRD_PARTY_NOTICES.txt docs/architecture/0001-runtime-notices-v3.txt`. Two builds and one notice match. | 03:09:03–03:09:05 |
+| V7 | PASS. `npm run build:server`, `npm run audit:licenses` and `WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=<scratch-log> npx wrangler deploy --dry-run --outdir <scratch-dir> -c apps/server/wrangler.json`. Node and Worker bundles, notices, and one clean dry run. | Builds and audit 03:09:05–03:09:06. Dry runs 03:09:06–03:09:08 and 03:10:01–03:10:01. |
+| V8 | PASS. Inspected the hunks and ran `git diff --name-status d984585..54a7d07` and `git diff --check d984585..54a7d07`. The 79 paths comprise 74 implementation files (five new) and five amendment files. Reconstructed App.tsx from the nine substitutions (264 newlines) and style.css from the seventeen rules at the specified insertion point. Compared both files and both guide rows byte for byte. No path under `supabase/` and no new rules file. | |
+
+Team-on build settings were `BOARD_SUPABASE_URL=http://127.0.0.1:55321`,
+`BOARD_SUPABASE_ANON_KEY=synthetic` and `BOARD_SERVER_URL=http://127.0.0.1:8796`.
+`pmset -g log` recorded no sleep or wake events during the validation window.
+The first Wrangler dry run exited 0 with a debug-log permission error. It
+completed cleanly with `WRANGLER_LOG_PATH` set to a writable scratch file.
+Public boundary hooks passed. Git reported a sandbox permission error when
+background housekeeping attempted to lock packed refs. The commits succeeded.
+
+S480 and S481 are in `tests/server/tables.test.ts`. The file passed an esbuild
+syntax check. `npm run test:server:node` and `npm run test:server:workerd` were
+unrun because this sandbox cannot start the local Supabase stack. V9 belongs to
+the Checks workflow and server-only run. V10–V14, including browser scenarios,
+design receipts and the baseline-negative comparison, belong to the independent
+check run and were unrun. The approved mock-up was read before implementing
+the browser changes. There are no open escalations after A1–A4.
+
+#### Existing test lines changed
+
+Line numbers refer to the behaviour baseline. These are existing lines changed
+under the dispositions. New test bodies, guard additions and the README entry
+are listed in the file inventory.
+
+- `tests/board-catalog.test.mjs` 235, 322
+- `tests/board-file.test.mjs` 56, 79, 139
+- `tests/comments.test.mjs` 156
+- `tests/connector-styles.test.mjs` 45, 84, 478, 539
+- `tests/connectors.test.mjs` 37
+- `tests/document.test.mjs` 43, 117, 132, 135, 246, 293, 375
+- `tests/find.test.mjs` 227
+- `tests/images.test.mjs` 27, 56
+- `tests/link-cards.test.mjs` 255
+- `tests/mentions.test.mjs` 82
+- `tests/mind-map.test.mjs` 66, 70, 74
+- `tests/modules.test.mjs` 119, 254, 610, 611
+- `tests/pages.test.mjs` 26, 57, 205, 209, 214, 315
+- `tests/room-imports.test.mjs` 106
+- `tests/room-videos.test.mjs` 163, 166
+- `tests/room.test.mjs` 248
+- `tests/server/drawing-layout.test.ts` 96, 97, 102, 133, 137, 144
+- `tests/server/mind-maps.test.ts` 105, 107, 114, 122, 189, 213
+- `tests/server/pages.test.ts` 91, 99, 102, 129
+- `tests/server/shared.test.ts` 996
+- `tests/server/tables.test.ts` 115, 118, 122, 322, 328, 353
+- `tests/server/text-links.test.ts` 87, 142
+- `tests/shapes.test.mjs` 39
+- `tests/storage.test.mjs` 92, 116, 132
+- `tests/strokes.test.mjs` 32, 96
+- `tests/tables.test.mjs` 34, 48, 381, 408, 410, 413
+- `tests/team-import.test.mjs` 84
+- `tests/team-templates.test.mjs` 48
+- `tests/text-link-rules.test.mjs` 124, 125, 164, 182, 209, 245, 259, 260
+- `tests/video.test.mjs` 91, 102
+
+#### Files changed
+
+Paths are relative to the directory named on each line. New files are marked.
+
+- `apps/server/src/` — `routes/boards.ts`, `templates.ts`
+- `apps/web/` — `src/App.tsx`, `src/board-file.ts`, `src/context-bar-position.ts`, `src/gesture.ts`, `src/icons.tsx`, `src/scene/board-drawing.tsx`, `src/scene/table-body.tsx`, `src/scene/table-buttons.tsx`, `src/state/use-board-document.ts`, `src/state/use-canvas-input.ts`, `src/state/use-editing-commands.ts`, `src/state/use-geometry-edits.ts`, `src/state/use-hosted-board.ts`, `src/state/use-page-keys.ts`, `src/state/use-selection.ts`, `src/state/use-table-arrange.ts` (new), `src/storage.ts`, `src/table-arrange.ts` (new), `src/table-selection.ts` (new), `src/table.ts`, `src/team/templates-rules.ts`, `src/team/templates-section.tsx`, `src/ui/context-bar.tsx`, `src/ui/table-controls.tsx`, `src/ui/table-menu.tsx` (new), `style.css`
+- `docs/` — `architecture/0001-document-v24.md`, `architecture/0001-interaction-v54.md`, `architecture/0001-web-modules-v52.md`, `architecture/0003-sync-v20.md`, `briefs/0011-W3-arrange-table-cells.md`, `guides/try-board.md`
+- `packages/board-room/src/` — `conflicts.ts`, `edits.ts`, `history.ts`, `room.ts`, `snapshots.ts`
+- `packages/board-rules/src/` — `document.ts`, `objects/registry.ts`, `objects/table.ts`
+- `packages/board-sync/src/` — `codec.ts`, `document-adapter.ts`, `session.ts`, `undo.ts`
+- `tests/` — `README.md`, `board-catalog.test.mjs`, `board-file.test.mjs`, `comments.test.mjs`, `connector-styles.test.mjs`, `connectors.test.mjs`, `document.test.mjs`, `find.test.mjs`, `images.test.mjs`, `link-cards.test.mjs`, `mentions.test.mjs`, `mind-map.test.mjs`, `modules.test.mjs`, `pages.test.mjs`, `room-imports.test.mjs`, `room-videos.test.mjs`, `room.test.mjs`, `shapes.test.mjs`, `storage.test.mjs`, `strokes.test.mjs`, `table-arrange.test.mjs` (new), `table-csv.test.mjs`, `tables.test.mjs`, `team-import.test.mjs`, `team-templates.test.mjs`, `text-link-rules.test.mjs`, `video.test.mjs`
+- `tests/server/` — `drawing-layout.test.ts`, `mind-maps.test.ts`, `pages.test.ts`, `shared.test.ts`, `tables.test.ts`, `text-links.test.ts`

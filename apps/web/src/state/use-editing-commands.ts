@@ -29,7 +29,7 @@ import type { TableItem } from "nextphase-board-rules/document.ts";
 import type { TableOrderHint } from "nextphase-board-sync/document-adapter.ts";
 import { anchorCell, boundTable, growTable, layoutTable, tableReason, type MeasureCell, type TableAction, type TableSelection } from "../table";
 import { arrangeTable } from "../table-arrange";
-import { keepSelection } from "../table-selection";
+import { chosenIds, keepSelection } from "../table-selection";
 import { addTableData, isCanvasPasteTarget, isCsvFile, isSpreadsheetData, readCsvFile, readSpreadsheet, tableCsv, tableCsvName,
   type TableDataAnchor, type TableDataItem } from "../table-csv";
 
@@ -431,7 +431,7 @@ export function useEditingCommands({
       } catch (error) { setMessage(String(error)); }
       return;
     }
-    const anchor = anchorCell(t, tableSelection), index = cellIndex(t, anchor);
+    const anchor = anchorCell(t, tableSelection);
     let next = t, nextCell = anchor, hint: TableOrderHint | undefined;
     if (action.at === "clear") {
       if (!cellText(t, anchor)) return;
@@ -441,7 +441,10 @@ export function useEditingCommands({
       const reason = tableReason(t, axis, deleting ? "delete" : "add");
       if (reason) { setMessage(reason); return; }
       if (deleting) {
-        next = deleteAxis(t, axis, anchor[axis]);
+        const [id] = chosenIds(t, tableSelection, axis);
+        if (!id) return;
+        const index = cellIndex(t, { ...anchor, [axis]: id });
+        next = deleteAxis(t, axis, id);
         nextCell = cellAt(next, Math.min(index.row, next.rows.length - 1), Math.min(index.column, next.columns.length - 1))!;
       } else {
         const id = crypto.randomUUID();

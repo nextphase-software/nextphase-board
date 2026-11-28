@@ -56,7 +56,7 @@ export function TableButtons({ object, selection, editing, busy, readOnly, zoom,
       }}>
       {grab ? <><span className="table-grip" aria-hidden="true">{b.selected && <svg width="6" height="10" viewBox="0 0 6 10" fill="white">
         {[0, 4, 8].flatMap(y => [0, 4].map(x => <rect key={x + ":" + y} x={x} y={y} width="2" height="2" />))}
-      </svg>}</span><span className="mind-map-tip">{name}</span></> :
+      </svg>}</span>{!arrange?.dragging && <span className="mind-map-tip">{name}</span>}</> :
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#1665d8" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M7 2.8v8.4M2.8 7h8.4" /></svg>}
     </button>;
   });

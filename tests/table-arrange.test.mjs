@@ -670,3 +670,109 @@ test("X12-W13 App keeps nine wiring substitutions and CSS preserves the link rul
   assert(rules.includes(".scene > .table-insert:disabled { opacity: .45; cursor: not-allowed; }"));
   assert(css.endsWith(".inline textarea.link-open:focus + .link-selection { visibility: hidden; }\n"));
 });
+
+test("X12-W14 single-axis commands use the selected row or column through a merge", async () => {
+  const { useEditingCommands, render } = await harness(`
+    export { useEditingCommands } from "./state/use-editing-commands.ts";
+    export { render } from "react";
+  `, { state: true });
+  const { mergeRange, setCell, cellText } = await rules();
+  const { tableKey } = await web(), { axisMenu } = await arrangeRules();
+  const { board, table } = await fixture();
+  const anchor = address(table), text = "Ship CSV import";
+  const filled = setCell(table, anchor, text);
+  const merged = mergeRange(filled, span(table, 0, 0, 1, 1));
+  const noop = () => {};
+  function run(t, selection, action) {
+    const model = { current: { ...board, objects: [t] } }, commits = [];
+    const commands = render([], () => useEditingCommands({
+      model, tableSelection: selection, selected: new Set([t.id]), displayedObjects: [t], clipboardState: {}, editingState: {},
+      scene: { current: { focus: noop } }, finishTextSession: noop, chooseTable: noop,
+      setMessage: assert.fail, commit(next, record) {
+        assert.equal(record, true);
+        commits.push(next.objects[0]);
+        return model.current = next;
+      },
+    }));
+    commands.tableAction(action);
+    return commits;
+  }
+  for (const axis of ["row", "column"]) {
+    const rows = axis === "row", entries = rows ? "rows" : "columns";
+    const select = rows ? selectRow : selectColumn;
+    const original = merged[entries].map(entry => entry.id);
+    const menuFor = (t, selection) => axisMenu(t, selection, axis, true, 16).items;
+    const addKeys = rows
+      ? [key("Enter", { altKey: true, shiftKey: true }), key("Enter", { altKey: true })]
+      : [key("[", { code: "BracketLeft", altKey: true }), key("]", { code: "BracketRight", altKey: true })];
+    for (const index of [0, 1]) {
+      const selection = select(merged, index), menu = menuFor(merged, selection);
+      const item = (at, by) => menu.find(item => item.action.at === at && item.action.by === by);
+      const actionFor = e => tableKey(merged, selection, e, false, false, false).action;
+      const remove = item("delete");
+      assert.equal(remove.disabled, false);
+      assert.deepEqual(actionFor(key("Delete")), remove.action);
+      const removed = run(merged, selection, remove.action);
+      assert.equal(removed.length, 1);
+      const [afterDelete] = removed;
+      assert.deepEqual(afterDelete[entries].map(entry => entry.id), original.filter((_, i) => i !== index));
+      assert.deepEqual(afterDelete.merges, [{ ...merged.merges[0], [axis]: original[1 - index], [entries]: 1 }]);
+      assert.equal(cellText(afterDelete, afterDelete.merges[0]), index === 0 ? "" : text);
+
+      const previous = item("move", -1), following = item("move", 1), duplicate = item("duplicate");
+      assert.equal(previous.reason, index === 0 ? `Already the first ${axis}` : "A merged cell is in the way");
+      assert.equal(following.reason, "A merged cell is in the way");
+      assert.equal(duplicate.reason, "A merged cell is in the way");
+      assert.deepEqual(actionFor(key("d", { metaKey: true })), duplicate.action);
+      for (const { action, disabled } of [previous, following, duplicate]) {
+        assert(disabled);
+        assert.deepEqual(run(merged, selection, action), []);
+      }
+      for (const [offset, at] of ["before", "after"].entries()) {
+        const add = item(at), gap = index + offset;
+        assert.equal(add.disabled, false);
+        assert.deepEqual(actionFor(addKeys[offset]), add.action);
+        const added = run(merged, selection, add.action);
+        assert.equal(added.length, 1);
+        const [afterAdd] = added;
+        const newOrder = afterAdd[entries].map(entry => entry.id);
+        assert(!original.includes(newOrder[gap]));
+        assert.deepEqual(newOrder.toSpliced(gap, 1), original);
+        assert.deepEqual(afterAdd.merges, [{ ...merged.merges[0], [entries]: gap === 1 ? 3 : 2 }]);
+        assert.equal(cellText(afterAdd, anchor), text);
+      }
+    }
+    const contained = mergeRange(filled, span(table, 0, 0, rows ? 0 : 1, rows ? 1 : 0));
+    const selection = select(contained), menu = menuFor(contained, selection);
+    const move = menu.find(item => item.action.at === "move" && item.action.by === 1);
+    const duplicate = menu.find(item => item.action.at === "duplicate");
+    assert(!move.disabled && !duplicate.disabled);
+    const [moved] = run(contained, selection, move.action);
+    assert.deepEqual(moved[entries].map(entry => entry.id), [original[1], original[0], ...original.slice(2)]);
+    assert.deepEqual(moved.merges, contained.merges);
+    const [copied] = run(contained, selection, duplicate.action);
+    assert.deepEqual(copied.merges, [contained.merges[0], { ...contained.merges[0], [axis]: copied[entries][1].id }]);
+    assert.equal(cellText(copied, copied.merges[1]), text);
+  }
+});
+
+test("X12-W15 dragging hides both grabber tooltips without changing the buttons' keys or names", async () => {
+  const { TableButtons } = await harness('export { TableButtons } from "./scene/table-buttons.tsx";');
+  const { chooseAxis } = await selectionRules(), { layoutTable } = await web(), { table: t } = await fixture();
+  const noop = () => {}, object = { ...t, tableLayout: layoutTable(t, measure) };
+  for (const axis of ["row", "column"]) {
+    const select = axis === "row" ? selectRow : selectColumn;
+    const [id, end] = ids(t, axis, 0, 1), selection = chooseAxis(t, select(t), axis, end, "range");
+    const arrange = { hover: {}, press: noop, move: noop, release: noop, lost: noop, key: noop, click: noop, insert: noop };
+    const props = { object, selection, zoom: 1, pos: noop, action: noop, select: noop, focus: noop };
+    const buttons = (opts) => TableButtons({ ...props, ...opts }).props.children.filter(node => node.props["aria-pressed"]);
+    const idle = buttons({ arrange });
+    const moving = buttons({ busy: true, arrange: { ...arrange, dragging: { axis, id } } });
+    const identities = nodes => nodes.map(node => [node.key, node.props["aria-label"]]);
+    const hasTip = node => node.props.children.props.children.some(child => child?.props?.className === "mind-map-tip");
+    assert.equal(idle.length, 2);
+    assert.deepEqual(identities(moving), identities(idle));
+    assert(idle.every(hasTip));
+    assert(!moving.some(hasTip));
+  }
+});

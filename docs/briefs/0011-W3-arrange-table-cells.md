@@ -441,3 +441,5 @@ specifications. No unresolved product decision is delegated to implementation.
 ## Implementation record
 
 Append-only. The implementer adds dated sections here.
+
+A1: web modules v52's disabled insert dot opacity corrected from .4 to .45 to match interaction v54 AT9 (planner amendment)

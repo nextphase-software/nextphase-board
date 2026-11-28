@@ -291,7 +291,7 @@ untouched.
 .scene > .table-insert { position: absolute; transform: translate(-50%, -50%); display: grid; place-items: center; width: 24px; height: 24px; min-width: 24px; min-height: 24px; margin: 0; padding: 0; border: 0; border-radius: 12px; background: transparent; pointer-events: auto; cursor: pointer; }
 .scene > .table-insert:hover:not(:disabled), .scene > .table-insert:active:not(:disabled) { background: transparent; }
 .scene > .table-insert:focus-visible { outline: 2px solid #518de0; outline-offset: 2px; }
-.scene > .table-insert:disabled { opacity: .4; cursor: not-allowed; }
+.scene > .table-insert:disabled { opacity: .45; cursor: not-allowed; }
 .table-insert-dot { display: grid; place-items: center; width: 8px; height: 8px; border-radius: 4px; background: #8fbdf5; }
 .table-insert-dot svg { display: none; }
 .table-insert:hover:not(:disabled) .table-insert-dot, .table-insert:active:not(:disabled) .table-insert-dot, .table-insert:focus-visible:not(:disabled) .table-insert-dot { width: 18px; height: 18px; border-radius: 9px; background: #518de0; box-shadow: 0 1px 3px rgba(20,18,26,.25); }
@@ -312,7 +312,7 @@ main.table-dragging, main.table-dragging * { cursor: grabbing !important; }
 | `.scene > .table-insert` | the shared `button` rule's `min-width: 40px; min-height: 40px`, border, padding and white background | 0,2,0 > 0,0,1 |
 | `.scene > .table-insert:hover:not(:disabled)` | the shared `button:hover:not(:disabled):not([aria-disabled=true])` `#f1eff5` | 0,4,0 > 0,3,1 |
 | `.scene > .table-insert:focus-visible` | the shared `button:focus-visible` ring (3 px `#7051cf`), as the grabbers' rule does | 0,3,0 > 0,1,1 |
-| `.scene > .table-insert:disabled` | the shared `button:disabled` opacity (0.45) and the button cursor: a disabled dot is 40 % opaque with a `not-allowed` cursor and keeps the 8 × 8 look | 0,3,0 > 0,1,1 |
+| `.scene > .table-insert:disabled` | the shared `button:disabled` opacity (0.45) and the button cursor: a disabled dot is 45 % opaque with a `not-allowed` cursor and keeps the 8 × 8 look | 0,3,0 > 0,1,1 |
 | `main.table-dragging, main.table-dragging *` | every cursor on the page while a grabber drag runs (AT11), the scene's inline `cursor` style included, hence `!important` | 0,1,1 / 0,1,0 with `!important` |
 | `.table-insert-row .tooltip`, `.table-insert-column .tooltip` | the shared `.tooltip` placement (above, centred) | 0,2,0 > 0,1,0 |
 | `.table-insert:hover .tooltip` | the shared `.tooltip`'s `visibility: hidden` (the dot is not an `.icon-button`); a disabled dot shows its reason (AT9) | 0,3,0 > 0,1,0 |

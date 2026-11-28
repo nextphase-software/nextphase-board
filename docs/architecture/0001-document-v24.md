@@ -511,9 +511,11 @@ overlaps and strictly inside are those of **Terms**. A changed table's `width` a
   the new order is the entries below index `toIndex` that are not in the run, then the run, then the remaining entries.
   `cells` and `merges` are unchanged: they name ids, and the refusals keep every merge's covered rows (columns)
   consecutive with its anchor first. The entry count, `width` and `height` are unchanged.
-- **`canDuplicate(t, axis: TableAxis, ids: string[]): TableRefusal | null`**, in this order: `"invalid"` as for
-  `canMove` (without `toIndex`); `"notRun"`; `"limit"` when the axis's entry count plus the run's length is above
-  `MAX_ROWS` (50) or `MAX_COLUMNS` (20); `"merge"` when a merge partly overlaps the run on that axis; otherwise `null`.
+- **`canDuplicate(t, axis: TableAxis, ids: string[]): TableRefusal | null`**: the caller first checks the
+  board-wide cell limit (5,000), using the number of entries requested even if they do not form a run. After that,
+  `canDuplicate` checks in this order: `"invalid"` as for `canMove` (without `toIndex`); `"limit"` when the
+  axis's entry count plus the number of entries requested is above `MAX_ROWS` (50) or `MAX_COLUMNS` (20);
+  `"notRun"`; `"merge"` when a merge partly overlaps the run on that axis; otherwise `null`.
 - **`duplicateAxis(t, axis, ids, newId: () => string = () => crypto.randomUUID())`**: refused when `canDuplicate` is
   not `null`, or when an id `newId` returns is not a lowercase UUID (`TABLE_ID`), is already a row or column id of `t`,
   or repeats one it returned before in the same call. `newId` is called once for each entry of the run, in the run's

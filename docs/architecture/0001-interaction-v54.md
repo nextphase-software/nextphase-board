@@ -374,10 +374,11 @@ inside a merge's span grows that merge by the new row (document v24). Focus retu
 column or run by **one place**: to the gap one place up, down, left or right (AT6), when the item is enabled. Rows
 keep their ids, set heights, cells' texts and every merge wholly inside the run; no other cell's text moves. From a
 Row, Column, Rows or Columns bar the moved rows or columns stay selected (the same kind); from a Cell bar's menu the
-**cell** stays selected and moves with its row or column. One Undo step; announcement AT18. On team boards a move of
-a **fully initialised** table (every live row and column pair has a text and no orphan text is live) whose keys need
-no fallback (no tie and no rebalance) writes exactly one order key per moved row or column; otherwise the same update
-also carries sync v20's fallback keys and sync v15's cleanup of that table.
+**cell** stays selected and moves with its row or column. One Undo step; announcement AT18. On team boards:
+
+> On a fully initialized table (every live row and column pair has a text and no orphan text is live) whose stationary order keys are strictly increasing and where a key fits between each moved id's new neighbours, a move's update writes exactly one `order` per moved row or column and nothing else.
+
+Otherwise the same update also carries sync v20's fallback keys and sync v15's cleanup of that table.
 
 ### AT11 — Moving by drag
 

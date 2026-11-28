@@ -536,3 +536,26 @@ Paths are relative to the directory named on each line. New files are marked.
 - `packages/board-sync/src/` — `codec.ts`, `document-adapter.ts`, `session.ts`, `undo.ts`
 - `tests/` — `README.md`, `board-catalog.test.mjs`, `board-file.test.mjs`, `comments.test.mjs`, `connector-styles.test.mjs`, `connectors.test.mjs`, `document.test.mjs`, `find.test.mjs`, `images.test.mjs`, `link-cards.test.mjs`, `mentions.test.mjs`, `mind-map.test.mjs`, `modules.test.mjs`, `pages.test.mjs`, `room-imports.test.mjs`, `room-videos.test.mjs`, `room.test.mjs`, `shapes.test.mjs`, `storage.test.mjs`, `strokes.test.mjs`, `table-arrange.test.mjs` (new), `table-csv.test.mjs`, `tables.test.mjs`, `team-import.test.mjs`, `team-templates.test.mjs`, `text-link-rules.test.mjs`, `video.test.mjs`
 - `tests/server/` — `drawing-layout.test.ts`, `mind-maps.test.ts`, `pages.test.ts`, `shared.test.ts`, `tables.test.ts`, `text-links.test.ts`
+
+### 2026-11-27 fix round 1
+
+- R1 — Single-axis Delete uses the selected row or column id and keeps the merge's anchor text when the removed axis entry is covered. X12-W14 exercises Delete, menu moves, Duplicate and Add, including keyboard paths and the merge-cut refusals on both axes.
+- R2 — Grabber tooltips are omitted during a drag. X12-W15 checks both axes and the moving buttons' stable keys and accessible names.
+- D1 — The Design and V11 notes describe the shared gesture chrome seen on screen 6. The N3-S8 disposition accepts resize highlights that cover the visible border segments.
+
+Product and tests `af9abe5216db67f3144d60a09e56d92bbb2f21a4`. Validated
+candidate with dispositions `7bf7bc4446d6e35df2dd3f18f3bb9b0ce63c732b`
+on `codex/0011-W3-arrange-table-cells`, using Node 26.13.0 and npm 11.20.0.
+There are no new dependencies or open escalations.
+
+| Check | Command and result | Start–end (UTC, 2026-11-28) |
+| --- | --- | --- |
+| V3 | `npm run typecheck` passed in all five workspaces. | 04:10:15–04:10:18 |
+| V4 | `npm test` passed 1,545 of 1,545 checks, with zero failures and zero skips. All 16 X12-W checks passed. | 04:10:15–04:10:24 |
+| V5 | `BOARD_TEAM_FEATURES=off npm run build`, `npm run audit:licenses` and `cmp` passed. One build, with notices matching v1. | 04:10:15–04:10:16 |
+| V6 | `npm run build:fixtures`, `BOARD_TEAM_FEATURES=on npm run build` with the original synthetic settings, `npm run audit:licenses` and `cmp` passed. Two builds, with team-on notices matching v3. | 04:10:16–04:10:18 |
+| V7 | `npm run build:server`, `npm run audit:licenses` and `WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=<scratch-log> npx wrangler deploy --dry-run --outdir <scratch-dir> -c apps/server/wrangler.json` passed. Two server bundles and one dry run. | 04:10:18–04:10:20 |
+| V8 | `git diff --name-status` and `git diff --check` passed for the full milestone and fix round. The round changes four files. The full milestone's 79 paths, App wiring, CSS block, guide rows and file and effect guards match their contracts. | |
+
+No sleep or wake events were recorded during validation. Server suites and
+independent browser checks were unrun in this implementation sandbox.
